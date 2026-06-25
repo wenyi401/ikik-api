@@ -382,7 +382,7 @@ func (s *ShopService) writeOrderFileCardArchive(ctx context.Context, orderID int
 			Name:   name,
 			Method: zip.Deflate,
 		}
-		header.SetModTime(time.Now())
+		header.Modified = time.Now()
 		writer, err := zw.CreateHeader(header)
 		if err != nil {
 			_ = body.Close()

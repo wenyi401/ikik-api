@@ -429,7 +429,7 @@ func (s *UsageService) countPublicUsageErrors(ctx context.Context, startTime, en
 	if err != nil {
 		return 0, fmt.Errorf("count public usage errors: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var count int64
 	if rows.Next() {
@@ -457,7 +457,7 @@ func (s *UsageService) tableColumnExists(ctx context.Context, tableName, columnN
 	if err != nil {
 		return false, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var exists bool
 	if rows.Next() {

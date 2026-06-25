@@ -576,7 +576,7 @@ func (s *ShopService) createBalanceOrder(ctx context.Context, req ShopCreateOrde
 	if err != nil {
 		return nil, err
 	}
-	delivered := []string{}
+	var delivered []string
 	if drawReward != nil {
 		order, err = tx.ShopOrder.UpdateOneID(order.ID).
 			SetDrawRewardAmount(drawReward.Amount).
@@ -685,7 +685,7 @@ func (s *ShopService) createPointsOrder(ctx context.Context, req ShopCreateOrder
 	if err != nil {
 		return nil, err
 	}
-	delivered := []string{}
+	var delivered []string
 	if drawReward != nil {
 		order, err = tx.ShopOrder.UpdateOneID(order.ID).
 			SetDrawRewardAmount(drawReward.Amount).

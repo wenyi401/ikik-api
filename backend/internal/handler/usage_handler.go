@@ -518,14 +518,14 @@ func parseAccountSharingPagination(c *gin.Context) (page, pageSize int, err erro
 	if raw := strings.TrimSpace(c.Query("account_page")); raw != "" {
 		page, err = strconv.Atoi(raw)
 		if err != nil || page < 1 {
-			return 0, 0, fmt.Errorf("Invalid account_page")
+			return 0, 0, fmt.Errorf("invalid account_page")
 		}
 	}
 
 	if raw := strings.TrimSpace(c.Query("account_page_size")); raw != "" {
 		pageSize, err = strconv.Atoi(raw)
 		if err != nil || pageSize < 1 || pageSize > 100 {
-			return 0, 0, fmt.Errorf("Invalid account_page_size, use 1-100")
+			return 0, 0, fmt.Errorf("invalid account_page_size, use 1-100")
 		}
 	}
 

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"math"
 	"testing"
 	"time"
@@ -140,7 +141,7 @@ func TestAttachCarpoolMemberUsageWindowsUsesMemberScopedUsage(t *testing.T) {
 	}
 
 	service.attachCarpoolMemberUsageWindows(
-		nil,
+		context.Background(),
 		&CarpoolPool{ID: 12, TargetSeats: 3},
 		[]CarpoolPoolAccount{{PoolID: 12, AccountID: 6459}},
 		profiles,

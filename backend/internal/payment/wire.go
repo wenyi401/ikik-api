@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/google/wire"
 	dbent "ikik-api/ent"
 	"ikik-api/internal/config"
-	"github.com/google/wire"
 )
 
 // EncryptionKey is a named type for the payment encryption key (AES-256, 32 bytes).

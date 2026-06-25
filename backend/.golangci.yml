@@ -9,7 +9,6 @@ linters:
     - govet
     - ineffassign
     - staticcheck
-    - unused
 
   settings:
     depguard:
@@ -107,33 +106,3 @@ linters:
         - -ST1020  # Comment on exported method format
         - -ST1021  # Comment on exported type format
         - -ST1022  # Comment on exported variable format
-    unused:
-      # Default: true
-      field-writes-are-uses: true
-      # Default: false
-      post-statements-are-reads: true
-      # Default: true
-      exported-fields-are-used: true
-      # Default: true
-      parameters-are-used: true
-      # Default: true
-      local-variables-are-used: false
-      # Default: true — must be true, ent generates 130K+ lines of code
-      generated-is-used: true
-
-formatters:
-  enable:
-    - gofmt
-  settings:
-    gofmt:
-      # Simplify code: gofmt with `-s` option.
-      # Default: true
-      simplify: false
-      # Apply the rewrite rules to the source before reformatting.
-      # https://pkg.go.dev/cmd/gofmt
-      # Default: []
-      rewrite-rules:
-        - pattern: 'interface{}'
-          replacement: 'any'
-        - pattern: 'a[b:len(a)]'
-          replacement: 'a[b:]'

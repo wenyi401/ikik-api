@@ -480,7 +480,7 @@ func (r *apiKeyRepository) ClearGroupIDByGroupID(ctx context.Context, groupID in
 	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
 		return 0, err
 	}
-	client := r.client
+	var client *dbent.Client
 	txCtx := ctx
 	if err == nil {
 		defer func() { _ = tx.Rollback() }()

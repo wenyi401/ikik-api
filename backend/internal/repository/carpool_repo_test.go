@@ -10,7 +10,7 @@ import (
 
 func TestCarpoolRepositoryListPoolApplicantUsageStatsPassesPoolID(t *testing.T) {
 	db, mock := newSQLMock(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	rows := sqlmock.NewRows([]string{
 		"user_id",

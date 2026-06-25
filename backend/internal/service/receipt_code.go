@@ -19,10 +19,10 @@ import (
 	"strings"
 	"time"
 
-	"ikik-api/internal/config"
-	infraerrors "ikik-api/internal/pkg/errors"
 	"github.com/google/uuid"
 	"golang.org/x/image/webp"
+	"ikik-api/internal/config"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 const (
@@ -176,7 +176,6 @@ func (s *ReceiptCodeService) Upload(ctx context.Context, input ReceiptCodeUpload
 	if storageConfigured {
 		key = buildReceiptCodeObjectKey(cfg.Prefix, input.UserID, method, ext)
 		provider = receiptCodeStorageProviderOSS
-		url = ""
 
 		store, err = s.store(ctx, cfg)
 		if err != nil {

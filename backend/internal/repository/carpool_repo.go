@@ -299,7 +299,7 @@ func (r *carpoolRepository) ListAdminPools(ctx context.Context, filters service.
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.AdminCarpoolPoolSummary, 0)
 	for rows.Next() {
@@ -422,7 +422,7 @@ func (r *carpoolRepository) ListPoolAccounts(ctx context.Context, poolID int64) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]service.CarpoolPoolAccount, 0)
 	for rows.Next() {
@@ -524,7 +524,7 @@ func (r *carpoolRepository) ListPoolMembers(ctx context.Context, poolID int64) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]service.CarpoolMember, 0)
 	for rows.Next() {
@@ -547,7 +547,7 @@ func (r *carpoolRepository) ListPoolJoinRequests(ctx context.Context, poolID int
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]service.CarpoolJoinRequest, 0)
 	for rows.Next() {
@@ -751,7 +751,7 @@ func (r *carpoolRepository) ResetPoolMembersFiveHourUsage(ctx context.Context, p
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	userIDs := make([]int64, 0)
 	for rows.Next() {
@@ -782,7 +782,7 @@ func (r *carpoolRepository) ResetPoolMemberWeeklyUsage(ctx context.Context, pool
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	userIDs := make([]int64, 0)
 	for rows.Next() {
@@ -947,7 +947,7 @@ func (r *carpoolRepository) ListPoolApplicantUsageStats(ctx context.Context, poo
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make(map[int64]service.CarpoolApplicantUsageStats)
 	for rows.Next() {
@@ -979,7 +979,7 @@ func (r *carpoolRepository) ListPoolMemberUsageStats(ctx context.Context, groupI
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var userID int64
@@ -1037,7 +1037,7 @@ func (r *carpoolRepository) listPoolSummaries(ctx context.Context, query string,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]service.CarpoolPoolSummary, 0)
 	for rows.Next() {

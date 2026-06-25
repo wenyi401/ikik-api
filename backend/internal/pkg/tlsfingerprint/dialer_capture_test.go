@@ -45,7 +45,7 @@ type CapturedFingerprint struct {
 func TestDialerAgainstCaptureServer(t *testing.T) {
 	captureURL := os.Getenv("TLSFINGERPRINT_CAPTURE_URL")
 	if captureURL == "" {
-		captureURL = "https://tls.ikik-api.example:8090"
+		t.Skip("set TLSFINGERPRINT_CAPTURE_URL to run the external TLS fingerprint capture integration test")
 	}
 
 	tests := []struct {

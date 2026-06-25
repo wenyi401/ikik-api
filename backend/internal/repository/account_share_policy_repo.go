@@ -218,8 +218,8 @@ func accountSharePolicyWhere(filters service.AccountSharePolicyFilters) (string,
 	args := make([]any, 0, 3)
 	add := func(condition string, arg any) {
 		args = append(args, arg)
-		where.WriteString(" AND ")
-		where.WriteString(fmt.Sprintf(condition, len(args)))
+		_, _ = where.WriteString(" AND ")
+		_, _ = where.WriteString(fmt.Sprintf(condition, len(args)))
 	}
 	if scopeType := strings.TrimSpace(filters.ScopeType); scopeType != "" {
 		add("scope_type = $%d", scopeType)

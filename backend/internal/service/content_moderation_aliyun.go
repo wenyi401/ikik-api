@@ -349,12 +349,12 @@ func normalizeAliyunGuardrailLabel(label string) string {
 	lastUnderscore := false
 	for _, r := range strings.ToLower(label) {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			builder.WriteRune(r)
+			_, _ = builder.WriteRune(r)
 			lastUnderscore = false
 			continue
 		}
 		if !lastUnderscore {
-			builder.WriteByte('_')
+			_ = builder.WriteByte('_')
 			lastUnderscore = true
 		}
 	}

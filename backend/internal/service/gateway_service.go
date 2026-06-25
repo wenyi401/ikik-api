@@ -1460,13 +1460,7 @@ func (s *GatewayService) buildOAuthMetadataUserIDFromBody(
 // 注意：粘性路由键 GenerateSessionHash 按设计逐轮变化（见其测试），本函数与之独立、互不影响。
 // accountID 恒存在，故 seed 永不为空 —— 输出始终是确定性 UUID，而非随机值。
 func buildStableSessionSeed(accountID int64, clientDiscriminator, firstUserText string) string {
-	var b strings.Builder
-	b.WriteString(strconv.FormatInt(accountID, 10))
-	b.WriteString("::")
-	b.WriteString(clientDiscriminator)
-	b.WriteString("::")
-	b.WriteString(firstUserText)
-	return b.String()
+	return strconv.FormatInt(accountID, 10) + "::" + clientDiscriminator + "::" + firstUserText
 }
 
 // sessionContextDiscriminator 把请求上下文（客户端 IP / 归一化 UA / API Key ID）拼成

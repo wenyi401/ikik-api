@@ -38,14 +38,14 @@ type CarpoolPool struct {
 }
 
 type CarpoolPoolSummary struct {
-	Pool                CarpoolPool `json:"pool"`
-	GroupName           string      `json:"group_name"`
-	ActiveMembers       int         `json:"active_members"`
-	PendingApplications int         `json:"pending_applications"`
-	BoundAccountCount   int         `json:"bound_account_count"`
-	IsOwner             bool        `json:"is_owner"`
-	CurrentUserStatus   string      `json:"current_user_status"`
-	CurrentUserRequestID *int64     `json:"current_user_request_id,omitempty"`
+	Pool                 CarpoolPool `json:"pool"`
+	GroupName            string      `json:"group_name"`
+	ActiveMembers        int         `json:"active_members"`
+	PendingApplications  int         `json:"pending_applications"`
+	BoundAccountCount    int         `json:"bound_account_count"`
+	IsOwner              bool        `json:"is_owner"`
+	CurrentUserStatus    string      `json:"current_user_status"`
+	CurrentUserRequestID *int64      `json:"current_user_request_id,omitempty"`
 }
 
 type AdminCarpoolPoolSummary struct {
@@ -68,19 +68,19 @@ type CarpoolPoolAccount struct {
 
 type CarpoolMember struct {
 	ID                  int64      `json:"id"`
-	PoolID               int64     `json:"pool_id"`
-	UserID               int64     `json:"user_id"`
-	SubscriptionID       *int64    `json:"subscription_id,omitempty"`
-	Role                 string    `json:"role"`
-	Status               string    `json:"status"`
-	PaidConfirmedAt      *time.Time `json:"paid_confirmed_at,omitempty"`
-	QuotaShareRatio      float64   `json:"quota_share_ratio"`
-	FiveHourLimitUSD     float64   `json:"five_hour_limit_usd"`
-	FiveHourUsedUSD      float64   `json:"five_hour_used_usd"`
-	WeeklyLimitUSD       float64   `json:"weekly_limit_usd"`
-	FiveHourWindowStart  *time.Time `json:"five_hour_window_start,omitempty"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	PoolID              int64      `json:"pool_id"`
+	UserID              int64      `json:"user_id"`
+	SubscriptionID      *int64     `json:"subscription_id,omitempty"`
+	Role                string     `json:"role"`
+	Status              string     `json:"status"`
+	PaidConfirmedAt     *time.Time `json:"paid_confirmed_at,omitempty"`
+	QuotaShareRatio     float64    `json:"quota_share_ratio"`
+	FiveHourLimitUSD    float64    `json:"five_hour_limit_usd"`
+	FiveHourUsedUSD     float64    `json:"five_hour_used_usd"`
+	WeeklyLimitUSD      float64    `json:"weekly_limit_usd"`
+	FiveHourWindowStart *time.Time `json:"five_hour_window_start,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 
 type CarpoolMemberProfile struct {
@@ -115,31 +115,31 @@ type CarpoolApplicantUsageStats struct {
 
 type CarpoolJoinRequest struct {
 	ID          int64      `json:"id"`
-	PoolID       int64     `json:"pool_id"`
-	UserID       int64     `json:"user_id"`
-	Status       string    `json:"status"`
-	Note         string    `json:"note"`
-	ReviewNote   string    `json:"review_note"`
-	ReviewedAt   *time.Time `json:"reviewed_at,omitempty"`
-	ActivatedAt  *time.Time `json:"activated_at,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	PoolID      int64      `json:"pool_id"`
+	UserID      int64      `json:"user_id"`
+	Status      string     `json:"status"`
+	Note        string     `json:"note"`
+	ReviewNote  string     `json:"review_note"`
+	ReviewedAt  *time.Time `json:"reviewed_at,omitempty"`
+	ActivatedAt *time.Time `json:"activated_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 type CarpoolJoinRequestProfile struct {
-	Request      CarpoolJoinRequest         `json:"request"`
-	MaskedEmail  string                     `json:"masked_email"`
-	Username     string                     `json:"username"`
-	Usage        CarpoolApplicantUsageStats `json:"usage"`
+	Request     CarpoolJoinRequest         `json:"request"`
+	MaskedEmail string                     `json:"masked_email"`
+	Username    string                     `json:"username"`
+	Usage       CarpoolApplicantUsageStats `json:"usage"`
 }
 
 type CarpoolPoolDetail struct {
-	Pool             CarpoolPool                `json:"pool"`
-	Group            *Group                     `json:"group,omitempty"`
-	Summary          CarpoolPoolSummary         `json:"summary"`
-	Accounts         []CarpoolPoolAccount       `json:"accounts"`
-	PoolUsageWindows []CarpoolUsageWindow       `json:"pool_usage_windows"`
-	Members          []CarpoolMemberProfile     `json:"members"`
+	Pool             CarpoolPool                 `json:"pool"`
+	Group            *Group                      `json:"group,omitempty"`
+	Summary          CarpoolPoolSummary          `json:"summary"`
+	Accounts         []CarpoolPoolAccount        `json:"accounts"`
+	PoolUsageWindows []CarpoolUsageWindow        `json:"pool_usage_windows"`
+	Members          []CarpoolMemberProfile      `json:"members"`
 	JoinRequests     []CarpoolJoinRequestProfile `json:"join_requests"`
 }
 
@@ -240,20 +240,20 @@ func CarpoolMemberFromService(v *service.CarpoolMember) *CarpoolMember {
 		return nil
 	}
 	return &CarpoolMember{
-		ID:                 v.ID,
-		PoolID:             v.PoolID,
-		UserID:             v.UserID,
-		SubscriptionID:     v.SubscriptionID,
-		Role:               v.Role,
-		Status:             v.Status,
-		PaidConfirmedAt:    v.PaidConfirmedAt,
-		QuotaShareRatio:    v.QuotaShareRatio,
-		FiveHourLimitUSD:   v.FiveHourLimitUSD,
-		FiveHourUsedUSD:    v.FiveHourUsedUSD,
-		WeeklyLimitUSD:     v.WeeklyLimitUSD,
+		ID:                  v.ID,
+		PoolID:              v.PoolID,
+		UserID:              v.UserID,
+		SubscriptionID:      v.SubscriptionID,
+		Role:                v.Role,
+		Status:              v.Status,
+		PaidConfirmedAt:     v.PaidConfirmedAt,
+		QuotaShareRatio:     v.QuotaShareRatio,
+		FiveHourLimitUSD:    v.FiveHourLimitUSD,
+		FiveHourUsedUSD:     v.FiveHourUsedUSD,
+		WeeklyLimitUSD:      v.WeeklyLimitUSD,
 		FiveHourWindowStart: v.FiveHourWindowStart,
-		CreatedAt:          v.CreatedAt,
-		UpdatedAt:          v.UpdatedAt,
+		CreatedAt:           v.CreatedAt,
+		UpdatedAt:           v.UpdatedAt,
 	}
 }
 
@@ -276,16 +276,16 @@ func CarpoolJoinRequestFromService(v *service.CarpoolJoinRequest) *CarpoolJoinRe
 		return nil
 	}
 	return &CarpoolJoinRequest{
-		ID:         v.ID,
-		PoolID:     v.PoolID,
-		UserID:     v.UserID,
-		Status:     v.Status,
-		Note:       v.Note,
-		ReviewNote: v.ReviewNote,
-		ReviewedAt: v.ReviewedAt,
+		ID:          v.ID,
+		PoolID:      v.PoolID,
+		UserID:      v.UserID,
+		Status:      v.Status,
+		Note:        v.Note,
+		ReviewNote:  v.ReviewNote,
+		ReviewedAt:  v.ReviewedAt,
 		ActivatedAt: v.ActivatedAt,
-		CreatedAt:  v.CreatedAt,
-		UpdatedAt:  v.UpdatedAt,
+		CreatedAt:   v.CreatedAt,
+		UpdatedAt:   v.UpdatedAt,
 	}
 }
 

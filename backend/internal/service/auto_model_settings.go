@@ -644,7 +644,7 @@ func chooseAIAutoRouterTarget(ctx context.Context, rule AutoModelRule, score int
 		slog.Warn("ai auto router request failed", "error", err)
 		return aiRouterResult{}, false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 256<<10))
 	if readErr != nil {
 		return aiRouterResult{}, false

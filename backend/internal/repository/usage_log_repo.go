@@ -4680,7 +4680,7 @@ func (r *usageLogRepository) hydrateUsageLogPointsDeductions(ctx context.Context
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var id int64
 		var amount float64
@@ -4707,7 +4707,7 @@ func (r *usageLogRepository) hydrateUsageLogBalanceDeductions(ctx context.Contex
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var id int64
 		var amount float64

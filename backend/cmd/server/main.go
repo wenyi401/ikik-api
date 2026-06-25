@@ -9,6 +9,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	// #nosec G108 -- pprof is disabled by default and only starts on the explicit PPROF_ENABLED debug listener.
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
