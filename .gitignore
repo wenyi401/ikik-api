@@ -164,3 +164,4 @@ test/images/
 # Windows 保留设备名产生的虚拟文件（误创建，git 无法索引）
 nul
 /issues/
+/.codex_tmp/
