@@ -371,29 +371,30 @@ func TestP2Characterization_OpenAIResponsesWSTurn2ModerationCloseError(t *testin
 
 	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account}
 	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 4)}
-	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, nil, cfg)
 	gatewaySvc := service.NewOpenAIGatewayService(
-		accountRepo,
-		usageRepo,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		cfg,
-		nil,
-		nil,
-		service.NewBillingService(cfg, nil),
-		nil,
-		billingCacheSvc,
-		nil,
-		&service.DeferredService{},
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		accountRepo, // accountRepo
+		nil,         // accountSharePolicyRepo
+		usageRepo,   // usageLogRepo
+		nil,         // usageBillingRepo
+		nil,         // userRepo
+		nil,         // userSubRepo
+		nil,         // userGroupRateRepo
+		nil,         // cache (GatewayCache)
+		cfg,         // cfg
+		nil,         // schedulerSnapshot
+		nil,         // concurrencyService
+		service.NewBillingService(cfg, nil), // billingService
+		nil,         // rateLimitService
+		billingCacheSvc,                     // billingCacheService
+		nil,         // httpUpstream
+		&service.DeferredService{}, // deferredService
+		nil,         // openAITokenProvider
+		nil,         // resolver
+		nil,         // channelService
+		nil,         // balanceNotifyService
+		nil,         // settingService
+		nil,         // accountService
 	)
 
 	cache := &concurrencyCacheMock{
@@ -476,4 +477,28 @@ func TestP2Characterization_OpenAIResponsesWSTurn2ModerationCloseError(t *testin
 		t.Fatalf("turn-2 被拦截的消息不应转发到上游，实际收到: %s", frame)
 	case <-time.After(300 * time.Millisecond):
 	}
+}
+
+// openAIWSUsageHandlerAccountRepoStub 仅实现 GetByID 返回预设账号；其余方法经
+// 内嵌 nil AccountRepository 接口在意外调用时 panic（特征化测试纪律：不掩饰
+// 未预期的 service 调用，直接 fail）。
+type openAIWSUsageHandlerAccountRepoStub struct {
+	service.AccountRepository
+	account service.Account
+}
+
+func (r *openAIWSUsageHandlerAccountRepoStub) GetByID(_ context.Context, _ int64) (*service.Account, error) {
+	return &r.account, nil
+}
+
+// openAIWSUsageHandlerUsageLogRepoStub 仅实现 Create 将日志发入 channel 供测试
+// 断言；其余方法经内嵌 nil UsageLogRepository 接口 panic。
+type openAIWSUsageHandlerUsageLogRepoStub struct {
+	service.UsageLogRepository
+	created chan *service.UsageLog
+}
+
+func (r *openAIWSUsageHandlerUsageLogRepoStub) Create(_ context.Context, log *service.UsageLog) (bool, error) {
+	r.created <- log
+	return true, nil
 }

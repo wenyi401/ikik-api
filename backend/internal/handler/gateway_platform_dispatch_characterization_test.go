@@ -178,6 +178,18 @@ func (c *p3CharStickyCache) DeleteSessionAccountID(_ context.Context, groupID in
 	return nil
 }
 
+func (c *p3CharStickyCache) GetSessionString(_ context.Context, _ int64, _ string) (string, error) {
+	return "", nil
+}
+
+func (c *p3CharStickyCache) SetSessionString(_ context.Context, _ int64, _ string, _ string, _ time.Duration) error {
+	return nil
+}
+
+func (c *p3CharStickyCache) DeleteSessionString(_ context.Context, _ int64, _ string) error {
+	return nil
+}
+
 func (c *p3CharStickyCache) recordedDeleteCalls() []p3CharSessionCall {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -247,6 +259,7 @@ func p3CharNewHandler(t *testing.T, group *service.Group, accounts []*service.Ac
 
 	gwSvc := service.NewGatewayService(
 		nil, // accountRepo
+		nil, // accountSharePolicyRepo
 		&fakeGroupRepo{group: group},
 		nil, nil, nil, nil, nil, // usageLogRepo / usageBillingRepo / userRepo / userSubRepo / userGroupRateRepo
 		stickyCache,
@@ -261,7 +274,7 @@ func p3CharNewHandler(t *testing.T, group *service.Group, accounts []*service.Ac
 		&service.DeferredService{},
 		nil, nil, nil, nil, // claudeTokenProvider / sessionLimitCache / rpmCache / digestStore
 		settingSvc,
-		nil, nil, nil, nil, nil, // tlsFPProfileService / channelService / resolver / balanceNotifyService / userPlatformQuotaRepo
+		nil, nil, nil, nil, // tlsFPProfileService / channelService / resolver / balanceNotifyService
 	)
 
 	agSvc := service.NewAntigravityGatewayService(
