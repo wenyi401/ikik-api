@@ -15,6 +15,7 @@ import (
 	"ikik-api/internal/pkg/geminicli"
 	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/pkg/pagination"
+	"ikik-api/internal/pkg/xai"
 )
 
 var (
@@ -779,6 +780,10 @@ func ownedPersonalDefaultModelMapping(platform string) map[string]any {
 		}
 	case PlatformAntigravity:
 		for _, model := range antigravity.DefaultModels() {
+			models = append(models, model.ID)
+		}
+	case PlatformGrok:
+		for _, model := range xai.DefaultModels() {
 			models = append(models, model.ID)
 		}
 	}
@@ -2012,7 +2017,7 @@ func isOAuthOnlyGroup(group *Group) bool {
 		return false
 	}
 	switch group.Platform {
-	case PlatformOpenAI, PlatformAntigravity, PlatformAnthropic, PlatformGemini:
+	case PlatformOpenAI, PlatformAntigravity, PlatformAnthropic, PlatformGemini, PlatformGrok:
 		return true
 	default:
 		return false
@@ -2110,6 +2115,9 @@ func (s *AccountService) TestCredentials(ctx context.Context, id int64) error {
 		return nil
 	case PlatformGemini:
 		// TODO: 测试Gemini API凭证
+		return nil
+	case PlatformGrok:
+		// Grok OAuth credentials are validated via token exchange/refresh and request-path probes.
 		return nil
 	default:
 		return fmt.Errorf("unsupported platform: %s", account.Platform)

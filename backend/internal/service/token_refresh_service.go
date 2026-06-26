@@ -12,6 +12,8 @@ import (
 	"ikik-api/internal/config"
 )
 
+const tokenRefreshTempUnschedDuration = 10 * time.Minute
+
 // TokenRefreshService OAuth token自动刷新服务
 // 定期检查并刷新即将过期的token
 type TokenRefreshService struct {
@@ -45,6 +47,7 @@ func NewTokenRefreshService(
 	schedulerCache SchedulerCache,
 	cfg *config.Config,
 	tempUnschedCache TempUnschedCache,
+	grokOAuthServices ...*GrokOAuthService,
 ) *TokenRefreshService {
 	s := &TokenRefreshService{
 		accountRepo:      accountRepo,
@@ -61,6 +64,11 @@ func NewTokenRefreshService(
 	claudeRefresher := NewClaudeTokenRefresher(oauthService)
 	geminiRefresher := NewGeminiTokenRefresher(geminiOAuthService)
 	agRefresher := NewAntigravityTokenRefresher(antigravityOAuthService)
+	var grokOAuthService *GrokOAuthService
+	if len(grokOAuthServices) > 0 {
+		grokOAuthService = grokOAuthServices[0]
+	}
+	grokRefresher := NewGrokTokenRefresher(grokOAuthService)
 
 	// 注册平台特定的刷新器（TokenRefresher 接口）
 	s.refreshers = []TokenRefresher{
@@ -68,6 +76,7 @@ func NewTokenRefreshService(
 		openAIRefresher,
 		geminiRefresher,
 		agRefresher,
+		grokRefresher,
 	}
 
 	// 注册对应的 OAuthRefreshExecutor（带 CacheKey 方法）
@@ -76,6 +85,7 @@ func NewTokenRefreshService(
 		openAIRefresher,
 		geminiRefresher,
 		agRefresher,
+		grokRefresher,
 	}
 
 	return s
@@ -424,6 +434,12 @@ func IsNonRetryableRefreshError(err error) bool {
 		"refresh_token_reused",
 		"no refresh token available",
 		"please try signing in again",
+		"grok_oauth_entitlement_denied",
+		"entitlement_denied",
+		"invalid_scope",
+		"unknown scope",
+		"subscription required",
+		"no active grok subscription",
 	}
 	for _, needle := range nonRetryable {
 		if strings.Contains(msg, needle) {

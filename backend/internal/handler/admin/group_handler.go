@@ -102,7 +102,7 @@ func NewGroupHandler(adminService service.AdminService, dashboardService *servic
 type CreateGroupRequest struct {
 	Name                 string             `json:"name" binding:"required"`
 	Description          string             `json:"description"`
-	Platform             string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity"`
+	Platform             string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok"`
 	RateMultiplier       float64            `json:"rate_multiplier"`
 	IsExclusive          bool               `json:"is_exclusive"`
 	SubscriptionType     string             `json:"subscription_type" binding:"omitempty,oneof=standard subscription"`
@@ -132,7 +132,7 @@ type CreateGroupRequest struct {
 	RequirePrivacySet           bool                                      `json:"require_privacy_set"`
 	DefaultMappedModel          string                                    `json:"default_mapped_model"`
 	MessagesDispatchModelConfig service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
-	ModelsListConfig            service.GroupModelsListConfig            `json:"models_list_config"`
+	ModelsListConfig            service.GroupModelsListConfig             `json:"models_list_config"`
 	// 分组 RPM 上限（0 = 不限制）
 	RPMLimit int `json:"rpm_limit"`
 	// 从指定分组复制账号（创建后自动绑定）
@@ -143,7 +143,7 @@ type CreateGroupRequest struct {
 type UpdateGroupRequest struct {
 	Name                 string             `json:"name"`
 	Description          string             `json:"description"`
-	Platform             string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity"`
+	Platform             string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok"`
 	RateMultiplier       *float64           `json:"rate_multiplier"`
 	IsExclusive          *bool              `json:"is_exclusive"`
 	Status               string             `json:"status" binding:"omitempty,oneof=active inactive"`
@@ -174,7 +174,7 @@ type UpdateGroupRequest struct {
 	RequirePrivacySet           *bool                                      `json:"require_privacy_set"`
 	DefaultMappedModel          *string                                    `json:"default_mapped_model"`
 	MessagesDispatchModelConfig *service.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
-	ModelsListConfig            *service.GroupModelsListConfig            `json:"models_list_config"`
+	ModelsListConfig            *service.GroupModelsListConfig             `json:"models_list_config"`
 	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
 	RPMLimit *int `json:"rpm_limit"`
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）

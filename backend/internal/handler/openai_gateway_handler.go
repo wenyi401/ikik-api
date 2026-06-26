@@ -58,6 +58,13 @@ func resolveOpenAIMessagesDispatchMappedModel(apiKey *service.APIKey, requestedM
 	return strings.TrimSpace(apiKey.Group.ResolveMessagesDispatchModel(requestedModel))
 }
 
+func openAICompatibleRequestPlatform(apiKey *service.APIKey) string {
+	if apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == service.PlatformGrok {
+		return service.PlatformGrok
+	}
+	return service.PlatformOpenAI
+}
+
 // NewOpenAIGatewayHandler creates a new OpenAIGatewayHandler
 func NewOpenAIGatewayHandler(
 	gatewayService *service.OpenAIGatewayService,
@@ -302,7 +309,8 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			zap.Int("excluded_account_count", len(failedAccountIDs)),
 			zap.Int64p("group_id", currentAPIKey.GroupID),
 		)
-		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithScheduler(
+		requestPlatform := openAICompatibleRequestPlatform(currentAPIKey)
+		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
 			routeCtx,
 			currentAPIKey.GroupID,
 			previousResponseID,
@@ -310,7 +318,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			reqModel,
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportAny,
+			service.OpenAIEndpointCapabilityChatCompletions,
 			requireCompact,
+			requestPlatform,
 		)
 		if err != nil {
 			reqLog.Warn("openai.account_select_failed",
@@ -773,7 +783,8 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			zap.Int("excluded_account_count", len(failedAccountIDs)),
 			zap.Int64p("group_id", currentAPIKey.GroupID),
 		)
-		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithScheduler(
+		requestPlatform := openAICompatibleRequestPlatform(currentAPIKey)
+		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
 			routeCtx,
 			currentAPIKey.GroupID,
 			"", // no previous_response_id
@@ -781,7 +792,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			currentRoutingModel,
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportAny,
+			service.OpenAIEndpointCapabilityChatCompletions,
 			false,
+			requestPlatform,
 		)
 		if err != nil {
 			reqLog.Warn("openai_messages.account_select_failed",
@@ -1373,7 +1386,8 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			return
 		}
 		var selectErr error
-		selection, scheduleDecision, selectErr = h.gatewayService.SelectAccountWithScheduler(
+		requestPlatform := openAICompatibleRequestPlatform(currentAPIKey)
+		selection, scheduleDecision, selectErr = h.gatewayService.SelectAccountWithSchedulerForCapability(
 			routeCtx,
 			currentAPIKey.GroupID,
 			previousResponseID,
@@ -1381,7 +1395,9 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			reqModel,
 			nil,
 			service.OpenAIUpstreamTransportResponsesWebsocketV2,
+			service.OpenAIEndpointCapabilityChatCompletions,
 			false,
+			requestPlatform,
 		)
 		if selectErr == nil && selection != nil && selection.Account != nil {
 			break

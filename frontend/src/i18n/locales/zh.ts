@@ -2123,6 +2123,7 @@ export default {
       unbanFailed: '解封用户失败',
       inputDetailTitle: '输入摘要详情',
       inputDetailContent: '完整内容',
+      matchedKeyword: '命中关键词',
       queueDelay: '排队 {ms} ms',
       allGroups: '全部分组',
       allGroupsHint: '当前审计全部分组',
@@ -3318,7 +3319,8 @@ export default {
         anthropic: 'Anthropic',
         openai: 'OpenAI',
         gemini: 'Gemini',
-        antigravity: 'Antigravity'
+        antigravity: 'Antigravity',
+        grok: 'Grok'
       },
       saving: '保存中...',
       noGroups: '暂无分组',
@@ -4157,6 +4159,7 @@ export default {
       },
       clearRateLimit: '清除速率限制',
       resetQuota: '重置配额',
+      resetQuotaConfirm: '确定要将账号 "{name}" 的已用配额重置为 0 吗？',
       quotaLimit: '配额限制',
       quotaLimitPlaceholder: '0 表示不限制',
       quotaLimitHint: '设置日/周/总使用额度（美元），任一维度达到限额后账号暂停调度。Anthropic API Key 账号还可配置客户端亲和。修改限额不会重置已用额度。',
@@ -4211,6 +4214,7 @@ export default {
         anthropic: 'Anthropic',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        grok: 'Grok',
         custom: 'Custom'
       },
       types: {
@@ -4221,6 +4225,7 @@ export default {
         codeAssist: 'Code Assist',
         antigravityOauth: 'Antigravity OAuth',
         antigravityApikey: '通过 Base URL + API Key 连接',
+        grokOauth: 'Grok OAuth',
         upstream: '对接上游',
         upstreamDesc: '通过 Base URL + API Key 连接上游',
         api_key: 'API Key',
@@ -4301,7 +4306,19 @@ export default {
         gemini3Image: 'G31FI',
         claude: 'Claude',
         passiveSampled: '被动采样',
-        activeQuery: '查询'
+        activeQuery: '查询',
+        grokRequests: '请求',
+        grokTokens: 'Token',
+        grokProbe: '探测',
+        grokProbeTooltip: '探测上游 xAI quota headers',
+        grokResetUnsupported: '不可重置',
+        grokResetUnsupportedTooltip: 'xAI 未提供 quota 重置接口',
+        grokRetryAfter: '{time} 后重试',
+        grokNoHeaders: '未观测到 quota headers',
+        grokUnknown: 'Quota 未知',
+        grokLastStatus: 'HTTP {status}',
+        grokLastProbe: '探测 {time}',
+        grokLastHeadersSeen: 'headers {time}'
       },
       openaiQuotaReset: {
         count: '次数',
@@ -4905,9 +4922,38 @@ export default {
           validateAndCreate: '验证并创建账号',
           pleaseEnterRefreshToken: '请输入 Refresh Token',
           failedToValidateRT: '验证 Refresh Token 失败'
+        },
+        // Grok specific
+        grok: {
+          title: 'Grok 账户授权',
+          followSteps: '请按照以下步骤完成 Grok 账户授权：',
+          step1GenerateUrl: '生成授权链接',
+          generateAuthUrl: '生成授权链接',
+          step2OpenUrl: '在浏览器中打开链接并完成授权',
+          openUrlDesc: '请在新标签页中打开授权链接，登录您的 Grok 账户并授权。',
+          step3EnterCode: '输入授权链接或 Code',
+          authCodeDesc: '授权完成后，复制回调链接或 code，粘贴到下方即可。',
+          authCode: '授权链接或 Code',
+          authCodePlaceholder: '方式 1：粘贴回调链接\n方式 2：仅粘贴 code 参数值',
+          authCodeHint: '系统会自动从链接中解析 code/state。',
+          refreshTokenAuth: '手动输入 RT',
+          refreshTokenDesc: '输入您已有的 Grok Refresh Token，支持批量输入（每行一个）。',
+          refreshTokenPlaceholder: '粘贴您的 Grok Refresh Token...\n支持多个，每行一个',
+          oauthOnlyHint: 'Grok 当前仅支持 OAuth 账号。',
+          failedToGenerateUrl: '生成 Grok 授权链接失败',
+          missingExchangeParams: '缺少 code / session_id / state',
+          failedToExchangeCode: 'Grok 授权码兑换失败',
+          validating: '验证中...',
+          validateAndCreate: '验证并创建账号',
+          pleaseEnterRefreshToken: '请输入 Refresh Token',
+          failedToValidateRT: '验证 Refresh Token 失败'
         }
       },
       // Gemini specific (platform-wide)
+      grok: {
+        baseUrlHint: '留空使用官方 xAI API 地址',
+        apiKeyHint: 'Grok OAuth 账号使用 refresh token；OAuth 创建不需要 API Key。'
+      },
       gemini: {
         helpButton: '使用帮助',
         helpDialog: {
@@ -5047,6 +5093,7 @@ export default {
       openaiAccount: 'OpenAI 账号',
       geminiAccount: 'Gemini 账号',
       antigravityAccount: 'Antigravity 账号',
+      grokAccount: 'Grok 账号',
       inputMethod: '输入方式',
       reAuthorizedSuccess: '账号重新授权成功',
       // Test Modal

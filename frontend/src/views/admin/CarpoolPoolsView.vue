@@ -393,6 +393,7 @@ const platformOptions = computed<SelectOption[]>(() => [
   { value: 'anthropic', label: 'Claude' },
   { value: 'gemini', label: 'Gemini' },
   { value: 'antigravity', label: 'Antigravity' },
+  { value: 'grok', label: 'Grok' },
 ])
 
 const statusOptions = computed<SelectOption[]>(() => [

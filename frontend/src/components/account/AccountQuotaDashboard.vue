@@ -444,7 +444,7 @@ function typeLabel(type: string): string {
 }
 
 function platformIconValue(platform: string): GroupPlatform | undefined {
-  if (platform === 'anthropic' || platform === 'openai' || platform === 'gemini' || platform === 'antigravity' || platform === 'custom') {
+  if (platform === 'anthropic' || platform === 'openai' || platform === 'gemini' || platform === 'antigravity' || platform === 'grok' || platform === 'custom') {
     return platform
   }
   return undefined

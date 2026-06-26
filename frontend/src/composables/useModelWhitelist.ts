@@ -359,6 +359,7 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'claude': return claudeModels
     case 'gemini': return geminiModels
     case 'antigravity': return antigravityModels
+    case 'grok': return xaiModels
     case 'custom': return []
     case 'zhipu': return zhipuModels
     case 'qwen': return qwenModels

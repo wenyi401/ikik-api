@@ -28,6 +28,7 @@ import (
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/pkg/timezone"
+	"ikik-api/internal/pkg/xai"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
 
@@ -1124,6 +1125,14 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		return
 	}
 
+	if platform == service.PlatformGrok {
+		c.JSON(http.StatusOK, gin.H{
+			"object": "list",
+			"data":   xai.DefaultModels(),
+		})
+		return
+	}
+
 	if platform == service.PlatformGemini {
 		c.JSON(http.StatusOK, gin.H{
 			"object": "list",
@@ -1188,6 +1197,10 @@ func writeCustomModelsList(c *gin.Context, platform string, modelIDs []string) {
 		writeOpenAIModelsList(c, modelIDs)
 		return
 	}
+	if platform == service.PlatformGrok {
+		writeGrokModelsList(c, modelIDs)
+		return
+	}
 	writeModelsList(c, modelIDs)
 }
 
@@ -1209,6 +1222,33 @@ func writeOpenAIModelsList(c *gin.Context, modelIDs []string) {
 			Created:     1704067200,
 			OwnedBy:     "openai",
 			Type:        "model",
+			DisplayName: modelID,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"object": "list",
+		"data":   models,
+	})
+}
+
+func writeGrokModelsList(c *gin.Context, modelIDs []string) {
+	defaults := xai.DefaultModels()
+	defaultsByID := make(map[string]xai.Model, len(defaults))
+	for _, model := range defaults {
+		defaultsByID[model.ID] = model
+	}
+
+	models := make([]xai.Model, 0, len(modelIDs))
+	for _, modelID := range modelIDs {
+		if model, ok := defaultsByID[modelID]; ok {
+			models = append(models, model)
+			continue
+		}
+		models = append(models, xai.Model{
+			ID:          modelID,
+			Object:      "model",
+			Created:     1704067200,
+			OwnedBy:     "xai",
 			DisplayName: modelID,
 		})
 	}

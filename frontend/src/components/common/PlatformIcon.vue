@@ -25,6 +25,10 @@
   <svg v-else-if="platform === 'antigravity'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
     <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
   </svg>
+  <!-- xAI / Grok logo mark -->
+  <svg v-else-if="platform === 'grok'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4.3 3h4.4l3.38 5.1L16.67 3h3.13l-6.18 6.85L20.35 21h-4.4l-3.92-6.05L6.58 21H3.45l7.03-7.8L4.3 3Zm3.02 1.68 9.53 14.64h.84L8.16 4.68h-.84Z" />
+  </svg>
   <!-- Fallback: generic platform icon -->
   <svg v-else :class="sizeClass" fill="currentColor" viewBox="0 0 24 24">
     <path

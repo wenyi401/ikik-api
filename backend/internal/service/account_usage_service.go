@@ -13,14 +13,15 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	httppool "ikik-api/internal/pkg/httpclient"
 	openaipkg "ikik-api/internal/pkg/openai"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/pkg/timezone"
 	"ikik-api/internal/pkg/tlsfingerprint"
 	"ikik-api/internal/pkg/usagestats"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/singleflight"
+	"ikik-api/internal/pkg/xai"
 )
 
 type UsageLogRepository interface {
@@ -194,6 +195,17 @@ type UsageInfo struct {
 	// Antigravity 多模型配额
 	AntigravityQuota map[string]*AntigravityModelQuota `json:"antigravity_quota,omitempty"`
 
+	// Grok / xAI 被动额度快照
+	GrokRequestQuota       *xai.QuotaWindow `json:"grok_request_quota,omitempty"`
+	GrokTokenQuota         *xai.QuotaWindow `json:"grok_token_quota,omitempty"`
+	GrokRetryAfterSeconds  *int             `json:"grok_retry_after_seconds,omitempty"`
+	GrokEntitlementStatus  string           `json:"grok_entitlement_status,omitempty"`
+	GrokQuotaSnapshotState string           `json:"grok_quota_snapshot_state,omitempty"`
+	GrokLastQuotaProbeAt   string           `json:"grok_last_quota_probe_at,omitempty"`
+	GrokLastHeadersSeenAt  string           `json:"grok_last_headers_seen_at,omitempty"`
+	GrokLastStatusCode     int              `json:"grok_last_status_code,omitempty"`
+	GrokLocalUsage         *WindowStats     `json:"grok_local_usage,omitempty"`
+
 	// Antigravity 账号级信息
 	SubscriptionTier    string `json:"subscription_tier,omitempty"`     // 归一化订阅等级: FREE/PRO/ULTRA/UNKNOWN
 	SubscriptionTierRaw string `json:"subscription_tier_raw,omitempty"` // 上游原始订阅等级名称
@@ -264,6 +276,7 @@ type AccountUsageService struct {
 	usageFetcher            ClaudeUsageFetcher
 	geminiQuotaService      *GeminiQuotaService
 	antigravityQuotaFetcher *AntigravityQuotaFetcher
+	grokQuotaFetcher        *GrokQuotaFetcher
 	cache                   *UsageCache
 	identityCache           IdentityCache
 	tlsFPProfileService     *TLSFingerprintProfileService
@@ -279,13 +292,19 @@ func NewAccountUsageService(
 	cache *UsageCache,
 	identityCache IdentityCache,
 	tlsFPProfileService *TLSFingerprintProfileService,
+	grokQuotaFetchers ...*GrokQuotaFetcher,
 ) *AccountUsageService {
+	var grokQuotaFetcher *GrokQuotaFetcher
+	if len(grokQuotaFetchers) > 0 {
+		grokQuotaFetcher = grokQuotaFetchers[0]
+	}
 	return &AccountUsageService{
 		accountRepo:             accountRepo,
 		usageLogRepo:            usageLogRepo,
 		usageFetcher:            usageFetcher,
 		geminiQuotaService:      geminiQuotaService,
 		antigravityQuotaFetcher: antigravityQuotaFetcher,
+		grokQuotaFetcher:        grokQuotaFetcher,
 		cache:                   cache,
 		identityCache:           identityCache,
 		tlsFPProfileService:     tlsFPProfileService,
@@ -349,6 +368,14 @@ func (s *AccountUsageService) getUsageForAccount(ctx context.Context, account *A
 	// Antigravity 平台：使用 AntigravityQuotaFetcher 获取额度
 	if account.Platform == PlatformAntigravity {
 		usage, err := s.getAntigravityUsage(ctx, account)
+		if err == nil {
+			s.tryClearRecoverableAccountError(ctx, account)
+		}
+		return usage, err
+	}
+
+	if account.Platform == PlatformGrok {
+		usage, err := s.getGrokUsage(ctx, account)
 		if err == nil {
 			s.tryClearRecoverableAccountError(ctx, account)
 		}
@@ -874,6 +901,30 @@ func (s *AccountUsageService) getGeminiUsage(ctx context.Context, account *Accou
 		usage.GeminiFlashMinute = buildGeminiUsageProgress(minuteTotals.FlashRequests, quota.FlashRPM, minuteResetAt, minuteTotals.FlashTokens, minuteTotals.FlashCost, now)
 	}
 
+	return usage, nil
+}
+
+func (s *AccountUsageService) getGrokUsage(ctx context.Context, account *Account) (*UsageInfo, error) {
+	if s.grokQuotaFetcher == nil {
+		now := time.Now()
+		return &UsageInfo{UpdatedAt: &now}, nil
+	}
+	usage := s.grokQuotaFetcher.BuildUsageInfo(account)
+	if usage.GrokQuotaSnapshotState == "" {
+		if usage.ErrorCode == "quota_unknown" {
+			usage.GrokQuotaSnapshotState = "unknown_until_first_response"
+		} else {
+			usage.GrokQuotaSnapshotState = "observed"
+		}
+	}
+
+	if s.usageLogRepo != nil && account != nil {
+		if stats, err := s.usageLogRepo.GetAccountTodayStats(ctx, account.ID); err == nil && stats != nil {
+			usage.GrokLocalUsage = windowStatsFromAccountStats(stats)
+		}
+	}
+
+	enrichUsageWithAccountError(usage, account)
 	return usage, nil
 }
 

@@ -19,14 +19,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/claude"
 	"ikik-api/internal/pkg/geminicli"
 	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/pkg/openai_compat"
+	"ikik-api/internal/pkg/xai"
 	"ikik-api/internal/util/urlvalidator"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // sseDataPrefix matches SSE data lines with optional whitespace after colon.
@@ -446,6 +447,10 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
 	}
 
+	if account.IsGrok() {
+		return s.testGrokAccountConnection(c, account, modelID, prompt)
+	}
+
 	if account.IsGemini() {
 		return s.testGeminiAccountConnection(c, account, modelID, prompt)
 	}
@@ -756,7 +761,6 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 // testOpenAIAccountConnection tests an OpenAI account's connection
 func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account *Account, modelID string, prompt string, mode string) error {
 	ctx := c.Request.Context()
-	_ = prompt
 	mode = normalizeAccountTestMode(mode)
 
 	// Pick a ChatGPT Codex model for OAuth probes; the public OpenAI default
@@ -784,6 +788,12 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 			return s.testOpenAIImageAPIKey(c, ctx, account, testModelID, imagePrompt)
 		}
 		return s.testOpenAIImageOAuth(c, ctx, account, testModelID, imagePrompt)
+	}
+
+	// Embeddings-only accounts do not expose /responses or /chat/completions.
+	// Probe the OpenAI-compatible embeddings endpoint directly.
+	if account.Type == AccountTypeAPIKey && shouldUseOpenAIEmbeddingsAccountTest(account, testModelID) {
+		return s.testOpenAIEmbeddingsConnection(c, account, testModelID, prompt)
 	}
 
 	// Determine authentication method and API URL
@@ -919,6 +929,215 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 
 	// Process SSE stream
 	return s.processOpenAIStream(c, resp.Body)
+}
+
+func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
+	ctx := c.Request.Context()
+
+	authToken := account.GetGrokAccessToken()
+	if strings.TrimSpace(authToken) == "" {
+		return s.sendErrorAndEnd(c, "No Grok access token available")
+	}
+
+	testModelID := strings.TrimSpace(modelID)
+	if testModelID == "" {
+		testModelID = grokQuotaDefaultModel
+	}
+	testModelID = account.GetMappedModel(testModelID)
+	if strings.TrimSpace(testModelID) == "" {
+		testModelID = grokQuotaDefaultModel
+	}
+
+	apiURL, err := xai.BuildResponsesURL(account.GetGrokBaseURL())
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid Grok base URL: %s", err.Error()))
+	}
+
+	testPrompt := strings.TrimSpace(prompt)
+	if testPrompt == "" {
+		testPrompt = "hi"
+	}
+	payload := map[string]any{
+		"model": testModelID,
+		"input": []map[string]any{
+			{
+				"role": "user",
+				"content": []map[string]any{
+					{
+						"type": "input_text",
+						"text": testPrompt,
+					},
+				},
+			},
+		},
+		"stream":            true,
+		"store":             false,
+		"max_output_tokens": openAITestMaxOutputTokens,
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to create Grok test payload")
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(payloadBytes))
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to create Grok request")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Authorization", "Bearer "+authToken)
+	req.Header.Set("User-Agent", "sub2api-grok-test/1.0")
+
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+
+	var resp *http.Response
+	if s.httpUpstream != nil {
+		resp, err = s.httpUpstream.Do(req, proxyURL, account.ID, maxInt(account.Concurrency, 1))
+	} else {
+		resp, err = http.DefaultClient.Do(req)
+	}
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok request failed: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if s.accountRepo != nil {
+		if snapshot := xai.ObserveQuotaHeaders(resp.Header, resp.StatusCode, "account_test"); snapshot != nil {
+			updates := map[string]any{grokQuotaSnapshotExtraKey: snapshot}
+			_ = s.accountRepo.UpdateExtra(ctx, account.ID, updates)
+			mergeAccountExtra(account, updates)
+		}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok Responses API returned %d: %s", resp.StatusCode, string(body)))
+	}
+
+	return s.processOpenAIStream(c, resp.Body)
+}
+
+func shouldUseOpenAIEmbeddingsAccountTest(account *Account, modelID string) bool {
+	if account == nil {
+		return false
+	}
+
+	model := strings.ToLower(strings.TrimSpace(modelID))
+	if strings.Contains(model, "embedding") || strings.Contains(model, "embed") {
+		return true
+	}
+
+	configured, found := account.openAIEndpointCapabilitySet()
+	if !found {
+		return false
+	}
+	return configured[string(OpenAIEndpointCapabilityEmbeddings)] && !configured[string(OpenAIEndpointCapabilityChatCompletions)]
+}
+
+func (s *AccountTestService) testOpenAIEmbeddingsConnection(c *gin.Context, account *Account, testModelID string, prompt string) error {
+	ctx := c.Request.Context()
+
+	authToken := account.GetOpenAIApiKey()
+	if authToken == "" {
+		return s.sendErrorAndEnd(c, "No API key available")
+	}
+
+	baseURL := account.GetOpenAIBaseURL()
+	if baseURL == "" {
+		baseURL = "https://api.openai.com"
+	}
+	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	upstreamModel := normalizeOpenAIModelForUpstream(account, testModelID)
+	if strings.TrimSpace(upstreamModel) == "" {
+		upstreamModel = testModelID
+	}
+	input := strings.TrimSpace(prompt)
+	if input == "" {
+		input = "你好"
+	}
+
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+	s.sendEvent(c, TestEvent{Type: "status", Text: "正在通过 /v1/embeddings 测试连接"})
+
+	payload := map[string]any{
+		"model": upstreamModel,
+		"input": input,
+	}
+	payloadBytes, _ := json.Marshal(payload)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, buildOpenAIEmbeddingsURL(normalizedBaseURL), bytes.NewReader(payloadBytes))
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to create Embeddings request")
+	}
+	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+authToken)
+
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+
+	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Embeddings API (/v1/embeddings) request failed: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to read Embeddings response: %s", readErr.Error()))
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusTooManyRequests {
+			s.reconcileOpenAI429State(ctx, account, resp.Header, body)
+		}
+		if resp.StatusCode == http.StatusUnauthorized && s.accountRepo != nil {
+			errMsg := fmt.Sprintf("Embeddings authentication failed (401): %s", string(body))
+			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
+		}
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Embeddings API (/v1/embeddings) returned %d: %s", resp.StatusCode, string(body)))
+	}
+
+	var parsed struct {
+		Data []struct {
+			Embedding []float64 `json:"embedding"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to parse Embeddings response: %s", err.Error()))
+	}
+	if len(parsed.Data) == 0 || len(parsed.Data[0].Embedding) == 0 {
+		return s.sendErrorAndEnd(c, "Embeddings response missing data[0].embedding")
+	}
+
+	s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("embedding dim: %d", len(parsed.Data[0].Embedding))})
+	s.sendEvent(c, TestEvent{Type: "status", Text: "已通过 /v1/embeddings 验证"})
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	return nil
 }
 
 func defaultOpenAITestModelForAccount(account *Account) string {

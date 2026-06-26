@@ -307,6 +307,8 @@ const getUserDefaultTestModels = (account: Account): ClaudeModel[] => {
     case 'gemini':
     case 'antigravity':
       return [{ id: 'gemini-2.5-flash', type: 'model', display_name: 'gemini-2.5-flash', created_at: '' }]
+    case 'grok':
+      return [{ id: 'grok-4', type: 'model', display_name: 'grok-4', created_at: '' }]
     default:
       return [{ id: 'claude-sonnet-4-5-20250929', type: 'model', display_name: 'Claude Sonnet 4.5', created_at: '' }]
   }

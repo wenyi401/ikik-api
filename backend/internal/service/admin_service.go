@@ -22,6 +22,7 @@ import (
 	"ikik-api/internal/pkg/httpclient"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/pagination"
+	"ikik-api/internal/pkg/xai"
 	"ikik-api/internal/util/httputil"
 )
 
@@ -1796,6 +1797,18 @@ func normalizeImageRateMultiplier(multiplier *float64) float64 {
 	return *multiplier
 }
 
+func normalizeAccountConcurrency(platform, accountType string, concurrency int) int {
+	if platform == PlatformGrok && accountType == AccountTypeOAuth {
+		if concurrency <= 0 {
+			return 1
+		}
+		if concurrency > 1 && !xai.AllowUnsafeHighConcurrency() {
+			return 1
+		}
+	}
+	return concurrency
+}
+
 // validateFallbackGroup 校验降级分组的有效性
 // currentGroupID: 当前分组 ID（新建时为 0）
 // fallbackGroupID: 降级分组 ID
@@ -2453,6 +2466,7 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	if err != nil {
 		return nil, err
 	}
+	concurrency = normalizeAccountConcurrency(input.Platform, input.Type, concurrency)
 	if err := ValidateAccountLoadFactor(input.LoadFactor); err != nil {
 		return nil, err
 	}
@@ -2607,7 +2621,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	}
 	// 只在指针非 nil 时更新 Concurrency（支持设置为 0）
 	if input.Concurrency != nil {
-		account.Concurrency = *input.Concurrency
+		account.Concurrency = normalizeAccountConcurrency(account.Platform, account.Type, *input.Concurrency)
 	}
 	// 只在指针非 nil 时更新 Priority（支持设置为 0）
 	if input.Priority != nil {
@@ -3954,7 +3968,8 @@ func (s *adminServiceImpl) normalizeAccountIDsForGroupBinding(ctx context.Contex
 		(group.Platform == PlatformOpenAI ||
 			group.Platform == PlatformAntigravity ||
 			group.Platform == PlatformAnthropic ||
-			group.Platform == PlatformGemini)
+			group.Platform == PlatformGemini ||
+			group.Platform == PlatformGrok)
 	requiredLevel := NormalizeRequiredAccountLevel(group.RequiredAccountLevel)
 	requiresLevelCheck := group.Platform == PlatformOpenAI && requiredLevel != ""
 	if !requiresOAuthFilter && !requiresLevelCheck {

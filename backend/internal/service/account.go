@@ -15,26 +15,27 @@ import (
 
 	"ikik-api/internal/config"
 	"ikik-api/internal/domain"
+	"ikik-api/internal/pkg/xai"
 )
 
 type Account struct {
-	ID            int64
-	Name          string
-	Notes         *string
-	Platform      string
-	AccountLevel  string
-	Type          string
-	Credentials   map[string]any
-	Extra         map[string]any
-	OwnerUserID   *int64
-	ShareMode     string
-	ShareStatus   string
-	SharePolicyID *int64
-	ProxyID       *int64
+	ID                    int64
+	Name                  string
+	Notes                 *string
+	Platform              string
+	AccountLevel          string
+	Type                  string
+	Credentials           map[string]any
+	Extra                 map[string]any
+	OwnerUserID           *int64
+	ShareMode             string
+	ShareStatus           string
+	SharePolicyID         *int64
+	ProxyID               *int64
 	ProxyFallbackOriginID *int64
 	ProxyFallbackOrigin   *Proxy
-	Concurrency   int
-	Priority      int
+	Concurrency           int
+	Priority              int
 	// RateMultiplier 账号计费倍率（>=0，允许 0 表示该账号计费为 0）。
 	// 使用指针用于兼容旧版本调度缓存（Redis）中缺字段的情况：nil 表示按 1.0 处理。
 	RateMultiplier     *float64
@@ -81,7 +82,10 @@ const (
 	OpenAIEndpointCapabilityEmbeddings      OpenAIEndpointCapability = "embeddings"
 )
 
-const openAIEndpointCapabilitiesCredentialKey = "openai_capabilities"
+const (
+	openAIEndpointCapabilitiesCredentialKey       = "openai_capabilities"
+	legacyOpenAIEndpointCapabilitiesCredentialKey = "endpoint_capabilities"
+)
 
 const (
 	AccountShareModePrivate = "private"
@@ -243,6 +247,9 @@ func OpenAISharedPoolAllowedAccountLevels(requiredLevel string) []string {
 func DefaultOAuthAccountConcurrencyForPlatform(platform string) int {
 	if platform == PlatformOpenAI {
 		return OpenAIPlusDefaultConcurrency
+	}
+	if platform == PlatformGrok {
+		return 1
 	}
 	return OAuthAccountDefaultConcurrency
 }
@@ -424,6 +431,18 @@ func (a *Account) IsPrivacySet() bool {
 
 func (a *Account) IsGemini() bool {
 	return a.Platform == PlatformGemini
+}
+
+func (a *Account) IsGrok() bool {
+	return a.Platform == PlatformGrok
+}
+
+func (a *Account) IsGrokOAuth() bool {
+	return a.IsGrok() && a.Type == AccountTypeOAuth
+}
+
+func (a *Account) IsOpenAICompatible() bool {
+	return a != nil && (a.Platform == PlatformOpenAI || a.Platform == PlatformGrok)
 }
 
 func (a *Account) GeminiOAuthType() string {
@@ -744,6 +763,9 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 		if a.Platform == domain.PlatformAntigravity {
 			return domain.DefaultAntigravityModelMapping
 		}
+		if a.Platform == domain.PlatformGrok {
+			return xai.DefaultModelMapping()
+		}
 		// Bedrock 默认映射由 forwardBedrock 统一处理（需配合 region prefix 调整）
 		return nil
 	}
@@ -751,6 +773,9 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 		// Antigravity 平台使用默认映射
 		if a.Platform == domain.PlatformAntigravity {
 			return domain.DefaultAntigravityModelMapping
+		}
+		if a.Platform == domain.PlatformGrok {
+			return xai.DefaultModelMapping()
 		}
 		return nil
 	}
@@ -775,6 +800,9 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 	// Antigravity 平台使用默认映射
 	if a.Platform == domain.PlatformAntigravity {
 		return domain.DefaultAntigravityModelMapping
+	}
+	if a.Platform == domain.PlatformGrok {
+		return xai.DefaultModelMapping()
 	}
 	return nil
 }
@@ -1346,6 +1374,31 @@ func (a *Account) GetOpenAIRefreshToken() string {
 	return a.GetCredential("refresh_token")
 }
 
+func (a *Account) GetGrokBaseURL() string {
+	if !a.IsGrok() {
+		return ""
+	}
+	baseURL := a.GetCredential("base_url")
+	if baseURL != "" {
+		return baseURL
+	}
+	return xai.DefaultBaseURL
+}
+
+func (a *Account) GetGrokAccessToken() string {
+	if !a.IsGrok() {
+		return ""
+	}
+	return a.GetCredential("access_token")
+}
+
+func (a *Account) GetGrokRefreshToken() string {
+	if !a.IsGrokOAuth() {
+		return ""
+	}
+	return a.GetCredential("refresh_token")
+}
+
 func (a *Account) GetOpenAIIDToken() string {
 	if !a.IsOpenAIOAuth() {
 		return ""
@@ -1395,8 +1448,11 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	if capability == "" {
 		return true
 	}
-	if !a.IsOpenAI() {
+	if !a.IsOpenAICompatible() {
 		return false
+	}
+	if a.IsGrok() {
+		return capability == OpenAIEndpointCapabilityChatCompletions
 	}
 	switch capability {
 	case OpenAIEndpointCapabilityChatCompletions:
@@ -1419,11 +1475,17 @@ func (a *Account) openAIEndpointCapabilitySet() (map[string]bool, bool) {
 	if a == nil || a.Credentials == nil {
 		return nil, false
 	}
-	raw, found := a.Credentials[openAIEndpointCapabilitiesCredentialKey]
-	if !found || raw == nil {
-		return nil, false
+	for _, key := range []string{openAIEndpointCapabilitiesCredentialKey, legacyOpenAIEndpointCapabilitiesCredentialKey} {
+		raw, found := a.Credentials[key]
+		if !found || raw == nil {
+			continue
+		}
+		return parseOpenAIEndpointCapabilitySet(raw), true
 	}
+	return nil, false
+}
 
+func parseOpenAIEndpointCapabilitySet(raw any) map[string]bool {
 	result := make(map[string]bool)
 	add := func(value string) {
 		value = strings.ToLower(strings.TrimSpace(value))
@@ -1444,6 +1506,10 @@ func (a *Account) openAIEndpointCapabilitySet() (map[string]bool, bool) {
 		for _, value := range capabilities {
 			add(value)
 		}
+	case string:
+		for _, value := range strings.Split(capabilities, ",") {
+			add(value)
+		}
 	case map[string]any:
 		for key, value := range capabilities {
 			if enabled, ok := value.(bool); ok && enabled {
@@ -1458,7 +1524,7 @@ func (a *Account) openAIEndpointCapabilitySet() (map[string]bool, bool) {
 		}
 	}
 
-	return result, true
+	return result
 }
 
 func (a *Account) SupportsOpenAIImageCapability(capability OpenAIImagesCapability) bool {

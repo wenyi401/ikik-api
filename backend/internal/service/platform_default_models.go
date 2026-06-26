@@ -5,6 +5,7 @@ import (
 	"ikik-api/internal/pkg/claude"
 	"ikik-api/internal/pkg/geminicli"
 	"ikik-api/internal/pkg/openai"
+	"ikik-api/internal/pkg/xai"
 )
 
 // DefaultModelIDsForPlatform 返回平台默认模型 ID 列表（未知平台回退 Claude 默认集）。
@@ -29,6 +30,8 @@ func DefaultModelIDsForPlatform(platform string) []string {
 			ids = append(ids, model.ID)
 		}
 		return ids
+	case PlatformGrok:
+		return xai.DefaultModelIDs()
 	default:
 		ids := make([]string, 0, len(claude.DefaultModels))
 		for _, model := range claude.DefaultModels {

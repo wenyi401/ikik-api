@@ -25,9 +25,15 @@ func (s *OpenAIGatewayService) isAccountSchedulableForSchedulingRequest(ctx cont
 	return false
 }
 
-func (s *OpenAIGatewayService) isOpenAIAccountEligibleForSchedulingRequest(ctx context.Context, account *Account, requestedModel string, requireCompact bool, requiredCapability OpenAIEndpointCapability) bool {
-	if account == nil || !s.isAccountSchedulableForSchedulingRequest(ctx, account) || !account.IsOpenAI() {
+func (s *OpenAIGatewayService) isOpenAIAccountEligibleForSchedulingRequest(ctx context.Context, account *Account, platform string, requestedModel string, requireCompact bool, requiredCapability OpenAIEndpointCapability) bool {
+	platform = normalizeOpenAICompatiblePlatform(platform)
+	if account == nil || account.Platform != platform || !s.isAccountSchedulableForSchedulingRequest(ctx, account) || !account.IsOpenAICompatible() {
 		return false
+	}
+	if account.IsGrok() {
+		if paused, _ := shouldAutoPauseGrokAccountByQuota(account); paused {
+			return false
+		}
 	}
 	if requestedModel != "" && !account.IsModelSupported(requestedModel) {
 		return false

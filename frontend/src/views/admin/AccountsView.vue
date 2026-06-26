@@ -385,6 +385,7 @@
     />
     <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
+    <ConfirmDialog :show="showResetQuotaDialog" :title="t('admin.accounts.resetQuota')" :message="t('admin.accounts.resetQuotaConfirm', { name: resetQuotaAcc?.name })" :confirm-text="t('admin.accounts.resetQuota')" :cancel-text="t('common.cancel')" @confirm="confirmResetQuota" @cancel="cancelResetQuota" />
     <ConfirmDialog :show="showExportDataDialog" :title="t('admin.accounts.dataExport')" :message="t('admin.accounts.dataExportConfirmMessage')" :confirm-text="t('admin.accounts.dataExportConfirm')" :cancel-text="t('common.cancel')" @confirm="handleExportData" @cancel="showExportDataDialog = false">
       <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
         <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" v-model="includeProxyOnExport" />
@@ -501,6 +502,7 @@ const showBulkEdit = ref(false)
 const bulkEditTarget = ref<AccountBulkEditTarget | null>(null)
 const showTempUnsched = ref(false)
 const showDeleteDialog = ref(false)
+const showResetQuotaDialog = ref(false)
 const showReAuth = ref(false)
 const showTest = ref(false)
 const showStats = ref(false)
@@ -509,6 +511,7 @@ const showTLSFingerprintProfiles = ref(false)
 const edAcc = ref<Account | null>(null)
 const tempUnschedAcc = ref<Account | null>(null)
 const deletingAcc = ref<Account | null>(null)
+const resetQuotaAcc = ref<Account | null>(null)
 const reAuthAcc = ref<Account | null>(null)
 const testingAcc = ref<Account | null>(null)
 const statsAcc = ref<Account | null>(null)
@@ -895,6 +898,7 @@ const isAnyModalOpen = computed(() => {
     showBulkEdit.value ||
     showTempUnsched.value ||
     showDeleteDialog.value ||
+    showResetQuotaDialog.value ||
     showReAuth.value ||
     showTest.value ||
     showStats.value ||
@@ -936,6 +940,7 @@ const syncAccountRefs = (nextAccount: Account) => {
   if (reAuthAcc.value?.id === nextAccount.id) reAuthAcc.value = nextAccount
   if (tempUnschedAcc.value?.id === nextAccount.id) tempUnschedAcc.value = nextAccount
   if (deletingAcc.value?.id === nextAccount.id) deletingAcc.value = nextAccount
+  if (resetQuotaAcc.value?.id === nextAccount.id) resetQuotaAcc.value = nextAccount
   if (menu.acc?.id === nextAccount.id) menu.acc = nextAccount
 }
 
@@ -1715,11 +1720,21 @@ const handleRecoverState = async (a: Account) => {
     appStore.showError(error?.message || t('admin.accounts.recoverStateFailed'))
   }
 }
-const handleResetQuota = async (a: Account) => {
+const handleResetQuota = (a: Account) => {
+  resetQuotaAcc.value = a
+  showResetQuotaDialog.value = true
+}
+const cancelResetQuota = () => {
+  showResetQuotaDialog.value = false
+  resetQuotaAcc.value = null
+}
+const confirmResetQuota = async () => {
+  if (!resetQuotaAcc.value) return
   try {
-    const updated = await adminAPI.accounts.resetAccountQuota(a.id)
+    const updated = await adminAPI.accounts.resetAccountQuota(resetQuotaAcc.value.id)
     patchAccountInList(updated)
     enterAutoRefreshSilentWindow()
+    cancelResetQuota()
     appStore.showSuccess(t('common.success'))
   } catch (error) {
     console.error('Failed to reset quota:', error)

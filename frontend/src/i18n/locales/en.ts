@@ -2123,6 +2123,7 @@ export default {
       unbanFailed: 'Failed to unban user',
       inputDetailTitle: 'Input Summary Detail',
       inputDetailContent: 'Full Content',
+      matchedKeyword: 'Matched Keyword',
       queueDelay: 'Queued {ms} ms',
       allGroups: 'All Groups',
       allGroupsHint: 'Auditing all groups',
@@ -3322,7 +3323,8 @@ export default {
         anthropic: 'Anthropic',
         openai: 'OpenAI',
         gemini: 'Gemini',
-        antigravity: 'Antigravity'
+        antigravity: 'Antigravity',
+        grok: 'Grok'
       },
       deleteConfirm: "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",
       deleteConfirmSubscription: "Are you sure you want to delete subscription group '{name}'? This will invalidate all API keys bound to this subscription and delete all related subscription records. This action cannot be undone.",
@@ -4013,6 +4015,7 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        grok: 'Grok',
         custom: 'Custom'
       },
       types: {
@@ -4023,6 +4026,7 @@ export default {
         codeAssist: 'Code Assist',
         antigravityOauth: 'Antigravity OAuth',
         antigravityApikey: 'Connect via Base URL + API Key',
+        grokOauth: 'Grok OAuth',
         upstream: 'Upstream',
         upstreamDesc: 'Connect via Base URL + API Key'
       },
@@ -4164,6 +4168,7 @@ export default {
       },
       clearRateLimit: 'Clear Rate Limit',
       resetQuota: 'Reset Quota',
+      resetQuotaConfirm: 'Reset used quota for account "{name}" to 0?',
       quotaLimit: 'Quota Limit',
       quotaLimitPlaceholder: '0 means unlimited',
       quotaLimitHint: "Set daily/weekly/total spending limits (USD). Anthropic API key accounts can also configure client affinity. Changing limits won't reset usage.",
@@ -4746,8 +4751,37 @@ export default {
           validateAndCreate: 'Validate & Create',
           pleaseEnterRefreshToken: 'Please enter Refresh Token',
           failedToValidateRT: 'Failed to validate Refresh Token'
+        },
+        // Grok specific
+        grok: {
+          title: 'Grok Account Authorization',
+          followSteps: 'Follow these steps to authorize your Grok account:',
+          step1GenerateUrl: 'Generate the authorization URL',
+          generateAuthUrl: 'Generate Auth URL',
+          step2OpenUrl: 'Open the URL in your browser and complete authorization',
+          openUrlDesc: 'Open the authorization URL in a new tab, log in to your Grok account and authorize.',
+          step3EnterCode: 'Enter Authorization URL or Code',
+          authCodeDesc: 'After authorization, copy the callback URL or code and paste it below.',
+          authCode: 'Authorization URL or Code',
+          authCodePlaceholder: 'Option 1: Paste the callback URL\nOption 2: Paste only the code value',
+          authCodeHint: 'The system will auto-extract code/state from the URL.',
+          refreshTokenAuth: 'Manual RT',
+          refreshTokenDesc: 'Enter your existing Grok Refresh Token. Supports batch input, one per line.',
+          refreshTokenPlaceholder: 'Paste your Grok Refresh Token...\nSupports multiple tokens, one per line',
+          oauthOnlyHint: 'Grok currently supports OAuth accounts only.',
+          failedToGenerateUrl: 'Failed to generate Grok auth URL',
+          missingExchangeParams: 'Missing code, session ID, or state',
+          failedToExchangeCode: 'Failed to exchange Grok auth code',
+          validating: 'Validating...',
+          validateAndCreate: 'Validate & Create',
+          pleaseEnterRefreshToken: 'Please enter Refresh Token',
+          failedToValidateRT: 'Failed to validate Refresh Token'
         }
       }, // Gemini specific (platform-wide)
+      grok: {
+        baseUrlHint: 'Leave empty to use the official xAI API endpoint',
+        apiKeyHint: 'Grok OAuth accounts use refresh tokens; API key input is not required for OAuth.'
+      },
       gemini: {
         helpButton: 'Help',
         helpDialog: {
@@ -4887,6 +4921,7 @@ export default {
       openaiAccount: 'OpenAI Account',
       geminiAccount: 'Gemini Account',
       antigravityAccount: 'Antigravity Account',
+      grokAccount: 'Grok Account',
       inputMethod: 'Input Method',
       reAuthorizedSuccess: 'Account re-authorized successfully',
       // Test Modal
@@ -4962,7 +4997,19 @@ export default {
         gemini3Image: 'G31FI',
         claude: 'Claude',
         passiveSampled: 'Passive',
-        activeQuery: 'Query'
+        activeQuery: 'Query',
+        grokRequests: 'Req',
+        grokTokens: 'Tok',
+        grokProbe: 'Probe',
+        grokProbeTooltip: 'Probe upstream xAI quota headers',
+        grokResetUnsupported: 'No reset',
+        grokResetUnsupportedTooltip: 'xAI does not expose a quota reset endpoint',
+        grokRetryAfter: 'Retry after {time}',
+        grokNoHeaders: 'No quota headers observed',
+        grokUnknown: 'Quota unknown',
+        grokLastStatus: 'HTTP {status}',
+        grokLastProbe: 'probe {time}',
+        grokLastHeadersSeen: 'headers {time}'
       },
       openaiQuotaReset: {
         count: 'Credits',
