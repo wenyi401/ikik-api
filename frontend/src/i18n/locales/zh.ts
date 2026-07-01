@@ -10,6 +10,112 @@ export default {
     login: '登录',
     getStarted: '立即开始',
     goToDashboard: '进入控制台',
+    redesign: {
+      nav: {
+        gateway: '网关',
+        models: '模型'
+      },
+      hero: {
+        eyebrow: '统一模型网关',
+        title: '把模型接进稳定入口',
+        lead: '{siteName} 将 GPT、Claude、Gemini、Grok 与自定义接口统一到同一套网关中，兼顾稳定调度、清晰用量和长期成本控制。',
+        proofAria: '平台能力',
+        proof: {
+          openai: 'OpenAI 兼容接口',
+          routing: '分组调度与故障切换',
+          billing: '实时用量与费用分析'
+        }
+      },
+      product: {
+        client: '客户端',
+        gateway: '网关',
+        pool: '账号池',
+        apiSurface: '接口入口',
+        compatible: '兼容'
+      },
+      story: {
+        title: '一次接入，持续可用',
+        lead: '从个人开发到团队自动化，平台在统一入口后处理模型选择、账号状态、额度变化与调用记录，让服务保持连续可用。',
+        status: {
+          ready: '就绪',
+          live: '运行中',
+          measured: '已计量',
+          secured: '受控'
+        },
+        items: {
+          gateway: {
+            title: '接入方式足够简单',
+            desc: '替换 Base URL，使用平台密钥，即可让现有应用接入多模型能力。',
+            panel: '统一入口',
+            caption: '适配常见 SDK、CLI 与自动化工具'
+          },
+          routing: {
+            title: '稳定性由系统接管',
+            desc: '平台持续感知账号状态与可用额度，在异常、限流或不可用时切换到更合适的资源。',
+            panel: '智能调度',
+            caption: '私有账号、共享池与拼车池统一调度'
+          },
+          usage: {
+            title: '用量和成本看得清楚',
+            desc: 'Token、费用、首字时间与推理消耗都会沉淀为记录，帮助你判断模型是否值得继续使用。',
+            panel: '用量分析',
+            caption: '消费、速度与稳定性一目了然'
+          },
+          control: {
+            title: '一个 Key 可以只给它该用的范围',
+            desc: '给不同项目创建不同密钥，并限制它能用的分组、模型和额度，避免一个密钥拖垮整个平台余额。',
+            panel: '密钥权限',
+            caption: '适合团队成员、自动化任务和外部项目'
+          }
+        }
+      },
+      models: {
+        title: '模型不需要用户自己到处找',
+        lead: '把常用模型、私有账号、自定义 API 和自动路由放在同一个入口里。用户选模型，系统负责把请求送到可用资源。',
+        policy: {
+          title: '你可以按业务决定怎么用模型',
+          items: {
+            priority: {
+              title: '贵模型做关键任务',
+              desc: '例如代码、长文本、复杂推理走高质量模型。'
+            },
+            private: {
+              title: '私有资源只给自己用',
+              desc: '用户自己的 API Key 和账号默认只进入私有分组。'
+            },
+            fallback: {
+              title: '异常时自动换资源',
+              desc: '账号限流、不可用或额度不足时，系统切到更合适的账号。'
+            }
+          }
+        },
+        providers: {
+          openai: '适合推理、代码、自动化和通用对话场景。',
+          claude: '适合长文本、代码协作和高质量写作场景。',
+          gemini: '适合多模态、快速响应和补充模型能力。',
+          custom: '适合接入自有供应商、私有代理和专属业务模型。'
+        }
+      },
+      integration: {
+        title: '不用重写项目，改配置就能开始用',
+        lead: '保持原来的 OpenAI 风格请求，只把密钥和 Base URL 换成平台提供的入口。',
+        steps: {
+          key: {
+            title: '创建 API 密钥',
+            desc: '给项目、成员或自动化任务单独创建密钥。'
+          },
+          group: {
+            title: '选择调用分组',
+            desc: '决定这个密钥走平台订阅、私有账号、共享池还是拼车池。'
+          },
+          baseUrl: {
+            title: '替换 Base URL',
+            desc: '把客户端地址改成平台网关，原请求结构可以继续保留。'
+          }
+        }
+      },
+      footer: {}
+    },
     // 首页落地页文案（当前 HomeView.vue 使用）
     nav: {
       home: '首页',
@@ -34,7 +140,7 @@ export default {
     },
     steps: {
       heading: '{steps} 步开始，{minutes} 分钟完成迁移',
-      ariaLabel: '接入步骤',
+      ariaLabel: '接入流程',
       register: {
         title: '注册账号',
         desc: '免费注册，即刻获得体验额度'
@@ -144,7 +250,7 @@ export default {
       button: '免费注册'
     },
     footer: {
-      kicker: '商业化 AI 接入',
+      kicker: '服务信息',
       title: '{siteName} 把模型能力带进真实工作流',
       description: '面向个人开发者、团队和自动化场景，提供统一网关、用量分析、订阅额度和账号池调度，降低长期 AI 接入成本。',
       infoAria: '平台信息',

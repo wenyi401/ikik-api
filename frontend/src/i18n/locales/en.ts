@@ -10,6 +10,112 @@ export default {
     login: 'Login',
     getStarted: 'Get Started',
     goToDashboard: 'Go to Dashboard',
+    redesign: {
+      nav: {
+        gateway: 'Gateway',
+        models: 'Models'
+      },
+      hero: {
+        eyebrow: 'Unified model gateway',
+        title: 'Every model, one stable entry',
+        lead: '{siteName} unifies GPT, Claude, Gemini, Grok, and custom APIs into one gateway with stable routing, transparent usage, and long-term cost control.',
+        proofAria: 'Platform capabilities',
+        proof: {
+          openai: 'OpenAI-compatible API',
+          routing: 'Group routing and failover',
+          billing: 'Real-time usage and cost analytics'
+        }
+      },
+      product: {
+        client: 'Client',
+        gateway: 'Gateway',
+        pool: 'Account Pool',
+        apiSurface: 'API Entry Points',
+        compatible: 'Compatible'
+      },
+      story: {
+        title: 'Connect once, keep running',
+        lead: 'From individual development to team automation, the platform handles model choice, account availability, quota changes, and usage records behind one entry point.',
+        status: {
+          ready: 'Ready',
+          live: 'Live',
+          measured: 'Measured',
+          secured: 'Secured'
+        },
+        items: {
+          gateway: {
+            title: 'Simple to connect',
+            desc: 'Replace the Base URL, use a platform key, and bring multi-model access into existing applications.',
+            panel: 'Unified Entry',
+            caption: 'Works with common SDKs, CLIs, and automation tools'
+          },
+          routing: {
+            title: 'Let the system handle stability',
+            desc: 'The platform tracks account availability and quota, then moves traffic to better resources when errors, limits, or outages appear.',
+            panel: 'Smart Routing',
+            caption: 'Private accounts, shared pools, and carpool pools in one system'
+          },
+          usage: {
+            title: 'Usage and cost stay clear',
+            desc: 'Tokens, cost, first-token latency, and reasoning usage are recorded so you can judge which models are worth keeping.',
+            panel: 'Usage Analytics',
+            caption: 'Cost, speed, and reliability at a glance'
+          },
+          control: {
+            title: 'Each key only gets the scope it needs',
+            desc: 'Create separate keys for projects, members, or automations, then limit their groups, models, and quota to avoid runaway spend.',
+            panel: 'Key Permissions',
+            caption: 'For team members, automations, and external projects'
+          }
+        }
+      },
+      models: {
+        title: 'Users should not need to hunt for models',
+        lead: 'Put common models, personal accounts, custom APIs, and auto routing behind one entry point. Users choose a model; the system sends the request to available resources.',
+        policy: {
+          title: 'Choose how models are used by scenario',
+          items: {
+            priority: {
+              title: 'Use premium models for important work',
+              desc: 'Code, long context, and complex reasoning can go to higher-quality models.'
+            },
+            private: {
+              title: 'Keep private resources private',
+              desc: 'User-owned API keys and accounts stay in private groups by default.'
+            },
+            fallback: {
+              title: 'Switch resources when needed',
+              desc: 'When an account is limited, unavailable, or out of quota, traffic can move to a better account.'
+            }
+          }
+        },
+        providers: {
+          openai: 'For reasoning, coding, automation, and general conversation.',
+          claude: 'For long context, code collaboration, and high-quality writing.',
+          gemini: 'For multimodal use, fast responses, and additional capacity.',
+          custom: 'For your own vendors, private proxies, and dedicated business models.'
+        }
+      },
+      integration: {
+        title: 'Start by changing configuration, not code',
+        lead: 'Keep the OpenAI-style request shape and replace only the API key and Base URL with the gateway entry point.',
+        steps: {
+          key: {
+            title: 'Create an API key',
+            desc: 'Give each project, member, or automation its own key.'
+          },
+          group: {
+            title: 'Choose a routing group',
+            desc: 'Decide whether the key uses platform plans, private accounts, shared pools, or carpool pools.'
+          },
+          baseUrl: {
+            title: 'Replace the Base URL',
+            desc: 'Point the client to the gateway while keeping the original request structure.'
+          }
+        }
+      },
+      footer: {}
+    },
     // Landing page copy (used by the current HomeView.vue)
     nav: {
       home: 'Home',

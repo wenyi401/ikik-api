@@ -1,7 +1,5 @@
 <template>
-  <!-- Custom Home Content: Full Page Mode -->
   <div v-if="homeContent" class="min-h-screen">
-    <!-- iframe mode -->
     <iframe
       v-if="isHomeContentUrl"
       :src="homeContent.trim()"
@@ -11,29 +9,26 @@
     <div v-else v-html="sanitizedHomeContent"></div>
   </div>
 
-  <!-- Default Home Page -->
-  <div v-else class="home-page">
+  <div
+    v-else
+    ref="pageRef"
+    class="home-page"
+    @pointermove="handlePointerMove"
+    @pointerleave="resetPointer"
+  >
+    <div class="home-noise" aria-hidden="true"></div>
+
     <header class="home-shell home-nav">
       <router-link class="brand" to="/home" aria-label="Home">
         <span class="brand-mark" aria-hidden="true">
           <img v-if="siteLogo" :src="siteLogo" alt="" />
           <svg v-else viewBox="0 0 100 100" fill="none">
-            <defs>
-              <linearGradient id="homeLogoLight" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#e2ae8c" />
-                <stop offset="100%" stop-color="#c66f4a" />
-              </linearGradient>
-              <linearGradient id="homeLogoDark" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#c66f4a" />
-                <stop offset="100%" stop-color="#33251e" />
-              </linearGradient>
-            </defs>
-            <path d="M 33 41 L 59 41 L 52 56 L 33 56 Z" fill="url(#homeLogoLight)" />
-            <path d="M 33 56 L 52 56 L 43 83 L 33 83 Z" fill="url(#homeLogoDark)" />
-            <rect x="16" y="19" width="20" height="64" rx="9" fill="url(#homeLogoLight)" />
+            <path d="M 33 41 L 59 41 L 52 56 L 33 56 Z" fill="currentColor" opacity=".72" />
+            <path d="M 33 56 L 52 56 L 43 83 L 33 83 Z" fill="currentColor" opacity=".48" />
+            <rect x="16" y="19" width="20" height="64" rx="9" fill="currentColor" opacity=".78" />
             <path
               d="M 71 29 L 87 29 Q 91.5 29 89 34 L 61 90 Q 58.5 95 53.5 95 L 38 95 Q 33.5 95 36 90 L 64 34 Q 66.5 29 71 29 Z"
-              fill="url(#homeLogoLight)"
+              fill="currentColor"
             />
           </svg>
         </span>
@@ -46,8 +41,7 @@
       </nav>
 
       <div class="home-actions">
-        <LocaleSwitcher />
-
+        <LocaleSwitcher class="home-locale" />
         <button
           type="button"
           class="icon-action"
@@ -57,293 +51,98 @@
           <Icon v-if="isDark" name="sun" size="md" />
           <Icon v-else name="moon" size="md" />
         </button>
-
         <router-link
-          v-if="isAuthenticated"
-          :to="dashboardPath"
+          :to="isAuthenticated ? dashboardPath : '/login'"
           class="button primary nav-cta"
         >
-          <span class="user-dot">{{ userInitial }}</span>
-          <span>{{ t('home.dashboard') }}</span>
-        </router-link>
-        <router-link v-else to="/login" class="button primary nav-cta">
-          {{ t('home.login') }}
+          <span v-if="isAuthenticated" class="user-dot">{{ userInitial }}</span>
+          <span>{{ isAuthenticated ? t('home.dashboard') : t('home.login') }}</span>
         </router-link>
       </div>
     </header>
 
-    <main class="home-shell hero">
-      <section class="copy">
-        <span class="eyebrow">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="12" cy="12" r="5" fill="currentColor" />
-            <path
-              d="M12 2v4m0 12v4M2 12h4m12 0h4"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            />
-          </svg>
-          {{ t('home.hero.eyebrow') }}
-        </span>
+    <main>
+      <section class="home-shell hero-section">
+        <div class="hero-copy">
+          <span class="eyebrow">
+            <span class="eyebrow-line"></span>
+            {{ t('home.redesign.hero.eyebrow') }}
+          </span>
+          <h1>{{ t('home.redesign.hero.title') }}</h1>
+          <p>{{ t('home.redesign.hero.lead', { siteName }) }}</p>
 
-        <i18n-t keypath="home.hero.title" tag="h1" class="home-title">
-          <template #flow><span class="flow-text">{{ t('home.hero.titleHighlight') }}</span></template>
-        </i18n-t>
+          <div class="hero-actions">
+            <router-link :to="isAuthenticated ? dashboardPath : '/login'" class="button primary">
+              {{ isAuthenticated ? t('home.goToDashboard') : t('home.getStarted') }}
+            </router-link>
+            <router-link class="button secondary" to="/key-usage">
+              {{ t('home.hero.viewUsage') }}
+            </router-link>
+          </div>
 
-        <p class="lead">
-          {{ t('home.hero.lead', { siteName }) }}
-        </p>
+          <div class="hero-proof" :aria-label="t('home.redesign.hero.proofAria')">
+            <span v-for="item in heroProofItems" :key="item">{{ item }}</span>
+          </div>
+        </div>
 
-        <div class="hero-actions">
-          <router-link :to="isAuthenticated ? dashboardPath : '/login'" class="button primary">
-            {{ isAuthenticated ? t('home.goToDashboard') : t('home.getStarted') }}
-          </router-link>
-          <router-link class="button secondary" to="/key-usage">{{ t('home.hero.viewUsage') }}</router-link>
+        <div class="hero-product" aria-hidden="true">
+          <div class="device-frame">
+            <div class="device-topbar">
+              <span></span>
+              <span></span>
+              <span></span>
+              <code>{{ publicBaseUrl }}/v1</code>
+            </div>
+            <div class="device-body">
+              <div class="route-map">
+                <div class="route-node source">
+                  <Icon name="terminal" size="md" />
+                  <span>{{ t('home.redesign.product.client') }}</span>
+                </div>
+                <div class="route-line"></div>
+                <div class="route-node gateway">
+                  <Icon name="globe" size="lg" />
+                  <span>{{ t('home.redesign.product.gateway') }}</span>
+                </div>
+                <div class="route-line"></div>
+                <div class="route-node pool">
+                  <Icon name="server" size="md" />
+                  <span>{{ t('home.redesign.product.pool') }}</span>
+                </div>
+              </div>
+
+              <div class="metrics-board">
+                <article v-for="metric in metricItems" :key="metric.label" class="metric">
+                  <span>{{ metric.label }}</span>
+                  <strong>{{ metric.value }}</strong>
+                </article>
+              </div>
+
+              <div class="flow-panel">
+                <div class="flow-panel-head">
+                  <span>{{ t('home.redesign.product.apiSurface') }}</span>
+                  <b>{{ t('home.redesign.product.compatible') }}</b>
+                </div>
+                <div class="api-rows">
+                  <span v-for="row in endpointRows" :key="row.path" class="api-row">
+                    <b>{{ row.method }}</b>
+                    <code>{{ row.path }}</code>
+                    <em>{{ row.label }}</em>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
-
-      <aside class="visual" :aria-label="t('home.hero.consoleAria')">
-        <div class="sphere sphere-one"></div>
-        <div class="sphere sphere-two"></div>
-        <div class="sphere sphere-three"></div>
-
-        <div class="console-card">
-          <div class="console-inner">
-            <div class="side-rail">
-              <div class="rail-logo">
-                <img v-if="siteLogo" :src="siteLogo" alt="" />
-                <svg v-else viewBox="0 0 100 100" fill="none" aria-hidden="true">
-                  <defs>
-                    <linearGradient id="railLogoLight" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stop-color="#e2ae8c" />
-                      <stop offset="100%" stop-color="#c66f4a" />
-                    </linearGradient>
-                    <linearGradient id="railLogoDark" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stop-color="#c66f4a" />
-                      <stop offset="100%" stop-color="#33251e" />
-                    </linearGradient>
-                  </defs>
-                  <path d="M 33 41 L 59 41 L 52 56 L 33 56 Z" fill="url(#railLogoLight)" />
-                  <path d="M 33 56 L 52 56 L 43 83 L 33 83 Z" fill="url(#railLogoDark)" />
-                  <rect x="16" y="19" width="20" height="64" rx="9" fill="url(#railLogoLight)" />
-                  <path
-                    d="M 71 29 L 87 29 Q 91.5 29 89 34 L 61 90 Q 58.5 95 53.5 95 L 38 95 Q 33.5 95 36 90 L 64 34 Q 66.5 29 71 29 Z"
-                    fill="url(#railLogoLight)"
-                  />
-                </svg>
-              </div>
-              <i class="active">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                  ></path>
-                </svg>
-              </i>
-              <i>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                  ></path>
-                </svg>
-              </i>
-              <i>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  ></path>
-                </svg>
-              </i>
-              <i>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                  ></path>
-                </svg>
-              </i>
-            </div>
-
-            <div class="dashboard-board">
-              <div class="metrics">
-                <article class="metric center-align">
-                  <span class="metric-icon">
-                    <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
-                    </svg>
-                  </span>
-                  <b>{{ todayRequestsText }}</b>
-                  <span>{{ t('home.console.todayRequests') }}</span>
-                </article>
-
-                <article class="metric">
-                  <span class="metric-icon">
-                    <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                      <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                    </svg>
-                  </span>
-                  <b>{{ todayTokensText }}</b>
-                  <span>{{ t('home.console.todayTokens') }}</span>
-                </article>
-
-                <article class="metric">
-                  <span class="metric-icon">
-                    <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                      <polyline points="9 12 11 14 15 10"></polyline>
-                    </svg>
-                  </span>
-                  <b>{{ successRateText }}</b>
-                  <span>{{ t('home.console.successRate') }}</span>
-                </article>
-
-                <article class="metric center-align">
-                  <span class="metric-icon">
-                    <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <polyline points="12 6 12 12 16 14"></polyline>
-                    </svg>
-                  </span>
-                  <b>{{ averageLatencyText }}</b>
-                  <span>{{ t('home.console.avgLatency') }}</span>
-                </article>
-              </div>
-
-              <div class="chart-card">
-                <div class="chart-head">
-                  <div class="chart-title">{{ t('home.console.requestTrend') }}</div>
-                  <div class="chart-legends">
-                    <span class="legend-one">{{ t('home.console.legendRequests') }}</span>
-                    <span class="legend-two">{{ t('home.console.legendTokens') }}</span>
-                  </div>
-                </div>
-
-                <svg viewBox="0 0 520 160" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="homeFadeDark" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stop-color="#33251e" stop-opacity="0.2" />
-                      <stop offset="100%" stop-color="#33251e" stop-opacity="0" />
-                    </linearGradient>
-                    <linearGradient id="homeFadeBlue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stop-color="#c66f4a" stop-opacity="0.2" />
-                      <stop offset="100%" stop-color="#c66f4a" stop-opacity="0" />
-                    </linearGradient>
-                  </defs>
-
-                  <path d="M0 30H520M0 70H520M0 110H520M0 150H520" stroke="#ede7dc" stroke-dasharray="4 4" stroke-width="1.5" />
-                  <path d="M 0 145 C 40 145, 80 80, 120 80 C 160 80, 200 140, 240 140 C 290 140, 310 135, 350 135 C 390 135, 400 120, 440 120 C 480 120, 500 135, 520 135 L 520 160 L 0 160 Z" fill="url(#homeFadeBlue)" />
-                  <path d="M 0 130 C 30 130, 50 115, 90 115 C 130 115, 170 140, 210 140 C 240 140, 255 45, 280 45 C 305 45, 320 130, 360 130 C 400 130, 420 110, 460 110 C 490 110, 500 125, 520 125 L 520 160 L 0 160 Z" fill="url(#homeFadeDark)" />
-                  <path d="M 0 145 C 40 145, 80 80, 120 80 C 160 80, 200 140, 240 140 C 290 140, 310 135, 350 135 C 390 135, 400 120, 440 120 C 480 120, 500 135, 520 135" fill="none" stroke="#c66f4a" stroke-width="3" stroke-linecap="round" />
-                  <path d="M 0 130 C 30 130, 50 115, 90 115 C 130 115, 170 140, 210 140 C 240 140, 255 45, 280 45 C 305 45, 320 130, 360 130 C 400 130, 420 110, 460 110 C 490 110, 500 125, 520 125" fill="none" stroke="#33251e" stroke-width="3" stroke-linecap="round" />
-                  <circle cx="120" cy="80" r="4.5" fill="#fffaf3" stroke="#c66f4a" stroke-width="2.5" />
-                  <circle cx="240" cy="140" r="4.5" fill="#fffaf3" stroke="#c66f4a" stroke-width="2.5" />
-                  <circle cx="440" cy="120" r="4.5" fill="#fffaf3" stroke="#c66f4a" stroke-width="2.5" />
-                  <circle cx="90" cy="115" r="4.5" fill="#fffaf3" stroke="#33251e" stroke-width="2.5" />
-                  <circle cx="280" cy="45" r="4.5" fill="#fffaf3" stroke="#33251e" stroke-width="2.5" />
-                  <circle cx="360" cy="130" r="4.5" fill="#fffaf3" stroke="#33251e" stroke-width="2.5" />
-                  <circle cx="460" cy="110" r="4.5" fill="#fffaf3" stroke="#33251e" stroke-width="2.5" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="stack-3d">
-          <svg viewBox="0 0 120 150" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M60 140L10 115L60 90L110 115L60 140Z" fill="rgba(198,111,74,0.2)" filter="blur(8px)" />
-            <path d="M60 130L10 105V115L60 140L110 115V105L60 130Z" fill="#e6ddd0" />
-            <path d="M60 130L10 105L60 80L110 105L60 130Z" fill="#fbf7ef" />
-            <path d="M10 105L60 130V140L10 115V105Z" fill="#cfc2b3" />
-            <circle cx="85" cy="118" r="2" fill="#c66f4a" />
-            <circle cx="92" cy="115" r="2" fill="#c66f4a" />
-            <path d="M60 100L10 75V85L60 110L110 85V75L60 100Z" fill="#e6ddd0" />
-            <path d="M60 100L10 75L60 50L110 75L60 100Z" fill="#fffaf3" />
-            <path d="M10 75L60 100V110L10 85V75Z" fill="#cfc2b3" />
-            <circle cx="85" cy="88" r="2" fill="#c66f4a" />
-            <circle cx="92" cy="85" r="2" fill="#c66f4a" />
-            <path d="M60 70L10 45V55L60 80L110 55V45L60 70Z" fill="#e6ddd0" />
-            <path d="M60 70L10 45L60 20L110 45L60 70Z" fill="#fffaf3" />
-            <path d="M10 45L60 70V80L10 55V45Z" fill="#cfc2b3" />
-            <path d="M60 35L45 42L52 46L60 41L68 46L75 42L60 35Z" fill="#c66f4a" opacity="0.86" />
-          </svg>
-        </div>
-      </aside>
     </main>
-
-    <section class="home-shell step-strip" :aria-label="t('home.steps.ariaLabel')">
-      <i18n-t keypath="home.steps.heading" tag="h2">
-        <template #steps><span class="flow-text">3</span></template>
-        <template #minutes><span class="flow-text">2</span></template>
-      </i18n-t>
-
-      <div class="steps">
-        <article class="step-card">
-          <span class="step-num">1</span>
-          <span class="step-icon">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M15 19a6 6 0 0 0-12 0" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-              <path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" stroke-width="2.2" />
-              <path d="M19 8v6M16 11h6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-            </svg>
-          </span>
-          <div>
-            <h3>{{ t('home.steps.register.title') }}</h3>
-            <p>{{ t('home.steps.register.desc') }}</p>
-          </div>
-        </article>
-
-        <span class="step-arrow" aria-hidden="true"></span>
-
-        <article class="step-card">
-          <span class="step-num">2</span>
-          <span class="step-icon">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M21 7a5 5 0 0 1-6.8 4.7L6.5 19.4 3 21l1.6-3.5 7.7-7.7A5 5 0 1 1 21 7Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" />
-              <path d="M17.5 6.5h.01" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" />
-            </svg>
-          </span>
-          <div>
-            <h3>{{ t('home.steps.apiKey.title') }}</h3>
-            <p>{{ t('home.steps.apiKey.desc') }}</p>
-          </div>
-        </article>
-
-        <span class="step-arrow" aria-hidden="true"></span>
-
-        <article class="step-card">
-          <span class="step-num">3</span>
-          <span class="step-icon">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="m8 16-4-4 4-4M16 8l4 4-4 4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </span>
-          <div>
-            <h3>{{ t('home.steps.baseUrl.title') }}</h3>
-            <p>{{ t('home.steps.baseUrl.desc') }}</p>
-          </div>
-        </article>
-      </div>
-    </section>
 
     <footer class="home-shell home-footer">
       <section class="footer-intro">
         <div>
-          <span class="footer-kicker">{{ t('home.footer.kicker') }}</span>
           <h2>{{ t('home.footer.title', { siteName }) }}</h2>
           <p>{{ t('home.footer.description') }}</p>
         </div>
-        <router-link :to="isAuthenticated ? dashboardPath : '/login'" class="button primary footer-cta">
-          {{ isAuthenticated ? t('home.goToDashboard') : t('home.getStarted') }}
-        </router-link>
       </section>
 
       <section class="footer-info-grid" :aria-label="t('home.footer.infoAria')">
@@ -379,7 +178,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DOMPurify from 'dompurify'
 import { useAuthStore, useAppStore } from '@/stores'
@@ -387,64 +186,32 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { getPublicTodayStats } from '@/api/usage'
 
-const { t } = useI18n()
+type FooterInfoIcon = 'bolt' | 'creditCard' | 'shield'
 
+const { t } = useI18n()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 
-// Site settings - directly from appStore (already initialized from injected config)
+const pageRef = ref<HTMLElement | null>(null)
+
 const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'ikik-api')
 const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
 const homeContent = computed(() => appStore.cachedPublicSettings?.home_content || '')
 const sanitizedHomeContent = computed(() => DOMPurify.sanitize(homeContent.value))
-
-// Check if homeContent is a URL (for iframe display)
 const isHomeContentUrl = computed(() => {
   const content = homeContent.value.trim()
   return content.startsWith('http://') || content.startsWith('https://')
 })
 
-// Theme
 const isDark = ref(document.documentElement.classList.contains('dark'))
-
-// Auth state
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.isAdmin)
 const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/dashboard')
-const userInitial = computed(() => {
-  const user = authStore.user
-  if (!user || !user.email) return ''
-  return user.email.charAt(0).toUpperCase()
-})
+const userInitial = computed(() => authStore.user?.email?.charAt(0).toUpperCase() || '')
 const publicBaseUrl = computed(() => {
   if (typeof window === 'undefined') return 'https://ikik.net'
   return window.location.origin
 })
-type FooterInfoIcon = 'bolt' | 'creditCard' | 'shield'
-const footerInfoItems = computed<Array<{
-  icon: FooterInfoIcon
-  title: string
-  description: string
-}>>(() => [
-  {
-    icon: 'bolt',
-    title: t('home.footer.cards.access.title'),
-    description: t('home.footer.cards.access.desc')
-  },
-  {
-    icon: 'creditCard',
-    title: t('home.footer.cards.billing.title'),
-    description: t('home.footer.cards.billing.desc')
-  },
-  {
-    icon: 'shield',
-    title: t('home.footer.cards.reliability.title'),
-    description: t('home.footer.cards.reliability.desc')
-  }
-])
-
-// Current year for footer
-const currentYear = computed(() => new Date().getFullYear())
 
 const publicTodayStats = ref<{
   today_requests: number
@@ -477,16 +244,74 @@ const averageLatencyText = computed(() => {
   return `${seconds.toFixed(seconds >= 10 ? 1 : 2).replace(/\.?0+$/, '')}s`
 })
 
+const heroProofItems = computed(() => [
+  t('home.redesign.hero.proof.openai'),
+  t('home.redesign.hero.proof.routing'),
+  t('home.redesign.hero.proof.billing')
+])
+
+const metricItems = computed(() => [
+  { label: t('home.console.todayRequests'), value: todayRequestsText.value },
+  { label: t('home.console.todayTokens'), value: todayTokensText.value },
+  { label: t('home.console.successRate'), value: successRateText.value },
+  { label: t('home.console.avgLatency'), value: averageLatencyText.value }
+])
+
+const endpointRows = computed(() => [
+  { method: 'POST', path: '/v1/chat/completions', label: 'Chat' },
+  { method: 'POST', path: '/v1/responses', label: 'Responses' },
+  { method: 'GET', path: '/v1/models', label: 'Models' },
+  { method: 'GET', path: '/key-usage', label: 'Usage' }
+])
+
+const footerInfoItems = computed<Array<{
+  icon: FooterInfoIcon
+  title: string
+  description: string
+}>>(() => [
+  {
+    icon: 'bolt',
+    title: t('home.footer.cards.access.title'),
+    description: t('home.footer.cards.access.desc')
+  },
+  {
+    icon: 'creditCard',
+    title: t('home.footer.cards.billing.title'),
+    description: t('home.footer.cards.billing.desc')
+  },
+  {
+    icon: 'shield',
+    title: t('home.footer.cards.reliability.title'),
+    description: t('home.footer.cards.reliability.desc')
+  }
+])
+
+const currentYear = computed(() => new Date().getFullYear())
+
+function handlePointerMove(event: PointerEvent) {
+  const target = pageRef.value
+  if (!target) return
+  const rect = target.getBoundingClientRect()
+  const x = ((event.clientX - rect.left) / rect.width - 0.5) * 2
+  const y = ((event.clientY - rect.top) / Math.max(rect.height, window.innerHeight) - 0.5) * 2
+  target.style.setProperty('--pointer-x', x.toFixed(3))
+  target.style.setProperty('--pointer-y', y.toFixed(3))
+}
+
+function resetPointer() {
+  const target = pageRef.value
+  if (!target) return
+  target.style.setProperty('--pointer-x', '0')
+  target.style.setProperty('--pointer-y', '0')
+}
+
 function formatInteger(value: number): string {
   if (!Number.isFinite(value)) return '--'
-  return new Intl.NumberFormat('zh-CN', {
-    maximumFractionDigits: 0
-  }).format(value)
+  return new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(value)
 }
 
 function formatCompactNumber(value: number): string {
   if (!Number.isFinite(value)) return '--'
-
   const absValue = Math.abs(value)
   const units = [
     { value: 1_000_000_000, suffix: 'B' },
@@ -494,11 +319,7 @@ function formatCompactNumber(value: number): string {
     { value: 1_000, suffix: 'K' }
   ]
   const unit = units.find((item) => absValue >= item.value)
-
-  if (!unit) {
-    return formatInteger(value)
-  }
-
+  if (!unit) return formatInteger(value)
   return `${(value / unit.value).toFixed(2).replace(/\.?0+$/, '')}${unit.suffix}`
 }
 
@@ -511,14 +332,12 @@ async function fetchPublicTodayStats() {
   }
 }
 
-// Toggle theme
 function toggleTheme() {
   isDark.value = !isDark.value
   document.documentElement.classList.toggle('dark', isDark.value)
   localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
 }
 
-// Initialize theme
 function initTheme() {
   const savedTheme = localStorage.getItem('theme')
   if (
@@ -532,15 +351,10 @@ function initTheme() {
 
 onMounted(() => {
   initTheme()
-
-  // Check auth state
   authStore.checkAuth()
-
-  // Ensure public settings are loaded (will use cache if already loaded from injected config)
   if (!appStore.publicSettingsLoaded) {
     appStore.fetchPublicSettings()
   }
-
   fetchPublicTodayStats()
 })
 </script>
@@ -548,67 +362,109 @@ onMounted(() => {
 <style scoped>
 .home-page {
   --bg: #f7f3ea;
-  --surface: rgba(255, 250, 243, 0.84);
-  --surface-strong: #fffaf3;
+  --paper: #fffaf3;
+  --paper-2: #f0e8dc;
   --text: #26211c;
-  --muted: #7c7167;
-  --line: rgba(64, 48, 38, 0.1);
+  --muted: #746a60;
+  --subtle: #998d80;
+  --line: rgba(58, 43, 33, 0.12);
+  --line-strong: rgba(58, 43, 33, 0.2);
   --accent: #c66f4a;
-  --accent-2: #e2ae8c;
   --accent-soft: rgba(198, 111, 74, 0.12);
-  --shadow: 0 24px 70px rgba(70, 49, 35, 0.1);
+  --ink: #30241d;
+  --shadow: 0 28px 80px rgba(70, 49, 35, 0.13);
   --serif: var(--font-home-display);
+  --pointer-x: 0;
+  --pointer-y: 0;
 
   position: relative;
   min-height: 100vh;
-  overflow: hidden;
-  color: var(--text);
+  overflow: clip;
   background:
-    linear-gradient(180deg, rgba(255, 250, 243, 0.96), rgba(247, 243, 234, 0.98) 42%, #efe7dc),
-    radial-gradient(circle at 72% 26%, rgba(198, 111, 74, 0.14), transparent 34%);
+    linear-gradient(180deg, rgba(255, 250, 243, 0.96), rgba(247, 243, 234, 0.98) 48%, #efe7dc),
+    linear-gradient(115deg, transparent 0 58%, rgba(198, 111, 74, 0.08) 58% 58.2%, transparent 58.2%);
+  color: var(--text);
   font-family: var(--font-app);
-  letter-spacing: 0;
 }
 
 .home-page::before {
   position: absolute;
-  inset: -20%;
-  background:
-    radial-gradient(circle at 14% 20%, rgba(198, 111, 74, 0.14), transparent 28%),
-    radial-gradient(circle at 84% 82%, rgba(127, 147, 98, 0.12), transparent 28%);
-  animation: ambient-shift 18s ease-in-out infinite alternate;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(58, 43, 33, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(58, 43, 33, 0.05) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent 72%);
   content: "";
   pointer-events: none;
 }
 
+.home-page::after {
+  position: absolute;
+  top: 96px;
+  right: 8vw;
+  width: min(52vw, 760px);
+  height: min(52vw, 760px);
+  border: 1px solid rgba(58, 43, 33, 0.08);
+  border-radius: 42% 58% 52% 48%;
+  background:
+    linear-gradient(135deg, rgba(255, 250, 243, 0.42), rgba(198, 111, 74, 0.08)),
+    repeating-linear-gradient(90deg, rgba(58, 43, 33, 0.04) 0 1px, transparent 1px 22px);
+  content: "";
+  filter: blur(0.2px);
+  opacity: 0.72;
+  pointer-events: none;
+  transform:
+    translate3d(calc(var(--pointer-x) * 10px), calc(var(--pointer-y) * 8px), 0)
+    rotate(-8deg);
+}
+
 :global(html.dark .home-page) {
-  --surface: rgba(35, 29, 24, 0.78);
-  --surface-strong: #241c18;
+  --bg: #171310;
+  --paper: #211a16;
+  --paper-2: #2a211c;
   --text: #f4efe7;
   --muted: #b8aa9a;
-  --line: rgba(232, 218, 201, 0.14);
+  --subtle: #8f8174;
+  --line: rgba(244, 239, 231, 0.12);
+  --line-strong: rgba(244, 239, 231, 0.22);
   --accent: #d58b65;
-  --accent-2: #e8b090;
   --accent-soft: rgba(213, 139, 101, 0.16);
-  --shadow: 0 28px 82px rgba(0, 0, 0, 0.36);
+  --ink: #f4efe7;
+  --shadow: 0 32px 92px rgba(0, 0, 0, 0.34);
 
   background:
-    linear-gradient(180deg, #171310 0%, #211915 44%, #2a201b 100%),
-    radial-gradient(circle at 72% 26%, rgba(213, 139, 101, 0.18), transparent 34%);
+    linear-gradient(180deg, #171310 0%, #211915 48%, #2a201b 100%),
+    linear-gradient(115deg, transparent 0 58%, rgba(213, 139, 101, 0.12) 58% 58.2%, transparent 58.2%);
 }
 
 :global(html.dark .home-page)::before {
+  background-image:
+    linear-gradient(rgba(244, 239, 231, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(244, 239, 231, 0.045) 1px, transparent 1px);
+}
+
+:global(html.dark .home-page)::after {
+  border-color: rgba(244, 239, 231, 0.08);
   background:
-    radial-gradient(circle at 14% 20%, rgba(213, 139, 101, 0.18), transparent 30%),
-    radial-gradient(circle at 84% 82%, rgba(127, 147, 98, 0.12), transparent 30%),
-    radial-gradient(circle at 42% 88%, rgba(198, 111, 74, 0.1), transparent 28%);
-  opacity: 0.88;
+    linear-gradient(135deg, rgba(244, 239, 231, 0.08), rgba(213, 139, 101, 0.08)),
+    repeating-linear-gradient(90deg, rgba(244, 239, 231, 0.04) 0 1px, transparent 1px 22px);
+}
+
+.home-noise {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-image: radial-gradient(rgba(58, 43, 33, 0.14) 0.7px, transparent 0.7px);
+  background-size: 4px 4px;
+  opacity: 0.12;
+  pointer-events: none;
 }
 
 .home-shell {
   position: relative;
   z-index: 1;
-  width: min(1180px, calc(100% - 36px));
+  width: min(1180px, calc(100% - 44px));
   margin: 0 auto;
 }
 
@@ -617,35 +473,32 @@ onMounted(() => {
   min-height: 82px;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 18px;
 }
 
 .brand {
   display: inline-flex;
+  min-width: 0;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   color: var(--text);
-  font-size: 1.15rem;
-  font-weight: 640;
+  font-size: 1.08rem;
+  font-weight: 680;
+  letter-spacing: 0;
 }
 
 .brand-mark {
   display: grid;
   width: 38px;
   height: 38px;
+  flex: 0 0 38px;
   place-items: center;
   overflow: hidden;
-  border: 1px solid rgba(198, 111, 74, 0.14);
-  border-radius: 13px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 14px 34px rgba(198, 111, 74, 0.12);
-  backdrop-filter: blur(16px);
-}
-
-:global(html.dark .home-page .brand-mark) {
-  border-color: rgba(232, 218, 201, 0.16);
-  background: rgba(35, 29, 24, 0.72);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.26);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  color: var(--accent);
+  box-shadow: 0 12px 28px rgba(70, 49, 35, 0.08);
 }
 
 .brand-mark img,
@@ -656,68 +509,54 @@ onMounted(() => {
 }
 
 .home-nav-links {
-  display: none;
+  display: flex;
   align-items: center;
-  gap: 42px;
+  gap: 30px;
   color: var(--muted);
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 650;
 }
 
 .home-nav-links a {
-  position: relative;
-  transition: color 180ms ease;
+  transition: color 160ms ease;
 }
 
 .home-nav-links a:hover,
 .home-nav-links a.router-link-active {
-  color: var(--accent);
+  color: var(--text);
 }
 
-.home-nav-links a.router-link-active::after {
-  position: absolute;
-  right: 0;
-  bottom: -30px;
-  left: 0;
-  height: 2px;
-  border-radius: 99px;
-  background: var(--accent);
-  content: "";
+.home-actions,
+.hero-actions,
+.code-tabs {
+  display: flex;
+  align-items: center;
 }
 
 .home-actions {
-  display: flex;
-  align-items: center;
   gap: 10px;
 }
 
 .icon-action {
   display: inline-flex;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 42px;
+  min-height: 42px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(198, 111, 74, 0.14);
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.56);
+  background: color-mix(in srgb, var(--paper) 72%, transparent);
   color: var(--muted);
   transition:
-    color 160ms ease,
     background 160ms ease,
+    color 160ms ease,
     transform 160ms ease;
-  backdrop-filter: blur(14px);
-}
-
-:global(html.dark .home-page .icon-action) {
-  border-color: rgba(232, 218, 201, 0.16);
-  background: rgba(35, 29, 24, 0.7);
-  color: #e8b090;
 }
 
 .icon-action:hover {
   transform: translateY(-1px);
-  color: var(--accent);
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--paper);
+  color: var(--text);
 }
 
 .button {
@@ -728,10 +567,10 @@ onMounted(() => {
   gap: 9px;
   border: 1px solid transparent;
   border-radius: 999px;
-  padding: 0 22px;
-  cursor: pointer;
-  font-size: 0.95rem;
-  font-weight: 600;
+  padding: 0 21px;
+  font-size: 0.94rem;
+  font-weight: 680;
+  line-height: 1;
   white-space: nowrap;
   transition:
     transform 180ms ease,
@@ -745,28 +584,21 @@ onMounted(() => {
 }
 
 .button.primary {
-  background: #33251e;
-  color: #fffaf3;
-  box-shadow: 0 10px 24px rgba(51, 37, 30, 0.16);
-}
-
-.button.secondary {
-  border-color: var(--line);
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--text);
-  backdrop-filter: blur(14px);
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 0 14px 32px rgba(48, 36, 29, 0.18);
 }
 
 :global(html.dark .home-page .button.primary) {
   background: #f4efe7;
   color: #171310;
-  box-shadow: 0 18px 44px rgba(244, 239, 231, 0.16);
+  box-shadow: 0 18px 44px rgba(244, 239, 231, 0.14);
 }
 
-:global(html.dark .home-page .button.secondary) {
-  border-color: rgba(232, 218, 201, 0.16);
-  background: rgba(35, 29, 24, 0.62);
-  color: #f4efe7;
+.button.secondary {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--paper) 68%, transparent);
+  color: var(--text);
 }
 
 .user-dot {
@@ -775,560 +607,298 @@ onMounted(() => {
   height: 22px;
   place-items: center;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.16);
   font-size: 0.72rem;
 }
 
-.hero {
+.hero-section {
   display: grid;
-  min-height: 570px;
+  min-height: calc(100vh - 82px);
+  grid-template-columns: minmax(0, 0.9fr) minmax(420px, 1.1fr);
   align-items: center;
-  gap: 52px;
-  padding: 52px 0 34px;
+  gap: 60px;
+  padding: 42px 0 82px;
 }
 
-.copy {
-  max-width: 640px;
+.hero-copy {
+  max-width: 690px;
 }
 
 .eyebrow {
   display: inline-flex;
-  width: fit-content;
   align-items: center;
-  gap: 8px;
-  border-radius: 999px;
-  background: var(--accent-soft);
+  gap: 9px;
   color: var(--accent);
-  padding: 9px 16px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  animation: rise 620ms ease both;
+  font-size: 0.78rem;
+  font-weight: 780;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
-.eyebrow svg {
-  width: 16px;
-  height: 16px;
+.eyebrow-line {
+  width: 34px;
+  height: 1px;
+  background: var(--accent);
 }
 
-.home-title {
-  max-width: 660px;
-  margin: 30px 0 22px;
+.hero-copy h1 {
+  max-width: 760px;
+  margin: 24px 0 22px;
   font-family: var(--serif);
-  font-size: clamp(2.85rem, 7vw, 4.5rem);
-  font-weight: 540;
-  line-height: 1.08;
-  letter-spacing: -0.018em;
-  animation: rise 700ms 80ms ease both;
+  font-size: clamp(3.45rem, 8vw, 6.8rem);
+  font-weight: 520;
+  letter-spacing: 0;
+  line-height: 0.98;
+  text-wrap: balance;
 }
 
-.home-title span {
-  display: inline-block;
-}
-
-.flow-text {
-  background: linear-gradient(100deg, #c66f4a 0%, #e2ae8c 28%, #33251e 56%, #c66f4a 100%);
-  background-size: 260% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: text-flow 4.8s ease-in-out infinite;
-}
-
-:global(html.dark .home-page .flow-text) {
-  background-image: linear-gradient(100deg, #f1c5a9 0%, #f8e6d5 28%, #d58b65 56%, #e8b090 100%);
-}
-
-.lead {
-  max-width: 560px;
-  margin: 0 0 34px;
+.hero-copy p {
   color: var(--muted);
-  font-size: clamp(1rem, 1.8vw, 1.22rem);
-  font-weight: 440;
-  line-height: 1.82;
-  animation: rise 760ms 150ms ease both;
+  font-size: clamp(1rem, 1.7vw, 1.18rem);
+  font-weight: 450;
+  line-height: 1.85;
+}
+
+.hero-copy p {
+  max-width: 610px;
+  margin: 0 0 32px;
 }
 
 .hero-actions {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.hero-proof {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  align-items: center;
-  animation: rise 820ms 220ms ease both;
+  gap: 9px;
+  margin-top: 34px;
 }
 
-.visual {
+.hero-proof span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 58%, transparent);
+  color: var(--muted);
+  padding: 8px 11px;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.hero-product {
   position: relative;
   z-index: 1;
-  display: flex;
-  min-height: 480px;
-  align-items: center;
-  justify-content: center;
-  perspective: 1200px;
-  animation: rise 780ms 160ms ease both;
+  perspective: 1400px;
 }
 
-.sphere {
-  position: absolute;
-  z-index: -1;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #fffaf3, #ead9c8 60%, #c98a62);
-  box-shadow: 0 10px 20px rgba(198, 111, 74, 0.15), inset 0 -5px 15px rgba(198, 111, 74, 0.1);
-}
-
-.sphere-one {
-  top: 10%;
-  right: 15%;
-  width: 40px;
-  height: 40px;
-  filter: blur(1px);
-}
-
-.sphere-two {
-  top: 25%;
-  right: 5%;
-  width: 18px;
-  height: 18px;
-}
-
-.sphere-three {
-  right: -2%;
-  bottom: 35%;
-  width: 28px;
-  height: 28px;
-  background: radial-gradient(circle at 30% 30%, #fffaf3, #e6ddd0 60%, #cfc2b3);
-}
-
-.console-card {
-  width: min(100%, 720px);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.75);
-  box-shadow:
-    -25px 35px 65px rgba(70, 49, 35, 0.08),
-    -10px 15px 25px rgba(198, 111, 74, 0.05),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
-  transform: rotateX(12deg) rotateY(-16deg) rotateZ(4deg);
+.device-frame {
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 30px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--paper) 92%, transparent), color-mix(in srgb, var(--paper-2) 78%, transparent)),
+    repeating-linear-gradient(90deg, transparent 0 28px, rgba(58, 43, 33, 0.035) 28px 29px);
+  box-shadow: var(--shadow);
+  transform:
+    rotateX(calc(var(--pointer-y) * -2deg + 8deg))
+    rotateY(calc(var(--pointer-x) * 3deg - 11deg))
+    rotateZ(1.6deg);
   transform-style: preserve-3d;
-  transition: transform 500ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  backdrop-filter: blur(20px);
+  transition: transform 260ms ease-out;
 }
 
-:global(html.dark .home-page .console-card) {
-  border-color: rgba(232, 218, 201, 0.16);
-  background: rgba(35, 29, 24, 0.74);
-  box-shadow:
-    -25px 35px 70px rgba(0, 0, 0, 0.34),
-    -10px 15px 28px rgba(213, 139, 101, 0.08),
-    inset 0 0 0 1px rgba(232, 218, 201, 0.08);
+:global(html.dark .home-page .device-frame) {
+  background:
+    linear-gradient(135deg, rgba(34, 27, 23, 0.94), rgba(42, 33, 28, 0.86)),
+    repeating-linear-gradient(90deg, transparent 0 28px, rgba(244, 239, 231, 0.035) 28px 29px);
 }
 
-.console-card:hover {
-  transform: rotateX(8deg) rotateY(-10deg) rotateZ(2deg) translateY(-10px);
-}
-
-.console-inner {
-  display: grid;
-  grid-template-columns: 78px 1fr;
-  min-height: 420px;
-}
-
-.side-rail {
+.device-topbar {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 16px;
-  border-right: 1px solid rgba(64, 48, 38, 0.06);
-  border-radius: 28px 0 0 28px;
-  background: rgba(255, 255, 255, 0.4);
-  padding: 24px 0;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding: 16px 18px;
 }
 
-:global(html.dark .home-page .side-rail) {
-  border-right-color: rgba(232, 218, 201, 0.1);
-  background: rgba(23, 19, 16, 0.34);
+.device-topbar span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--line-strong);
 }
 
-.rail-logo {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
+.device-topbar code {
+  min-width: 0;
+  margin-left: auto;
   overflow: hidden;
-  margin-bottom: 12px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 10px 24px rgba(198, 111, 74, 0.12);
-}
-
-.rail-logo img,
-.rail-logo svg {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-:global(html.dark .home-page .rail-logo) {
-  background: rgba(35, 29, 24, 0.72);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
-}
-
-.side-rail i {
-  display: flex;
-  width: 40px;
-  height: 40px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  color: var(--muted);
-}
-
-.side-rail i.active {
-  background: var(--accent-soft);
-  color: var(--accent);
-  box-shadow: 0 4px 12px rgba(198, 111, 74, 0.1);
-}
-
-.side-rail svg {
-  width: 20px;
-  height: 20px;
-  stroke-width: 2;
-}
-
-.dashboard-board {
-  padding: 32px;
-}
-
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.metric {
-  position: relative;
-  display: flex;
-  min-height: 116px;
-  flex-direction: column;
-  justify-content: center;
-  overflow: hidden;
-  border: 1px solid rgba(64, 48, 38, 0.05);
-  border-radius: 20px;
-  background: #fffaf3;
-  padding: 16px 14px;
-  box-shadow: 0 10px 30px rgba(70, 49, 35, 0.04);
-  transition: transform 300ms ease;
-}
-
-:global(html.dark .home-page .metric),
-:global(html.dark .home-page .chart-card),
-:global(html.dark .home-page .step-card) {
-  border-color: rgba(232, 218, 201, 0.12);
-  background: rgba(35, 29, 24, 0.82);
-  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.18);
-}
-
-.metric:hover {
-  transform: translateY(-3px);
-}
-
-.metric.center-align {
-  align-items: center;
-  text-align: center;
-}
-
-.metric-icon {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  margin-bottom: 12px;
-  border-radius: 10px;
-}
-
-.metric:nth-child(1) .metric-icon {
-  background: #f7e8db;
-  color: #c66f4a;
-}
-
-.metric:nth-child(2) .metric-icon {
-  background: #f4efe4;
-  color: #a85a3c;
-}
-
-.metric:nth-child(3) .metric-icon {
-  background: #e8eddc;
-  color: #64754d;
-}
-
-.metric:nth-child(4) .metric-icon {
-  background: #f0e5d9;
-  color: #7a7066;
-}
-
-.metric-icon svg {
-  width: 16px;
-  height: 16px;
-}
-
-.metric b {
-  color: var(--text);
-  font-size: 1.25rem;
-  line-height: 1.1;
-}
-
-.metric span:last-child {
-  margin-top: 6px;
-  color: var(--accent);
-  font-size: 0.82rem;
-  font-weight: 650;
+  color: var(--subtle);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-:global(html.dark .home-page .metric:nth-child(1) .metric-icon) {
-  background: rgba(213, 139, 101, 0.18);
-  color: #f1c5a9;
+.device-body {
+  padding: 28px;
 }
 
-:global(html.dark .home-page .metric:nth-child(2) .metric-icon) {
-  background: rgba(198, 111, 74, 0.16);
-  color: #e8b090;
-}
-
-:global(html.dark .home-page .metric:nth-child(3) .metric-icon) {
-  background: rgba(127, 147, 98, 0.18);
-  color: #cdd9b0;
-}
-
-:global(html.dark .home-page .metric:nth-child(4) .metric-icon) {
-  background: rgba(232, 218, 201, 0.12);
-  color: #d8cec0;
-}
-
-.chart-card {
-  border: 1px solid rgba(64, 48, 38, 0.05);
-  border-radius: 20px;
-  background: #fffaf3;
-  padding: 24px;
-  box-shadow: 0 10px 30px rgba(70, 49, 35, 0.04);
-}
-
-.chart-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 16px;
-}
-
-.chart-title {
-  color: var(--text);
-  font-size: 0.95rem;
-  font-weight: 800;
-}
-
-.chart-legends {
-  display: flex;
-  gap: 16px;
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 650;
-}
-
-.chart-legends span {
-  display: flex;
+.route-map {
+  display: grid;
+  grid-template-columns: 1fr 54px 1fr 54px 1fr;
   align-items: center;
-  gap: 6px;
+  gap: 0;
 }
 
-.chart-legends span::before {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  content: "";
-}
-
-.legend-one::before {
-  background: var(--accent);
-}
-
-.legend-two::before {
-  background: #33251e;
-}
-
-.chart-card svg {
-  display: block;
-  width: 100%;
-  height: 140px;
-}
-
-:global(html.dark .home-page .chart-card path[stroke="#ede7dc"]) {
-  stroke: rgba(232, 218, 201, 0.14);
-}
-
-:global(html.dark .home-page .chart-card path[stroke="#33251e"]),
-:global(html.dark .home-page .chart-card circle[stroke="#33251e"]) {
-  stroke: #e8b090;
-}
-
-:global(html.dark .home-page .legend-two)::before {
-  background: #e8b090;
-}
-
-.stack-3d {
-  position: absolute;
-  right: -10px;
-  bottom: -30px;
-  z-index: 10;
-  width: 140px;
-  height: 180px;
-  transform: translateZ(80px);
-  transition: transform 400ms ease;
-}
-
-.stack-3d:hover {
-  transform: translateZ(100px) translateY(-5px);
-}
-
-.stack-3d svg {
-  width: 100%;
-  height: 100%;
-  filter: drop-shadow(-10px 20px 20px rgba(198, 111, 74, 0.22));
-}
-
-.step-strip {
-  margin: 20px auto 72px;
+.route-node {
+  display: grid;
+  min-height: 118px;
+  place-items: center;
   border: 1px solid var(--line);
-  border-radius: 34px;
-  background: rgba(255, 255, 255, 0.66);
-  padding: 40px 32px;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(18px);
-}
-
-:global(html.dark .home-page .step-strip) {
-  border-color: rgba(232, 218, 201, 0.14);
-  background: rgba(35, 29, 24, 0.58);
-}
-
-.step-strip h2 {
-  margin: 0 0 32px;
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--paper) 72%, transparent);
+  color: var(--text);
   text-align: center;
-  font-family: var(--serif);
-  font-size: clamp(1.4rem, 2.4vw, 1.75rem);
-  font-weight: 520;
-  letter-spacing: -0.01em;
+  transform: translateZ(30px);
 }
 
-.steps {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.step-card {
-  position: relative;
-  display: flex;
-  min-height: 104px;
-  flex: 1;
-  align-items: center;
-  gap: 16px;
-  border: 1px solid rgba(64, 48, 38, 0.05);
-  border-radius: 20px;
-  background: #fffaf3;
-  padding: 20px 24px;
-  box-shadow: 0 10px 30px rgba(70, 49, 35, 0.04);
-  transition: transform 300ms ease;
-}
-
-.step-card:hover {
-  transform: translateY(-3px);
-}
-
-.step-num {
-  position: absolute;
-  top: -12px;
-  left: 52px;
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px #ffffff;
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 800;
-  transform: translateX(-50%);
-}
-
-:global(html.dark .home-page .step-num) {
-  box-shadow: 0 0 0 4px #241c18;
-}
-
-.step-icon {
-  display: grid;
-  width: 56px;
-  height: 56px;
-  flex-shrink: 0;
-  place-items: center;
-  border-radius: 16px;
-  background: var(--accent-soft);
+.route-node svg {
   color: var(--accent);
 }
 
-.step-icon svg {
-  width: 28px;
-  height: 28px;
-}
-
-.step-card h3 {
-  margin: 0 0 6px;
-  color: var(--text);
-  font-size: 1.06rem;
-  font-weight: 620;
-}
-
-.step-card p {
-  margin: 0;
+.route-node span {
+  margin-top: 8px;
   color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 500;
-  line-height: 1.5;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
-.step-arrow {
-  position: relative;
-  width: 32px;
-  height: 2px;
-  flex-shrink: 0;
-  background-image: linear-gradient(to right, #cfc2b3 50%, transparent 50%);
-  background-size: 8px 100%;
+.route-line {
+  height: 1px;
+  background: linear-gradient(90deg, var(--line), var(--accent), var(--line));
 }
 
-.step-arrow::after {
-  position: absolute;
-  top: 50%;
-  right: -4px;
-  border-width: 4px 0 4px 6px;
-  border-style: solid;
-  border-color: transparent transparent transparent #cfc2b3;
-  content: "";
-  transform: translateY(-50%);
+.metrics-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.metric {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--paper) 64%, transparent);
+  padding: 15px 14px;
+}
+
+.metric span {
+  display: block;
+  overflow: hidden;
+  color: var(--subtle);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric strong {
+  display: block;
+  margin-top: 10px;
+  color: var(--text);
+  font-size: 1.22rem;
+  font-weight: 760;
+}
+
+.flow-panel {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--paper) 76%, transparent);
+}
+
+.flow-panel {
+  margin-top: 14px;
+  padding: 18px;
+}
+
+.flow-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.flow-panel-head span {
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 760;
+}
+
+.flow-panel-head b {
+  border-radius: 999px;
+  background: rgba(91, 121, 74, 0.12);
+  color: #587447;
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+:global(html.dark .home-page .flow-panel-head b) {
+  color: #c8d8ad;
+}
+
+.api-rows {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.api-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--paper) 52%, transparent);
+  padding: 10px 11px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.api-row b {
+  min-width: 46px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 5px 7px;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 820;
+}
+
+.api-row code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.api-row em {
+  color: var(--subtle);
+  font-style: normal;
+  font-weight: 700;
 }
 
 .home-footer {
   display: grid;
   gap: 20px;
   padding: 34px 0 24px;
-  color: #9a8d80;
+  color: var(--muted);
   font-size: 0.88rem;
-}
-
-:global(html.dark .home-page .home-footer) {
-  color: #b8aa9a;
 }
 
 .footer-intro {
@@ -1336,31 +906,13 @@ onMounted(() => {
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  border: 1px solid rgba(64, 48, 38, 0.06);
+  border: 1px solid var(--line);
   border-radius: 24px;
   background:
-    linear-gradient(135deg, rgba(255, 250, 243, 0.96), rgba(247, 239, 228, 0.86)),
-    radial-gradient(circle at 12% 20%, rgba(198, 111, 74, 0.12), transparent 36%);
+    linear-gradient(135deg, color-mix(in srgb, var(--paper) 94%, transparent), color-mix(in srgb, var(--paper-2) 78%, transparent)),
+    radial-gradient(circle at 12% 20%, rgba(198, 111, 74, 0.1), transparent 36%);
   padding: 26px;
   box-shadow: 0 18px 44px rgba(70, 49, 35, 0.06);
-}
-
-:global(html.dark .home-page .footer-intro) {
-  border-color: rgba(244, 239, 231, 0.08);
-  background:
-    linear-gradient(135deg, rgba(38, 30, 25, 0.94), rgba(29, 23, 20, 0.9)),
-    radial-gradient(circle at 12% 20%, rgba(198, 111, 74, 0.18), transparent 38%);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
-}
-
-.footer-kicker {
-  display: inline-flex;
-  margin-bottom: 10px;
-  color: var(--accent);
-  font-size: 0.76rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .footer-intro h2 {
@@ -1379,11 +931,6 @@ onMounted(() => {
   line-height: 1.7;
 }
 
-.footer-cta {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
 .footer-info-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1392,17 +939,12 @@ onMounted(() => {
 
 .footer-info-card {
   display: flex;
-  gap: 14px;
   min-width: 0;
-  border: 1px solid rgba(64, 48, 38, 0.05);
+  gap: 14px;
+  border: 1px solid var(--line);
   border-radius: 18px;
-  background: rgba(255, 250, 243, 0.72);
+  background: color-mix(in srgb, var(--paper) 68%, transparent);
   padding: 18px;
-}
-
-:global(html.dark .home-page .footer-info-card) {
-  border-color: rgba(244, 239, 231, 0.08);
-  background: rgba(36, 28, 24, 0.72);
 }
 
 .footer-info-icon {
@@ -1412,7 +954,7 @@ onMounted(() => {
   flex: 0 0 38px;
   place-items: center;
   border-radius: 12px;
-  background: rgba(198, 111, 74, 0.1);
+  background: var(--accent-soft);
   color: var(--accent);
 }
 
@@ -1421,7 +963,6 @@ onMounted(() => {
   color: var(--text);
   font-size: 0.98rem;
   font-weight: 680;
-  letter-spacing: 0;
 }
 
 .footer-info-card p {
@@ -1436,12 +977,8 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  border-top: 1px solid rgba(64, 48, 38, 0.06);
+  border-top: 1px solid var(--line);
   padding-top: 16px;
-}
-
-:global(html.dark .home-page .footer-meta) {
-  border-top-color: rgba(244, 239, 231, 0.08);
 }
 
 .footer-meta-group {
@@ -1452,26 +989,21 @@ onMounted(() => {
 }
 
 .footer-meta-group span {
-  color: #8c7d70;
+  color: var(--subtle);
   font-weight: 650;
 }
 
 .footer-meta-group code {
   max-width: min(54vw, 520px);
   overflow: hidden;
-  border: 1px solid rgba(64, 48, 38, 0.08);
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255, 250, 243, 0.8);
+  background: color-mix(in srgb, var(--paper) 76%, transparent);
   padding: 7px 11px;
   color: var(--text);
   font-size: 0.82rem;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-:global(html.dark .home-page .footer-meta-group code) {
-  border-color: rgba(244, 239, 231, 0.08);
-  background: rgba(244, 239, 231, 0.05);
 }
 
 .footer-meta-links {
@@ -1485,108 +1017,272 @@ onMounted(() => {
   border-radius: 999px;
   padding: 7px 11px;
   color: var(--muted);
+  font-size: 0.86rem;
   font-weight: 650;
-  text-decoration: none;
 }
 
 .footer-meta-links a:hover {
-  background: rgba(198, 111, 74, 0.08);
-  color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
 .footer-legal {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  color: #9a8d80;
+  color: var(--subtle);
   font-size: 0.82rem;
 }
 
-:global(html.dark .home-page .footer-legal) {
-  color: #b8aa9a;
-}
-
-@keyframes ambient-shift {
-  0% {
-    transform: translate3d(-2%, -1%, 0) scale(1);
-  }
-  100% {
-    transform: translate3d(2%, 1%, 0) scale(1.04);
-  }
-}
-
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes text-flow {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-@media (min-width: 768px) {
-  .home-shell {
-    width: min(1180px, calc(100% - 48px));
+@media (max-width: 1180px) {
+  .home-page::after {
+    top: 78px;
+    right: -9vw;
+    width: min(76vw, 720px);
+    height: min(76vw, 720px);
+    opacity: 0.52;
   }
 
-  .home-nav-links {
-    display: flex;
-  }
-
-  .hero {
-    grid-template-columns: minmax(0, 0.92fr) minmax(440px, 1.08fr);
-  }
-}
-
-@media (max-width: 900px) {
-  .hero {
+  .hero-section {
     grid-template-columns: 1fr;
     min-height: auto;
-    gap: 26px;
-    padding: 42px 0 28px;
+    align-items: start;
+    gap: 36px;
+    padding: 42px 0 72px;
   }
 
-  .visual {
+  .hero-copy {
+    max-width: 760px;
+  }
+
+  .hero-copy h1 {
+    max-width: 720px;
+    margin-top: 20px;
+    font-size: clamp(3.65rem, 8.2vw, 5.25rem);
+    line-height: 1;
+  }
+
+  .hero-copy p {
+    max-width: 720px;
+    margin-bottom: 26px;
+    overflow-wrap: anywhere;
+  }
+
+  .hero-actions {
+    width: min(100%, 440px);
+  }
+
+  .hero-actions .button {
+    min-width: 0;
+  }
+
+  .hero-proof {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .hero-product {
+    width: min(760px, 100%);
+    margin: 0 auto;
     perspective: none;
   }
 
-  .console-card {
-    transform: none !important;
+  .device-frame {
+    transform: none;
+  }
+}
+
+@media (orientation: portrait) and (min-width: 761px) and (max-width: 1180px) {
+  .home-nav {
+    min-height: 76px;
   }
 
-  .stack-3d,
-  .sphere {
+  .hero-section {
+    gap: 34px;
+    padding-top: max(34px, 4.2vh);
+  }
+}
+
+@media (max-width: 760px) {
+  .home-shell {
+    width: min(100% - 24px, 1180px);
+    max-width: 100%;
+  }
+
+  .hero-copy,
+  .hero-product,
+  .device-frame {
+    max-width: 100%;
+  }
+
+  .home-page::before {
+    background-size: 44px 44px;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.42), transparent 66%);
+  }
+
+  .home-page::after {
+    top: 64px;
+    right: -34vw;
+    width: 104vw;
+    height: 104vw;
+    opacity: 0.38;
+  }
+
+  .home-nav {
+    min-height: 64px;
+    gap: 10px;
+  }
+
+  .brand span:last-child {
+    max-width: 126px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+    border-radius: 11px;
+  }
+
+  .home-actions {
+    gap: 8px;
+  }
+
+  .icon-action {
+    min-width: 38px;
+    min-height: 38px;
+  }
+
+  .home-nav-links,
+  .home-locale,
+  .nav-cta {
     display: none;
   }
 
-  .metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .steps {
-    flex-direction: column;
-    align-items: stretch;
+  .hero-section {
     gap: 24px;
+    padding: 16px 0 48px;
   }
 
-  .step-arrow {
-    display: none;
+  .hero-copy h1 {
+    max-width: 10em;
+    margin: 15px 0 15px;
+    font-size: clamp(2.7rem, 11vw, 3.55rem);
+    line-height: 1.03;
   }
 
-  .step-num {
-    left: 50%;
+  .hero-copy p {
+    max-width: 100%;
+    margin-bottom: 20px;
+    font-size: 0.96rem;
+    line-height: 1.68;
+    overflow-wrap: anywhere;
+  }
+
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+  }
+
+  .eyebrow-line {
+    width: 26px;
+  }
+
+  .hero-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    max-width: none;
+    gap: 10px;
+  }
+
+  .hero-actions .button {
+    width: 100%;
+    min-width: 0;
+    padding: 0 10px;
+    font-size: 0.9rem;
+  }
+
+  .hero-proof {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 20px 0 0;
+  }
+
+  .hero-proof span {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    font-size: 0.76rem;
+  }
+
+  .device-frame {
+    border-radius: 22px;
+    box-shadow: 0 18px 46px rgba(70, 49, 35, 0.1);
+  }
+
+  .device-topbar {
+    padding: 12px 14px;
+  }
+
+  .route-map {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .route-node {
+    min-height: 78px;
+    border-radius: 18px;
+  }
+
+  .route-line {
+    width: 1px;
+    height: 18px;
+    justify-self: center;
+  }
+
+  .metrics-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+    margin-top: 14px;
+  }
+
+  .metric {
+    border-radius: 15px;
+    padding: 12px;
+  }
+
+  .metric strong {
+    margin-top: 7px;
+    font-size: 1.04rem;
+  }
+
+  .device-body {
+    padding: 14px;
+  }
+
+  .flow-panel {
+    border-radius: 18px;
+    margin-top: 12px;
+    padding: 14px;
+  }
+
+  .flow-panel-head {
+    gap: 10px;
+  }
+
+  .api-rows {
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .api-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    border-radius: 12px;
+    padding: 9px;
   }
 
   .footer-intro {
@@ -1607,85 +1303,37 @@ onMounted(() => {
   .footer-meta-links {
     justify-content: flex-start;
   }
-}
 
-@media (max-width: 640px) {
-  .home-actions :deep(.locale-switcher) {
-    display: none;
-  }
-
-  .home-nav {
-    min-height: 72px;
-  }
-
-  .brand span:last-child {
-    max-width: 126px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .nav-cta {
-    display: none;
-  }
-
-  .visual {
-    min-height: auto;
-  }
-
-  .console-inner {
-    grid-template-columns: 1fr;
-    min-height: auto;
-  }
-
-  .side-rail {
-    display: none;
-  }
-
-  .dashboard-board,
-  .chart-card {
-    padding: 20px;
-  }
-
-  .footer-intro {
-    border-radius: 20px;
-    padding: 22px;
-  }
-
-  .footer-meta-group {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .footer-meta-group code {
-    max-width: 100%;
+  .home-footer {
+    gap: 18px;
   }
 }
 
 @media (max-width: 430px) {
-  .home-shell {
-    width: min(100% - 28px, 1180px);
+  .device-topbar code {
+    display: none;
   }
 
-  .home-title {
-    font-size: 2.6rem;
+  .api-row {
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .hero-actions .button {
-    width: 100%;
+  .api-row code {
+    font-size: 0.72rem;
   }
 
-  .metrics {
+  .api-row em {
+    display: none;
+  }
+
+  .code-tabs {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 360px) {
+  .hero-actions {
     grid-template-columns: 1fr;
-  }
-
-  .chart-head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .step-strip {
-    padding: 34px 18px;
   }
 }
 
