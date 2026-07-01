@@ -64,14 +64,6 @@ ikik-api 是基于 Sub2API 二次开发的自托管 AI API 网关与订阅管理
 - Redis
 - Docker，可选但推荐用于部署
 
-## 版本与更新
-
-当前源码版本为 `1.0.1`。版本文件位于 `backend/cmd/server/VERSION`，发布新 tag 时会由发布工作流自动更新。
-
-正式发布会通过 GoReleaser 构建后端二进制、前端资源、归档包、Docker 镜像和多架构 manifest。Docker 镜像会包含精确版本标签，并按配置生成 `latest` 等滚动标签。
-
-面向用户和运维人员的版本更新记录与升级说明见 [CHANGELOG_CN.md](CHANGELOG_CN.md)。
-
 ## 配置
 
 从示例配置开始：

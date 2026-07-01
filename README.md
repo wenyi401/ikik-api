@@ -64,14 +64,6 @@ Please read the following carefully before deploying or operating this project:
 - Redis
 - Docker, optional but recommended for deployment
 
-## Version and Updates
-
-The current source version is `1.0.1`. The version file is located at `backend/cmd/server/VERSION` and is updated by the release workflow when a release tag is published.
-
-Tagged releases build backend binaries, frontend assets, archive packages, Docker images, and multi-architecture manifests through GoReleaser. Docker images are tagged with the exact version and the configured rolling tags such as `latest`.
-
-For public-facing version history and upgrade notes, see [CHANGELOG.md](CHANGELOG.md).
-
 ## Configuration
 
 Start from the example configuration:
