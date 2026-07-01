@@ -66,7 +66,7 @@ Please read the following carefully before deploying or operating this project:
 
 ## Version and Updates
 
-The current source version is `1.0.0`. The version file is located at `backend/cmd/server/VERSION` and is updated by the release workflow when a release tag is published.
+The current source version is `1.0.1`. The version file is located at `backend/cmd/server/VERSION` and is updated by the release workflow when a release tag is published.
 
 Tagged releases build backend binaries, frontend assets, archive packages, Docker images, and multi-architecture manifests through GoReleaser. Docker images are tagged with the exact version and the configured rolling tags such as `latest`.
 
