@@ -39,9 +39,10 @@ const (
 	// ChatGPT internal API for OAuth accounts
 	chatgptCodexURL = "https://chatgpt.com/backend-api/codex/responses"
 	// OpenAI Platform API for API Key accounts (fallback)
-	openaiPlatformAPIURL   = "https://api.openai.com/v1/responses"
-	openaiStickySessionTTL = time.Hour // 缁ɑ鈧傜窗鐠囨紙TL
-	codexCLIUserAgent      = "codex_cli_rs/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color"
+	openaiPlatformAPIURL            = "https://api.openai.com/v1/responses"
+	openaiPlatformAPIInputTokensURL = "https://api.openai.com/v1/responses/input_tokens"
+	openaiStickySessionTTL          = time.Hour // 缁ɑ鈧傜窗鐠囨紙TL
+	codexCLIUserAgent               = "codex_cli_rs/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color"
 	// codex_cli_only 閹锋帞绮烽弮璺哄礋娑擃亣顕Ч鍌氥仈閺冦儱绻旈梹鍨娑撳﹪妾洪敍鍫濈摟缁楋讣绱?	// codex_cli_only rejected request header values are truncated for diagnostics.
 	codexCLIOnlyHeaderValueMaxBytes = 256
 
@@ -5124,6 +5125,10 @@ func (s *OpenAIGatewayService) validateUpstreamBaseURL(raw string) (string, erro
 // - base 瀹稿弶妲?/responses閿涙艾甯弽鐤箲閸?// - 閸忔湹绮幆鍛枌閿涙俺鎷烽崝?/v1/responses
 func buildOpenAIResponsesURL(base string) string {
 	return buildOpenAIEndpointURL(base, "/v1/responses")
+}
+
+func buildOpenAIResponsesInputTokensURL(base string) string {
+	return buildOpenAIEndpointURL(base, "/v1/responses/input_tokens")
 }
 
 func trimOpenAIEncryptedReasoningItems(reqBody map[string]any) bool {

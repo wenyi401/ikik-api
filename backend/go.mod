@@ -54,6 +54,11 @@ require (
 )
 
 require (
+	github.com/dlclark/regexp2/v2 v2.1.0 // indirect
+	github.com/tiktoken-go/tokenizer v0.8.0 // indirect
+)
+
+require (
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5 // indirect
 	github.com/alibabacloud-go/debug v1.0.1 // indirect
 	github.com/alibabacloud-go/green-20220302/v3 v3.2.4

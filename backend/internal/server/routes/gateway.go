@@ -72,8 +72,13 @@ func RegisterGatewayRoutes(
 			}
 			h.Gateway.Messages(c)
 		})
-		// /v1/messages/count_tokens: OpenAI groups get 404
+		// /v1/messages/count_tokens: OpenAI uses Anthropic-compat bridge; other
+		// OpenAI-compatible platforms keep the prior unsupported response.
 		gateway.POST("/messages/count_tokens", func(c *gin.Context) {
+			if isOpenAIGatewayPlatform(c) {
+				h.OpenAIGateway.CountTokens(c)
+				return
+			}
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
 				c.JSON(http.StatusNotFound, gin.H{
 					"type": "error",

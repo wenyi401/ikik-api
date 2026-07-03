@@ -58,6 +58,30 @@ func resolveOpenAIMessagesDispatchMappedModel(apiKey *service.APIKey, requestedM
 	return strings.TrimSpace(apiKey.Group.ResolveMessagesDispatchModel(requestedModel))
 }
 
+type openAIModelBodyReplaceFunc func([]byte, string) []byte
+
+func openAIModelMappedBody(body []byte, mapped bool, mappedModel string, replace openAIModelBodyReplaceFunc) []byte {
+	if !mapped || replace == nil {
+		return body
+	}
+	return replace(body, mappedModel)
+}
+
+func newOpenAIModelMappedBodyCache(body []byte, replace openAIModelBodyReplaceFunc) func(bool, string) []byte {
+	replacedBodies := make(map[string][]byte)
+	return func(mapped bool, mappedModel string) []byte {
+		if !mapped {
+			return body
+		}
+		if cachedBody, ok := replacedBodies[mappedModel]; ok {
+			return cachedBody
+		}
+		replacedBody := openAIModelMappedBody(body, true, mappedModel, replace)
+		replacedBodies[mappedModel] = replacedBody
+		return replacedBody
+	}
+}
+
 func openAICompatibleRequestPlatform(apiKey *service.APIKey) string {
 	if apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == service.PlatformGrok {
 		return service.PlatformGrok
