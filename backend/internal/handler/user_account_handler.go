@@ -1100,7 +1100,7 @@ func (h *UserAccountHandler) createOwnedAccountFromCredentialImportSource(
 		}
 	case service.AccountCredentialImportKindKiroConfig:
 		if h.kiroOAuthService == nil {
-			return nil, fmt.Errorf("Kiro OAuth service is not configured")
+			return nil, fmt.Errorf("kiro OAuth service is not configured")
 		}
 		tokenInfo, err := h.kiroOAuthService.RefreshToken(ctx, &service.KiroRefreshTokenInput{
 			RefreshToken: source.Token,

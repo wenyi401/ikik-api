@@ -79,7 +79,7 @@ func accountCredentialImportSourceFromKiroConfig(item map[string]any) (AccountCr
 }
 
 func errKiroConfigImportIncomplete() error {
-	return fmt.Errorf("Kiro config import requires clientId, clientSecret and refreshToken")
+	return fmt.Errorf("kiro config import requires clientId, clientSecret and refreshToken")
 }
 
 func copyCredentialNumberIfPresent(dst map[string]any, src map[string]any, dstKey string, sourceKeys ...string) {

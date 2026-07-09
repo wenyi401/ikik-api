@@ -1457,7 +1457,7 @@ func (a *Account) IsOpenAIApiKey() bool {
 }
 
 func (a *Account) GetOpenAIBaseURL() string {
-	if !(a.IsOpenAI() || a.IsKiro()) {
+	if !a.IsOpenAI() && !a.IsKiro() {
 		return ""
 	}
 	if a.Type == AccountTypeAPIKey {
@@ -1519,7 +1519,7 @@ func (a *Account) GetOpenAIIDToken() string {
 }
 
 func (a *Account) GetOpenAIApiKey() string {
-	if !(a.IsOpenAIApiKey() || (a.IsKiro() && a.Type == AccountTypeAPIKey)) {
+	if !a.IsOpenAIApiKey() && (!a.IsKiro() || a.Type != AccountTypeAPIKey) {
 		return ""
 	}
 	return a.GetCredential("api_key")
