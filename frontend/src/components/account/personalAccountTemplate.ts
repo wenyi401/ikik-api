@@ -1,4 +1,4 @@
-import { getModelsByPlatform } from '@/composables/useModelWhitelist'
+import { getModelsByPlatform, getPresetMappingsByPlatform } from '@/composables/useModelWhitelist'
 import { OPENAI_WS_MODE_OFF } from '@/utils/openaiWsMode'
 import type { AccountPlatform, OpenAICompactMode } from '@/types'
 
@@ -11,6 +11,14 @@ export const PERSONAL_ACCOUNT_DEFAULT_OPENAI_WS_MODE = OPENAI_WS_MODE_OFF
 
 export function buildPersonalAccountModelMapping(platform: AccountPlatform | string): Record<string, string> {
   const mapping: Record<string, string> = {}
+  if (platform === 'kiro') {
+    for (const { from, to } of getPresetMappingsByPlatform('kiro')) {
+      if (from && to) {
+        mapping[from] = to
+      }
+    }
+    return mapping
+  }
   for (const model of getModelsByPlatform(platform)) {
     if (!model.includes('*')) {
       mapping[model] = model
@@ -38,6 +46,9 @@ export function applyPersonalAccountTemplate(
     nextExtra.codex_cli_only = false
     nextExtra.openai_compact_mode = PERSONAL_ACCOUNT_DEFAULT_OPENAI_COMPACT_MODE
     delete nextCredentials.compact_model_mapping
+  }
+  if (platform === 'kiro') {
+    nextExtra.openai_responses_supported = false
   }
 
   return {

@@ -211,7 +211,7 @@ routeLoop:
 					if routeCursor.switchToNext(apiKey.ID, "account_select_failed", reqLog, zap.Error(err)) {
 						continue routeLoop
 					}
-					cls := classifyNoAccountErrorFromGin(c, h.gatewayService, currentAPIKey, reqModel, requestedModel, service.PlatformOpenAI)
+					cls := classifyNoAccountErrorFromGin(c, h.gatewayService, currentAPIKey, reqModel, requestedModel, openAICompatibleRequestPlatform(currentAPIKey))
 					if cls.ModelNotFound {
 						h.chatCompletionsErrorResponse(c, cls.Status, cls.ErrType, cls.Message)
 						return

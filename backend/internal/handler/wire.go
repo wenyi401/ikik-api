@@ -24,6 +24,7 @@ func ProvideAdminHandlers(
 	geminiOAuthHandler *admin.GeminiOAuthHandler,
 	antigravityOAuthHandler *admin.AntigravityOAuthHandler,
 	grokOAuthHandler *admin.GrokOAuthHandler,
+	kiroOAuthHandler *admin.KiroOAuthHandler,
 	proxyHandler *admin.ProxyHandler,
 	redeemHandler *admin.RedeemHandler,
 	promoHandler *admin.PromoHandler,
@@ -64,6 +65,7 @@ func ProvideAdminHandlers(
 		GeminiOAuth:            geminiOAuthHandler,
 		AntigravityOAuth:       antigravityOAuthHandler,
 		GrokOAuth:              grokOAuthHandler,
+		KiroOAuth:              kiroOAuthHandler,
 		Proxy:                  proxyHandler,
 		Redeem:                 redeemHandler,
 		Promo:                  promoHandler,
@@ -108,6 +110,7 @@ func ProvideUserAccountHandler(
 	openaiOAuthService *service.OpenAIOAuthService,
 	geminiOAuthService *service.GeminiOAuthService,
 	antigravityOAuthService *service.AntigravityOAuthService,
+	kiroOAuthService *service.KiroOAuthService,
 	accountBatchTaskService *service.AccountBatchTaskService,
 	carpoolService *service.CarpoolService,
 	settingService *service.SettingService,
@@ -124,6 +127,7 @@ func ProvideUserAccountHandler(
 	)
 	h.SetCarpoolService(carpoolService)
 	h.SetSettingService(settingService)
+	h.SetKiroOAuthService(kiroOAuthService)
 	return h
 }
 
@@ -220,6 +224,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewGeminiOAuthHandler,
 	admin.NewAntigravityOAuthHandler,
 	admin.NewGrokOAuthHandler,
+	admin.NewKiroOAuthHandler,
 	admin.NewProxyHandler,
 	admin.NewRedeemHandler,
 	admin.NewPromoHandler,

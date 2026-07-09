@@ -46,6 +46,9 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 
 	billingModel := resolveOpenAIForwardModel(account, normalizedModel, defaultMappedModel)
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+	if account.IsKiro() {
+		upstreamModel = normalizeKiroRuntimeModel(billingModel)
+	}
 	compatGuardEnabled := shouldAutoInjectPromptCacheKeyForCompat(upstreamModel)
 	compatReplayTrimmed := false
 	if compatGuardEnabled && account.Type != AccountTypeOAuth {
@@ -89,6 +92,16 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		)
 	}
 	logger.L().Debug("openai messages: model mapping applied", logFields...)
+
+	if isKiroOAuthAccount(account) {
+		anthropicReq.Model = billingModel
+		anthropicReq.Stream = true
+		anthropicBody, err := json.Marshal(&anthropicReq)
+		if err != nil {
+			return nil, fmt.Errorf("marshal kiro anthropic request: %w", err)
+		}
+		return s.forwardKiroOAuthAsAnthropic(ctx, c, account, anthropicBody, originalModel, billingModel, upstreamModel, clientStream, startTime)
+	}
 
 	// 4. Marshal Responses request body, then apply OAuth codex transform
 	responsesBody, err := json.Marshal(responsesReq)

@@ -279,6 +279,11 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			MessagesDispatchModelConfig:     apiKey.Group.MessagesDispatchModelConfig,
 			ModelsListConfig:                apiKey.Group.ModelsListConfig,
 			RPMLimit:                        apiKey.Group.RPMLimit,
+			KiroCacheEmulationEnabled:       apiKey.Group.EffectiveKiroCacheEmulationEnabled(),
+			KiroAutoStickyEnabled:           apiKey.Group.EffectiveKiroAutoStickyEnabled(),
+			KiroStickySessionTTLSeconds:     apiKey.Group.EffectiveKiroStickySessionTTLSeconds(),
+			KiroCacheEmulationRatio:         apiKey.Group.EffectiveKiroCacheEmulationRatio(),
+			KiroEndpointMode:                apiKey.Group.EffectiveKiroEndpointMode(),
 		}
 	}
 	if len(apiKey.GroupRoutes) > 0 {
@@ -396,6 +401,11 @@ func groupAuthSnapshotFromService(group *Group) *APIKeyAuthGroupSnapshot {
 		MessagesDispatchModelConfig:     group.MessagesDispatchModelConfig,
 		ModelsListConfig:                group.ModelsListConfig,
 		RPMLimit:                        group.RPMLimit,
+		KiroCacheEmulationEnabled:       group.EffectiveKiroCacheEmulationEnabled(),
+		KiroAutoStickyEnabled:           group.EffectiveKiroAutoStickyEnabled(),
+		KiroStickySessionTTLSeconds:     group.EffectiveKiroStickySessionTTLSeconds(),
+		KiroCacheEmulationRatio:         group.EffectiveKiroCacheEmulationRatio(),
+		KiroEndpointMode:                group.EffectiveKiroEndpointMode(),
 	}
 }
 
@@ -403,7 +413,7 @@ func groupFromAuthSnapshot(snapshot *APIKeyAuthGroupSnapshot) *Group {
 	if snapshot == nil {
 		return nil
 	}
-	return &Group{
+	group := &Group{
 		ID:                              snapshot.ID,
 		Name:                            snapshot.Name,
 		Platform:                        snapshot.Platform,
@@ -435,5 +445,12 @@ func groupFromAuthSnapshot(snapshot *APIKeyAuthGroupSnapshot) *Group {
 		MessagesDispatchModelConfig:     snapshot.MessagesDispatchModelConfig,
 		ModelsListConfig:                snapshot.ModelsListConfig,
 		RPMLimit:                        snapshot.RPMLimit,
+		KiroCacheEmulationEnabled:       snapshot.KiroCacheEmulationEnabled,
+		KiroAutoStickyEnabled:           snapshot.KiroAutoStickyEnabled,
+		KiroStickySessionTTLSeconds:     snapshot.KiroStickySessionTTLSeconds,
+		KiroCacheEmulationRatio:         snapshot.KiroCacheEmulationRatio,
+		KiroEndpointMode:                snapshot.KiroEndpointMode,
 	}
+	normalizeKiroCacheEmulationFields(group)
+	return group
 }

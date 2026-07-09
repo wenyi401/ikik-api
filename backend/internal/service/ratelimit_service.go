@@ -159,6 +159,22 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 		return s.handleCloudflareChallenge(ctx, account, statusCode, headers, responseBody)
 	}
 
+	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(responseBody))
+	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+	if upstreamMsg != "" {
+		upstreamMsg = truncateForLog([]byte(upstreamMsg), 512)
+	}
+
+	if account.Platform == PlatformKiro && isKiroModelAccessError(statusCode, upstreamMsg, responseBody) {
+		slog.Info(
+			"kiro_model_access_error_skipped",
+			"account_id", account.ID,
+			"status_code", statusCode,
+			"upstream_msg", upstreamMsg,
+		)
+		return false
+	}
+
 	// Anthropic official 5h / 7d window exhaustion is a hard account limit.
 	// Fable 7d_oi is model-level only and must not disable the whole account.
 	if statusCode == http.StatusTooManyRequests && account.Platform == PlatformAnthropic {
@@ -177,12 +193,6 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 		if s.tryTempUnschedulable(ctx, account, statusCode, responseBody) {
 			return true
 		}
-	}
-
-	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(responseBody))
-	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-	if upstreamMsg != "" {
-		upstreamMsg = truncateForLog([]byte(upstreamMsg), 512)
 	}
 
 	switch statusCode {

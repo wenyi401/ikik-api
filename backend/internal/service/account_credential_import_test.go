@@ -35,6 +35,44 @@ func TestParseAccountCredentialImportContentsEnrichesOpenAIJWTIdentity(t *testin
 	require.Equal(t, "team", sources[0].Credentials["plan_type"])
 }
 
+func TestParseAccountCredentialImportContentsKiroConfigRequiresSwitch(t *testing.T) {
+	content := `{
+		"clientId":"client-id",
+		"clientSecret":"client-secret",
+		"refreshToken":"refresh-token",
+		"email":"kiro@example.com",
+		"provider":"BuilderId",
+		"region":"us-east-1",
+		"subscription":"KIRO FREE",
+		"creditLimit":50,
+		"creditUsed":1
+	}`
+
+	sources, errs := ParseAccountCredentialImportContents([]string{content})
+	require.Empty(t, errs)
+	require.Len(t, sources, 1)
+	require.NotEqual(t, AccountCredentialImportKindKiroConfig, sources[0].Kind)
+
+	sources, errs = ParseAccountCredentialImportContentsWithOptions([]string{content}, AccountCredentialImportOptions{
+		KiroConfigImport: true,
+	})
+	require.Empty(t, errs)
+	require.Len(t, sources, 1)
+	require.Equal(t, AccountCredentialImportKindKiroConfig, sources[0].Kind)
+	require.Equal(t, PlatformKiro, sources[0].Platform)
+	require.Equal(t, "kiro@example.com", sources[0].Name)
+	require.Equal(t, "refresh-token", sources[0].Token)
+	require.Equal(t, "client-id", sources[0].ClientID)
+	require.Equal(t, "client-secret", sources[0].ClientSecret)
+	require.Equal(t, "idc", sources[0].AuthMethod)
+	require.Equal(t, "BuilderId", sources[0].Provider)
+	require.Equal(t, "us-east-1", sources[0].Region)
+	require.Equal(t, "KIRO FREE", sources[0].Credentials["plan_type"])
+	require.Equal(t, json.Number("50"), sources[0].Credentials["credit_limit"])
+	require.Equal(t, json.Number("1"), sources[0].Credentials["credit_used"])
+	require.Equal(t, "kiro_config", sources[0].Extra["import_source"])
+}
+
 func importTestJWT(t *testing.T, claims map[string]any) string {
 	t.Helper()
 	header, err := json.Marshal(map[string]any{"alg": "none", "typ": "JWT"})

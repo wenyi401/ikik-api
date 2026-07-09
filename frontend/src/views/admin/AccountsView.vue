@@ -1505,9 +1505,13 @@ const handleBulkUpdated = () => {
   reload()
 }
 
-function importAdminCredentials(contents: string[]): Promise<ImportCredentialContentsResponse> {
+function importAdminCredentials(
+  contents: string[],
+  options?: { kiroConfigImport?: boolean }
+): Promise<ImportCredentialContentsResponse> {
   return adminAPI.accounts.importCredentialContents({
     contents,
+    kiro_config_import: options?.kiroConfigImport,
     priority: 50,
     group_ids: [],
     auto_pause_on_expired: true

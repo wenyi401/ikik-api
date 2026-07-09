@@ -72,6 +72,7 @@ func newBatchRefreshTestHandler(svc *stubAdminService) *AccountHandler {
 		nil, // openaiOAuthService
 		nil, // geminiOAuthService
 		nil, // antigravityOAuthService
+		nil, // kiroOAuthService
 		nil, // rateLimitService
 		nil, // accountUsageService
 		nil, // accountTestService

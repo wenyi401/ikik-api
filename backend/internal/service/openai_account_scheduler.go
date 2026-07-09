@@ -1422,8 +1422,10 @@ func accountSupportsOpenAICapabilities(account *Account, requiredCapability Open
 	if account == nil {
 		return false
 	}
-	return account.SupportsOpenAIEndpointCapability(requiredCapability) &&
-		account.SupportsOpenAIImageCapability(requiredImageCapability)
+	if !account.SupportsOpenAIEndpointCapability(requiredCapability) {
+		return false
+	}
+	return requiredImageCapability == "" || account.SupportsOpenAIImageCapability(requiredImageCapability)
 }
 
 func cloneExcludedAccountIDs(excludedIDs map[int64]struct{}) map[int64]struct{} {

@@ -9,7 +9,10 @@ import (
 	infraerrors "ikik-api/internal/pkg/errors"
 )
 
-const UserPrivateGroupValidityDays = 365
+const (
+	UserPrivateGroupValidityDays        = MaxValidityDays
+	UserCarpoolGroupDefaultValidityDays = 365
+)
 
 var ErrUserPrivateGroupPlatformUnsupported = infraerrors.BadRequest(
 	"USER_PRIVATE_GROUP_PLATFORM_UNSUPPORTED",

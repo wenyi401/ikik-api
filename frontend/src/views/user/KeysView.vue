@@ -41,7 +41,7 @@
         >
           <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
         </button>
-        <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
+        <button @click="openCreateModal" class="btn btn-primary" data-tour="keys-create-btn">
           <Icon name="plus" size="md" class="mr-2" />
           {{ t('keys.createKey') }}
         </button>
@@ -107,7 +107,16 @@
                 :title="t('keys.clickToChangeGroup')"
               >
                 <GroupBadge
-                  v-if="row.group"
+                  v-if="isPrivateRouterKey(row)"
+                  :name="t('keys.privateRouter.title')"
+                  platform="custom"
+                  subscription-type="subscription"
+                  :rate-multiplier="1"
+                  :user-rate-multiplier="null"
+                  class="min-w-0"
+                />
+                <GroupBadge
+                  v-else-if="row.group"
                   :name="row.group.name"
                   :platform="row.group.platform"
                   :subscription-type="row.group.subscription_type"
@@ -368,7 +377,7 @@
               :title="t('keys.noKeysYet')"
               :description="t('keys.createFirstKey')"
               :action-text="t('keys.createKey')"
-              @action="showCreateModal = true"
+              @action="openCreateModal"
             />
           </template>
         </DataTable>
@@ -407,7 +416,21 @@
         </div>
 
         <div>
-          <label class="input-label">{{ t('keys.groupLabel') }}</label>
+          <div class="mb-2 flex items-center justify-between gap-3">
+            <label class="input-label mb-0">{{ t('keys.groupLabel') }}</label>
+            <button
+              v-if="privateRouterOption"
+              type="button"
+              class="text-xs font-medium text-[var(--app-muted)] transition-colors hover:text-[var(--app-text)]"
+              @click="showPrivateGroupDetails = !showPrivateGroupDetails"
+            >
+              {{
+                showPrivateGroupDetails
+                  ? t('keys.privateRouter.hideSpecific')
+                  : t('keys.privateRouter.showSpecific')
+              }}
+            </button>
+          </div>
           <Select
             v-model="formData.group_id"
             :options="groupOptions"
@@ -512,7 +535,7 @@
 	                  <label class="mb-1 block text-xs text-[var(--app-muted)]">{{ t('keys.groupRouting.group') }}</label>
                   <Select
                     v-model="route.group_id"
-                    :options="groupOptions"
+                    :options="realGroupOptions"
                     :searchable="true"
                     :search-placeholder="t('keys.searchGroup')"
                   >
@@ -1158,8 +1181,7 @@
             :class="[
               'flex min-w-0 w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
               'border-b border-gray-100 last:border-0 dark:border-dark-700',
-              selectedKeyForGroup?.group_id === option.value ||
-              (!selectedKeyForGroup?.group_id && option.value === null)
+              isGroupOptionSelected(selectedKeyForGroup, option)
                 ? 'bg-primary-50 dark:bg-primary-900/20'
                 : 'hover:bg-gray-100 dark:hover:bg-dark-700'
             ]"
@@ -1220,6 +1242,7 @@ import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
 import { buildCcSwitchImportDeeplink } from '@/utils/ccswitchImport'
+import { platformLabel } from '@/utils/platformColors'
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -1229,6 +1252,7 @@ const formatDateTimeLocal = (isoDate: string): string => {
 }
 
 interface GroupOption {
+  [key: string]: unknown
   value: number
   label: string
   description: string | null
@@ -1238,6 +1262,8 @@ interface GroupOption {
   platform: GroupPlatform
   scope?: GroupScope
 }
+
+const privateRouterValue = -1000
 
 interface ApiKeyGroupRouteForm {
   group_id: number | null
@@ -1280,6 +1306,7 @@ const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
 const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({})
 const userGroupRates = ref<Record<number, number>>({})
+const showPrivateGroupDetails = ref(false)
 
 const pagination = ref({
   page: 1,
@@ -1390,7 +1417,7 @@ const statusFilterOptions = computed(() => [
 
 const getGroupOptionDescription = (group: Group): string | null => {
   if (group.scope === 'user_private') {
-    return t('keys.privateGroupDescription', { platform: group.platform })
+    return t('keys.privateGroupDescription', { platform: platformLabel(group.platform) })
   }
   return group.description
 }
@@ -1410,8 +1437,26 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
   onFilterChange()
 }
 
+const privateGroups = computed(() =>
+  groups.value.filter((group) => group.scope === 'user_private')
+)
+
+const privateRouterOption = computed<GroupOption | null>(() => {
+  if (privateGroups.value.length < 2) return null
+  return {
+    value: privateRouterValue,
+    label: t('keys.privateRouter.title'),
+    description: t('keys.privateRouter.description'),
+    rate: 1,
+    userRate: null,
+    subscriptionType: 'subscription',
+    platform: 'custom',
+    scope: 'user_private'
+  }
+})
+
 // Convert groups to Select options format with rate multiplier and subscription type
-const groupOptions = computed(() =>
+const realGroupOptions = computed<GroupOption[]>(() =>
   groups.value.map((group) => ({
     value: group.id,
     label: group.name,
@@ -1423,6 +1468,46 @@ const groupOptions = computed(() =>
     scope: group.scope
   }))
 )
+
+const groupOptions = computed<GroupOption[]>(() => {
+  const options = [...realGroupOptions.value]
+  if (!privateRouterOption.value) return options
+  if (showPrivateGroupDetails.value) {
+    return [privateRouterOption.value, ...options]
+  }
+  return [
+    privateRouterOption.value,
+    ...options.filter((option) => option.scope !== 'user_private')
+  ]
+})
+
+const privateRouterRouteForms = (): ApiKeyGroupRouteForm[] =>
+  privateGroups.value.map((group, index) => ({
+    group_id: group.id,
+    priority: 100 + index,
+    weight: 1,
+    enabled: true,
+    cooldown_seconds: 30
+  }))
+
+const privateRouterRoutes = (): ApiKeyGroupRoute[] =>
+  privateRouterRouteForms()
+    .filter((route): route is ApiKeyGroupRouteForm & { group_id: number } => route.group_id !== null)
+    .map((route) => ({
+      group_id: route.group_id,
+      priority: route.priority,
+      weight: route.weight,
+      enabled: route.enabled,
+      cooldown_seconds: route.cooldown_seconds
+    }))
+
+const isPrivateRouterRoutes = (routes: ApiKeyGroupRoute[] | ApiKeyGroupRouteForm[] | undefined): boolean => {
+  if (!routes || routes.length < 2) return false
+  const privateIDs = new Set(privateGroups.value.map((group) => group.id))
+  return routes.every((route) => privateIDs.has(route.group_id || 0))
+}
+
+const isPrivateRouterKey = (key: ApiKey): boolean => isPrivateRouterRoutes(key.group_routes)
 
 const createRoutesFromKey = (key: ApiKey): ApiKeyGroupRouteForm[] => {
   if (key.group_routes && key.group_routes.length > 0) {
@@ -1457,6 +1542,15 @@ const removeGroupRoute = (index: number) => {
 }
 
 const normalizeGroupRoutes = (): ApiKeyGroupRoute[] | null => {
+  if (!formData.value.enable_group_routes && formData.value.group_id === privateRouterValue) {
+    const routes = privateRouterRoutes()
+    if (routes.length === 0) {
+      appStore.showError(t('keys.groupRequired'))
+      return null
+    }
+    return routes
+  }
+
   if (!formData.value.enable_group_routes) {
     if (formData.value.group_id === null) return []
     return [{
@@ -1513,6 +1607,9 @@ const resolvePrimaryGroupId = (routes: ApiKeyGroupRoute[] | null): number | null
   )).group_id
 }
 
+const defaultCreateGroupId = (): number | null =>
+  privateRouterOption.value ? privateRouterValue : null
+
 // Group dropdown search
 const groupSearchQuery = ref('')
 const filteredGroupOptions = computed(() => {
@@ -1523,6 +1620,14 @@ const filteredGroupOptions = computed(() => {
       (opt.description && opt.description.toLowerCase().includes(query))
   })
 })
+
+const isGroupOptionSelected = (key: ApiKey | null, option: GroupOption): boolean => {
+  if (!key) return false
+  if (option.value === privateRouterValue) {
+    return isPrivateRouterKey(key)
+  }
+  return key.group_id === option.value
+}
 
 const copyToClipboard = async (text: string, keyId: number) => {
   const success = await clipboardCopy(text, t('keys.copied'))
@@ -1650,14 +1755,22 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
   loadApiKeys()
 }
 
+const openCreateModal = () => {
+  formData.value.group_id = defaultCreateGroupId()
+  formData.value.enable_group_routes = false
+  formData.value.group_routes = [defaultGroupRoute()]
+  showCreateModal.value = true
+}
+
 const editKey = (key: ApiKey) => {
   selectedKey.value = key
   const hasIPRestriction = (key.ip_whitelist?.length > 0) || (key.ip_blacklist?.length > 0)
   const hasExpiration = !!key.expires_at
   const groupRoutes = createRoutesFromKey(key)
+  const usesPrivateRouter = isPrivateRouterKey(key)
   formData.value = {
     name: key.name,
-    group_id: key.group_id,
+    group_id: usesPrivateRouter ? privateRouterValue : key.group_id,
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
     use_custom_key: false,
     custom_key: '',
@@ -1670,7 +1783,7 @@ const editKey = (key: ApiKey) => {
     rate_limit_5h: key.rate_limit_5h || null,
     rate_limit_1d: key.rate_limit_1d || null,
     rate_limit_7d: key.rate_limit_7d || null,
-    enable_group_routes: (key.group_routes?.length ?? 0) > 1,
+    enable_group_routes: !usesPrivateRouter && (key.group_routes?.length ?? 0) > 1,
     group_routes: groupRoutes,
     enable_expiration: hasExpiration,
     expiration_preset: 'custom',
@@ -1735,9 +1848,22 @@ const openGroupSelector = (key: ApiKey) => {
 const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
   groupSelectorKeyId.value = null
   dropdownPosition.value = null
-  if (key.group_id === newGroupId) return
+  if (newGroupId === privateRouterValue && isPrivateRouterKey(key)) return
+  if (newGroupId !== privateRouterValue && key.group_id === newGroupId) return
 
   try {
+    if (newGroupId === privateRouterValue) {
+      const routes = privateRouterRoutes()
+      const primaryGroupId = resolvePrimaryGroupId(routes)
+      if (primaryGroupId === null) {
+        appStore.showError(t('keys.groupRequired'))
+        return
+      }
+      await keysAPI.update(key.id, {
+        group_id: primaryGroupId,
+        group_routes: routes
+      })
+    } else {
     await keysAPI.update(key.id, {
       group_id: newGroupId,
       group_routes: newGroupId === null ? [] : [{
@@ -1748,6 +1874,7 @@ const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
         cooldown_seconds: 30
       }]
     })
+    }
     appStore.showSuccess(t('keys.groupChangedSuccess'))
     loadApiKeys()
   } catch (error) {
@@ -1900,9 +2027,9 @@ const closeModals = () => {
   showCreateModal.value = false
   showEditModal.value = false
   selectedKey.value = null
-  formData.value = {
-    name: '',
-    group_id: null,
+	  formData.value = {
+	    name: '',
+	    group_id: defaultCreateGroupId(),
     status: 'active',
     use_custom_key: false,
     custom_key: '',

@@ -161,6 +161,11 @@ func RegisterUserRoutes(
 			accountOAuth.POST("/antigravity/auth-url", h.UserAccount.GenerateAntigravityOAuthURL)
 			accountOAuth.POST("/antigravity/exchange-code", h.UserAccount.ExchangeAntigravityOAuthCode)
 			accountOAuth.POST("/antigravity/refresh-token", h.UserAccount.RefreshAntigravityToken)
+			accountOAuth.POST("/kiro/auth-url", h.UserAccount.GenerateKiroOAuthURL)
+			accountOAuth.POST("/kiro/idc-auth-url", h.UserAccount.GenerateKiroIDCAuthURL)
+			accountOAuth.POST("/kiro/exchange-code", h.UserAccount.ExchangeKiroOAuthCode)
+			accountOAuth.POST("/kiro/refresh-token", h.UserAccount.RefreshKiroToken)
+			accountOAuth.POST("/kiro/import-token", h.UserAccount.ImportKiroToken)
 		}
 
 		// 用户可用分组（非管理员接口）

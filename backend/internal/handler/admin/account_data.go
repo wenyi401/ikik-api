@@ -11,11 +11,11 @@ import (
 
 	"log/slog"
 
+	"github.com/gin-gonic/gin"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -37,6 +37,7 @@ type DataImportRequest struct {
 
 type CredentialImportRequest struct {
 	Contents                []string `json:"contents" binding:"required"`
+	KiroConfigImport        bool     `json:"kiro_config_import"`
 	OwnerUserID             *int64   `json:"owner_user_id"`
 	ShareMode               string   `json:"share_mode" binding:"omitempty,oneof=private public"`
 	ShareStatus             string   `json:"share_status" binding:"omitempty,oneof=pending approved suspended"`
@@ -144,7 +145,9 @@ func (h *AccountHandler) ImportCredentials(c *gin.Context) {
 		req.Priority = 50
 	}
 
-	sources, parseErrors := service.ParseAccountCredentialImportContents(req.Contents)
+	sources, parseErrors := service.ParseAccountCredentialImportContentsWithOptions(req.Contents, service.AccountCredentialImportOptions{
+		KiroConfigImport: req.KiroConfigImport,
+	})
 	if len(sources) == 0 && len(parseErrors) == 0 {
 		response.BadRequest(c, "No importable account credentials found")
 		return
@@ -279,6 +282,36 @@ func (h *AccountHandler) createAccountFromCredentialImportSource(
 		}
 		if input.Name == "" {
 			input.Name = fmt.Sprintf("Claude OAuth Account #%d", sequence)
+		}
+	case service.AccountCredentialImportKindKiroConfig:
+		if h.kiroOAuthService == nil {
+			return nil, fmt.Errorf("Kiro OAuth service is not configured")
+		}
+		tokenInfo, err := h.kiroOAuthService.RefreshToken(ctx, &service.KiroRefreshTokenInput{
+			RefreshToken: source.Token,
+			AuthMethod:   source.AuthMethod,
+			Provider:     source.Provider,
+			ClientID:     source.ClientID,
+			ClientSecret: source.ClientSecret,
+			StartURL:     source.StartURL,
+			Region:       source.Region,
+			ProfileArn:   source.ProfileArn,
+			ProxyID:      defaults.ProxyID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("validate Kiro config: %w", err)
+		}
+		input.Platform = service.PlatformKiro
+		input.Credentials = service.MergeCredentials(source.Credentials, h.kiroOAuthService.BuildAccountCredentials(tokenInfo))
+		input.Extra = source.Extra
+		if input.Concurrency <= 0 || defaults.Concurrency <= 0 {
+			input.Concurrency = service.DefaultOAuthAccountConcurrencyForPlatform(input.Platform)
+		}
+		if input.Name == "" {
+			input.Name = strings.TrimSpace(tokenInfo.Email)
+		}
+		if input.Name == "" {
+			input.Name = service.DeriveAccountCredentialImportName(input.Platform, input.Credentials, input.Extra, sequence)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported credential import kind")

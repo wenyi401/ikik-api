@@ -108,7 +108,7 @@ func (h *PlaygroundHandler) ChatCompletions(c *gin.Context) {
 
 	h.bindGatewayContext(c, apiKey, subscription, cleanBody)
 
-	if apiKey.Group.Platform == service.PlatformOpenAI || apiKey.Group.Platform == service.PlatformGrok {
+	if apiKey.Group.Platform == service.PlatformOpenAI || apiKey.Group.Platform == service.PlatformGrok || apiKey.Group.Platform == service.PlatformKiro {
 		h.openaiGateway.ChatCompletions(c)
 		return
 	}

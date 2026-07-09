@@ -72,6 +72,13 @@ type Group struct {
 	// 一旦设置即接管该分组用户的限流（覆盖用户级 rpm_limit），可被 user-group rpm_override 进一步覆盖。
 	RPMLimit int
 
+	// Kiro 运行时配置（仅 kiro 平台生效）。
+	KiroCacheEmulationEnabled   bool
+	KiroAutoStickyEnabled       bool
+	KiroStickySessionTTLSeconds int
+	KiroCacheEmulationRatio     float64
+	KiroEndpointMode            string
+
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
@@ -214,7 +221,7 @@ func IsValidRequiredAccountLevel(level string) bool {
 }
 
 func SupportedUserPrivateGroupPlatforms() []string {
-	return []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformCustom}
+	return []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformKiro, PlatformCustom}
 }
 
 func IsSupportedUserPrivateGroupPlatform(platform string) bool {
@@ -225,6 +232,116 @@ func IsSupportedUserPrivateGroupPlatform(platform string) bool {
 		}
 	}
 	return false
+}
+
+func (g *Group) EffectiveKiroCacheEmulationEnabled() bool {
+	return g != nil && g.Platform == PlatformKiro && g.KiroCacheEmulationEnabled && g.EffectiveKiroCacheEmulationRatio() > 0
+}
+
+func (g *Group) EffectiveKiroAutoStickyEnabled() bool {
+	return g != nil && g.Platform == PlatformKiro && g.KiroAutoStickyEnabled
+}
+
+const defaultKiroStickySessionTTLSeconds = 3600
+
+func (g *Group) EffectiveKiroStickySessionTTLSeconds() int {
+	if g == nil || g.Platform != PlatformKiro {
+		return defaultKiroStickySessionTTLSeconds
+	}
+	if g.KiroStickySessionTTLSeconds <= 0 {
+		return defaultKiroStickySessionTTLSeconds
+	}
+	return g.KiroStickySessionTTLSeconds
+}
+
+func (g *Group) EffectiveKiroStickySessionTTL() time.Duration {
+	seconds := g.EffectiveKiroStickySessionTTLSeconds()
+	if seconds <= 0 {
+		seconds = defaultKiroStickySessionTTLSeconds
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func (g *Group) EffectiveKiroCacheEmulationRatio() float64 {
+	if g == nil || g.Platform != PlatformKiro || !g.KiroCacheEmulationEnabled {
+		return 0
+	}
+	return normalizeKiroCacheEmulationRatio(g.KiroCacheEmulationRatio)
+}
+
+func normalizeKiroCacheEmulationRatio(ratio float64) float64 {
+	switch {
+	case ratio < 0:
+		return 0
+	case ratio > 1:
+		return 1
+	case ratio == 0:
+		return 1
+	default:
+		return ratio
+	}
+}
+
+func normalizeKiroCacheEmulationFields(g *Group) {
+	if g == nil {
+		return
+	}
+	if g.Platform != PlatformKiro {
+		g.KiroAutoStickyEnabled = false
+		g.KiroStickySessionTTLSeconds = defaultKiroStickySessionTTLSeconds
+		g.KiroCacheEmulationEnabled = false
+		g.KiroCacheEmulationRatio = 0
+		g.KiroEndpointMode = ""
+		return
+	}
+	if g.KiroStickySessionTTLSeconds <= 0 {
+		g.KiroStickySessionTTLSeconds = defaultKiroStickySessionTTLSeconds
+	}
+	if g.KiroCacheEmulationRatio == 0 {
+		g.KiroCacheEmulationRatio = 1
+	}
+	g.KiroCacheEmulationRatio = normalizeKiroCacheEmulationRatio(g.KiroCacheEmulationRatio)
+	normalizeKiroEndpointModeField(g)
+}
+
+const (
+	KiroEndpointModeQ   = "q"
+	KiroEndpointModeKRS = "krs"
+)
+
+func (g *Group) EffectiveKiroEndpointMode() string {
+	if g == nil || g.Platform != PlatformKiro {
+		return KiroEndpointModeQ
+	}
+	switch g.KiroEndpointMode {
+	case KiroEndpointModeKRS:
+		return KiroEndpointModeKRS
+	default:
+		return KiroEndpointModeQ
+	}
+}
+
+func (g *Group) KiroKRSEnabled() bool {
+	return g.EffectiveKiroEndpointMode() == KiroEndpointModeKRS
+}
+
+func normalizeKiroEndpointModeField(g *Group) {
+	if g == nil {
+		return
+	}
+	if g.Platform != PlatformKiro {
+		g.KiroEndpointMode = ""
+		return
+	}
+	switch g.KiroEndpointMode {
+	case KiroEndpointModeKRS:
+	default:
+		g.KiroEndpointMode = KiroEndpointModeQ
+	}
+}
+
+func NormalizeGroupRuntimeFields(g *Group) {
+	normalizeKiroCacheEmulationFields(g)
 }
 
 func PrivateGroupName(userID int64, platform string) string {

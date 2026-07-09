@@ -22,6 +22,7 @@ import (
 	"ikik-api/internal/pkg/claude"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/geminicli"
+	"ikik-api/internal/pkg/kiro"
 	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/pkg/timezone"
@@ -52,6 +53,7 @@ type AccountHandler struct {
 	openaiOAuthService        *service.OpenAIOAuthService
 	geminiOAuthService        *service.GeminiOAuthService
 	antigravityOAuthService   *service.AntigravityOAuthService
+	kiroOAuthService          *service.KiroOAuthService
 	rateLimitService          *service.RateLimitService
 	accountUsageService       *service.AccountUsageService
 	accountTestService        *service.AccountTestService
@@ -73,6 +75,7 @@ func NewAccountHandler(
 	openaiOAuthService *service.OpenAIOAuthService,
 	geminiOAuthService *service.GeminiOAuthService,
 	antigravityOAuthService *service.AntigravityOAuthService,
+	kiroOAuthService *service.KiroOAuthService,
 	rateLimitService *service.RateLimitService,
 	accountUsageService *service.AccountUsageService,
 	accountTestService *service.AccountTestService,
@@ -94,6 +97,7 @@ func NewAccountHandler(
 		openaiOAuthService:      openaiOAuthService,
 		geminiOAuthService:      geminiOAuthService,
 		antigravityOAuthService: antigravityOAuthService,
+		kiroOAuthService:        kiroOAuthService,
 		rateLimitService:        rateLimitService,
 		accountUsageService:     accountUsageService,
 		accountTestService:      accountTestService,
@@ -1195,6 +1199,18 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 		if account.Status == service.StatusError && strings.Contains(account.ErrorMessage, "missing_project_id:") {
 			if _, clearErr := h.adminService.ClearAccountError(ctx, account.ID); clearErr != nil {
 				return nil, "", fmt.Errorf("failed to clear account error: %w", clearErr)
+			}
+		}
+	} else if account.Platform == service.PlatformKiro {
+		tokenInfo, err := h.kiroOAuthService.RefreshAccountToken(ctx, account)
+		if err != nil {
+			return nil, "", err
+		}
+
+		newCredentials = h.kiroOAuthService.BuildAccountCredentials(tokenInfo)
+		for k, v := range account.Credentials {
+			if _, exists := newCredentials[k]; !exists {
+				newCredentials[k] = v
 			}
 		}
 	} else {
@@ -2394,6 +2410,35 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 	if account.Platform == service.PlatformAntigravity {
 		// 直接复用 antigravity.DefaultModels()，与 /v1/models 端点保持同步
 		response.Success(c, antigravity.DefaultModels())
+		return
+	}
+
+	if account.Platform == service.PlatformKiro {
+		mapping := account.GetModelMapping()
+		if len(mapping) == 0 {
+			response.Success(c, kiro.DefaultModels())
+			return
+		}
+
+		defaults := kiro.DefaultModels()
+		defaultsByID := make(map[string]kiro.Model, len(defaults))
+		for _, model := range defaults {
+			defaultsByID[model.ID] = model
+		}
+		models := make([]kiro.Model, 0, len(mapping))
+		for requestedModel := range mapping {
+			if model, ok := defaultsByID[requestedModel]; ok {
+				models = append(models, model)
+				continue
+			}
+			models = append(models, kiro.Model{
+				ID:          requestedModel,
+				Object:      "model",
+				OwnedBy:     "kiro",
+				DisplayName: requestedModel,
+			})
+		}
+		response.Success(c, models)
 		return
 	}
 

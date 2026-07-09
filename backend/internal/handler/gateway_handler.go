@@ -25,6 +25,7 @@ import (
 	"ikik-api/internal/pkg/geminicli"
 	pkghttputil "ikik-api/internal/pkg/httputil"
 	"ikik-api/internal/pkg/ip"
+	"ikik-api/internal/pkg/kiro"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/pkg/timezone"
@@ -41,6 +42,30 @@ const gatewayCompatibilityMetricsLogInterval = 1024
 var gatewayCompatibilityMetricsLogCounter atomic.Uint64
 
 var apiKeyGroupRouteBreaker = newAPIKeyGroupRouteCircuitBreaker()
+
+var stickySessionHeaderNames = []string{
+	"X-Session-ID",
+	"Anthropic-Session-Id",
+	"X-Claude-Code-Session-Id",
+	"X-OpenCode-Session",
+	"X-Session-Affinity",
+	"X-Conversation-ID",
+	"Session-Id",
+	"session_id",
+	"conversation_id",
+}
+
+func explicitStickySessionIDFromHeaders(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	for _, name := range stickySessionHeaderNames {
+		if value := strings.TrimSpace(c.GetHeader(name)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
 
 // GatewayHandler handles API gateway requests
 type GatewayHandler struct {
@@ -285,6 +310,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	// 2. 【新增】Wait后二次检查余额/订阅
 	// 设置请求所属分组 ID（用于渠道级功能判断，如 WebSearch 模拟）
 	parsedReq.GroupID = apiKey.GroupID
+	parsedReq.Group = apiKey.Group
 
 	// 计算粘性会话hash
 	parsedReq.SessionContext = &service.SessionContext{
@@ -292,8 +318,10 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		UserAgent: c.GetHeader("User-Agent"),
 		APIKeyID:  apiKey.ID,
 	}
+	parsedReq.ExplicitSessionID = explicitStickySessionIDFromHeaders(c)
 	baseBody := body
 	baseSessionContext := parsedReq.SessionContext
+	baseExplicitSessionID := parsedReq.ExplicitSessionID
 	sessionHash := h.gatewayService.GenerateSessionHash(parsedReq)
 
 	// [DEBUG-STICKY] 打印会话 hash 生成结果
@@ -462,7 +490,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				}
 				// Slot acquired: no longer waiting in queue.
 				releaseWait()
-				if err := h.gatewayService.BindStickySession(c.Request.Context(), apiKey.GroupID, sessionKey, account.ID); err != nil {
+				if err := h.gatewayService.BindStickySessionForGroup(c.Request.Context(), apiKey.GroupID, sessionKey, account.ID, apiKey.Group); err != nil {
 					reqLog.Warn("gateway.bind_sticky_session_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 				}
 			}
@@ -670,7 +698,9 @@ routeLoop:
 			return
 		}
 		parsedReqForRoute.GroupID = currentAPIKey.GroupID
+		parsedReqForRoute.Group = currentAPIKey.Group
 		parsedReqForRoute.SessionContext = baseSessionContext
+		parsedReqForRoute.ExplicitSessionID = baseExplicitSessionID
 		parsedReq = parsedReqForRoute
 		currentSessionBoundAccountID := int64(0)
 		if sessionKey != "" {
@@ -823,7 +853,7 @@ routeLoop:
 					zap.String("session_key", sessionKey),
 					zap.Int64("account_id", account.ID),
 				)
-				if err := h.gatewayService.BindStickySession(c.Request.Context(), currentAPIKey.GroupID, sessionKey, account.ID); err != nil {
+				if err := h.gatewayService.BindStickySessionForGroup(c.Request.Context(), currentAPIKey.GroupID, sessionKey, account.ID, currentAPIKey.Group); err != nil {
 					reqLog.Warn("gateway.bind_sticky_session_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 				}
 			}
@@ -1040,7 +1070,7 @@ routeLoop:
 				routeCursor.recordSuccess(apiKey.ID)
 			}
 			if sessionKey != "" && (currentSessionBoundAccountID == 0 || currentSessionBoundAccountID == account.ID) {
-				if err := h.gatewayService.BindStickySession(c.Request.Context(), currentAPIKey.GroupID, sessionKey, account.ID); err != nil {
+				if err := h.gatewayService.BindStickySessionForGroup(c.Request.Context(), currentAPIKey.GroupID, sessionKey, account.ID, currentAPIKey.Group); err != nil {
 					reqLog.Warn("gateway.bind_sticky_session_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 				}
 			}
@@ -1101,6 +1131,7 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 
 	var groupID *int64
 	var platform string
+	var forcedPlatform string
 
 	if apiKey != nil && apiKey.GroupID != nil {
 		groupID = apiKey.GroupID
@@ -1109,8 +1140,18 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		groupID = &apiKey.Group.ID
 		platform = apiKey.Group.Platform
 	}
-	if forcedPlatform, ok := middleware2.GetForcePlatformFromContext(c); ok && strings.TrimSpace(forcedPlatform) != "" {
+	if forced, ok := middleware2.GetForcePlatformFromContext(c); ok && strings.TrimSpace(forced) != "" {
+		forcedPlatform = strings.TrimSpace(forced)
 		platform = forcedPlatform
+	}
+
+	if routeModels, routePlatform, ok := h.collectAPIKeyRouteModels(c.Request.Context(), apiKey, forcedPlatform); ok {
+		if routePlatform == "" {
+			writeMixedModelsList(c, routeModels)
+			return
+		}
+		writeCustomModelsList(c, routePlatform, routeModels)
+		return
 	}
 
 	autoModels := h.gatewayService.GetAutoModelNames(c.Request.Context(), groupID)
@@ -1143,6 +1184,14 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		return
 	}
 
+	if platform == service.PlatformKiro {
+		c.JSON(http.StatusOK, gin.H{
+			"object": "list",
+			"data":   kiro.DefaultModels(),
+		})
+		return
+	}
+
 	if platform == service.PlatformGemini {
 		c.JSON(http.StatusOK, gin.H{
 			"object": "list",
@@ -1171,6 +1220,62 @@ func writeModelsList(c *gin.Context, modelIDs []string) {
 		"object": "list",
 		"data":   models,
 	})
+}
+
+func (h *GatewayHandler) collectAPIKeyRouteModels(ctx context.Context, apiKey *service.APIKey, forcedPlatform string) ([]string, string, bool) {
+	if h == nil || h.gatewayService == nil || apiKey == nil || len(apiKey.GroupRoutes) < 2 {
+		return nil, "", false
+	}
+	candidates, ok := buildAPIKeyGroupRouteCandidates(apiKey)
+	if !ok || len(candidates) < 2 {
+		return nil, "", false
+	}
+
+	forcedPlatform = strings.TrimSpace(forcedPlatform)
+	platformSet := make(map[string]struct{})
+	var modelIDs []string
+
+	for _, candidate := range candidates {
+		group := candidate.Route.Group
+		if group == nil {
+			group = candidate.APIKey.Group
+		}
+		if group == nil || group.ID <= 0 || !group.IsActive() {
+			continue
+		}
+		platform := strings.TrimSpace(group.Platform)
+		if forcedPlatform != "" && platform != forcedPlatform {
+			continue
+		}
+
+		groupID := group.ID
+		autoModels := h.gatewayService.GetAutoModelNames(ctx, &groupID)
+		groupModels := mergeModelIDs(h.gatewayService.GetAvailableModels(ctx, &groupID, platform), autoModels)
+		fallbackModels := mergeModelIDs(routeDefaultModelIDsForPlatform(platform), autoModels)
+		if group.CustomModelsListEnabled() {
+			groupModels = filterModelsByCustomList(groupModels, fallbackModels, group.ModelsListConfig.Models)
+		}
+		if len(groupModels) == 0 {
+			groupModels = fallbackModels
+		}
+		if len(groupModels) == 0 {
+			continue
+		}
+
+		modelIDs = mergeModelIDs(modelIDs, groupModels)
+		if platform != "" {
+			platformSet[platform] = struct{}{}
+		}
+	}
+	if len(modelIDs) == 0 {
+		return nil, "", false
+	}
+	if len(platformSet) == 1 {
+		for platform := range platformSet {
+			return modelIDs, platform, true
+		}
+	}
+	return modelIDs, "", true
 }
 
 func mergeModelIDs(base, extra []string) []string {
@@ -1211,7 +1316,96 @@ func writeCustomModelsList(c *gin.Context, platform string, modelIDs []string) {
 		writeGrokModelsList(c, modelIDs)
 		return
 	}
+	if platform == service.PlatformKiro {
+		writeKiroModelsList(c, modelIDs)
+		return
+	}
 	writeModelsList(c, modelIDs)
+}
+
+type gatewayModelListItem struct {
+	ID          string `json:"id"`
+	Object      string `json:"object"`
+	Created     int64  `json:"created,omitempty"`
+	OwnedBy     string `json:"owned_by,omitempty"`
+	Type        string `json:"type,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+}
+
+func writeMixedModelsList(c *gin.Context, modelIDs []string) {
+	defaultsByID := mixedModelDefaultsByID()
+	models := make([]gatewayModelListItem, 0, len(modelIDs))
+	for _, modelID := range modelIDs {
+		if model, ok := defaultsByID[modelID]; ok {
+			models = append(models, model)
+			continue
+		}
+		models = append(models, gatewayModelListItem{
+			ID:          modelID,
+			Object:      "model",
+			Created:     1704067200,
+			OwnedBy:     "ikik",
+			Type:        "model",
+			DisplayName: modelID,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"object": "list",
+		"data":   models,
+	})
+}
+
+func mixedModelDefaultsByID() map[string]gatewayModelListItem {
+	defaults := make(map[string]gatewayModelListItem)
+	for _, model := range openai.DefaultModels {
+		defaults[model.ID] = gatewayModelListItem{
+			ID:          model.ID,
+			Object:      model.Object,
+			Created:     model.Created,
+			OwnedBy:     model.OwnedBy,
+			Type:        model.Type,
+			DisplayName: model.DisplayName,
+		}
+	}
+	for _, model := range xai.DefaultModels() {
+		defaults[model.ID] = gatewayModelListItem{
+			ID:          model.ID,
+			Object:      model.Object,
+			Created:     model.Created,
+			OwnedBy:     model.OwnedBy,
+			Type:        "model",
+			DisplayName: model.DisplayName,
+		}
+	}
+	for _, model := range kiro.DefaultModels() {
+		defaults[model.ID] = gatewayModelListItem{
+			ID:          model.ID,
+			Object:      model.Object,
+			Created:     model.Created,
+			OwnedBy:     model.OwnedBy,
+			Type:        "model",
+			DisplayName: model.DisplayName,
+		}
+	}
+	for _, model := range geminicli.DefaultModels {
+		defaults[model.ID] = gatewayModelListItem{
+			ID:          model.ID,
+			Object:      "model",
+			OwnedBy:     "google",
+			Type:        model.Type,
+			DisplayName: model.DisplayName,
+		}
+	}
+	for _, model := range claude.DefaultModels {
+		defaults[model.ID] = gatewayModelListItem{
+			ID:          model.ID,
+			Object:      "model",
+			OwnedBy:     "anthropic",
+			Type:        model.Type,
+			DisplayName: model.DisplayName,
+		}
+	}
+	return defaults
 }
 
 func writeOpenAIModelsList(c *gin.Context, modelIDs []string) {
@@ -1259,6 +1453,33 @@ func writeGrokModelsList(c *gin.Context, modelIDs []string) {
 			Object:      "model",
 			Created:     1704067200,
 			OwnedBy:     "xai",
+			DisplayName: modelID,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"object": "list",
+		"data":   models,
+	})
+}
+
+func writeKiroModelsList(c *gin.Context, modelIDs []string) {
+	defaults := kiro.DefaultModels()
+	defaultsByID := make(map[string]kiro.Model, len(defaults))
+	for _, model := range defaults {
+		defaultsByID[model.ID] = model
+	}
+
+	models := make([]kiro.Model, 0, len(modelIDs))
+	for _, modelID := range modelIDs {
+		if model, ok := defaultsByID[modelID]; ok {
+			models = append(models, model)
+			continue
+		}
+		models = append(models, kiro.Model{
+			ID:          modelID,
+			Object:      "model",
+			Created:     1704067200,
+			OwnedBy:     "kiro",
 			DisplayName: modelID,
 		})
 	}
@@ -1321,6 +1542,15 @@ func customModelsListAllowsModel(availablePatterns []string, model string) bool 
 
 func defaultModelIDsForPlatform(platform string) []string {
 	return service.DefaultModelIDsForPlatform(platform)
+}
+
+func routeDefaultModelIDsForPlatform(platform string) []string {
+	switch platform {
+	case service.PlatformAnthropic, service.PlatformOpenAI, service.PlatformGemini, service.PlatformAntigravity, service.PlatformGrok, service.PlatformKiro:
+		return defaultModelIDsForPlatform(platform)
+	default:
+		return nil
+	}
 }
 
 // AntigravityModels 返回 Antigravity 支持的全部模型
@@ -2206,6 +2436,7 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 		UserAgent: c.GetHeader("User-Agent"),
 		APIKeyID:  apiKey.ID,
 	}
+	parsedReq.ExplicitSessionID = explicitStickySessionIDFromHeaders(c)
 	sessionHash := h.gatewayService.GenerateSessionHash(parsedReq)
 
 	// 选择支持该模型的账号

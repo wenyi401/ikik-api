@@ -50,6 +50,7 @@ const (
 	PlatformGemini      = domain.PlatformGemini
 	PlatformAntigravity = domain.PlatformAntigravity
 	PlatformGrok        = domain.PlatformGrok
+	PlatformKiro        = domain.PlatformKiro
 	PlatformCustom      = domain.PlatformCustom
 )
 

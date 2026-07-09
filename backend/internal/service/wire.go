@@ -10,6 +10,7 @@ import (
 	dbent "ikik-api/ent"
 	"ikik-api/internal/config"
 	"ikik-api/internal/payment"
+	"ikik-api/internal/pkg/kirocooldown"
 	"ikik-api/internal/pkg/logger"
 )
 
@@ -62,6 +63,7 @@ func ProvideTokenRefreshService(
 	openaiOAuthService *OpenAIOAuthService,
 	geminiOAuthService *GeminiOAuthService,
 	antigravityOAuthService *AntigravityOAuthService,
+	kiroOAuthService *KiroOAuthService,
 	cacheInvalidator TokenCacheInvalidator,
 	schedulerCache SchedulerCache,
 	cfg *config.Config,
@@ -72,6 +74,7 @@ func ProvideTokenRefreshService(
 	grokOAuthServices ...*GrokOAuthService,
 ) *TokenRefreshService {
 	svc := NewTokenRefreshService(accountRepo, oauthService, openaiOAuthService, geminiOAuthService, antigravityOAuthService, cacheInvalidator, schedulerCache, cfg, tempUnschedCache, grokOAuthServices...)
+	svc.AddKiroTokenRefresher(kiroOAuthService)
 	// 注入 OpenAI privacy opt-out 依赖
 	svc.SetPrivacyDeps(privacyClientFactory, proxyRepo)
 	// 注入统一 OAuth 刷新 API（消除 TokenRefreshService 与 TokenProvider 之间的竞争条件）
@@ -162,6 +165,23 @@ func ProvideGrokTokenProvider(
 	p.SetRefreshPolicy(AntigravityProviderRefreshPolicy())
 	p.SetTempUnschedCache(tempUnschedCache)
 	return p
+}
+
+func ProvideKiroTokenProvider(
+	accountRepo AccountRepository,
+	tokenCache GeminiTokenCache,
+	kiroOAuthService *KiroOAuthService,
+	refreshAPI *OAuthRefreshAPI,
+) *KiroTokenProvider {
+	p := NewKiroTokenProvider(accountRepo, tokenCache, kiroOAuthService)
+	executor := NewKiroTokenRefresher(kiroOAuthService)
+	p.SetRefreshAPI(refreshAPI, executor)
+	p.SetRefreshPolicy(GeminiProviderRefreshPolicy())
+	return p
+}
+
+func ProvideKiroCooldownStore(redisClient *redis.Client) KiroCooldownStore {
+	return kirocooldown.NewStore(redisClient)
 }
 
 func ProvideGrokQuotaService(
@@ -658,11 +678,13 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(TokenCacheInvalidator), new(*CompositeTokenCacheInvalidator)),
 	NewAntigravityOAuthService,
 	NewGrokOAuthService,
+	NewKiroOAuthService,
 	ProvideOAuthRefreshAPI,
 	ProvideGeminiTokenProvider,
 	NewGeminiMessagesCompatService,
 	ProvideAntigravityTokenProvider,
 	ProvideGrokTokenProvider,
+	ProvideKiroCooldownStore,
 	ProvideGrokQuotaService,
 	ProvideOpenAITokenProvider,
 	ProvideOpenAIQuotaService,

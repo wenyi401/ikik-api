@@ -1101,6 +1101,68 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_LoadBalanceTopKFallback
 	}
 }
 
+func TestOpenAIGatewayService_SelectAccountWithSchedulerForCapability_Kiro(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(15507)
+	account := Account{
+		ID:          12116,
+		Platform:    PlatformKiro,
+		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 10,
+		Priority:    1,
+		GroupIDs:    []int64{groupID},
+	}
+	require.True(t, account.IsOpenAICompatible())
+	require.True(t, account.IsModelSupported("claude-sonnet-4-5-20250929"))
+	require.True(t, account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityChatCompletions))
+
+	svc := &OpenAIGatewayService{
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: []Account{account}},
+		cache:              &schedulerTestGatewayCache{},
+		rateLimitService:   newOpenAIAdvancedSchedulerRateLimitService("true"),
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+	}
+	listed, err := svc.listSchedulableAccounts(ctx, &groupID, PlatformKiro)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	require.True(t, svc.isOpenAIAdvancedSchedulerEnabled(ctx))
+	scheduler, ok := svc.getOpenAIAccountScheduler(ctx).(*defaultOpenAIAccountScheduler)
+	require.True(t, ok)
+	req := OpenAIAccountScheduleRequest{
+		GroupID:            &groupID,
+		Platform:           PlatformKiro,
+		RequestedModel:     "claude-sonnet-4-5-20250929",
+		RequiredTransport:  OpenAIUpstreamTransportAny,
+		RequiredCapability: OpenAIEndpointCapabilityChatCompletions,
+	}
+	require.True(t, scheduler.isAccountRequestCompatible(&account, req))
+	directSelection, candidateCount, topK, _, directErr := scheduler.selectByLoadBalance(ctx, req)
+	require.NoError(t, directErr)
+	require.Equal(t, 1, candidateCount)
+	require.Equal(t, 1, topK)
+	require.NotNil(t, directSelection)
+
+	selection, decision, err := svc.SelectAccountWithSchedulerForCapability(
+		ctx,
+		&groupID,
+		"",
+		"",
+		"claude-sonnet-4-5-20250929",
+		nil,
+		OpenAIUpstreamTransportAny,
+		OpenAIEndpointCapabilityChatCompletions,
+		false,
+		PlatformKiro,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, account.ID, selection.Account.ID)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+}
+
 func TestOpenAIGatewayService_OpenAIAccountSchedulerMetrics(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(12)

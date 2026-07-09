@@ -211,6 +211,7 @@ type OpenAIUsage struct {
 	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
 	ReasoningTokens          int `json:"reasoning_tokens,omitempty"`
 	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
+	KiroCredits              float64
 }
 
 // OpenAIForwardResult represents the result of forwarding
@@ -335,6 +336,7 @@ type OpenAIGatewayService struct {
 	deferredService        *DeferredService
 	openAITokenProvider    *OpenAITokenProvider
 	grokTokenProvider      *GrokTokenProvider
+	kiroTokenProvider      *KiroTokenProvider
 	toolCorrector          *CodexToolCorrector
 	openaiWSResolver       OpenAIWSProtocolResolver
 	resolver               *ModelPricingResolver
@@ -1416,6 +1418,9 @@ func normalizeOpenAICompatiblePlatform(platform string) string {
 	if platform == PlatformGrok {
 		return PlatformGrok
 	}
+	if platform == PlatformKiro {
+		return PlatformKiro
+	}
 	return PlatformOpenAI
 }
 
@@ -2198,10 +2203,30 @@ func (s *OpenAIGatewayService) codexBlockConnectorTools() bool {
 	return s.cfg.Gateway.CodexBlockConnectorTools
 }
 
+func (s *OpenAIGatewayService) SetKiroTokenProvider(provider *KiroTokenProvider) {
+	if s != nil {
+		s.kiroTokenProvider = provider
+	}
+}
+
 // GetAccessToken gets the access token for an OpenAI account
 func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Account) (string, string, error) {
 	switch account.Type {
 	case AccountTypeOAuth:
+		if account.Platform == PlatformKiro {
+			if s.kiroTokenProvider != nil {
+				accessToken, err := s.kiroTokenProvider.GetAccessToken(ctx, account)
+				if err != nil {
+					return "", "", err
+				}
+				return accessToken, "kiro_oauth", nil
+			}
+			accessToken := account.GetCredential("access_token")
+			if accessToken == "" {
+				return "", "", errors.New("kiro access_token not found in credentials")
+			}
+			return accessToken, "kiro_oauth", nil
+		}
 		if account.Platform == PlatformGrok {
 			if s.grokTokenProvider != nil {
 				accessToken, err := s.grokTokenProvider.GetAccessToken(ctx, account)
@@ -4025,6 +4050,9 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 		// API Key accounts use Platform API or custom base URL
 		baseURL := account.GetOpenAIBaseURL()
 		if baseURL == "" {
+			if account.IsKiro() {
+				return nil, fmt.Errorf("account %d missing base_url", account.ID)
+			}
 			targetURL = openaiPlatformAPIURL
 		} else {
 			validatedURL, err := s.validateUpstreamBaseURL(baseURL)
@@ -4142,9 +4170,13 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		)
 	}
 
+	rulePlatform := PlatformOpenAI
+	if account != nil && strings.TrimSpace(account.Platform) != "" {
+		rulePlatform = account.Platform
+	}
 	if status, errType, errMsg, matched := applyErrorPassthroughRule(
 		c,
-		PlatformOpenAI,
+		rulePlatform,
 		resp.StatusCode,
 		body,
 		http.StatusBadGateway,
@@ -5515,6 +5547,10 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.CacheReadCost = cost.CacheReadCost
 		usageLog.TotalCost = cost.TotalCost
 		usageLog.ActualCost = cost.ActualCost
+	}
+	if result.Usage.KiroCredits > 0 {
+		kiroCredits := result.Usage.KiroCredits
+		usageLog.KiroCredits = &kiroCredits
 	}
 	usageLog.RateMultiplier = multiplier
 	usageLog.AccountRateMultiplier = &accountRateMultiplier

@@ -467,9 +467,9 @@
 
       </div>
 
-      <!-- OpenAI OAuth Model Mapping (OAuth 类型没有 apikey 容器，需要独立的模型映射区域) -->
+      <!-- OAuth model mapping. OAuth accounts do not render the API key credential card. -->
       <div
-        v-if="!isUserScope && account.platform === 'openai' && account.type === 'oauth'"
+        v-if="showOAuthModelMappingEditor"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <label class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
@@ -2354,6 +2354,7 @@ const baseUrlHint = computed(() => {
   if (!props.account) return t('admin.accounts.baseUrlHint')
   if (props.account.platform === 'openai') return t('admin.accounts.openai.baseUrlHint')
   if (props.account.platform === 'gemini') return t('admin.accounts.gemini.baseUrlHint')
+  if (props.account.platform === 'kiro') return t('admin.accounts.kiro.baseUrlHint')
   if (props.account.platform === 'custom') return t('admin.accounts.custom.baseUrlHint')
   return t('admin.accounts.baseUrlHint')
 })
@@ -2579,6 +2580,11 @@ const codexImageToolOptions = computed(() => [
 const isOpenAIModelRestrictionDisabled = computed(() =>
   props.account?.platform === 'openai' && openaiPassthroughEnabled.value
 )
+const showOAuthModelMappingEditor = computed(() => {
+  if (!props.account || props.account.type !== 'oauth') return false
+  if (props.account.platform === 'kiro') return true
+  return !isUserScope.value && props.account.platform === 'openai'
+})
 const openAICompactStatusKey = computed(() => {
   const extra = props.account?.extra as Record<string, unknown> | undefined
   if (!props.account || props.account.platform !== 'openai') return ''
@@ -2595,6 +2601,27 @@ const openAICompactStatusKey = computed(() => {
 
 // Computed: current preset mappings based on platform
 const presetMappings = computed(() => getPresetMappingsByPlatform(props.account?.platform || 'anthropic'))
+const getKiroDefaultModelMappings = (): ModelMapping[] =>
+  getPresetMappingsByPlatform('kiro').map(({ from, to }) => ({ from, to }))
+const getKiroModelMappingsFromCredentials = (credentials?: Record<string, unknown>): ModelMapping[] => {
+  const existingMappings = credentials?.model_mapping as Record<string, string> | undefined
+  if (existingMappings && typeof existingMappings === 'object' && Object.keys(existingMappings).length > 0) {
+    return Object.entries(existingMappings).map(([from, to]) => ({ from, to }))
+  }
+  return getKiroDefaultModelMappings()
+}
+const buildEditableModelMapping = (platform: string): Record<string, string> | null => {
+  if (platform !== 'kiro') {
+    return buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
+  }
+  if (modelRestrictionMode.value === 'whitelist') {
+    return buildModelMappingObject('whitelist', allowedModels.value, [])
+  }
+  const mappings = modelMappings.value.length > 0
+    ? modelMappings.value
+    : getKiroDefaultModelMappings()
+  return buildModelMappingObject('mapping', [], mappings)
+}
 const tempUnschedPresets = computed(() => [
   {
     label: t('admin.accounts.tempUnschedulable.presets.overloadLabel'),
@@ -2629,6 +2656,7 @@ const tempUnschedPresets = computed(() => [
 const defaultBaseUrl = computed(() => {
   if (props.account?.platform === 'openai') return 'https://api.openai.com'
   if (props.account?.platform === 'gemini') return 'https://generativelanguage.googleapis.com'
+  if (props.account?.platform === 'kiro') return ''
   if (props.account?.platform === 'custom') return ''
   return 'https://api.anthropic.com'
 })
@@ -2637,6 +2665,7 @@ const apiKeyBaseUrlPlaceholder = computed(() => {
   if (props.account?.platform === 'openai') return 'https://api.openai.com'
   if (props.account?.platform === 'gemini') return 'https://generativelanguage.googleapis.com'
   if (props.account?.platform === 'antigravity') return 'https://cloudcode-pa.googleapis.com'
+  if (props.account?.platform === 'kiro') return 'https://your-kiro-endpoint/v1'
   if (props.account?.platform === 'custom') return 'https://api.example.com'
   return 'https://api.anthropic.com'
 })
@@ -2646,6 +2675,7 @@ const apiKeySecretPlaceholder = computed(() => {
   if (props.account?.platform === 'openai') return 'sk-proj-...'
   if (props.account?.platform === 'custom') return 'sk-...'
   if (props.account?.platform === 'antigravity') return 'sk-...'
+  if (props.account?.platform === 'kiro') return 'sk-...'
   return 'sk-ant-...'
 })
 
@@ -2994,6 +3024,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
         ? 'https://api.openai.com'
         : newAccount.platform === 'gemini'
           ? 'https://generativelanguage.googleapis.com'
+          : newAccount.platform === 'kiro'
+            ? ''
           : newAccount.platform === 'custom'
             ? ''
             : 'https://api.anthropic.com'
@@ -3001,7 +3033,11 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 
     // Load model mappings and detect mode
     const existingMappings = credentials.model_mapping as Record<string, string> | undefined
-    if (existingMappings && typeof existingMappings === 'object') {
+    if (newAccount.platform === 'kiro') {
+      modelRestrictionMode.value = 'mapping'
+      modelMappings.value = getKiroModelMappingsFromCredentials(credentials)
+      allowedModels.value = []
+    } else if (existingMappings && typeof existingMappings === 'object') {
       const entries = Object.entries(existingMappings)
 
       // Detect if this is whitelist mode (all from === to) or mapping mode
@@ -3124,8 +3160,13 @@ const syncFormFromAccount = (newAccount: Account | null) => {
           : 'https://api.anthropic.com'
     editBaseUrl.value = platformDefaultUrl
 
-    // Load model mappings for OpenAI OAuth accounts
-    if (newAccount.platform === 'openai' && newAccount.credentials) {
+    // Load model mappings for OAuth accounts with configurable model maps.
+    if (newAccount.platform === 'kiro' && newAccount.credentials) {
+      const oauthCredentials = newAccount.credentials as Record<string, unknown>
+      modelRestrictionMode.value = 'mapping'
+      modelMappings.value = getKiroModelMappingsFromCredentials(oauthCredentials)
+      allowedModels.value = []
+    } else if (newAccount.platform === 'openai' && newAccount.credentials) {
       const oauthCredentials = newAccount.credentials as Record<string, unknown>
       const existingMappings = oauthCredentials.model_mapping as Record<string, string> | undefined
       if (existingMappings && typeof existingMappings === 'object') {
@@ -3157,9 +3198,31 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     selectedErrorCodes.value = []
   }
   if (isUserScope.value) {
-    modelRestrictionMode.value = 'whitelist'
-    allowedModels.value = Object.keys(buildPersonalAccountModelMapping(newAccount.platform))
-    modelMappings.value = []
+    if (newAccount.platform === 'kiro') {
+      const kiroCredentials = (newAccount.credentials as Record<string, unknown>) || {}
+      const existingMappings = kiroCredentials.model_mapping as Record<string, string> | undefined
+      if (existingMappings && typeof existingMappings === 'object' && Object.keys(existingMappings).length > 0) {
+        const entries = Object.entries(existingMappings)
+        const isWhitelistMode = entries.every(([from, to]) => from === to)
+        if (isWhitelistMode) {
+          modelRestrictionMode.value = 'whitelist'
+          allowedModels.value = entries.map(([from]) => from)
+          modelMappings.value = []
+        } else {
+          modelRestrictionMode.value = 'mapping'
+          modelMappings.value = entries.map(([from, to]) => ({ from, to }))
+          allowedModels.value = []
+        }
+      } else {
+        modelRestrictionMode.value = 'mapping'
+        modelMappings.value = getKiroDefaultModelMappings()
+        allowedModels.value = []
+      }
+    } else {
+      modelRestrictionMode.value = 'whitelist'
+      allowedModels.value = Object.keys(buildPersonalAccountModelMapping(newAccount.platform))
+      modelMappings.value = []
+    }
     openAICompactModelMappings.value = []
   }
   editApiKey.value = ''
@@ -3621,6 +3684,13 @@ const sanitizeUpdatePayload = (payload: Record<string, unknown>) => {
       (props.account?.extra as Record<string, unknown>) ||
       {}
     const templated = applyPersonalAccountTemplate(props.account?.platform || 'anthropic', currentCredentials, currentExtra)
+    if (
+      props.account?.platform === 'kiro' &&
+      currentCredentials.model_mapping &&
+      typeof currentCredentials.model_mapping === 'object'
+    ) {
+      templated.credentials.model_mapping = currentCredentials.model_mapping
+    }
     next.credentials = templated.credentials
     next.extra = templated.extra
   }
@@ -3693,7 +3763,7 @@ const handleSubmit = async () => {
         : Math.max(1, Number(form.concurrency) || PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY)
       updatePayload.priority = Math.max(1, Number(form.priority) || PERSONAL_ACCOUNT_DEFAULT_PRIORITY)
       updatePayload.auto_pause_on_expired = PERSONAL_ACCOUNT_DEFAULT_AUTO_PAUSE_ON_EXPIRED
-      if (props.account.type === 'oauth') {
+      if (props.account.type === 'oauth' && props.account.platform !== 'kiro') {
         const templated = applyPersonalAccountTemplate(
           props.account.platform,
           (props.account.credentials as Record<string, unknown>) || {},
@@ -3713,7 +3783,13 @@ const handleSubmit = async () => {
         appStore.showError(t('admin.accounts.custom.baseUrlRequired'))
         return
       }
-      const newBaseUrl = editBaseUrl.value.trim() || defaultBaseUrl.value
+      if (props.account.platform === 'kiro' && !editBaseUrl.value.trim()) {
+        appStore.showError(t('admin.accounts.kiro.baseUrlRequired'))
+        return
+      }
+      const newBaseUrl = props.account.platform === 'kiro'
+        ? editBaseUrl.value.trim()
+        : (editBaseUrl.value.trim() || defaultBaseUrl.value)
       const shouldApplyModelMapping = !(props.account.platform === 'openai' && openaiPassthroughEnabled.value)
 
       // Always update credentials for apikey type to handle model mapping changes
@@ -3736,7 +3812,12 @@ const handleSubmit = async () => {
 
       // Add model mapping if configured（OpenAI 开启自动透传时保留现有映射，不再编辑）
       if (shouldApplyModelMapping) {
-        const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
+        if (props.account.platform === 'kiro' && modelMappings.value.length === 0) {
+          modelRestrictionMode.value = 'mapping'
+          modelMappings.value = getKiroDefaultModelMappings()
+          allowedModels.value = []
+        }
+        const modelMapping = buildEditableModelMapping(props.account.platform)
         if (modelMapping) {
           newCredentials.model_mapping = modelMapping
         } else {
@@ -3914,15 +3995,15 @@ const handleSubmit = async () => {
       updatePayload.credentials = newCredentials
     }
 
-    // OpenAI OAuth: persist model mapping to credentials
-    if (props.account.platform === 'openai' && props.account.type === 'oauth') {
+    // OpenAI/Kiro OAuth: persist model mapping to credentials.
+    if ((props.account.platform === 'openai' || props.account.platform === 'kiro') && props.account.type === 'oauth') {
       const currentCredentials = (updatePayload.credentials as Record<string, unknown>) ||
         ((props.account.credentials as Record<string, unknown>) || {})
       const newCredentials: Record<string, unknown> = { ...currentCredentials }
-      const shouldApplyModelMapping = !openaiPassthroughEnabled.value
+      const shouldApplyModelMapping = props.account.platform === 'kiro' || !openaiPassthroughEnabled.value
 
       if (shouldApplyModelMapping) {
-        const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
+        const modelMapping = buildEditableModelMapping(props.account.platform)
         if (modelMapping) {
           newCredentials.model_mapping = modelMapping
         } else {
@@ -3932,11 +4013,13 @@ const handleSubmit = async () => {
         // 透传模式保留现有映射
         newCredentials.model_mapping = currentCredentials.model_mapping
       }
-      const compactModelMapping = buildModelMappingObject('mapping', [], openAICompactModelMappings.value)
-      if (compactModelMapping) {
-        newCredentials.compact_model_mapping = compactModelMapping
-      } else {
-        delete newCredentials.compact_model_mapping
+      if (props.account.platform === 'openai') {
+        const compactModelMapping = buildModelMappingObject('mapping', [], openAICompactModelMappings.value)
+        if (compactModelMapping) {
+          newCredentials.compact_model_mapping = compactModelMapping
+        } else {
+          delete newCredentials.compact_model_mapping
+        }
       }
 
       updatePayload.credentials = newCredentials
@@ -4101,6 +4184,14 @@ const handleSubmit = async () => {
       updatePayload.extra = {
         ...currentExtra,
         protocol: customProtocol.value
+      }
+    }
+
+    if (props.account.platform === 'kiro' && (props.account.type === 'apikey' || props.account.type === 'oauth')) {
+      const currentExtra = (updatePayload.extra as Record<string, unknown>) || (props.account.extra as Record<string, unknown>) || {}
+      updatePayload.extra = {
+        ...currentExtra,
+        openai_responses_supported: false
       }
     }
 

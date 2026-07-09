@@ -78,6 +78,11 @@ func (s *AccountTestService) ProbeModelList(ctx context.Context, input ModelProb
 	switch platform {
 	case PlatformOpenAI:
 		return s.probeOpenAIModelList(ctx, input.BaseURL, apiKey)
+	case PlatformKiro:
+		if strings.TrimSpace(input.BaseURL) == "" {
+			return ModelProbeListResult{}, errors.New("kiro base url is required")
+		}
+		return s.probeOpenAIModelListWithFallback(ctx, input.BaseURL, apiKey, "")
 	case PlatformGemini:
 		return s.probeGeminiModelList(ctx, input.BaseURL, apiKey)
 	case PlatformAnthropic:
@@ -117,7 +122,11 @@ func (s *AccountTestService) ProbeModels(ctx context.Context, input ModelProbeTe
 }
 
 func (s *AccountTestService) probeOpenAIModelList(ctx context.Context, baseURL, apiKey string) (ModelProbeListResult, error) {
-	normalizedBaseURL, err := s.normalizeProbeBaseURL(baseURL, "https://api.openai.com")
+	return s.probeOpenAIModelListWithFallback(ctx, baseURL, apiKey, "https://api.openai.com")
+}
+
+func (s *AccountTestService) probeOpenAIModelListWithFallback(ctx context.Context, baseURL, apiKey, fallback string) (ModelProbeListResult, error) {
+	normalizedBaseURL, err := s.normalizeProbeBaseURL(baseURL, fallback)
 	if err != nil {
 		return ModelProbeListResult{}, err
 	}
@@ -279,6 +288,11 @@ func (s *AccountTestService) buildModelProbeRequest(ctx context.Context, platfor
 		return newJSONProbeRequest(ctx, http.MethodPost, buildOpenAIResponsesURL(normalizedBaseURL), apiKey, openAIResponsesMinimalProbePayload(model))
 	case platform == PlatformOpenAI && mode == ModelProbeModeOpenAIChatCompletions:
 		return s.buildOpenAIChatCompletionsProbeRequest(ctx, baseURL, apiKey, openAIChatCompletionsMinimalProbePayload(model))
+	case platform == PlatformKiro && mode == ModelProbeModeOpenAIChatCompletions:
+		if strings.TrimSpace(baseURL) == "" {
+			return nil, errors.New("kiro base url is required")
+		}
+		return s.buildOpenAIChatCompletionsProbeRequestWithFallback(ctx, baseURL, apiKey, openAIChatCompletionsMinimalProbePayload(model), "")
 	case platform == PlatformGemini && mode == ModelProbeModeGeminiGenerateContent:
 		normalizedBaseURL, err := s.normalizeProbeBaseURL(baseURL, geminicli.AIStudioBaseURL)
 		if err != nil {
@@ -297,7 +311,11 @@ func (s *AccountTestService) buildModelProbeRequest(ctx context.Context, platfor
 }
 
 func (s *AccountTestService) buildOpenAIChatCompletionsProbeRequest(ctx context.Context, baseURL, apiKey string, payload []byte) (*http.Request, error) {
-	normalizedBaseURL, err := s.normalizeProbeBaseURL(baseURL, "https://api.openai.com")
+	return s.buildOpenAIChatCompletionsProbeRequestWithFallback(ctx, baseURL, apiKey, payload, "https://api.openai.com")
+}
+
+func (s *AccountTestService) buildOpenAIChatCompletionsProbeRequestWithFallback(ctx context.Context, baseURL, apiKey string, payload []byte, fallback string) (*http.Request, error) {
+	normalizedBaseURL, err := s.normalizeProbeBaseURL(baseURL, fallback)
 	if err != nil {
 		return nil, err
 	}
@@ -440,6 +458,8 @@ func normalizeModelProbePlatform(platform string) string {
 	switch strings.ToLower(strings.TrimSpace(platform)) {
 	case PlatformOpenAI:
 		return PlatformOpenAI
+	case PlatformKiro:
+		return PlatformKiro
 	case PlatformGemini:
 		return PlatformGemini
 	case PlatformAnthropic, "claude":
@@ -457,6 +477,10 @@ func normalizeModelProbeMode(platform, mode string) string {
 		case "", ModelProbeModeOpenAIResponses:
 			return ModelProbeModeOpenAIResponses
 		case ModelProbeModeOpenAIChatCompletions:
+			return ModelProbeModeOpenAIChatCompletions
+		}
+	case PlatformKiro:
+		if mode == "" || mode == ModelProbeModeOpenAIChatCompletions {
 			return ModelProbeModeOpenAIChatCompletions
 		}
 	case PlatformGemini:

@@ -36,9 +36,13 @@ defineEmits<Emits>()
 
 const { t } = useI18n()
 
-function importPersonalCredentials(contents: string[]): Promise<ImportCredentialContentsResponse> {
+function importPersonalCredentials(
+  contents: string[],
+  options?: { kiroConfigImport?: boolean }
+): Promise<ImportCredentialContentsResponse> {
   return accountsAPI.importCredentialContents({
     contents,
+    kiro_config_import: options?.kiroConfigImport,
     share_mode: 'private',
     concurrency: PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY,
     priority: PERSONAL_ACCOUNT_DEFAULT_PRIORITY,

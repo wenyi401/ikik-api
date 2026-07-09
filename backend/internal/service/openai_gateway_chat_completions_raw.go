@@ -75,6 +75,9 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	}
 	baseURL := account.GetOpenAIBaseURL()
 	if baseURL == "" {
+		if account.IsKiro() {
+			return nil, fmt.Errorf("account %d missing base_url", account.ID)
+		}
 		baseURL = "https://api.openai.com"
 	}
 	validatedURL, err := s.validateUpstreamBaseURL(baseURL)

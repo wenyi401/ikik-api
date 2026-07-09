@@ -91,6 +91,15 @@ func NewTokenRefreshService(
 	return s
 }
 
+func (s *TokenRefreshService) AddKiroTokenRefresher(kiroOAuthService *KiroOAuthService) {
+	if s == nil || kiroOAuthService == nil {
+		return
+	}
+	refresher := NewKiroTokenRefresher(kiroOAuthService)
+	s.refreshers = append(s.refreshers, refresher)
+	s.executors = append(s.executors, refresher)
+}
+
 // SetPrivacyDeps 注入 OpenAI privacy opt-out 所需依赖
 func (s *TokenRefreshService) SetPrivacyDeps(factory PrivacyClientFactory, proxyRepo ProxyRepository) {
 	s.privacyClientFactory = factory
@@ -448,6 +457,10 @@ func IsNonRetryableRefreshError(err error) bool {
 		}
 	}
 	return false
+}
+
+func isNonRetryableRefreshError(err error) bool {
+	return IsNonRetryableRefreshError(err)
 }
 
 // ensureOpenAIPrivacy 检查 OpenAI OAuth 账号是否已设置 privacy_mode，

@@ -239,7 +239,7 @@ const availableOptions = computed(() => {
   return Array.from(optionMap.values())
 })
 
-const upstreamSyncPlatforms = new Set(['anthropic', 'openai', 'gemini', 'antigravity', 'grok'])
+const upstreamSyncPlatforms = new Set(['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kiro'])
 const canSyncUpstream = computed(() => {
   const credentials = props.syncCredentials
   if (!credentials?.api_key) return false

@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/handler"
 	servermiddleware "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 )
 
 type gatewayRouteSettingRepo struct {
@@ -116,5 +116,99 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 
 		router.ServeHTTP(w, req)
 		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit OpenAI images handler", path)
+	}
+}
+
+func TestPrivateGroupRouteResolverFiltersRoutesByEndpoint(t *testing.T) {
+	groupID := int64(1)
+	routes := []service.APIKeyGroupRoute{
+		privateRoute(1, service.PlatformAnthropic),
+		privateRoute(2, service.PlatformOpenAI),
+		privateRoute(3, service.PlatformGemini),
+		privateRoute(4, service.PlatformKiro),
+		privateRoute(5, service.PlatformGrok),
+	}
+
+	tests := []struct {
+		name          string
+		path          string
+		wantPrimary   int64
+		wantPlatforms []string
+	}{
+		{
+			name:          "messages uses anthropic private group",
+			path:          "/v1/messages",
+			wantPrimary:   1,
+			wantPlatforms: []string{service.PlatformAnthropic},
+		},
+		{
+			name:          "chat completions uses openai-compatible text groups",
+			path:          "/v1/chat/completions",
+			wantPrimary:   2,
+			wantPlatforms: []string{service.PlatformOpenAI, service.PlatformKiro},
+		},
+		{
+			name:          "responses includes grok-compatible group",
+			path:          "/v1/responses",
+			wantPrimary:   2,
+			wantPlatforms: []string{service.PlatformOpenAI, service.PlatformKiro, service.PlatformGrok},
+		},
+		{
+			name:          "gemini native uses gemini private group",
+			path:          "/v1beta/models/gemini-2.5-pro:generateContent",
+			wantPrimary:   3,
+			wantPlatforms: []string{service.PlatformGemini},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+			router.Use(func(c *gin.Context) {
+				c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
+					ID:          9,
+					GroupID:     &groupID,
+					Group:       routes[0].Group,
+					GroupRoutes: routes,
+				})
+				c.Next()
+			})
+			router.Use(privateGroupRouteResolverMiddleware())
+			router.Any("/*path", func(c *gin.Context) {
+				apiKey, ok := servermiddleware.GetAPIKeyFromContext(c)
+				require.True(t, ok)
+				require.NotNil(t, apiKey.GroupID)
+				require.Equal(t, tt.wantPrimary, *apiKey.GroupID)
+				gotPlatforms := make([]string, 0, len(apiKey.GroupRoutes))
+				for _, route := range apiKey.GroupRoutes {
+					require.NotNil(t, route.Group)
+					gotPlatforms = append(gotPlatforms, route.Group.Platform)
+				}
+				require.Equal(t, tt.wantPlatforms, gotPlatforms)
+			})
+
+			req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(`{}`))
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			require.Equal(t, http.StatusOK, w.Code)
+		})
+	}
+}
+
+func privateRoute(id int64, platform string) service.APIKeyGroupRoute {
+	return service.APIKeyGroupRoute{
+		GroupID:         id,
+		Priority:        int(100 + id),
+		Weight:          1,
+		Enabled:         true,
+		CooldownSeconds: 30,
+		Group: &service.Group{
+			ID:       id,
+			Name:     platform,
+			Platform: platform,
+			Scope:    service.GroupScopeUserPrivate,
+			Status:   service.StatusActive,
+		},
 	}
 }

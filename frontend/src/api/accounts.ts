@@ -5,6 +5,7 @@
 
 import { apiClient } from './client'
 import type { Account, AccountUsageInfo, AccountUsageStatsResponse, AdminDataPayload, CreateAccountRequest, CreateProxyRequest, PaginatedResponse, Proxy, ProxyQualityCheckResult, UpdateAccountRequest, UpdateProxyRequest, UserAccountQuotaPoolDashboard, WindowStats } from '@/types'
+import type { KiroIDCAuthUrlResponse, KiroTokenInfo } from '@/api/admin/kiro'
 
 const USER_ACCOUNT_BULK_OPERATION_TIMEOUT_MS = 120000
 
@@ -63,6 +64,7 @@ export async function importAccount(accountData: CreateAccountRequest): Promise<
 
 export interface ImportCredentialContentsRequest {
   contents: string[]
+  kiro_config_import?: boolean
   share_mode?: 'private' | 'public'
   concurrency?: number
   load_factor?: number | null
@@ -370,6 +372,20 @@ export interface UserOAuthExchangeCodePayload {
   tier_id?: string
 }
 
+export interface UserKiroAuthUrlPayload extends UserOAuthProxyPayload {
+  provider?: string
+}
+
+export interface UserKiroIDCAuthUrlPayload extends UserOAuthProxyPayload {
+  start_url?: string
+  region?: string
+}
+
+export interface UserKiroExchangeCodePayload extends UserOAuthExchangeCodePayload {
+  callback_path?: string
+  login_option?: string
+}
+
 export interface UserGeminiAuthUrlPayload extends UserOAuthProxyPayload {
   project_id?: string
   oauth_type?: 'code_assist' | 'google_one' | 'ai_studio'
@@ -545,6 +561,65 @@ export async function refreshAntigravityToken(
   return data
 }
 
+export async function generateKiroOAuthUrl(
+  payload?: UserKiroAuthUrlPayload
+): Promise<UserOAuthAuthUrlResponse> {
+  const { data } = await apiClient.post<UserOAuthAuthUrlResponse>(
+    '/account-oauth/kiro/auth-url',
+    compactPayload(payload)
+  )
+  return data
+}
+
+export async function generateKiroIDCAuthUrl(
+  payload?: UserKiroIDCAuthUrlPayload
+): Promise<KiroIDCAuthUrlResponse> {
+  const { data } = await apiClient.post<KiroIDCAuthUrlResponse>(
+    '/account-oauth/kiro/idc-auth-url',
+    compactPayload(payload)
+  )
+  return data
+}
+
+export async function exchangeKiroOAuthCode(
+  payload: UserKiroExchangeCodePayload
+): Promise<KiroTokenInfo> {
+  const { data } = await apiClient.post<KiroTokenInfo>(
+    '/account-oauth/kiro/exchange-code',
+    compactPayload(payload)
+  )
+  return data
+}
+
+export async function refreshKiroToken(payload: {
+  refresh_token: string
+  auth_method?: string
+  provider?: string
+  client_id?: string
+  client_secret?: string
+  start_url?: string
+  region?: string
+  profile_arn?: string
+  proxy_id?: number
+}): Promise<KiroTokenInfo> {
+  const { data } = await apiClient.post<KiroTokenInfo>(
+    '/account-oauth/kiro/refresh-token',
+    compactPayload(payload)
+  )
+  return data
+}
+
+export async function importKiroToken(payload: {
+  token_json: string
+  device_registration_json?: string
+}): Promise<KiroTokenInfo> {
+  const { data } = await apiClient.post<KiroTokenInfo>(
+    '/account-oauth/kiro/import-token',
+    compactPayload(payload)
+  )
+  return data
+}
+
 export const accountsAPI = {
   list,
   getById,
@@ -589,7 +664,12 @@ export const accountsAPI = {
   exchangeGeminiOAuthCode,
   generateAntigravityOAuthUrl,
   exchangeAntigravityOAuthCode,
-  refreshAntigravityToken
+  refreshAntigravityToken,
+  generateKiroOAuthUrl,
+  generateKiroIDCAuthUrl,
+  exchangeKiroOAuthCode,
+  refreshKiroToken,
+  importKiroToken
 }
 
 export default accountsAPI

@@ -9,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"ikik-api/internal/config"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/config"
 )
 
 func modelProbeTestConfig() *config.Config {
@@ -142,6 +143,50 @@ func TestAccountTestService_ModelProbeOpenAIChatCompletionsFallsBackToMaxTokens(
 	secondBody, err := io.ReadAll(upstream.requests[1].Body)
 	require.NoError(t, err)
 	require.JSONEq(t, `{"model":"gpt-5.4","messages":[{"role":"user","content":"ping"}],"max_tokens":1}`, string(secondBody))
+}
+
+func TestAccountTestService_ModelProbeKiroRequiresExplicitBaseURL(t *testing.T) {
+	upstream := &queuedHTTPUpstream{}
+	svc := &AccountTestService{httpUpstream: upstream, cfg: modelProbeTestConfig()}
+
+	result, err := svc.ProbeModels(context.Background(), ModelProbeTestInput{
+		Platform: PlatformKiro,
+		APIKey:   "kiro-api-key",
+		Mode:     ModelProbeModeOpenAIChatCompletions,
+		Models:   []string{"claude-sonnet-4-6"},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, result.Results, 1)
+	require.False(t, result.Results[0].OK)
+	require.Contains(t, strings.ToLower(result.Results[0].Error), "base url")
+	require.Empty(t, upstream.requests)
+}
+
+func TestAccountTestService_ModelProbeKiroChatCompletionsRequest(t *testing.T) {
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{
+		newJSONResponse(http.StatusOK, `{"id":"chatcmpl_kiro","choices":[]}`),
+	}}
+	svc := &AccountTestService{httpUpstream: upstream, cfg: modelProbeTestConfig()}
+
+	result, err := svc.ProbeModels(context.Background(), ModelProbeTestInput{
+		Platform: PlatformKiro,
+		BaseURL:  "https://kiro-upstream.example.com/v1",
+		APIKey:   "kiro-api-key",
+		Mode:     ModelProbeModeOpenAIChatCompletions,
+		Models:   []string{"claude-sonnet-4.6"},
+	})
+
+	require.NoError(t, err)
+	require.True(t, result.Results[0].OK)
+	require.Len(t, upstream.requests, 1)
+	req := upstream.requests[0]
+	require.Equal(t, "https://kiro-upstream.example.com/v1/chat/completions", req.URL.String())
+	require.Equal(t, "Bearer kiro-api-key", req.Header.Get("Authorization"))
+
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"claude-sonnet-4.6","messages":[{"role":"user","content":"ping"}],"max_completion_tokens":1}`, string(body))
 }
 
 func TestAccountTestService_ModelProbeErrorDoesNotExposeAPIKey(t *testing.T) {

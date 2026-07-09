@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"testing"
 
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/service"
 )
 
 type dataResponse struct {
@@ -74,6 +74,7 @@ func setupAccountDataRouter() (*gin.Engine, *stubAdminService) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	router.GET("/api/v1/admin/accounts/data", h.ExportData)
@@ -88,6 +89,7 @@ func setupAccountListRouter() (*gin.Engine, *stubAdminService) {
 
 	h := NewAccountHandler(
 		adminSvc,
+		nil,
 		nil,
 		nil,
 		nil,

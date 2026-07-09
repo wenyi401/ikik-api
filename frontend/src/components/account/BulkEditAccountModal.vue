@@ -1124,6 +1124,9 @@ const targetPreviewCount = computed(() => props.target?.previewCount ?? props.ac
 const targetSelectedPlatforms = computed(() => props.target?.selectedPlatforms ?? props.selectedPlatforms)
 const targetSelectedTypes = computed(() => props.target?.selectedTypes ?? props.selectedTypes)
 const isMixedPlatform = computed(() => targetSelectedPlatforms.value.length > 1)
+const allKiroAccounts = computed(
+  () => targetSelectedPlatforms.value.length === 1 && targetSelectedPlatforms.value[0] === 'kiro'
+)
 const bulkGroupPlatform = computed<GroupPlatform | undefined>(() => {
   if (targetSelectedPlatforms.value.length !== 1) return undefined
   return targetSelectedPlatforms.value[0] as GroupPlatform
@@ -1342,6 +1345,21 @@ const addPresetMapping = (from: string, to: string) => {
   modelMappings.value.push({ from, to })
 }
 
+const getKiroDefaultModelMappings = (): ModelMapping[] =>
+  getPresetMappingsByPlatform('kiro').map(({ from, to }) => ({ from, to }))
+
+const applyDefaultModelRestrictionForTarget = () => {
+  if (allKiroAccounts.value) {
+    modelRestrictionMode.value = 'mapping'
+    allowedModels.value = []
+    modelMappings.value = getKiroDefaultModelMappings()
+    return
+  }
+  modelRestrictionMode.value = 'whitelist'
+  allowedModels.value = []
+  modelMappings.value = []
+}
+
 // Error code helpers
 const toggleErrorCode = (code: number) => {
   const index = selectedErrorCodes.value.indexOf(code)
@@ -1394,6 +1412,15 @@ const removeErrorCode = (code: number) => {
 }
 
 const buildModelMappingObject = (): Record<string, string> | null => {
+  if (allKiroAccounts.value) {
+    if (modelRestrictionMode.value === 'whitelist') {
+      return buildModelMappingPayload('whitelist', allowedModels.value, [])
+    }
+    const mappings = modelMappings.value.length > 0
+      ? modelMappings.value
+      : getKiroDefaultModelMappings()
+    return buildModelMappingPayload('mapping', [], mappings)
+  }
   return buildModelMappingPayload(
     modelRestrictionMode.value,
     allowedModels.value,
@@ -1473,22 +1500,9 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
   }
 
   if (canManageModelRestriction.value && enableModelRestriction.value && !isOpenAIModelRestrictionDisabled.value) {
-    // 统一使用 model_mapping 字段
-    if (modelRestrictionMode.value === 'whitelist') {
-      // 白名单模式：将模型转换为 model_mapping 格式（key=value）
-      // 空白名单表示“支持所有模型”，需显式发送空对象以覆盖已有限制。
-      const mapping: Record<string, string> = {}
-      for (const m of allowedModels.value) {
-        mapping[m] = m
-      }
-      credentials.model_mapping = mapping
-      credentialsChanged = true
-    } else {
-      // 映射模式下空配置同样表示“支持所有模型”。
-      const modelMapping = buildModelMappingObject()
-      credentials.model_mapping = modelMapping ?? {}
-      credentialsChanged = true
-    }
+    const modelMapping = buildModelMappingObject()
+    credentials.model_mapping = modelMapping ?? {}
+    credentialsChanged = true
   }
 
   if (canManageCustomErrorCodes.value && enableCustomErrorCodes.value) {
@@ -1816,8 +1830,21 @@ watch(
       mixedChannelWarningMessage.value = ''
       pendingUpdatesForConfirm.value = null
       mixedChannelConfirmed.value = false
+    } else {
+      applyDefaultModelRestrictionForTarget()
     }
   }
+)
+
+watch(
+  targetSelectedPlatforms,
+  () => {
+    if (!props.show || enableModelRestriction.value) {
+      return
+    }
+    applyDefaultModelRestrictionForTarget()
+  },
+  { deep: true }
 )
 
 watch(

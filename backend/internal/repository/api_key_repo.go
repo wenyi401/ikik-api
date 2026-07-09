@@ -753,7 +753,13 @@ func apiKeyGroupRouteQueryOptions(q *dbent.APIKeyGroupRouteQuery) {
 			group.FieldAllowMessagesDispatch,
 			group.FieldDefaultMappedModel,
 			group.FieldMessagesDispatchModelConfig,
+			group.FieldModelsListConfig,
 			group.FieldRpmLimit,
+			group.FieldKiroCacheEmulationEnabled,
+			group.FieldKiroAutoStickyEnabled,
+			group.FieldKiroStickySessionTTLSeconds,
+			group.FieldKiroCacheEmulationRatio,
+			group.FieldKiroEndpointMode,
 		)
 	})
 }
@@ -866,6 +872,11 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		MessagesDispatchModelConfig:     g.MessagesDispatchModelConfig,
 		ModelsListConfig:                g.ModelsListConfig,
 		RPMLimit:                        g.RpmLimit,
+		KiroCacheEmulationEnabled:       g.KiroCacheEmulationEnabled,
+		KiroAutoStickyEnabled:           g.KiroAutoStickyEnabled,
+		KiroStickySessionTTLSeconds:     g.KiroStickySessionTTLSeconds,
+		KiroCacheEmulationRatio:         g.KiroCacheEmulationRatio,
+		KiroEndpointMode:                g.KiroEndpointMode,
 		CreatedAt:                       g.CreatedAt,
 		UpdatedAt:                       g.UpdatedAt,
 	}

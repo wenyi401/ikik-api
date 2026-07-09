@@ -61,7 +61,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		return nil, errors.New("codex_cli_only restriction: only codex official clients are allowed")
 	}
 
-	if account.Type == AccountTypeAPIKey && (account.IsFreeModelOpenAICompatible() || !openai_compat.ShouldUseResponsesAPI(account.Extra)) {
+	if account.Type == AccountTypeAPIKey && (account.IsFreeModelOpenAICompatible() || account.IsKiro() || !openai_compat.ShouldUseResponsesAPI(account.Extra)) {
 		return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel)
 	}
 
@@ -80,6 +80,9 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	// derive a stable seed from the final upstream model family.
 	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+	if account.IsKiro() {
+		upstreamModel = normalizeKiroRuntimeModel(billingModel)
+	}
 
 	promptCacheKey = strings.TrimSpace(promptCacheKey)
 	compatPromptCacheInjected := false
@@ -165,6 +168,35 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		)
 	}
 	logger.L().Debug("openai chat_completions: model mapping applied", logFields...)
+
+	if isKiroOAuthAccount(account) {
+		anthropicReq, err := apicompat.ResponsesToAnthropicRequest(responsesReq)
+		if err != nil {
+			return nil, fmt.Errorf("convert responses to kiro anthropic: %w", err)
+		}
+		anthropicReq.Model = billingModel
+		anthropicReq.Stream = true
+		anthropicBody, err := json.Marshal(anthropicReq)
+		if err != nil {
+			return nil, fmt.Errorf("marshal kiro anthropic request: %w", err)
+		}
+		reasoningEffort := extractCCReasoningEffortFromBody(body)
+		if reasoningEffort == nil && responsesReq.Reasoning != nil && responsesReq.Reasoning.Effort != "" {
+			effort := responsesReq.Reasoning.Effort
+			reasoningEffort = &effort
+		}
+		result, err := s.forwardKiroOAuthAsChatCompletions(ctx, c, account, anthropicBody, originalModel, billingModel, upstreamModel, clientStream, includeUsage, reasoningEffort, startTime)
+		if err == nil && result != nil {
+			if responsesReq.ServiceTier != "" {
+				st := responsesReq.ServiceTier
+				result.ServiceTier = &st
+			}
+			if reasoningEffort != nil {
+				result.ReasoningEffort = reasoningEffort
+			}
+		}
+		return result, err
+	}
 
 	if account.Type == AccountTypeOAuth {
 		var reqBody map[string]any

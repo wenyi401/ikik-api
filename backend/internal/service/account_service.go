@@ -13,7 +13,9 @@ import (
 	"ikik-api/internal/pkg/claude"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/geminicli"
+	"ikik-api/internal/pkg/kiro"
 	"ikik-api/internal/pkg/openai"
+	"ikik-api/internal/pkg/openai_compat"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/pkg/xai"
 )
@@ -803,6 +805,13 @@ func ownedPersonalDefaultModelMapping(platform string) map[string]any {
 		for _, model := range xai.DefaultModels() {
 			models = append(models, model.ID)
 		}
+	case PlatformKiro:
+		defaults := kiro.DefaultModelMapping()
+		mapping := make(map[string]any, len(defaults))
+		for from, to := range defaults {
+			mapping[from] = to
+		}
+		return mapping
 	}
 	if len(models) == 0 {
 		return map[string]any{}
@@ -857,6 +866,9 @@ func applyOwnedPersonalAccountTemplateToMaps(platform string, credentials, extra
 		nextExtra["openai_compact_mode"] = ownedPersonalDefaultOpenAICompactMode
 		delete(nextExtra, "responses_websockets_v2_enabled")
 		delete(nextExtra, "openai_ws_enabled")
+	}
+	if platform == PlatformKiro {
+		nextExtra[openai_compat.ExtraKeyResponsesSupported] = false
 	}
 	return nextCredentials, nextExtra
 }
@@ -2150,8 +2162,8 @@ func (s *AccountService) TestCredentials(ctx context.Context, id int64) error {
 	case PlatformGemini:
 		// TODO: 测试Gemini API凭证
 		return nil
-	case PlatformGrok:
-		// Grok OAuth credentials are validated via token exchange/refresh and request-path probes.
+	case PlatformGrok, PlatformKiro:
+		// These platforms validate credentials through their account-specific probe paths.
 		return nil
 	default:
 		return fmt.Errorf("unsupported platform: %s", account.Platform)

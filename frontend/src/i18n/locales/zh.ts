@@ -974,6 +974,8 @@ export default {
     importTitle: '导入个人账号',
     importHint: '粘贴账号凭证或导入文件，个人导入只会创建官方 OAuth 账号。',
     importWarning: '支持 ikik-api OAuth JSON、Codex-Manager ChatGPT Token JSON、OpenAI Refresh Token、Claude Session Key；API Key、URL、Upstream、Cookie 会被拒绝。',
+    importKiroConfigMode: '按 Kiro 配置解析',
+    importKiroConfigModeHint: '用于导入 Kiro JSON 配置文件',
     importTextMode: '批量文本',
     importFileMode: '文件/目录',
     importTextLabel: '账号数据',
@@ -1207,7 +1209,13 @@ export default {
     namePlaceholder: '我的 API 密钥',
     groupLabel: '分组',
     selectGroup: '选择分组',
-    privateGroupDescription: '{platform} 私用分组调度个人账号分组',
+    privateGroupDescription: '调度你的 {platform} 私有账号',
+    privateRouter: {
+      title: '私人分组',
+      description: '按协议调度你的私人账号',
+      showSpecific: '指定分组',
+      hideSpecific: '收起分组'
+    },
     groupRouting: {
       title: '多分组路由',
       description: '开启后可按优先级和权重为同一个 Key 配置多个分组',
@@ -3570,7 +3578,9 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
-        grok: 'Grok'
+        grok: 'Grok',
+        kiro: 'Kiro',
+        custom: 'Custom'
       },
       saving: '保存中...',
       noGroups: '暂无分组',
@@ -3686,6 +3696,19 @@ export default {
         invert: '反选',
         loading: '模型加载中...',
         empty: '暂无候选模型'
+      },
+      kiroRuntime: {
+        title: 'Kiro 运行配置',
+        hint: '配置 Kiro 分组的运行端点和缓存行为',
+        endpointMode: '端点模式',
+        endpointQ: 'Q 端点',
+        endpointKRS: 'KRS 端点',
+        stickyTTL: '粘性 TTL（秒）',
+        cacheRatio: '缓存比例',
+        cacheEmulation: '缓存模拟',
+        cacheEmulationHint: '将部分 Kiro 用量折算为缓存读取计费',
+        autoSticky: '自动粘性会话',
+        autoStickyHint: '让同一段 Kiro 对话尽量固定到同一账号'
       },
       claudeCode: {
         title: 'Claude Code 客户端限制',
@@ -4474,6 +4497,7 @@ export default {
         gemini: 'Gemini',
         antigravity: 'Antigravity',
         grok: 'Grok',
+        kiro: 'Kiro',
         custom: 'Custom'
       },
       types: {
@@ -4485,6 +4509,8 @@ export default {
         antigravityOauth: 'Antigravity OAuth',
         antigravityApikey: '通过 Base URL + API Key 连接',
         grokOauth: 'Grok OAuth',
+        kiroOauth: 'Kiro OAuth',
+        kiroApikey: 'Kiro API Key',
         upstream: '对接上游',
         upstreamDesc: '通过 Base URL + API Key 连接上游',
         api_key: 'API Key',
@@ -5220,12 +5246,56 @@ export default {
           validateAndCreate: '验证并创建账号',
           pleaseEnterRefreshToken: '请输入 Refresh Token',
           failedToValidateRT: '验证 Refresh Token 失败'
+        },
+        kiro: {
+          title: 'Kiro 账户授权',
+          followSteps: '请按照以下步骤完成 Kiro 账户授权：',
+          step1GenerateUrl: '生成授权链接',
+          generateAuthUrl: '生成授权链接',
+          step2OpenUrl: '在浏览器中打开链接并完成授权',
+          openUrlDesc: '请在新标签页中打开授权链接，登录 Kiro 并授权。',
+          step3EnterCode: '输入回调链接或 Code',
+          authCodeDesc: '授权完成后，复制回调链接或 code，粘贴到下方即可。',
+          authCode: '回调链接或 Code',
+          authCodePlaceholder: '方式 1：粘贴回调链接\n方式 2：仅粘贴 code 参数值',
+          authCodeHint: '系统会自动从链接中解析 code/state。',
+          refreshTokenAuth: '手动输入 RT',
+          refreshTokenDesc: '输入 Kiro social Refresh Token，支持批量输入（每行一个）。',
+          refreshTokenPlaceholder: '粘贴您的 Kiro Refresh Token...\n支持多个，每行一个',
+          authModeTitle: '授权模式',
+          oauthTitle: 'Social OAuth',
+          oauthSubtitle: '使用 Google 或 GitHub 授权。',
+          idcTitle: 'IAM Identity Center',
+          idcSubtitle: 'AWS Builder ID / IDC 授权。',
+          importTitle: '导入 Token',
+          importSubtitle: '导入已有 Kiro token JSON。',
+          providerLabel: '授权平台',
+          googleTitle: 'Google',
+          githubTitle: 'GitHub',
+          idcStartUrlLabel: 'Start URL',
+          startUrlPlaceholder: '留空使用默认 Builder ID URL',
+          regionLabel: 'Region',
+          regionPlaceholder: 'us-east-1',
+          tokenJsonLabel: 'Token JSON',
+          tokenJsonHint: '粘贴从 Kiro 导出的 token JSON。',
+          tokenJsonRequired: '请输入 Kiro token JSON',
+          deviceJsonLabel: 'Device registration JSON',
+          deviceJsonPlaceholder: '可选',
+          validating: '验证中...',
+          validateAndCreate: '验证并创建账号',
+          pleaseEnterRefreshToken: '请输入 Refresh Token',
+          failedToValidateRT: '验证 Refresh Token 失败'
         }
       },
       // Gemini specific (platform-wide)
       grok: {
         baseUrlHint: '留空使用官方 xAI API 地址',
         apiKeyHint: 'Grok OAuth 账号使用 refresh token；OAuth 创建不需要 API Key。'
+      },
+      kiro: {
+        baseUrlHint: '必填。填写 Kiro 兼容网关 Base URL。',
+        apiKeyHint: 'Kiro API Key，用于私有 Kiro 账号调度。',
+        baseUrlRequired: '请输入 Kiro Base URL'
       },
       gemini: {
         helpButton: '使用帮助',
@@ -5367,6 +5437,7 @@ export default {
       geminiAccount: 'Gemini 账号',
       antigravityAccount: 'Antigravity 账号',
       grokAccount: 'Grok 账号',
+      kiroAccount: 'Kiro 账号',
       inputMethod: '输入方式',
       reAuthorizedSuccess: '账号重新授权成功',
       // Test Modal
@@ -8210,7 +8281,7 @@ export default {
     },
     usage: '用量',
     expires: '到期时间',
-    noExpiration: '无到期时间',
+    noExpiration: '永久有效',
     unlimited: '无限制',
     unlimitedDesc: '该订阅无用量限制',
     daily: '每日',

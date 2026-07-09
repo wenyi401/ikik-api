@@ -564,7 +564,7 @@ export interface PaginationConfig {
 
 // ==================== API Key & Group Types ====================
 
-export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'custom'
+export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'custom'
 
 export type SubscriptionType = 'standard' | 'subscription'
 export type GroupScope = 'public' | 'user_private' | 'user_carpool'
@@ -610,6 +610,11 @@ export interface Group {
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   models_list_config?: ModelsListConfig
+  kiro_cache_emulation_enabled?: boolean
+  kiro_auto_sticky_enabled?: boolean
+  kiro_sticky_session_ttl_seconds?: number
+  kiro_cache_emulation_ratio?: number
+  kiro_endpoint_mode?: 'q' | 'krs' | string
   require_oauth_only: boolean
   require_privacy_set: boolean
   created_at: string
@@ -732,6 +737,11 @@ export interface CreateGroupRequest {
   mcp_xml_inject?: boolean
   supported_model_scopes?: string[]
   models_list_config?: ModelsListConfig
+  kiro_cache_emulation_enabled?: boolean
+  kiro_auto_sticky_enabled?: boolean
+  kiro_sticky_session_ttl_seconds?: number
+  kiro_cache_emulation_ratio?: number
+  kiro_endpoint_mode?: 'q' | 'krs' | string
   allow_messages_dispatch?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
@@ -765,6 +775,11 @@ export interface UpdateGroupRequest {
   mcp_xml_inject?: boolean
   supported_model_scopes?: string[]
   models_list_config?: ModelsListConfig
+  kiro_cache_emulation_enabled?: boolean
+  kiro_auto_sticky_enabled?: boolean
+  kiro_sticky_session_ttl_seconds?: number
+  kiro_cache_emulation_ratio?: number
+  kiro_endpoint_mode?: 'q' | 'krs' | string
   allow_messages_dispatch?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
@@ -778,7 +793,7 @@ export interface UpdateGroupRequest {
 
 // ==================== Account & Proxy Types ====================
 
-export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'custom'
+export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'custom'
 export type CustomAccountProtocol =
   | 'openai_responses'
   | 'openai_chat_completions'
@@ -1222,6 +1237,7 @@ export interface WindowStats {
   cost: number // Account cost (account multiplier)
   standard_cost?: number
   user_cost?: number
+  kiro_credits?: number
 }
 
 export interface UsageProgress {

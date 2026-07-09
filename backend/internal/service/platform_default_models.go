@@ -4,6 +4,7 @@ import (
 	"ikik-api/internal/pkg/antigravity"
 	"ikik-api/internal/pkg/claude"
 	"ikik-api/internal/pkg/geminicli"
+	"ikik-api/internal/pkg/kiro"
 	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/pkg/xai"
 )
@@ -32,6 +33,8 @@ func DefaultModelIDsForPlatform(platform string) []string {
 		return ids
 	case PlatformGrok:
 		return xai.DefaultModelIDs()
+	case PlatformKiro:
+		return kiro.DefaultModelIDs()
 	default:
 		ids := make([]string, 0, len(claude.DefaultModels))
 		for _, model := range claude.DefaultModels {

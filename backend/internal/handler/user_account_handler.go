@@ -32,6 +32,7 @@ type UserAccountHandler struct {
 	openaiOAuthService      *service.OpenAIOAuthService
 	geminiOAuthService      *service.GeminiOAuthService
 	antigravityOAuthService *service.AntigravityOAuthService
+	kiroOAuthService        *service.KiroOAuthService
 	accountBatchTaskService *service.AccountBatchTaskService
 }
 
@@ -77,6 +78,13 @@ func (h *UserAccountHandler) SetSettingService(settingService *service.SettingSe
 	h.settingService = settingService
 }
 
+func (h *UserAccountHandler) SetKiroOAuthService(kiroOAuthService *service.KiroOAuthService) {
+	if h == nil {
+		return
+	}
+	h.kiroOAuthService = kiroOAuthService
+}
+
 type createUserAccountRequest struct {
 	Name               string         `json:"name" binding:"required"`
 	Notes              *string        `json:"notes"`
@@ -97,6 +105,7 @@ type createUserAccountRequest struct {
 
 type importUserAccountCredentialsRequest struct {
 	Contents           []string `json:"contents" binding:"required"`
+	KiroConfigImport   bool     `json:"kiro_config_import"`
 	ShareMode          string   `json:"share_mode" binding:"omitempty,oneof=private public"`
 	Concurrency        int      `json:"concurrency"`
 	LoadFactor         *int     `json:"load_factor"`
@@ -204,6 +213,26 @@ type userAntigravityExchangeCodeRequest struct {
 	State     string `json:"state" binding:"required"`
 	Code      string `json:"code" binding:"required"`
 	ProxyID   *int64 `json:"proxy_id"`
+}
+
+type userKiroGenerateAuthURLRequest struct {
+	ProxyID  *int64 `json:"proxy_id"`
+	Provider string `json:"provider"`
+}
+
+type userKiroGenerateIDCAuthURLRequest struct {
+	ProxyID  *int64 `json:"proxy_id"`
+	StartURL string `json:"start_url"`
+	Region   string `json:"region"`
+}
+
+type userKiroExchangeCodeRequest struct {
+	SessionID    string `json:"session_id" binding:"required"`
+	State        string `json:"state" binding:"required"`
+	Code         string `json:"code" binding:"required"`
+	CallbackPath string `json:"callback_path"`
+	LoginOption  string `json:"login_option"`
+	ProxyID      *int64 `json:"proxy_id"`
 }
 
 type userBatchTodayStatsRequest struct {
@@ -940,7 +969,9 @@ func (h *UserAccountHandler) ImportCredentials(c *gin.Context) {
 		req.Concurrency = userOwnedDefaultConcurrency
 	}
 
-	sources, parseErrors := service.ParseAccountCredentialImportContents(req.Contents)
+	sources, parseErrors := service.ParseAccountCredentialImportContentsWithOptions(req.Contents, service.AccountCredentialImportOptions{
+		KiroConfigImport: req.KiroConfigImport,
+	})
 	if len(sources) == 0 && len(parseErrors) == 0 {
 		response.BadRequest(c, "No importable account credentials found")
 		return
@@ -1045,6 +1076,36 @@ func (h *UserAccountHandler) createOwnedAccountFromCredentialImportSource(
 		}
 		if req.Name == "" {
 			req.Name = fmt.Sprintf("Claude OAuth Account #%d", sequence)
+		}
+	case service.AccountCredentialImportKindKiroConfig:
+		if h.kiroOAuthService == nil {
+			return nil, fmt.Errorf("Kiro OAuth service is not configured")
+		}
+		tokenInfo, err := h.kiroOAuthService.RefreshToken(ctx, &service.KiroRefreshTokenInput{
+			RefreshToken: source.Token,
+			AuthMethod:   source.AuthMethod,
+			Provider:     source.Provider,
+			ClientID:     source.ClientID,
+			ClientSecret: source.ClientSecret,
+			StartURL:     source.StartURL,
+			Region:       source.Region,
+			ProfileArn:   source.ProfileArn,
+			ProxyID:      nil,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("validate Kiro config: %w", err)
+		}
+		req.Platform = service.PlatformKiro
+		req.Credentials = service.MergeCredentials(source.Credentials, h.kiroOAuthService.BuildAccountCredentials(tokenInfo))
+		req.Extra = source.Extra
+		if defaults.Concurrency <= 0 {
+			req.Concurrency = userOwnedDefaultConcurrency
+		}
+		if req.Name == "" {
+			req.Name = strings.TrimSpace(tokenInfo.Email)
+		}
+		if req.Name == "" {
+			req.Name = service.DeriveAccountCredentialImportName(req.Platform, req.Credentials, req.Extra, sequence)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported credential import kind")
@@ -1917,6 +1978,104 @@ func (h *UserAccountHandler) ExchangeAntigravityOAuthCode(c *gin.Context) {
 }
 
 func (h *UserAccountHandler) RefreshAntigravityToken(c *gin.Context) {
+	rejectUserManualCredentialAuth(c)
+}
+
+func (h *UserAccountHandler) GenerateKiroOAuthURL(c *gin.Context) {
+	if !requireUserAccountAuth(c) {
+		return
+	}
+	if h.kiroOAuthService == nil {
+		response.InternalError(c, "Kiro OAuth service is not configured")
+		return
+	}
+	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	var req userKiroGenerateAuthURLRequest
+	if !bindOptionalJSON(c, &req) {
+		return
+	}
+	proxyID, ok := h.resolveUserOAuthProxyID(c, subject.UserID, req.ProxyID)
+	if !ok {
+		return
+	}
+	result, err := h.kiroOAuthService.GenerateAuthURL(c.Request.Context(), &service.KiroGenerateAuthURLInput{
+		ProxyID:  proxyID,
+		Provider: req.Provider,
+	})
+	if err != nil {
+		response.BadRequest(c, "Failed to generate Kiro auth URL: "+err.Error())
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *UserAccountHandler) GenerateKiroIDCAuthURL(c *gin.Context) {
+	if !requireUserAccountAuth(c) {
+		return
+	}
+	if h.kiroOAuthService == nil {
+		response.InternalError(c, "Kiro OAuth service is not configured")
+		return
+	}
+	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	var req userKiroGenerateIDCAuthURLRequest
+	if !bindOptionalJSON(c, &req) {
+		return
+	}
+	proxyID, ok := h.resolveUserOAuthProxyID(c, subject.UserID, req.ProxyID)
+	if !ok {
+		return
+	}
+	result, err := h.kiroOAuthService.GenerateIDCAuthURL(c.Request.Context(), &service.KiroGenerateIDCAuthURLInput{
+		ProxyID:  proxyID,
+		StartURL: req.StartURL,
+		Region:   req.Region,
+	})
+	if err != nil {
+		response.BadRequest(c, "Failed to generate Kiro IDC auth URL: "+err.Error())
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *UserAccountHandler) ExchangeKiroOAuthCode(c *gin.Context) {
+	if !requireUserAccountAuth(c) {
+		return
+	}
+	if h.kiroOAuthService == nil {
+		response.InternalError(c, "Kiro OAuth service is not configured")
+		return
+	}
+	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	var req userKiroExchangeCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	proxyID, ok := h.resolveUserOAuthProxyID(c, subject.UserID, req.ProxyID)
+	if !ok {
+		return
+	}
+	tokenInfo, err := h.kiroOAuthService.ExchangeCode(c.Request.Context(), &service.KiroExchangeCodeInput{
+		SessionID:    req.SessionID,
+		State:        req.State,
+		Code:         req.Code,
+		CallbackPath: req.CallbackPath,
+		LoginOption:  req.LoginOption,
+		ProxyID:      proxyID,
+	})
+	if err != nil {
+		response.BadRequest(c, "Failed to exchange Kiro code: "+err.Error())
+		return
+	}
+	response.Success(c, tokenInfo)
+}
+
+func (h *UserAccountHandler) RefreshKiroToken(c *gin.Context) {
+	rejectUserManualCredentialAuth(c)
+}
+
+func (h *UserAccountHandler) ImportKiroToken(c *gin.Context) {
 	rejectUserManualCredentialAuth(c)
 }
 

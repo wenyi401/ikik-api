@@ -493,7 +493,7 @@ func (s *CarpoolService) ensureUserCarpoolGroupSubscription(ctx context.Context,
 		validityDays = group.DefaultValidityDays
 	}
 	if validityDays <= 0 {
-		validityDays = UserPrivateGroupValidityDays
+		validityDays = UserCarpoolGroupDefaultValidityDays
 	}
 	sub, _, err := s.subscriptionService.AssignOrExtendSubscription(ctx, &AssignSubscriptionInput{
 		UserID:       userID,
@@ -556,7 +556,7 @@ func (s *CarpoolService) findOrCreateUserCarpoolGroup(ctx context.Context, userI
 		OwnerUserID:                 &ownerID,
 		Scope:                       GroupScopeUserCarpool,
 		SubscriptionType:            SubscriptionTypeSubscription,
-		DefaultValidityDays:         UserPrivateGroupValidityDays,
+		DefaultValidityDays:         UserCarpoolGroupDefaultValidityDays,
 		RPMLimit:                    template.RPMLimit,
 		AllowMessagesDispatch:       defaultPrivateGroupAllowMessagesDispatch(platform),
 		SupportedModelScopes:        []string{},

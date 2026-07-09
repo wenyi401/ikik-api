@@ -299,7 +299,16 @@ function getProgressBarClass(used: number | undefined, limit: number | null | un
   return 'bg-green-500'
 }
 
+function isPermanentExpiration(expiresAt: string): boolean {
+  const expires = new Date(expiresAt)
+  return !Number.isNaN(expires.getTime()) && expires.getUTCFullYear() >= 2099
+}
+
 function formatExpirationDate(expiresAt: string): string {
+  if (isPermanentExpiration(expiresAt)) {
+    return t('userSubscriptions.noExpiration')
+  }
+
   const now = new Date()
   const expires = new Date(expiresAt)
   const diff = expires.getTime() - now.getTime()
@@ -322,6 +331,10 @@ function formatExpirationDate(expiresAt: string): string {
 }
 
 function getExpirationClass(expiresAt: string): string {
+  if (isPermanentExpiration(expiresAt)) {
+    return 'text-[var(--app-muted-strong)]'
+  }
+
   const now = new Date()
   const expires = new Date(expiresAt)
   const diff = expires.getTime() - now.getTime()

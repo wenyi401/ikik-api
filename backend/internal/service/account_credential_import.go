@@ -20,17 +20,24 @@ const (
 	AccountCredentialImportKindOAuthCredentials   AccountCredentialImportKind = "oauth_credentials"
 	AccountCredentialImportKindOpenAIRefreshToken AccountCredentialImportKind = "openai_refresh_token"
 	AccountCredentialImportKindClaudeSessionKey   AccountCredentialImportKind = "claude_session_key"
+	AccountCredentialImportKindKiroConfig         AccountCredentialImportKind = "kiro_config"
 )
 
 type AccountCredentialImportSource struct {
-	Kind        AccountCredentialImportKind
-	Name        string
-	Notes       *string
-	Platform    string
-	Credentials map[string]any
-	Extra       map[string]any
-	Token       string
-	ClientID    string
+	Kind         AccountCredentialImportKind
+	Name         string
+	Notes        *string
+	Platform     string
+	Credentials  map[string]any
+	Extra        map[string]any
+	Token        string
+	ClientID     string
+	ClientSecret string
+	AuthMethod   string
+	Provider     string
+	StartURL     string
+	Region       string
+	ProfileArn   string
 }
 
 type AccountCredentialImportError struct {
@@ -47,7 +54,15 @@ type AccountCredentialImportResult struct {
 	Errors  []AccountCredentialImportError `json:"errors"`
 }
 
+type AccountCredentialImportOptions struct {
+	KiroConfigImport bool
+}
+
 func ParseAccountCredentialImportContents(contents []string) ([]AccountCredentialImportSource, []AccountCredentialImportError) {
+	return ParseAccountCredentialImportContentsWithOptions(contents, AccountCredentialImportOptions{})
+}
+
+func ParseAccountCredentialImportContentsWithOptions(contents []string, opts AccountCredentialImportOptions) ([]AccountCredentialImportSource, []AccountCredentialImportError) {
 	sources := make([]AccountCredentialImportSource, 0)
 	errs := make([]AccountCredentialImportError, 0)
 	nextIndex := 1
@@ -63,7 +78,7 @@ func ParseAccountCredentialImportContents(contents []string) ([]AccountCredentia
 			continue
 		}
 		for _, item := range items {
-			itemSources, itemErr := accountCredentialImportSourcesFromValue(item)
+			itemSources, itemErr := accountCredentialImportSourcesFromValue(item, opts)
 			if itemErr != nil {
 				errs = append(errs, AccountCredentialImportError{
 					Index:   nextIndex,
@@ -125,6 +140,8 @@ func DeriveAccountCredentialImportName(platform string, credentials, extra map[s
 		return fmt.Sprintf("Gemini OAuth Account #%d", sequence)
 	case PlatformAntigravity:
 		return fmt.Sprintf("Antigravity OAuth Account #%d", sequence)
+	case PlatformKiro:
+		return fmt.Sprintf("Kiro OAuth Account #%d", sequence)
 	default:
 		return fmt.Sprintf("OpenAI OAuth Account #%d", sequence)
 	}
@@ -181,7 +198,7 @@ func decodeAccountCredentialImportJSONValues(text string) ([]any, error) {
 	return values, nil
 }
 
-func accountCredentialImportSourcesFromValue(value any) ([]AccountCredentialImportSource, error) {
+func accountCredentialImportSourcesFromValue(value any, opts AccountCredentialImportOptions) ([]AccountCredentialImportSource, error) {
 	switch typed := value.(type) {
 	case string:
 		source, err := accountCredentialImportSourceFromString(typed, "", nil)
@@ -192,7 +209,7 @@ func accountCredentialImportSourcesFromValue(value any) ([]AccountCredentialImpo
 	case []any:
 		out := make([]AccountCredentialImportSource, 0, len(typed))
 		for _, item := range typed {
-			sources, err := accountCredentialImportSourcesFromValue(item)
+			sources, err := accountCredentialImportSourcesFromValue(item, opts)
 			if err != nil {
 				return nil, err
 			}
@@ -203,7 +220,7 @@ func accountCredentialImportSourcesFromValue(value any) ([]AccountCredentialImpo
 		if accounts, ok := importArrayField(typed, "accounts"); ok {
 			out := make([]AccountCredentialImportSource, 0, len(accounts))
 			for _, account := range accounts {
-				sources, err := accountCredentialImportSourcesFromValue(account)
+				sources, err := accountCredentialImportSourcesFromValue(account, opts)
 				if err != nil {
 					return nil, err
 				}
@@ -211,7 +228,7 @@ func accountCredentialImportSourcesFromValue(value any) ([]AccountCredentialImpo
 			}
 			return out, nil
 		}
-		source, err := accountCredentialImportSourceFromMap(typed)
+		source, err := accountCredentialImportSourceFromMap(typed, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -221,7 +238,13 @@ func accountCredentialImportSourcesFromValue(value any) ([]AccountCredentialImpo
 	}
 }
 
-func accountCredentialImportSourceFromMap(item map[string]any) (AccountCredentialImportSource, error) {
+func accountCredentialImportSourceFromMap(item map[string]any, opts AccountCredentialImportOptions) (AccountCredentialImportSource, error) {
+	if opts.KiroConfigImport {
+		if source, handled, err := accountCredentialImportSourceFromKiroConfig(item); handled || err != nil {
+			return source, err
+		}
+	}
+
 	if source, handled, err := accountCredentialImportSourceFromCodexManagerExport(item); handled || err != nil {
 		return source, err
 	}
@@ -584,6 +607,8 @@ func normalizeCredentialImportPlatform(platform string) string {
 		return PlatformGemini
 	case "antigravity":
 		return PlatformAntigravity
+	case "kiro":
+		return PlatformKiro
 	default:
 		return ""
 	}

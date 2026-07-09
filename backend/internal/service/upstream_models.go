@@ -131,7 +131,7 @@ func (s *AccountTestService) buildUpstreamModelsRequest(ctx context.Context, acc
 	switch {
 	case account.Platform == PlatformAntigravity:
 		return s.buildAntigravityAPIKeyModelsRequest(ctx, account)
-	case account.IsOpenAI():
+	case account.IsOpenAI() || account.IsKiro():
 		return s.buildOpenAIUpstreamModelsRequest(ctx, account)
 	case account.IsGemini():
 		return s.buildGeminiUpstreamModelsRequest(ctx, account)
@@ -264,6 +264,9 @@ func (s *AccountTestService) buildOpenAIUpstreamModelsRequest(ctx context.Contex
 
 	baseURL := account.GetOpenAIBaseURL()
 	if strings.TrimSpace(baseURL) == "" {
+		if account.IsKiro() {
+			return nil, newUpstreamModelSyncConfigError("No Kiro base URL is available", nil)
+		}
 		baseURL = "https://api.openai.com"
 	}
 	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)

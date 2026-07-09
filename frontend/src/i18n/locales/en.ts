@@ -974,6 +974,8 @@ export default {
     importTitle: 'Import Personal Accounts',
     importHint: 'Paste account credentials or import files. Personal import only creates official OAuth accounts.',
     importWarning: 'Supported: ikik-api OAuth JSON, Codex-Manager ChatGPT token JSON, OpenAI Refresh Token, and Claude Session Key. API keys, URLs, upstream endpoints and cookies are rejected.',
+    importKiroConfigMode: 'Parse as Kiro config',
+    importKiroConfigModeHint: 'Use for Kiro JSON config files',
     importTextMode: 'Bulk Text',
     importFileMode: 'Files / Folder',
     importTextLabel: 'Account Data',
@@ -1207,7 +1209,13 @@ export default {
     namePlaceholder: 'My API Key',
     groupLabel: 'Group',
     selectGroup: 'Select a group',
-    privateGroupDescription: '{platform} private group routes personal account group',
+    privateGroupDescription: 'Uses your private {platform} accounts',
+    privateRouter: {
+      title: 'Private Group',
+      description: 'Uses your private accounts by protocol',
+      showSpecific: 'Specify group',
+      hideSpecific: 'Hide groups'
+    },
     groupRouting: {
       title: 'Multi-group routing',
       description: 'Enable priority and weight based routing across multiple groups for the same key.',
@@ -3574,7 +3582,9 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
-        grok: 'Grok'
+        grok: 'Grok',
+        kiro: 'Kiro',
+        custom: 'Custom'
       },
       deleteConfirm: "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",
       deleteConfirmSubscription: "Are you sure you want to delete subscription group '{name}'? This will invalidate all API keys bound to this subscription and delete all related subscription records. This action cannot be undone.",
@@ -3604,6 +3614,19 @@ export default {
         invert: 'Invert',
         loading: 'Loading models...',
         empty: 'No candidate models'
+      },
+      kiroRuntime: {
+        title: 'Kiro Runtime',
+        hint: 'Runtime routing and cache behavior for Kiro groups',
+        endpointMode: 'Endpoint',
+        endpointQ: 'Q endpoint',
+        endpointKRS: 'KRS endpoint',
+        stickyTTL: 'Sticky TTL (seconds)',
+        cacheRatio: 'Cache ratio',
+        cacheEmulation: 'Cache emulation',
+        cacheEmulationHint: 'Convert part of Kiro usage into cache read billing',
+        autoSticky: 'Auto sticky session',
+        autoStickyHint: 'Keep related Kiro turns on the same account'
       },
       claudeCode: {
         title: 'Claude Code Client Restriction',
@@ -4275,6 +4298,7 @@ export default {
         gemini: 'Gemini',
         antigravity: 'Antigravity',
         grok: 'Grok',
+        kiro: 'Kiro',
         custom: 'Custom'
       },
       types: {
@@ -4283,6 +4307,8 @@ export default {
         responsesApi: 'Responses API',
         googleOauth: 'Google OAuth',
         codeAssist: 'Code Assist',
+        kiroApikey: 'Kiro API Key',
+        kiroOauth: 'Kiro OAuth',
         antigravityOauth: 'Antigravity OAuth',
         antigravityApikey: 'Connect via Base URL + API Key',
         grokOauth: 'Grok OAuth',
@@ -5049,11 +5075,55 @@ export default {
           validateAndCreate: 'Validate & Create',
           pleaseEnterRefreshToken: 'Please enter Refresh Token',
           failedToValidateRT: 'Failed to validate Refresh Token'
+        },
+        kiro: {
+          title: 'Kiro Account Authorization',
+          followSteps: 'Follow these steps to authorize your Kiro account:',
+          step1GenerateUrl: 'Generate the authorization URL',
+          generateAuthUrl: 'Generate Auth URL',
+          step2OpenUrl: 'Open the URL in your browser and complete authorization',
+          openUrlDesc: 'Open the authorization URL in a new tab, sign in to Kiro, and authorize.',
+          step3EnterCode: 'Enter Callback URL or Code',
+          authCodeDesc: 'After authorization, copy the callback URL or code and paste it below.',
+          authCode: 'Callback URL or Code',
+          authCodePlaceholder: 'Option 1: Paste the callback URL\nOption 2: Paste only the code value',
+          authCodeHint: 'The system will auto-extract code/state from the URL.',
+          refreshTokenAuth: 'Manual RT',
+          refreshTokenDesc: 'Enter Kiro social Refresh Token. Supports batch input, one per line.',
+          refreshTokenPlaceholder: 'Paste your Kiro Refresh Token...\nSupports multiple tokens, one per line',
+          authModeTitle: 'Authorization Mode',
+          oauthTitle: 'Social OAuth',
+          oauthSubtitle: 'Google or GitHub authorization.',
+          idcTitle: 'IAM Identity Center',
+          idcSubtitle: 'AWS Builder ID / IDC authorization.',
+          importTitle: 'Import Token',
+          importSubtitle: 'Import existing Kiro token JSON.',
+          providerLabel: 'Provider',
+          googleTitle: 'Google',
+          githubTitle: 'GitHub',
+          idcStartUrlLabel: 'Start URL',
+          startUrlPlaceholder: 'Leave empty to use the default Builder ID URL',
+          regionLabel: 'Region',
+          regionPlaceholder: 'us-east-1',
+          tokenJsonLabel: 'Token JSON',
+          tokenJsonHint: 'Paste the token JSON exported from Kiro.',
+          tokenJsonRequired: 'Please enter Kiro token JSON',
+          deviceJsonLabel: 'Device registration JSON',
+          deviceJsonPlaceholder: 'Optional',
+          validating: 'Validating...',
+          validateAndCreate: 'Validate & Create',
+          pleaseEnterRefreshToken: 'Please enter Refresh Token',
+          failedToValidateRT: 'Failed to validate Refresh Token'
         }
       }, // Gemini specific (platform-wide)
       grok: {
         baseUrlHint: 'Leave empty to use the official xAI API endpoint',
         apiKeyHint: 'Grok OAuth accounts use refresh tokens; API key input is not required for OAuth.'
+      },
+      kiro: {
+        baseUrlHint: 'Required. Enter the Kiro-compatible gateway base URL.',
+        apiKeyHint: 'Kiro API Key for private Kiro account scheduling.',
+        baseUrlRequired: 'Please enter Kiro Base URL'
       },
       gemini: {
         helpButton: 'Help',
@@ -5195,6 +5265,7 @@ export default {
       geminiAccount: 'Gemini Account',
       antigravityAccount: 'Antigravity Account',
       grokAccount: 'Grok Account',
+      kiroAccount: 'Kiro Account',
       inputMethod: 'Input Method',
       reAuthorizedSuccess: 'Account re-authorized successfully',
       // Test Modal
@@ -8023,7 +8094,7 @@ export default {
     },
     usage: 'Usage',
     expires: 'Expires',
-    noExpiration: 'No expiration',
+    noExpiration: 'Never expires',
     unlimited: 'Unlimited',
     unlimitedDesc: 'No usage limits on this subscription',
     daily: 'Daily',

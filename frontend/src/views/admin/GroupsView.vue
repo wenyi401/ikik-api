@@ -828,6 +828,116 @@
         </div>
 
         <div
+          v-if="createForm.platform === 'kiro'"
+          class="border-t pt-4"
+        >
+          <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {{ t("admin.groups.kiroRuntime.title") }}
+          </label>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("admin.groups.kiroRuntime.hint") }}
+          </p>
+          <div class="mt-4 space-y-4 rounded-lg border border-gray-200 bg-gray-50/50 p-3 dark:border-dark-600 dark:bg-dark-800/40">
+            <div>
+              <label class="input-label">{{ t("admin.groups.kiroRuntime.endpointMode") }}</label>
+              <Select
+                v-model="createForm.kiro_endpoint_mode"
+                :options="kiroEndpointModeOptions"
+              />
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label class="input-label">{{ t("admin.groups.kiroRuntime.stickyTTL") }}</label>
+                <input
+                  v-model.number="createForm.kiro_sticky_session_ttl_seconds"
+                  type="number"
+                  min="60"
+                  step="60"
+                  class="input"
+                />
+              </div>
+              <div>
+                <label class="input-label">{{ t("admin.groups.kiroRuntime.cacheRatio") }}</label>
+                <input
+                  v-model.number="createForm.kiro_cache_emulation_ratio"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  class="input"
+                />
+              </div>
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between gap-4">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.groups.kiroRuntime.cacheEmulation") }}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.groups.kiroRuntime.cacheEmulationHint") }}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  @click="
+                    createForm.kiro_cache_emulation_enabled =
+                      !createForm.kiro_cache_emulation_enabled
+                  "
+                  :class="[
+                    'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors',
+                    createForm.kiro_cache_emulation_enabled
+                      ? 'bg-primary-500'
+                      : 'bg-gray-300 dark:bg-dark-600',
+                  ]"
+                >
+                  <span
+                    :class="[
+                      'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                      createForm.kiro_cache_emulation_enabled
+                        ? 'translate-x-6'
+                        : 'translate-x-1',
+                    ]"
+                  />
+                </button>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.groups.kiroRuntime.autoSticky") }}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.groups.kiroRuntime.autoStickyHint") }}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  @click="
+                    createForm.kiro_auto_sticky_enabled =
+                      !createForm.kiro_auto_sticky_enabled
+                  "
+                  :class="[
+                    'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors',
+                    createForm.kiro_auto_sticky_enabled
+                      ? 'bg-primary-500'
+                      : 'bg-gray-300 dark:bg-dark-600',
+                  ]"
+                >
+                  <span
+                    :class="[
+                      'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                      createForm.kiro_auto_sticky_enabled
+                        ? 'translate-x-6'
+                        : 'translate-x-1',
+                    ]"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
           v-if="
             createForm.platform === 'antigravity' ||
             createForm.platform === 'gemini' ||
@@ -2076,6 +2186,116 @@
         </div>
 
         <div
+          v-if="editForm.platform === 'kiro'"
+          class="border-t pt-4"
+        >
+          <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {{ t("admin.groups.kiroRuntime.title") }}
+          </label>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("admin.groups.kiroRuntime.hint") }}
+          </p>
+          <div class="mt-4 space-y-4 rounded-lg border border-gray-200 bg-gray-50/50 p-3 dark:border-dark-600 dark:bg-dark-800/40">
+            <div>
+              <label class="input-label">{{ t("admin.groups.kiroRuntime.endpointMode") }}</label>
+              <Select
+                v-model="editForm.kiro_endpoint_mode"
+                :options="kiroEndpointModeOptions"
+              />
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label class="input-label">{{ t("admin.groups.kiroRuntime.stickyTTL") }}</label>
+                <input
+                  v-model.number="editForm.kiro_sticky_session_ttl_seconds"
+                  type="number"
+                  min="60"
+                  step="60"
+                  class="input"
+                />
+              </div>
+              <div>
+                <label class="input-label">{{ t("admin.groups.kiroRuntime.cacheRatio") }}</label>
+                <input
+                  v-model.number="editForm.kiro_cache_emulation_ratio"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  class="input"
+                />
+              </div>
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between gap-4">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.groups.kiroRuntime.cacheEmulation") }}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.groups.kiroRuntime.cacheEmulationHint") }}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  @click="
+                    editForm.kiro_cache_emulation_enabled =
+                      !editForm.kiro_cache_emulation_enabled
+                  "
+                  :class="[
+                    'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors',
+                    editForm.kiro_cache_emulation_enabled
+                      ? 'bg-primary-500'
+                      : 'bg-gray-300 dark:bg-dark-600',
+                  ]"
+                >
+                  <span
+                    :class="[
+                      'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                      editForm.kiro_cache_emulation_enabled
+                        ? 'translate-x-6'
+                        : 'translate-x-1',
+                    ]"
+                  />
+                </button>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.groups.kiroRuntime.autoSticky") }}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.groups.kiroRuntime.autoStickyHint") }}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  @click="
+                    editForm.kiro_auto_sticky_enabled =
+                      !editForm.kiro_auto_sticky_enabled
+                  "
+                  :class="[
+                    'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors',
+                    editForm.kiro_auto_sticky_enabled
+                      ? 'bg-primary-500'
+                      : 'bg-gray-300 dark:bg-dark-600',
+                  ]"
+                >
+                  <span
+                    :class="[
+                      'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                      editForm.kiro_auto_sticky_enabled
+                        ? 'translate-x-6'
+                        : 'translate-x-1',
+                    ]"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
           v-if="
             editForm.platform === 'antigravity' ||
             editForm.platform === 'gemini' ||
@@ -3218,6 +3438,7 @@ const platformOptions = computed(() => [
   { value: "gemini", label: "Gemini" },
   { value: "antigravity", label: "Antigravity" },
   { value: "grok", label: "Grok" },
+  { value: "kiro", label: "Kiro" },
   { value: "custom", label: "Custom" },
 ]);
 
@@ -3228,6 +3449,7 @@ const platformFilterOptions = computed(() => [
   { value: "gemini", label: "Gemini" },
   { value: "antigravity", label: "Antigravity" },
   { value: "grok", label: "Grok" },
+  { value: "kiro", label: "Kiro" },
   { value: "custom", label: "Custom" },
 ]);
 
@@ -3248,6 +3470,11 @@ const requiredAccountLevelOptions = computed(() => [
   { value: "pro", label: t("admin.accounts.accountLevel.pro") },
   { value: "team", label: t("admin.accounts.accountLevel.team") },
   { value: "k12", label: t("admin.accounts.accountLevel.k12") },
+]);
+
+const kiroEndpointModeOptions = computed(() => [
+  { value: "q", label: t("admin.groups.kiroRuntime.endpointQ") },
+  { value: "krs", label: t("admin.groups.kiroRuntime.endpointKRS") },
 ]);
 
 const requiredAccountLevelLabel = (level?: Exclude<AccountLevel, "unknown"> | "") => {
@@ -3461,6 +3688,11 @@ const createForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  kiro_cache_emulation_enabled: false,
+  kiro_auto_sticky_enabled: true,
+  kiro_sticky_session_ttl_seconds: 3600,
+  kiro_cache_emulation_ratio: 1,
+  kiro_endpoint_mode: "q" as "q" | "krs" | string,
 });
 
 // 简单账号类型（用于模型路由选择）
@@ -3792,6 +4024,11 @@ const editForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  kiro_cache_emulation_enabled: false,
+  kiro_auto_sticky_enabled: true,
+  kiro_sticky_session_ttl_seconds: 3600,
+  kiro_cache_emulation_ratio: 1,
+  kiro_endpoint_mode: "q" as "q" | "krs" | string,
 });
 
 // 根据分组类型返回不同的删除确认消息
@@ -3986,6 +4223,11 @@ const closeCreateModal = () => {
   createForm.supported_model_scopes = ["claude", "gemini_text", "gemini_image"];
   createForm.mcp_xml_inject = true;
   createForm.copy_accounts_from_group_ids = [];
+  createForm.kiro_cache_emulation_enabled = false;
+  createForm.kiro_auto_sticky_enabled = true;
+  createForm.kiro_sticky_session_ttl_seconds = 3600;
+  createForm.kiro_cache_emulation_ratio = 1;
+  createForm.kiro_endpoint_mode = "q";
   createModelRoutingRules.value = [];
 };
 
@@ -4109,6 +4351,14 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.mcp_xml_inject = group.mcp_xml_inject ?? true;
   editForm.copy_accounts_from_group_ids = []; // 复制账号字段每次编辑时重置为空
   editForm.rpm_limit = group.rpm_limit ?? 0;
+  editForm.kiro_cache_emulation_enabled =
+    group.kiro_cache_emulation_enabled ?? false;
+  editForm.kiro_auto_sticky_enabled = group.kiro_auto_sticky_enabled ?? true;
+  editForm.kiro_sticky_session_ttl_seconds =
+    group.kiro_sticky_session_ttl_seconds ?? 3600;
+  editForm.kiro_cache_emulation_ratio =
+    group.kiro_cache_emulation_ratio ?? 1;
+  editForm.kiro_endpoint_mode = group.kiro_endpoint_mode || "q";
   resetModelsListState(editModelsListState, group.models_list_config);
   loadModelsListCandidates("edit", group.id, group.platform);
   // 加载模型路由规则（异步加载账号名称）
@@ -4127,6 +4377,11 @@ const closeEditModal = () => {
   editingGroup.value = null;
   editModelRoutingRules.value = [];
   editForm.copy_accounts_from_group_ids = [];
+  editForm.kiro_cache_emulation_enabled = false;
+  editForm.kiro_auto_sticky_enabled = true;
+  editForm.kiro_sticky_session_ttl_seconds = 3600;
+  editForm.kiro_cache_emulation_ratio = 1;
+  editForm.kiro_endpoint_mode = "q";
   resetModelsListState(editModelsListState);
   resetMessagesDispatchFormState(editForm);
 };

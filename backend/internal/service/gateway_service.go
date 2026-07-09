@@ -511,6 +511,7 @@ type ClaudeUsage struct {
 	CacheCreation1hTokens    int // 1小时缓存创建token（来自嵌套 cache_creation 对象）
 	ReasoningTokens          int `json:"reasoning_tokens,omitempty"`
 	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
+	KiroCredits              float64
 }
 
 // ForwardResult 转发结果
@@ -582,6 +583,8 @@ type GatewayService struct {
 	deferredService        *DeferredService
 	concurrencyService     *ConcurrencyService
 	claudeTokenProvider    *ClaudeTokenProvider
+	kiroTokenProvider      *KiroTokenProvider
+	kiroCooldownStore      KiroCooldownStore
 	sessionLimitCache      SessionLimitCache // 会话数量限制缓存（仅 Anthropic OAuth/SetupToken）
 	rpmCache               RPMCache          // RPM 计数缓存（仅 Anthropic OAuth/SetupToken）
 	userGroupRateResolver  *userGroupRateResolver
@@ -688,13 +691,30 @@ func (s *GatewayService) SetCarpoolRepository(repo CarpoolRepository) {
 	}
 }
 
+func (s *GatewayService) SetKiroTokenProvider(provider *KiroTokenProvider) {
+	if s != nil {
+		s.kiroTokenProvider = provider
+	}
+}
+
+func (s *GatewayService) SetKiroCooldownStore(store KiroCooldownStore) {
+	if s != nil {
+		s.kiroCooldownStore = store
+	}
+}
+
 // GenerateSessionHash 从预解析请求计算粘性会话 hash
 func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
 	if parsed == nil {
 		return ""
 	}
 
-	// 1. 最高优先级：从 metadata.user_id 提取 session_xxx
+	// 0. 最高优先级：客户端通过 HTTP 请求头显式传递的 Session ID。
+	if hash, ok := s.hashStickySessionHint(parsed, parsed.ExplicitSessionID, "explicit_session_header"); ok {
+		return hash
+	}
+
+	// 1. 从 metadata.user_id 提取 session_xxx
 	if parsed.MetadataUserID != "" {
 		uid := ParseMetadataUserID(parsed.MetadataUserID)
 		if uid != nil && uid.SessionID != "" {
@@ -712,6 +732,11 @@ func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
 		)
 	}
 
+	// 1.5. 从请求体提取客户端已经提供的稳定会话标识。
+	if hash, ok := s.hashStickySessionHint(parsed, parsed.BodySessionID, "body_session_id"); ok {
+		return hash
+	}
+
 	// 2. 提取带 cache_control: {type: "ephemeral"} 的内容
 	cacheableContent := s.extractCacheableContent(parsed)
 	if cacheableContent != "" {
@@ -721,6 +746,36 @@ func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
 			"hash", hash,
 		)
 		return hash
+	}
+
+	// 2.5. Kiro 分组专用：使用对话生命周期内稳定的内容做 hash。
+	if isKiroGroup(parsed.Group) {
+		if !parsed.Group.EffectiveKiroAutoStickyEnabled() {
+			slog.Info("sticky.hash_source",
+				"source", "kiro_auto_sticky_disabled",
+			)
+			return ""
+		}
+		stableSeed := extractTextFromSystemRaw(parsed.SystemRaw())
+		source := "kiro_system_prompt"
+		if stableSeed == "" {
+			stableSeed = extractFirstUserMessageTextFromRaw(parsed.MessagesRaw())
+			source = "kiro_first_user_message"
+		}
+		if stableSeed != "" {
+			var sb strings.Builder
+			if parsed.SessionContext != nil {
+				_, _ = sb.WriteString(strconv.FormatInt(parsed.SessionContext.APIKeyID, 10))
+				_, _ = sb.WriteString("|")
+			}
+			_, _ = sb.WriteString(stableSeed)
+			hash := s.hashContent(sb.String())
+			slog.Info("sticky.hash_source",
+				"source", source,
+				"hash", hash,
+			)
+			return hash
+		}
 	}
 
 	// 3. 最后 fallback: 使用 session上下文 + system + 所有消息的完整摘要串
@@ -755,12 +810,54 @@ func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
 	return ""
 }
 
+func (s *GatewayService) hashStickySessionHint(parsed *ParsedRequest, sessionID, source string) (string, bool) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return "", false
+	}
+
+	var sb strings.Builder
+	if parsed != nil && parsed.SessionContext != nil {
+		_, _ = sb.WriteString(strconv.FormatInt(parsed.SessionContext.APIKeyID, 10))
+		_, _ = sb.WriteString("|")
+	}
+	_, _ = sb.WriteString(sessionID)
+	hash := s.hashContent(sb.String())
+	slog.Info("sticky.hash_source",
+		"source", source,
+		"hash", hash,
+	)
+	return hash, true
+}
+
+func isKiroGroup(group *Group) bool {
+	return group != nil && group.Platform == PlatformKiro
+}
+
 // BindStickySession sets session -> account binding with standard TTL.
 func (s *GatewayService) BindStickySession(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
+	return s.BindStickySessionWithTTL(ctx, groupID, sessionHash, accountID, stickySessionTTL)
+}
+
+func (s *GatewayService) BindStickySessionForGroup(ctx context.Context, groupID *int64, sessionHash string, accountID int64, group *Group) error {
+	return s.BindStickySessionWithTTL(ctx, groupID, sessionHash, accountID, stickySessionTTLForGroup(group))
+}
+
+func (s *GatewayService) BindStickySessionWithTTL(ctx context.Context, groupID *int64, sessionHash string, accountID int64, ttl time.Duration) error {
 	if sessionHash == "" || accountID <= 0 || s.cache == nil {
 		return nil
 	}
-	return s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, accountID, stickySessionTTL)
+	if ttl <= 0 {
+		ttl = stickySessionTTL
+	}
+	return s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, accountID, ttl)
+}
+
+func stickySessionTTLForGroup(group *Group) time.Duration {
+	if group != nil && group.Platform == PlatformKiro {
+		return group.EffectiveKiroStickySessionTTL()
+	}
+	return stickySessionTTL
 }
 
 // GetCachedSessionAccountID retrieves the account ID bound to a sticky session.
@@ -872,6 +969,40 @@ func extractTextFromContentRaw(content gjson.Result) string {
 		return builder.String()
 	}
 	return ""
+}
+
+func extractFirstUserMessageTextFromRaw(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	messages := parseRawJSONView(raw)
+	if !messages.IsArray() {
+		return ""
+	}
+	var out string
+	messages.ForEach(func(_, msg gjson.Result) bool {
+		role := strings.ToLower(strings.TrimSpace(msg.Get("role").String()))
+		if role != "" && role != "user" {
+			return true
+		}
+		if content := msg.Get("content"); content.Exists() {
+			out = extractTextFromContentRaw(content)
+			return out == ""
+		}
+		if parts := msg.Get("parts"); parts.IsArray() {
+			var builder strings.Builder
+			parts.ForEach(func(_, part gjson.Result) bool {
+				if text := part.Get("text").String(); text != "" {
+					_, _ = builder.WriteString(text)
+				}
+				return true
+			})
+			out = builder.String()
+			return out == ""
+		}
+		return true
+	})
+	return out
 }
 
 func appendMessageTextsFromRaw(builder *strings.Builder, raw []byte) {
@@ -3974,6 +4105,13 @@ func (s *GatewayService) getOAuthToken(ctx context.Context, account *Account) (s
 	// 对于 Anthropic OAuth 账号，使用 ClaudeTokenProvider 获取缓存的 token
 	if account.Platform == PlatformAnthropic && account.Type == AccountTypeOAuth && s.claudeTokenProvider != nil {
 		accessToken, err := s.claudeTokenProvider.GetAccessToken(ctx, account)
+		if err != nil {
+			return "", "", err
+		}
+		return accessToken, "oauth", nil
+	}
+	if account.Platform == PlatformKiro && account.Type == AccountTypeOAuth && s.kiroTokenProvider != nil {
+		accessToken, err := s.kiroTokenProvider.GetAccessToken(ctx, account)
 		if err != nil {
 			return "", "", err
 		}
@@ -9331,6 +9469,10 @@ func (s *GatewayService) buildRecordUsageLog(
 		usageLog.CacheReadCost = cost.CacheReadCost
 		usageLog.TotalCost = cost.TotalCost
 		usageLog.ActualCost = cost.ActualCost
+	}
+	if result.Usage.KiroCredits > 0 {
+		kiroCredits := result.Usage.KiroCredits
+		usageLog.KiroCredits = &kiroCredits
 	}
 
 	return usageLog

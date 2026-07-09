@@ -17,6 +17,24 @@
         {{ warning }}
       </div>
 
+      <label
+        class="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200"
+      >
+        <input
+          v-model="kiroConfigImport"
+          type="checkbox"
+          class="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
+        />
+        <span class="min-w-0">
+          <span class="block font-medium text-gray-900 dark:text-white">
+            {{ t('userAccounts.importKiroConfigMode') }}
+          </span>
+          <span class="mt-1 block text-xs text-gray-500 dark:text-dark-400">
+            {{ t('userAccounts.importKiroConfigModeHint') }}
+          </span>
+        </span>
+      </label>
+
       <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-dark-800">
         <button
           type="button"
@@ -164,7 +182,7 @@ interface Props {
   hint: string
   warning: string
   formId?: string
-  importer: (contents: string[]) => Promise<ImportCredentialContentsResponse>
+  importer: (contents: string[], options?: CredentialImportOptions) => Promise<ImportCredentialContentsResponse>
 }
 
 interface Emits {
@@ -185,6 +203,12 @@ interface CredentialImportResult {
   errors: CredentialImportError[]
 }
 
+interface CredentialImportOptions {
+  kiroConfigImport?: boolean
+}
+
+const CREDENTIAL_IMPORT_BATCH_SIZE = 3
+
 const props = withDefaults(defineProps<Props>(), {
   formId: 'credential-import-form'
 })
@@ -195,6 +219,7 @@ const appStore = useAppStore()
 
 const importing = ref(false)
 const importMode = ref<'text' | 'file'>('text')
+const kiroConfigImport = ref(false)
 const textContent = ref('')
 const files = ref<File[]>([])
 const result = ref<CredentialImportResult | null>(null)
@@ -212,6 +237,7 @@ watch(
   (open) => {
     if (open) {
       importMode.value = 'text'
+      kiroConfigImport.value = false
       textContent.value = ''
       files.value = []
       result.value = null
@@ -268,6 +294,52 @@ async function readFileAsText(sourceFile: File): Promise<string> {
   return new TextDecoder().decode(buffer)
 }
 
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+  return chunks
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function splitCredentialImportContent(content: string): string[] {
+  const text = content.trim()
+  if (!text) return []
+
+  if (text.startsWith('[') || text.startsWith('{')) {
+    try {
+      const parsed: unknown = JSON.parse(text)
+      if (Array.isArray(parsed)) {
+        return chunkArray(parsed, CREDENTIAL_IMPORT_BATCH_SIZE).map((chunk) => JSON.stringify(chunk))
+      }
+      if (isRecord(parsed) && Array.isArray(parsed.accounts)) {
+        return chunkArray(parsed.accounts, CREDENTIAL_IMPORT_BATCH_SIZE).map((chunk) =>
+          JSON.stringify({
+            ...parsed,
+            accounts: chunk
+          })
+        )
+      }
+      return [text]
+    } catch {
+      return [text]
+    }
+  }
+
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (lines.length <= CREDENTIAL_IMPORT_BATCH_SIZE) {
+    return [text]
+  }
+  return chunkArray(lines, CREDENTIAL_IMPORT_BATCH_SIZE).map((chunk) => JSON.stringify(chunk))
+}
+
 async function handleImport(): Promise<void> {
   importing.value = true
   const nextResult: CredentialImportResult = {
@@ -312,17 +384,23 @@ async function handleImport(): Promise<void> {
       return
     }
 
-    const response = await props.importer(contents)
+    const batches = contents.flatMap(splitCredentialImportContent)
+    for (const batch of batches) {
+      const response = await props.importer([batch], {
+        kiroConfigImport: kiroConfigImport.value
+      })
 
-    nextResult.created += response.created
-    nextResult.failed += response.failed
-    nextResult.errors.push(
-      ...(response.errors ?? []).map((item) => ({
-        kind: 'account' as const,
-        name: item.name || `#${item.index}`,
-        message: item.message
-      }))
-    )
+      nextResult.created += response.created
+      nextResult.failed += response.failed
+      nextResult.errors.push(
+        ...(response.errors ?? []).map((item) => ({
+          kind: 'account' as const,
+          name: item.name || `#${item.index}`,
+          message: item.message
+        }))
+      )
+      result.value = { ...nextResult, errors: [...nextResult.errors] }
+    }
 
     result.value = nextResult
     const params = {

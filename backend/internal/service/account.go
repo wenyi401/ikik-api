@@ -15,6 +15,7 @@ import (
 
 	"ikik-api/internal/config"
 	"ikik-api/internal/domain"
+	"ikik-api/internal/pkg/kiro"
 	"ikik-api/internal/pkg/xai"
 )
 
@@ -56,6 +57,13 @@ type Account struct {
 
 	TempUnschedulableUntil  *time.Time
 	TempUnschedulableReason string
+
+	KiroQuotaState     string
+	KiroQuotaReason    string
+	KiroQuotaResetAt   *time.Time
+	KiroRuntimeState   string
+	KiroRuntimeReason  string
+	KiroRuntimeResetAt *time.Time
 
 	SessionWindowStart  *time.Time
 	SessionWindowEnd    *time.Time
@@ -450,12 +458,16 @@ func (a *Account) IsGrok() bool {
 	return a.Platform == PlatformGrok
 }
 
+func (a *Account) IsKiro() bool {
+	return a.Platform == PlatformKiro
+}
+
 func (a *Account) IsGrokOAuth() bool {
 	return a.IsGrok() && a.Type == AccountTypeOAuth
 }
 
 func (a *Account) IsOpenAICompatible() bool {
-	return a != nil && (a.Platform == PlatformOpenAI || a.Platform == PlatformGrok)
+	return a != nil && (a.Platform == PlatformOpenAI || a.Platform == PlatformGrok || a.Platform == PlatformKiro)
 }
 
 func (a *Account) GeminiOAuthType() string {
@@ -779,6 +791,9 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 		if a.Platform == domain.PlatformGrok {
 			return xai.DefaultModelMapping()
 		}
+		if a.Platform == domain.PlatformKiro {
+			return kiro.DefaultModelMapping()
+		}
 		// Bedrock 默认映射由 forwardBedrock 统一处理（需配合 region prefix 调整）
 		return nil
 	}
@@ -789,6 +804,9 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 		}
 		if a.Platform == domain.PlatformGrok {
 			return xai.DefaultModelMapping()
+		}
+		if a.Platform == domain.PlatformKiro {
+			return kiro.DefaultModelMapping()
 		}
 		return nil
 	}
@@ -818,6 +836,9 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 	}
 	if a.Platform == domain.PlatformGrok {
 		return xai.DefaultModelMapping()
+	}
+	if a.Platform == domain.PlatformKiro {
+		return kiro.DefaultModelMapping()
 	}
 	return nil
 }
@@ -1428,13 +1449,16 @@ func (a *Account) IsOpenAIApiKey() bool {
 }
 
 func (a *Account) GetOpenAIBaseURL() string {
-	if !a.IsOpenAI() {
+	if !(a.IsOpenAI() || a.IsKiro()) {
 		return ""
 	}
 	if a.Type == AccountTypeAPIKey {
 		baseURL := a.GetCredential("base_url")
 		if baseURL != "" {
 			return baseURL
+		}
+		if a.IsKiro() {
+			return ""
 		}
 	}
 	return "https://api.openai.com"
@@ -1487,7 +1511,7 @@ func (a *Account) GetOpenAIIDToken() string {
 }
 
 func (a *Account) GetOpenAIApiKey() string {
-	if !a.IsOpenAIApiKey() {
+	if !(a.IsOpenAIApiKey() || (a.IsKiro() && a.Type == AccountTypeAPIKey)) {
 		return ""
 	}
 	return a.GetCredential("api_key")
@@ -1530,6 +1554,9 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	}
 	if !a.IsOpenAICompatible() {
 		return false
+	}
+	if a.IsKiro() {
+		return capability == OpenAIEndpointCapabilityChatCompletions
 	}
 	if a.IsGrok() {
 		return capability == OpenAIEndpointCapabilityChatCompletions
