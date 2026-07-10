@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	updateCacheKey = "update_check_cache"
 	updateCacheTTL = 1200 // 20 minutes
 	githubRepo     = "wenyi401/ikik-api"
 
@@ -278,6 +277,9 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 	if err != nil {
 		return nil, err
 	}
+	if err := validateUpdateReleaseSource(release); err != nil {
+		return nil, err
+	}
 
 	latestVersion := strings.TrimPrefix(release.TagName, "v")
 
@@ -339,6 +341,37 @@ func validateDownloadURL(rawURL string) error {
 		return fmt.Errorf("download from untrusted host: %s", host)
 	}
 
+	return nil
+}
+
+func validateUpdateReleaseSource(release *GitHubRelease) error {
+	if release == nil {
+		return fmt.Errorf("release metadata is empty")
+	}
+	if err := validateUpdateRepositoryURL(release.HTMLURL); err != nil {
+		return fmt.Errorf("release source mismatch: %w", err)
+	}
+	for _, asset := range release.Assets {
+		if err := validateUpdateRepositoryURL(asset.BrowserDownloadURL); err != nil {
+			return fmt.Errorf("release asset %q source mismatch: %w", asset.Name, err)
+		}
+	}
+	return nil
+}
+
+func validateUpdateRepositoryURL(rawURL string) error {
+	parsedURL, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	if parsedURL.Scheme != "https" || !strings.EqualFold(parsedURL.Hostname(), allowedDownloadHost) {
+		return fmt.Errorf("URL must use https://%s", allowedDownloadHost)
+	}
+
+	expectedPrefix := "/" + strings.ToLower(githubRepo) + "/releases/"
+	if !strings.HasPrefix(strings.ToLower(parsedURL.EscapedPath()), expectedPrefix) {
+		return fmt.Errorf("expected repository %s", githubRepo)
+	}
 	return nil
 }
 
@@ -484,6 +517,17 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 
 	if time.Now().Unix()-cached.Timestamp > updateCacheTTL {
 		return nil, fmt.Errorf("cache expired")
+	}
+	if cached.ReleaseInfo == nil {
+		return nil, fmt.Errorf("cached release metadata is empty")
+	}
+	if err := validateUpdateRepositoryURL(cached.ReleaseInfo.HTMLURL); err != nil {
+		return nil, fmt.Errorf("cached release source mismatch: %w", err)
+	}
+	for _, asset := range cached.ReleaseInfo.Assets {
+		if err := validateUpdateRepositoryURL(asset.DownloadURL); err != nil {
+			return nil, fmt.Errorf("cached release asset %q source mismatch: %w", asset.Name, err)
+		}
 	}
 
 	return &UpdateInfo{
