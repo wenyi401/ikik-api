@@ -706,6 +706,8 @@ SELECT user_id,
        updated_at
 FROM user_affiliates
 WHERE aff_code = $1
+  AND (aff_code_expires_at IS NULL OR aff_code_expires_at > NOW())
+  AND (aff_code_usage_limit IS NULL OR aff_count < aff_code_usage_limit)
 LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
 	if err != nil {
 		return nil, err
@@ -840,6 +842,70 @@ WHERE user_id = $2`, code, userID)
 	})
 }
 
+// UpdateUserAffiliateSettings persists all admin-managed exclusive-invite
+// fields atomically. The frontend sends explicit clear flags for nullable
+// fields so an empty form can intentionally reset a previous value.
+func (r *affiliateRepository) UpdateUserAffiliateSettings(ctx context.Context, userID int64, update service.AffiliateUserSettingsUpdate) error {
+	if userID <= 0 {
+		return service.ErrUserNotFound
+	}
+
+	return r.withTx(ctx, func(txCtx context.Context, txClient *dbent.Client) error {
+		if _, err := ensureUserAffiliateWithClient(txCtx, txClient, userID); err != nil {
+			return err
+		}
+
+		sets := make([]string, 0, 6)
+		args := make([]any, 0, 6)
+		add := func(expression string, value any) {
+			args = append(args, value)
+			sets = append(sets, fmt.Sprintf(expression, len(args)))
+		}
+
+		if update.AffCode != nil {
+			add("aff_code = $%d", *update.AffCode)
+			sets = append(sets, "aff_code_custom = true")
+		}
+		if update.ClearAffCodeUsageLimit {
+			sets = append(sets, "aff_code_usage_limit = NULL")
+		} else if update.AffCodeUsageLimit != nil {
+			add("aff_code_usage_limit = $%d", *update.AffCodeUsageLimit)
+		}
+		if update.ClearAffCodeExpiresAt {
+			sets = append(sets, "aff_code_expires_at = NULL")
+		} else if update.AffCodeExpiresAt != nil {
+			add("aff_code_expires_at = $%d", *update.AffCodeExpiresAt)
+		}
+		if update.AffSignupBonusBalance != nil {
+			add("aff_signup_bonus_balance = $%d", *update.AffSignupBonusBalance)
+		}
+		if update.ClearAffAutoGroupID {
+			sets = append(sets, "aff_auto_group_id = NULL")
+		} else if update.AffAutoGroupID != nil {
+			add("aff_auto_group_id = $%d", *update.AffAutoGroupID)
+		}
+		if len(sets) == 0 {
+			return nil
+		}
+		sets = append(sets, "updated_at = NOW()")
+
+		query := "UPDATE user_affiliates SET " + strings.Join(sets, ", ") + fmt.Sprintf(" WHERE user_id = $%d", len(args)+1)
+		args = append(args, userID)
+		res, err := txClient.ExecContext(txCtx, query, args...)
+		if err != nil {
+			if isAffiliateUniqueViolation(err) {
+				return service.ErrAffiliateCodeTaken
+			}
+			return fmt.Errorf("update affiliate settings: %w", err)
+		}
+		affected, _ := res.RowsAffected()
+		if affected == 0 {
+			return service.ErrUserNotFound
+		}
+		return nil
+	})
+}
+
 // ResetUserAffCode 把 aff_code 还原为系统随机码，并清除 aff_code_custom 标记。
 func (r *affiliateRepository) ResetUserAffCode(ctx context.Context, userID int64) (string, error) {
 	if userID <= 0 {
@@ -859,6 +925,10 @@ func (r *affiliateRepository) ResetUserAffCode(ctx context.Context, userID int64
 UPDATE user_affiliates
 SET aff_code = $1,
     aff_code_custom = false,
+    aff_code_usage_limit = NULL,
+    aff_code_expires_at = NULL,
+    aff_signup_bonus_balance = 0,
+    aff_auto_group_id = NULL,
     updated_at = NOW()
 WHERE user_id = $2`, candidate, userID)
 			if err != nil {
@@ -978,7 +1048,10 @@ func (r *affiliateRepository) ListUsersWithCustomSettings(ctx context.Context, f
 	const baseFrom = `
 FROM user_affiliates ua
 JOIN users u ON u.id = ua.user_id
-WHERE (ua.aff_code_custom = true OR ua.aff_rebate_rate_percent IS NOT NULL)
+LEFT JOIN groups g ON g.id = ua.aff_auto_group_id AND g.deleted_at IS NULL
+WHERE (ua.aff_code_custom = true OR ua.aff_rebate_rate_percent IS NOT NULL
+       OR ua.aff_code_usage_limit IS NOT NULL OR ua.aff_code_expires_at IS NOT NULL
+       OR ua.aff_signup_bonus_balance <> 0 OR ua.aff_auto_group_id IS NOT NULL)
   AND (u.email ILIKE $1 OR u.username ILIKE $1)`
 
 	client := clientFromContext(ctx, r.client)
@@ -995,6 +1068,11 @@ SELECT ua.user_id,
        ua.aff_code,
        ua.aff_code_custom,
        ua.aff_rebate_rate_percent,
+       ua.aff_code_usage_limit,
+       ua.aff_code_expires_at,
+       ua.aff_signup_bonus_balance::double precision,
+       ua.aff_auto_group_id,
+       COALESCE(g.name, ''),
        ua.aff_count` + baseFrom + `
 ORDER BY ua.updated_at DESC
 LIMIT $2 OFFSET $3`
@@ -1009,13 +1087,32 @@ LIMIT $2 OFFSET $3`
 	for rows.Next() {
 		var e service.AffiliateAdminEntry
 		var rebate sql.NullFloat64
+		var usageLimit sql.NullInt64
+		var expiresAt sql.NullTime
+		var signupBonus sql.NullFloat64
+		var autoGroupID sql.NullInt64
 		if err := rows.Scan(&e.UserID, &e.Email, &e.Username, &e.AffCode,
-			&e.AffCodeCustom, &rebate, &e.AffCount); err != nil {
+			&e.AffCodeCustom, &rebate, &usageLimit, &expiresAt, &signupBonus,
+			&autoGroupID, &e.AffAutoGroupName, &e.AffCount); err != nil {
 			return nil, 0, err
 		}
 		if rebate.Valid {
 			v := rebate.Float64
 			e.AffRebateRatePercent = &v
+		}
+		if usageLimit.Valid {
+			v := int(usageLimit.Int64)
+			e.AffCodeUsageLimit = &v
+		}
+		if expiresAt.Valid {
+			v := expiresAt.Time
+			e.AffCodeExpiresAt = &v
+		}
+		if signupBonus.Valid {
+			e.AffSignupBonusBalance = signupBonus.Float64
+		}
+		if autoGroupID.Valid {
+			e.AffAutoGroupID = &autoGroupID.Int64
 		}
 		entries = append(entries, e)
 	}

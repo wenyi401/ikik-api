@@ -418,6 +418,8 @@ func (r *usageLogRepository) createBatched(ctx context.Context, log *service.Usa
 	case r.createBatchCh <- req:
 	case <-ctx.Done():
 		return false, service.MarkUsageLogCreateNotPersisted(ctx.Err())
+	default:
+		return false, service.MarkUsageLogCreateNotPersisted(errors.New("usage log create queue full"))
 	}
 
 	select {

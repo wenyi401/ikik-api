@@ -128,6 +128,7 @@ type AffiliateRepository interface {
 
 	// 管理端：用户级专属配置
 	UpdateUserAffCode(ctx context.Context, userID int64, newCode string) error
+	UpdateUserAffiliateSettings(ctx context.Context, userID int64, update AffiliateUserSettingsUpdate) error
 	ResetUserAffCode(ctx context.Context, userID int64) (string, error)
 	SetUserRebateRate(ctx context.Context, userID int64, ratePercent *float64) error
 	BatchSetUserRebateRate(ctx context.Context, userIDs []int64, ratePercent *float64) error
@@ -143,13 +144,32 @@ type AffiliateAdminFilter struct {
 
 // AffiliateAdminEntry 专属用户列表条目
 type AffiliateAdminEntry struct {
-	UserID               int64    `json:"user_id"`
-	Email                string   `json:"email"`
-	Username             string   `json:"username"`
-	AffCode              string   `json:"aff_code"`
-	AffCodeCustom        bool     `json:"aff_code_custom"`
-	AffRebateRatePercent *float64 `json:"aff_rebate_rate_percent,omitempty"`
-	AffCount             int      `json:"aff_count"`
+	UserID                int64      `json:"user_id"`
+	Email                 string     `json:"email"`
+	Username              string     `json:"username"`
+	AffCode               string     `json:"aff_code"`
+	AffCodeCustom         bool       `json:"aff_code_custom"`
+	AffRebateRatePercent  *float64   `json:"aff_rebate_rate_percent,omitempty"`
+	AffCodeUsageLimit     *int       `json:"aff_code_usage_limit,omitempty"`
+	AffCodeExpiresAt      *time.Time `json:"aff_code_expires_at,omitempty"`
+	AffSignupBonusBalance float64    `json:"aff_signup_bonus_balance"`
+	AffAutoGroupID        *int64     `json:"aff_auto_group_id,omitempty"`
+	AffAutoGroupName      string     `json:"aff_auto_group_name,omitempty"`
+	AffCount              int        `json:"aff_count"`
+}
+
+// AffiliateUserSettingsUpdate contains the optional fields managed by the
+// admin exclusive-invite configuration. Clear* flags distinguish an omitted
+// field from an explicit reset to NULL.
+type AffiliateUserSettingsUpdate struct {
+	AffCode                *string
+	AffCodeUsageLimit      *int
+	ClearAffCodeUsageLimit bool
+	AffCodeExpiresAt       *time.Time
+	ClearAffCodeExpiresAt  bool
+	AffSignupBonusBalance  *float64
+	AffAutoGroupID         *int64
+	ClearAffAutoGroupID    bool
 }
 
 const (
@@ -501,6 +521,37 @@ func (s *AffiliateService) AdminUpdateUserAffCode(ctx context.Context, userID in
 		return ErrAffiliateCodeInvalid
 	}
 	return s.repo.UpdateUserAffCode(ctx, userID, code)
+}
+
+// AdminUpdateUserAffiliateSettings validates and persists the complete
+// exclusive-invite configuration in one repository transaction.
+func (s *AffiliateService) AdminUpdateUserAffiliateSettings(ctx context.Context, userID int64, update AffiliateUserSettingsUpdate) error {
+	if s == nil || s.repo == nil {
+		return infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "affiliate service unavailable")
+	}
+	if userID <= 0 {
+		return ErrAffiliateProfileNotFound
+	}
+	if update.AffCode != nil {
+		code := strings.ToUpper(strings.TrimSpace(*update.AffCode))
+		if !isValidAffiliateCodeFormat(code) {
+			return ErrAffiliateCodeInvalid
+		}
+		update.AffCode = &code
+	}
+	if update.AffCodeUsageLimit != nil && *update.AffCodeUsageLimit < 0 {
+		return infraerrors.BadRequest("INVALID_USAGE_LIMIT", "affiliate code usage limit must be non-negative")
+	}
+	if update.AffSignupBonusBalance != nil {
+		bonus := *update.AffSignupBonusBalance
+		if math.IsNaN(bonus) || math.IsInf(bonus, 0) || bonus < 0 {
+			return infraerrors.BadRequest("INVALID_SIGNUP_BONUS", "signup bonus must be a non-negative number")
+		}
+	}
+	if update.AffAutoGroupID != nil && *update.AffAutoGroupID <= 0 {
+		return infraerrors.BadRequest("INVALID_AUTO_GROUP", "invalid affiliate auto group")
+	}
+	return s.repo.UpdateUserAffiliateSettings(ctx, userID, update)
 }
 
 // AdminResetUserAffCode 重置用户邀请码为系统随机码。

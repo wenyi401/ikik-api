@@ -2,6 +2,7 @@ package admin
 
 import (
 	"strconv"
+	"time"
 
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/service"
@@ -48,11 +49,18 @@ func (h *AffiliateHandler) ListUsers(c *gin.Context) {
 //
 // Both fields are optional and applied independently.
 type UpdateAffiliateUserRequest struct {
-	AffCode              *string  `json:"aff_code"`
-	AffRebateRatePercent *float64 `json:"aff_rebate_rate_percent"`
+	AffCode               *string    `json:"aff_code"`
+	AffRebateRatePercent  *float64   `json:"aff_rebate_rate_percent"`
+	AffCodeUsageLimit     *int       `json:"aff_code_usage_limit"`
+	AffCodeExpiresAt      *time.Time `json:"aff_code_expires_at"`
+	AffSignupBonusBalance *float64   `json:"aff_signup_bonus_balance"`
+	AffAutoGroupID        *int64     `json:"aff_auto_group_id"`
 	// ClearRebateRate explicitly clears the per-user rate (sets it to NULL).
 	// Used to disambiguate from "field not provided".
-	ClearRebateRate bool `json:"clear_rebate_rate"`
+	ClearRebateRate        bool `json:"clear_rebate_rate"`
+	ClearAffCodeUsageLimit bool `json:"clear_aff_code_usage_limit"`
+	ClearAffCodeExpiresAt  bool `json:"clear_aff_code_expires_at"`
+	ClearAffAutoGroupID    bool `json:"clear_aff_auto_group_id"`
 }
 
 type BindAffiliateInviterRequest struct {
@@ -81,11 +89,18 @@ func (h *AffiliateHandler) UpdateUserSettings(c *gin.Context) {
 		return
 	}
 
-	if req.AffCode != nil {
-		if err := h.affiliateService.AdminUpdateUserAffCode(c.Request.Context(), userID, *req.AffCode); err != nil {
-			response.ErrorFrom(c, err)
-			return
-		}
+	if err := h.affiliateService.AdminUpdateUserAffiliateSettings(c.Request.Context(), userID, service.AffiliateUserSettingsUpdate{
+		AffCode:                req.AffCode,
+		AffCodeUsageLimit:      req.AffCodeUsageLimit,
+		ClearAffCodeUsageLimit: req.ClearAffCodeUsageLimit,
+		AffCodeExpiresAt:       req.AffCodeExpiresAt,
+		ClearAffCodeExpiresAt:  req.ClearAffCodeExpiresAt,
+		AffSignupBonusBalance:  req.AffSignupBonusBalance,
+		AffAutoGroupID:         req.AffAutoGroupID,
+		ClearAffAutoGroupID:    req.ClearAffAutoGroupID,
+	}); err != nil {
+		response.ErrorFrom(c, err)
+		return
 	}
 
 	if req.ClearRebateRate {
