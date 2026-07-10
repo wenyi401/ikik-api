@@ -111,14 +111,15 @@ const doughnutOptions = {
 
 <style scoped>
 .dashboard-analytics {
-  overflow: hidden;
-  border-top: 1px solid var(--ui-border);
-  border-bottom: 1px solid var(--ui-border);
+  min-width: 0;
 }
 
 .dashboard-analytics-toolbar {
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--ui-border);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
 }
 
 .dashboard-filter-row,
@@ -147,11 +148,18 @@ const doughnutOptions = {
 .dashboard-analytics-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(24rem, 0.95fr);
+  gap: 1rem;
+  margin-top: 1rem;
 }
 
 .dashboard-analytics-pane {
   min-width: 0;
   padding: 1rem 1.125rem 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
 }
 
 .dashboard-analytics-pane--models {
@@ -204,8 +212,7 @@ const doughnutOptions = {
   }
 
   .dashboard-analytics-pane--models {
-    border-top: 1px solid var(--ui-border);
-    border-left: 0;
+    border-left: 1px solid var(--ui-border);
   }
 }
 </style>

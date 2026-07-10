@@ -1,5 +1,5 @@
 <template>
-  <UiSection class="dashboard-section" :title="t('dashboard.recentUsage')">
+  <UiSection class="dashboard-section" surface="panel" :title="t('dashboard.recentUsage')">
     <template #actions>
       <span class="text-xs text-[var(--app-muted)]">{{ t('dashboard.last7Days') }}</span>
     </template>
@@ -50,11 +50,6 @@ const formatCost = (c: number) => c.toFixed(4)
 </script>
 
 <style scoped>
-.dashboard-section {
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--ui-border);
-}
-
 .recent-usage-row {
   display: flex;
   min-width: 0;

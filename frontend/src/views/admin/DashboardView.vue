@@ -677,17 +677,14 @@ onMounted(() => {
 
 <style scoped>
 .admin-metric-row {
-  column-gap: clamp(1rem, 3vw, 2.5rem);
+  column-gap: 1rem;
   row-gap: 1rem;
   background: transparent;
 }
 
 .admin-metric-row > .card {
-  padding: 1rem 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  min-width: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
 }
 
 .admin-metric-row > .card > .flex {
@@ -697,19 +694,20 @@ onMounted(() => {
 .admin-chart-toolbar,
 .admin-chart-panel,
 .admin-chart-column {
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  border: 1px solid var(--ui-border) !important;
+  border-radius: var(--ui-radius-lg) !important;
+  background: var(--ui-surface) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035) !important;
 }
 
 .admin-chart-toolbar {
-  padding: 0;
+  padding: 0.75rem 1rem;
 }
 
 .admin-chart-panel,
 .admin-chart-column {
-  padding: 1rem 0 0;
+  min-width: 0;
+  padding: 1rem 1.125rem;
 }
 
 .admin-dashboard-filter-row,
@@ -749,7 +747,7 @@ onMounted(() => {
 
 @media (max-width: 640px) {
   .admin-metric-row > .card {
-    padding: 0.875rem 0;
+    padding: 0.875rem;
   }
 
   .admin-dashboard-filter-row {

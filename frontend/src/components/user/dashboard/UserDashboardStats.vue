@@ -1,5 +1,5 @@
 <template>
-  <UiMetricStrip :style="{ '--metric-columns': isSimple ? 4 : 5 }">
+  <UiMetricStrip class="dashboard-metric-strip" :style="{ '--metric-columns': isSimple ? 4 : 5 }">
     <UiMetric
       v-if="!isSimple"
       :label="t('dashboard.balance')"
@@ -61,3 +61,12 @@ const formatDuration = (milliseconds: number) => (
   milliseconds >= 1000 ? `${(milliseconds / 1000).toFixed(2)}s` : `${milliseconds.toFixed(0)}ms`
 )
 </script>
+
+<style scoped>
+.dashboard-metric-strip :deep(.ui-metric) {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
+}
+</style>

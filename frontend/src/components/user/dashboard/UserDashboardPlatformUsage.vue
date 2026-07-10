@@ -1,6 +1,7 @@
 <template>
   <UiSection
     class="dashboard-section"
+    surface="panel"
     :title="t('dashboard.todayPlatformUsage')"
   >
     <template #actions>
@@ -96,11 +97,6 @@ const platformDotClass = (platform: string) => {
 </script>
 
 <style scoped>
-.dashboard-section {
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--ui-border);
-}
-
 .platform-summary {
   display: flex;
   flex-wrap: wrap;
