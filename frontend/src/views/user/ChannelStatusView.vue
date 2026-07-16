@@ -13,21 +13,23 @@
 
       <div class="channel-quota-grid">
         <ChannelQuotaSummary
-          :dashboard="quotaPoolDashboard?.mine ?? null"
+          :dashboard="quotaPoolDashboard?.platform ?? null"
           :loading="quotaPoolLoading"
           :error="quotaPoolError"
-          :title="t('channelStatus.quotaPool.mineTitle')"
-          :empty-message="t('channelStatus.quotaPool.mineEmpty')"
+          :desktop-page-size="3"
+          :mobile-page-size="3"
+          :title="t('channelStatus.quotaPool.platformTitle')"
+          :empty-message="t('channelStatus.quotaPool.platformEmpty')"
           :load-failed-message="t('channelStatus.quotaPool.loadFailed')"
           @refresh="reloadQuotaPool(false)"
         />
 
         <ChannelQuotaSummary
-          :dashboard="quotaPoolDashboard?.platform ?? null"
+          :dashboard="quotaPoolDashboard?.mine ?? null"
           :loading="quotaPoolLoading"
           :error="quotaPoolError"
-          :title="t('channelStatus.quotaPool.platformTitle')"
-          :empty-message="t('channelStatus.quotaPool.platformEmpty')"
+          :title="t('channelStatus.quotaPool.mineTitle')"
+          :empty-message="t('channelStatus.quotaPool.mineEmpty')"
           :load-failed-message="t('channelStatus.quotaPool.loadFailed')"
           @refresh="reloadQuotaPool(false)"
         />

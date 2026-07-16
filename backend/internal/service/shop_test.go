@@ -12,11 +12,11 @@ import (
 	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/shopbalanceledger"
 	"ikik-api/internal/payment"
 	infraerrors "ikik-api/internal/pkg/errors"
-	"github.com/stretchr/testify/require"
 )
 
 func TestShopPlatformFulfillmentUsesReservedCards(t *testing.T) {
@@ -681,6 +681,29 @@ func newShopFileCardTestSettingRepo() *paymentConfigSettingRepoStub {
 		settingShopFileCardOSSPrefix:          "cards/",
 		settingShopFileCardOSSForcePathStyle:  "false",
 	}}
+}
+
+func TestShopFileCardStorageRequiresSecretWhenAccessKeyChanges(t *testing.T) {
+	t.Parallel()
+
+	repo := newShopFileCardTestSettingRepo()
+	svc := NewShopService(nil, nil, nil, nil, WithShopSettingRepository(repo))
+	newAccessKey := "new-access-key"
+	emptySecret := ""
+
+	_, err := svc.UpdateFileCardStorageConfig(context.Background(), UpdateShopFileCardStorageConfigRequest{
+		AccessKeyID:     &newAccessKey,
+		SecretAccessKey: &emptySecret,
+	})
+	require.Error(t, err)
+	require.Equal(t, "SHOP_FILE_CARD_OSS_SECRET_REQUIRED_FOR_NEW_ACCESS_KEY", infraerrors.Reason(err))
+
+	err = svc.TestFileCardStorageConfig(context.Background(), &UpdateShopFileCardStorageConfigRequest{
+		AccessKeyID:     &newAccessKey,
+		SecretAccessKey: &emptySecret,
+	})
+	require.Error(t, err)
+	require.Equal(t, "SHOP_FILE_CARD_OSS_SECRET_REQUIRED_FOR_NEW_ACCESS_KEY", infraerrors.Reason(err))
 }
 
 type memoryShopFileCardStore struct {

@@ -657,7 +657,7 @@ func TestAccountServiceAutoRepairSuspectedOpenAIFreeAccountSuspendsPublicShareAn
 	require.Equal(t, AccountLevelFree, account.AccountLevel)
 	require.Equal(t, AccountShareStatusSuspended, account.ShareStatus)
 	require.Equal(t, "quota proof", account.ErrorMessage)
-	require.Equal(t, []int64{10}, repo.boundGroupIDs[accountID])
+	require.Equal(t, []int64{99, 10}, repo.boundGroupIDs[accountID])
 	require.Len(t, repo.updatedAccounts, 1)
 	require.Equal(t, AccountLevelFree, repo.updatedAccounts[0].AccountLevel)
 }
@@ -699,12 +699,10 @@ func TestAccountServiceValidateOwnedPublicSharePolicyRequiresEnabledPositivePoli
 	})
 }
 
-func TestAccountServiceInitialOwnedAccountGroupIDsUsesPublicPoolForPublicMode(t *testing.T) {
+func TestAccountServiceInitialOwnedAccountGroupIDsKeepsPendingPublicAccountPrivate(t *testing.T) {
 	svc := &AccountService{
-		groupRepo: &ownedPublicShareGroupRepoStub{
-			groups: []Group{
-				{ID: 11, Name: "Plus Shared Pool", Platform: PlatformOpenAI, Status: StatusActive, Scope: GroupScopePublic, RequiredAccountLevel: AccountLevelPlus},
-			},
+		privateGroupProvisioner: &ownedPrivateGroupProvisionerStub{
+			group: &Group{ID: 99, Platform: PlatformOpenAI, Status: StatusActive, Scope: GroupScopeUserPrivate},
 		},
 	}
 
@@ -716,7 +714,40 @@ func TestAccountServiceInitialOwnedAccountGroupIDsUsesPublicPoolForPublicMode(t 
 	}, []int64{99})
 
 	require.NoError(t, err)
-	require.Equal(t, []int64{11}, groupIDs)
+	require.Equal(t, []int64{99}, groupIDs)
+}
+
+func TestAccountServiceCreateOwnedAllowsPublicShareWithOwnedProxy(t *testing.T) {
+	ownerID := int64(101)
+	proxyID := int64(7)
+	repo := &ownedAccountDuplicateRepoStub{}
+	svc := &AccountService{
+		accountRepo: repo,
+		proxyRepo: &ownedOAuthProxyRepoStub{
+			proxy: &Proxy{ID: proxyID, Status: StatusActive},
+		},
+		privateGroupProvisioner: &ownedPrivateGroupProvisionerStub{
+			group: &Group{ID: 99, Platform: PlatformOpenAI, Status: StatusActive, Scope: GroupScopeUserPrivate},
+		},
+	}
+
+	account, err := svc.CreateOwned(context.Background(), ownerID, CreateAccountRequest{
+		Name:        "proxied-public-account",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Credentials: map[string]any{"access_token": "token"},
+		ProxyID:     &proxyID,
+		ShareMode:   AccountShareModePublic,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	require.Equal(t, AccountShareModePublic, account.ShareMode)
+	require.Equal(t, AccountShareStatusPending, account.ShareStatus)
+	require.Equal(t, &proxyID, account.ProxyID)
+	require.Equal(t, ownedPersonalDefaultConcurrency, account.Concurrency)
+	require.Equal(t, []int64{99}, account.GroupIDs)
+	require.Len(t, repo.createdAccounts, 1)
 }
 
 func TestAccountServiceInitialOwnedAccountGroupIDsIgnoresRequestedGroupsForPrivateMode(t *testing.T) {
@@ -814,24 +845,33 @@ func TestAccountServiceCreateOwnedRejectsDuplicateOpenAIIdentity(t *testing.T) {
 	require.Empty(t, repo.createdAccounts)
 }
 
-func TestAccountServiceCreateOwnedRejectsManualAccountLevel(t *testing.T) {
+func TestAccountServiceCreateOwnedIgnoresManualAccountLevelAndDetectsCredentials(t *testing.T) {
 	ownerID := int64(101)
 	repo := &ownedAccountDuplicateRepoStub{}
-	svc := &AccountService{accountRepo: repo}
+	svc := &AccountService{
+		accountRepo: repo,
+		privateGroupProvisioner: &ownedPrivateGroupProvisionerStub{
+			group: &Group{ID: 99, Platform: PlatformOpenAI, Status: StatusActive, Scope: GroupScopeUserPrivate},
+		},
+	}
 
 	account, err := svc.CreateOwned(context.Background(), ownerID, CreateAccountRequest{
 		Name:         "manual-level",
 		Platform:     PlatformOpenAI,
 		Type:         AccountTypeOAuth,
-		AccountLevel: AccountLevelPro,
-		Credentials:  map[string]any{"access_token": "token"},
-		Concurrency:  1,
-		Priority:     1,
+		AccountLevel: AccountLevelTeam,
+		Credentials: map[string]any{
+			"access_token": "token",
+			"plan_type":    "pro",
+		},
+		Concurrency: 1,
+		Priority:    1,
 	})
 
-	require.Nil(t, account)
-	require.ErrorIs(t, err, ErrOwnedAccountLevelNotAllowed)
-	require.Empty(t, repo.createdAccounts)
+	require.NoError(t, err)
+	require.Equal(t, AccountLevelPro, account.AccountLevel)
+	require.Len(t, repo.createdAccounts, 1)
+	require.Equal(t, AccountLevelPro, repo.createdAccounts[0].AccountLevel)
 }
 
 func TestValidateOwnedAccountSourceAllowsOAuthMetadataURLs(t *testing.T) {
@@ -943,7 +983,7 @@ func TestAccountServiceUpdateOwnedRejectsManualAccountLevel(t *testing.T) {
 	ownerID := int64(101)
 	repo := &ownedAccountDuplicateRepoStub{}
 	svc := &AccountService{accountRepo: repo}
-	level := AccountLevelPro
+	level := AccountLevelTeam
 
 	account, err := svc.UpdateOwned(context.Background(), ownerID, 2, UpdateAccountRequest{AccountLevel: &level})
 
@@ -999,7 +1039,7 @@ func TestAccountServiceBulkUpdateOwnedRejectsManualAccountLevel(t *testing.T) {
 	ownerID := int64(101)
 	repo := &ownedAccountDuplicateRepoStub{}
 	svc := &AccountService{accountRepo: repo}
-	level := AccountLevelPro
+	level := AccountLevelTeam
 
 	result, err := svc.BulkUpdateOwned(context.Background(), ownerID, &BulkUpdateOwnedAccountsInput{
 		AccountIDs:   []int64{1},
@@ -1258,6 +1298,101 @@ func TestAccountServiceUpdateOwnedSwitchesApprovedPublicAccountBackToPrivateGrou
 	require.Equal(t, []int64{99}, repo.boundGroupIDs[accountID])
 }
 
+func TestAccountServiceUpdateOwnedAllowsProxiedAccountToEnterPublicPool(t *testing.T) {
+	ownerID := int64(101)
+	accountID := int64(20)
+	proxyID := int64(7)
+	repo := &ownedAccountDuplicateRepoStub{
+		getByIDAccounts: map[int64]*Account{
+			accountID: {
+				ID:           accountID,
+				Platform:     PlatformOpenAI,
+				AccountLevel: AccountLevelPlus,
+				Type:         AccountTypeOAuth,
+				OwnerUserID:  &ownerID,
+				Credentials:  map[string]any{"access_token": "token", "chatgpt_account_id": "acct-1"},
+				ProxyID:      &proxyID,
+				ShareMode:    AccountShareModePrivate,
+				ShareStatus:  AccountShareStatusApproved,
+				Status:       StatusActive,
+				Schedulable:  true,
+				Concurrency:  3,
+				Priority:     1,
+			},
+		},
+		listOwnedByPlatform: map[string][]Account{
+			PlatformOpenAI: {
+				{ID: accountID, Platform: PlatformOpenAI, Type: AccountTypeOAuth, OwnerUserID: &ownerID, Credentials: map[string]any{"chatgpt_account_id": "acct-1"}},
+			},
+		},
+	}
+	svc := &AccountService{
+		accountRepo: repo,
+		privateGroupProvisioner: &ownedPrivateGroupProvisionerStub{
+			group: &Group{ID: 99, Platform: PlatformOpenAI, Status: StatusActive, Scope: GroupScopeUserPrivate},
+		},
+	}
+	shareMode := AccountShareModePublic
+
+	account, err := svc.UpdateOwned(context.Background(), ownerID, accountID, UpdateAccountRequest{ShareMode: &shareMode})
+
+	require.NoError(t, err)
+	require.Equal(t, AccountShareModePublic, account.ShareMode)
+	require.Equal(t, AccountShareStatusPending, account.ShareStatus)
+	require.Equal(t, &proxyID, account.ProxyID)
+	require.Equal(t, ownedPersonalDefaultConcurrency, account.Concurrency)
+	require.Equal(t, []int64{99}, account.GroupIDs)
+	require.Equal(t, []int64{99}, repo.boundGroupIDs[accountID])
+}
+
+func TestAccountServiceApproveOwnedPublicShareAllowsProxiedAccount(t *testing.T) {
+	ownerID := int64(101)
+	accountID := int64(20)
+	proxyID := int64(7)
+	repo := &ownedAccountDuplicateRepoStub{
+		getByIDAccounts: map[int64]*Account{
+			accountID: {
+				ID:           accountID,
+				Platform:     PlatformOpenAI,
+				AccountLevel: AccountLevelPlus,
+				Type:         AccountTypeOAuth,
+				OwnerUserID:  &ownerID,
+				Credentials:  map[string]any{"access_token": "token"},
+				ProxyID:      &proxyID,
+				ShareMode:    AccountShareModePublic,
+				ShareStatus:  AccountShareStatusPending,
+				Status:       StatusActive,
+				Schedulable:  true,
+				Concurrency:  ownedPersonalDefaultConcurrency,
+				Priority:     1,
+			},
+		},
+	}
+	svc := &AccountService{
+		accountRepo: repo,
+		groupRepo: &ownedPublicShareGroupRepoStub{
+			groups: []Group{
+				{ID: 18, Name: "Plus Shared Pool", Platform: PlatformOpenAI, Status: StatusActive, Scope: GroupScopePublic, RequiredAccountLevel: AccountLevelPlus},
+			},
+		},
+		privateGroupProvisioner: &ownedPrivateGroupProvisionerStub{
+			group: &Group{ID: 99, Platform: PlatformOpenAI, Status: StatusActive, Scope: GroupScopeUserPrivate},
+		},
+		accountSharePolicyRepo: &ownedPublicSharePolicyRepoStub{
+			policy: &AccountSharePolicy{ID: 1, OwnerShareRatio: 0.7, Enabled: true},
+		},
+	}
+
+	account, err := svc.ApproveOwnedPublicShare(context.Background(), ownerID, accountID)
+
+	require.NoError(t, err)
+	require.Equal(t, AccountShareModePublic, account.ShareMode)
+	require.Equal(t, AccountShareStatusApproved, account.ShareStatus)
+	require.Equal(t, &proxyID, account.ProxyID)
+	require.Equal(t, []int64{99, 18}, account.GroupIDs)
+	require.Equal(t, []int64{99, 18}, repo.boundGroupIDs[accountID])
+}
+
 func TestAccountServiceManagedGroupIDsKeepsApprovedPublicAccountInPublicPool(t *testing.T) {
 	ownerID := int64(101)
 	svc := &AccountService{
@@ -1283,7 +1418,7 @@ func TestAccountServiceManagedGroupIDsKeepsApprovedPublicAccountInPublicPool(t *
 	groupIDs, err := svc.managedOwnedAccountGroupIDsForShareMode(context.Background(), ownerID, account, AccountShareModePublic)
 
 	require.NoError(t, err)
-	require.Equal(t, []int64{18}, groupIDs)
+	require.Equal(t, []int64{99, 18}, groupIDs)
 }
 
 func TestAccountServiceDuplicateIdentityKeys(t *testing.T) {
@@ -1384,6 +1519,7 @@ func TestAccountQuotaDashboardWindowCapacityUsesOnlySchedulableAccounts(t *testi
 			Type:        AccountTypeOAuth,
 			Status:      StatusActive,
 			Schedulable: true,
+			Concurrency: 4,
 			Extra: map[string]any{
 				"codex_5h_used_percent": 40.0,
 				"codex_5h_reset_at":     usageReset,
@@ -1397,6 +1533,7 @@ func TestAccountQuotaDashboardWindowCapacityUsesOnlySchedulableAccounts(t *testi
 			Type:             AccountTypeOAuth,
 			Status:           StatusActive,
 			Schedulable:      true,
+			Concurrency:      8,
 			RateLimitResetAt: &limitedUntil,
 			Extra: map[string]any{
 				"codex_5h_used_percent": 10.0,
@@ -1411,6 +1548,7 @@ func TestAccountQuotaDashboardWindowCapacityUsesOnlySchedulableAccounts(t *testi
 			Type:        AccountTypeOAuth,
 			Status:      StatusError,
 			Schedulable: true,
+			Concurrency: 2,
 		},
 		{
 			ID:          4,
@@ -1418,6 +1556,7 @@ func TestAccountQuotaDashboardWindowCapacityUsesOnlySchedulableAccounts(t *testi
 			Type:        AccountTypeOAuth,
 			Status:      StatusDisabled,
 			Schedulable: true,
+			Concurrency: 3,
 		},
 		{
 			ID:               5,
@@ -1425,6 +1564,7 @@ func TestAccountQuotaDashboardWindowCapacityUsesOnlySchedulableAccounts(t *testi
 			Type:             AccountTypeOAuth,
 			Status:           StatusError,
 			Schedulable:      true,
+			Concurrency:      5,
 			RateLimitResetAt: &limitedUntil,
 		},
 	} {
@@ -1438,11 +1578,49 @@ func TestAccountQuotaDashboardWindowCapacityUsesOnlySchedulableAccounts(t *testi
 	require.Equal(t, 1, dashboard.Totals.RateLimitedAccountCount)
 	require.Equal(t, 2, dashboard.Totals.ErrorAccountCount)
 	require.Equal(t, 1, dashboard.Totals.DisabledAccountCount)
+	require.Equal(t, 22, dashboard.Totals.ConcurrencyCapacity)
+	require.Equal(t, 4, dashboard.Totals.SchedulableConcurrencyCapacity)
 	require.Len(t, dashboard.Totals.UsageWindows, 2)
 	for _, window := range dashboard.Totals.UsageWindows {
 		require.Equal(t, 1, window.AccountCount)
 		require.Equal(t, 1, window.KnownAccountCount)
 	}
+}
+
+func TestAccountQuotaDashboardCountsQuotaProtectedAccounts(t *testing.T) {
+	now := time.Date(2026, 5, 13, 10, 0, 0, 0, time.UTC)
+	builder := newAccountQuotaDashboardBuilder(now)
+	builder.addAccount(Account{
+		ID:          1,
+		Platform:    PlatformCustom,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 6,
+		Extra: map[string]any{
+			"quota_limit": 2.0,
+			"quota_used":  2.0,
+		},
+	})
+	builder.addAccount(Account{
+		ID:          2,
+		Platform:    PlatformCustom,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 4,
+		Extra: map[string]any{
+			"quota_limit": 2.0,
+			"quota_used":  1.0,
+		},
+	})
+
+	dashboard := builder.finalize()
+	require.Equal(t, 2, dashboard.Totals.AccountCount)
+	require.Equal(t, 1, dashboard.Totals.QuotaProtectedAccountCount)
+	require.Equal(t, 1, dashboard.Totals.SchedulableAccountCount)
+	require.Equal(t, 10, dashboard.Totals.ConcurrencyCapacity)
+	require.Equal(t, 4, dashboard.Totals.SchedulableConcurrencyCapacity)
 }
 
 func TestAccountQuotaGroupDashboardUsesGeneratedAtForSchedulability(t *testing.T) {

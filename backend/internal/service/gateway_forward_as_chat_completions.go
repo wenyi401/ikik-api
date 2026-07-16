@@ -76,6 +76,9 @@ func (s *GatewayService) ForwardAsChatCompletions(
 		}
 	}
 	anthropicReq.Model = mappedModel
+	if account.IsClaudeWebSession() {
+		anthropicReq.ToolChoice = applyClaudeWebParallelToolChoice(anthropicReq.ToolChoice, ccReq.ParallelToolCalls)
+	}
 
 	logger.L().Debug("gateway forward_as_chat_completions: model mapping applied",
 		zap.Int64("account_id", account.ID),

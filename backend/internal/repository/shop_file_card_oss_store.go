@@ -7,12 +7,12 @@ import (
 	"io"
 	"strings"
 
-	"ikik-api/internal/service"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"ikik-api/internal/service"
 )
 
 type shopFileCardOSSStore struct {
@@ -63,7 +63,7 @@ func (s *shopFileCardOSSStore) Upload(ctx context.Context, key string, body io.R
 		ContentType: &contentType,
 	})
 	if err != nil {
-		return fmt.Errorf("OSS PutObject: %w", err)
+		return mapObjectStorageError("upload shop file card object", err)
 	}
 	return nil
 }
@@ -74,7 +74,7 @@ func (s *shopFileCardOSSStore) Download(ctx context.Context, key string) (io.Rea
 		Key:    &key,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("OSS GetObject: %w", err)
+		return nil, mapObjectStorageError("download shop file card object", err)
 	}
 	return result.Body, nil
 }
@@ -85,7 +85,7 @@ func (s *shopFileCardOSSStore) Delete(ctx context.Context, key string) error {
 		Key:    &key,
 	})
 	if err != nil {
-		return fmt.Errorf("OSS DeleteObject: %w", err)
+		return mapObjectStorageError("delete shop file card object", err)
 	}
 	return nil
 }
@@ -93,7 +93,7 @@ func (s *shopFileCardOSSStore) Delete(ctx context.Context, key string) error {
 func (s *shopFileCardOSSStore) HeadBucket(ctx context.Context) error {
 	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &s.bucket})
 	if err != nil {
-		return fmt.Errorf("OSS HeadBucket: %w", err)
+		return mapObjectStorageError("test shop file card bucket", err)
 	}
 	return nil
 }

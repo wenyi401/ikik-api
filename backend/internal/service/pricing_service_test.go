@@ -2,10 +2,26 @@ package service
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestBundledPricingCatalogIncludesLatestOAuthModels(t *testing.T) {
+	t.Parallel()
+
+	body, err := os.ReadFile(filepath.Join("..", "..", "resources", "model-pricing", "model_prices_and_context_window.json"))
+	require.NoError(t, err)
+
+	svc := &PricingService{}
+	data, err := svc.parsePricingData(body)
+	require.NoError(t, err)
+	for _, model := range []string{"claude-opus-4-7", "gemini-3.5-flash", "gpt-5.5-pro", "codex-auto-review"} {
+		require.Contains(t, data, model)
+	}
+}
 
 func TestParsePricingData_ParsesPriorityAndServiceTierFields(t *testing.T) {
 	svc := &PricingService{}

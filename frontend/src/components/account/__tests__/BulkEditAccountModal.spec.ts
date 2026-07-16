@@ -105,7 +105,7 @@ function mountModal(extraProps: Record<string, unknown> = {}, extraStubs: Record
               :value="modelValue"
               @change="$emit('update:modelValue', $event.target.value)"
             >
-              <option v-for="option in options" :key="option.value" :value="option.value">
+              <option v-for="option in options" :key="option.value" :value="option.value" :disabled="option.disabled">
                 {{ option.label }}
               </option>
             </select>
@@ -148,8 +148,8 @@ describe('BulkEditAccountModal', () => {
 
     await selector.find('div.cursor-pointer').trigger('click')
 
-    expect(wrapper.text()).not.toContain('gemini-3.1-flash-image')
-    expect(wrapper.text()).not.toContain('gemini-2.5-flash-image')
+    expect(wrapper.text()).toContain('gemini-3.1-flash-image')
+    expect(wrapper.text()).toContain('gemini-2.5-flash-image')
     expect(wrapper.text()).not.toContain('gpt-5.3-codex')
   })
 
@@ -160,8 +160,8 @@ describe('BulkEditAccountModal', () => {
     expect(mappingTab).toBeTruthy()
     await mappingTab!.trigger('click')
 
-    expect(wrapper.text()).not.toContain('Flash-Image')
-    expect(wrapper.text()).not.toContain('Pro-Image')
+    expect(wrapper.text()).toContain('Flash-Image')
+    expect(wrapper.text()).toContain('Pro-Image')
     expect(wrapper.text()).not.toContain('GPT-5.3 Codex Spark')
   })
 
@@ -412,6 +412,41 @@ describe('BulkEditAccountModal', () => {
       share_mode: 'public'
     })
     expect(adminAPI.accounts.bulkUpdate).not.toHaveBeenCalled()
+  })
+
+  it('allows a user to apply a proxy and public sharing together', async () => {
+    const wrapper = mountModal({
+      accountScope: 'user',
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth'],
+      proxies: [{ id: 7, name: 'Residential', status: 'active' }]
+    }, {
+      ProxySelector: {
+        props: ['modelValue'],
+        emits: ['update:modelValue'],
+        template: `
+          <button type="button" data-testid="select-proxy" @click="$emit('update:modelValue', 7)">
+            select proxy
+          </button>
+        `
+      }
+    })
+
+    await wrapper.get('#bulk-edit-proxy-enabled').setValue(true)
+    await wrapper.get('[data-testid="select-proxy"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('#bulk-edit-share-mode-enabled').setValue(true)
+
+    const shareModeSelect = wrapper.get('select[aria-labelledby="bulk-edit-share-mode-label"]')
+    expect(shareModeSelect.get('option[value="public"]').attributes('disabled')).toBeUndefined()
+    await shareModeSelect.setValue('public')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(accountsAPI.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      proxy_id: 7,
+      share_mode: 'public'
+    })
   })
 
   it('用户作用域批量改为公共共享时支持后台任务响应', async () => {

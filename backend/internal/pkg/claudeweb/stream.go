@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -32,10 +33,21 @@ type webStreamDelta struct {
 	Text        string `json:"text,omitempty"`
 	Thinking    string `json:"thinking,omitempty"`
 	PartialJSON string `json:"partial_json,omitempty"`
+	StopReason  string `json:"stop_reason,omitempty"`
+}
+
+type StreamOptions struct {
+	Model       string
+	InputTokens int
+	ToolBridge  *ToolBridgeConfig
 }
 
 func ConvertStream(ctx context.Context, source io.Reader, destination io.Writer, model string, inputTokens int) (StreamUsage, error) {
-	usage := StreamUsage{InputTokens: inputTokens}
+	return ConvertStreamWithOptions(ctx, source, destination, StreamOptions{Model: model, InputTokens: inputTokens})
+}
+
+func ConvertStreamWithOptions(ctx context.Context, source io.Reader, destination io.Writer, options StreamOptions) (StreamUsage, error) {
+	usage := StreamUsage{InputTokens: options.InputTokens}
 	messageID := "msg_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	messageStart := map[string]any{
 		"type": "message_start",
@@ -44,11 +56,11 @@ func ConvertStream(ctx context.Context, source io.Reader, destination io.Writer,
 			"type":          "message",
 			"role":          "assistant",
 			"content":       []any{},
-			"model":         model,
+			"model":         options.Model,
 			"stop_reason":   nil,
 			"stop_sequence": nil,
 			"usage": map[string]int{
-				"input_tokens":                inputTokens,
+				"input_tokens":                options.InputTokens,
 				"output_tokens":               0,
 				"cache_creation_input_tokens": 0,
 				"cache_read_input_tokens":     0,
@@ -63,6 +75,109 @@ func ConvertStream(ctx context.Context, source io.Reader, destination io.Writer,
 	scanner.Buffer(make([]byte, 0, 64*1024), 16<<20)
 	startedBlocks := make(map[int]string)
 	outputText := strings.Builder{}
+	stopReason := ""
+	bridge := options.ToolBridge
+	var bridgeParser *ToolBridgeParser
+	if bridge != nil && bridge.Enabled() {
+		bridgeParser = NewToolBridgeParser(bridge)
+	}
+	bridgeIndex := -1
+	bridgeTextStarted := false
+	bridgeTextStopped := false
+	bridgeToolCallsEmitted := false
+	nextContentIndex := 0
+
+	writeBridgeText := func(text string) error {
+		if text == "" {
+			return nil
+		}
+		if bridgeToolCallsEmitted {
+			return errors.New("claude Web returned text after a tool call")
+		}
+		if bridgeIndex < 0 {
+			bridgeIndex = nextContentIndex
+		}
+		if !bridgeTextStarted {
+			start := map[string]any{
+				"type":  "content_block_start",
+				"index": bridgeIndex,
+				"content_block": map[string]any{
+					"type": "text",
+					"text": "",
+				},
+			}
+			if err := writeSSE(destination, "content_block_start", start); err != nil {
+				return err
+			}
+			bridgeTextStarted = true
+			nextContentIndex = maxStreamIndex(nextContentIndex, bridgeIndex+1)
+		}
+		return writeSSE(destination, "content_block_delta", map[string]any{
+			"type":  "content_block_delta",
+			"index": bridgeIndex,
+			"delta": map[string]any{"type": "text_delta", "text": text},
+		})
+	}
+
+	stopBridgeText := func() error {
+		if !bridgeTextStarted || bridgeTextStopped {
+			return nil
+		}
+		bridgeTextStopped = true
+		return writeSSE(destination, "content_block_stop", map[string]any{
+			"type":  "content_block_stop",
+			"index": bridgeIndex,
+		})
+	}
+
+	emitBridgeCalls := func(calls []ToolCall) error {
+		if len(calls) == 0 {
+			return nil
+		}
+		if err := stopBridgeText(); err != nil {
+			return err
+		}
+		for callIndex, call := range calls {
+			index := nextContentIndex
+			if callIndex == 0 && !bridgeTextStarted && bridgeIndex >= 0 {
+				index = bridgeIndex
+			}
+			nextContentIndex = maxStreamIndex(nextContentIndex, index+1)
+			callID := "toolu_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+			if err := writeSSE(destination, "content_block_start", map[string]any{
+				"type":  "content_block_start",
+				"index": index,
+				"content_block": map[string]any{
+					"type":  "tool_use",
+					"id":    callID,
+					"name":  call.Name,
+					"input": map[string]any{},
+				},
+			}); err != nil {
+				return err
+			}
+			if err := writeSSE(destination, "content_block_delta", map[string]any{
+				"type":  "content_block_delta",
+				"index": index,
+				"delta": map[string]any{
+					"type":         "input_json_delta",
+					"partial_json": string(call.Arguments),
+				},
+			}); err != nil {
+				return err
+			}
+			if err := writeSSE(destination, "content_block_stop", map[string]any{
+				"type":  "content_block_stop",
+				"index": index,
+			}); err != nil {
+				return err
+			}
+		}
+		bridgeToolCallsEmitted = true
+		stopReason = "tool_use"
+		return nil
+	}
+
 	processEvent := func(eventType, payload string) error {
 		payload = strings.TrimSpace(payload)
 		if payload == "" || payload == "[DONE]" {
@@ -74,7 +189,13 @@ func ConvertStream(ctx context.Context, source io.Reader, destination io.Writer,
 			return nil
 		}
 		switch event.Type {
-		case "message_start", "message_delta", "message_stop", "ping":
+		case "message_start", "message_stop", "ping":
+			return nil
+		case "message_delta":
+			var delta webStreamDelta
+			if !bridgeToolCallsEmitted && json.Unmarshal(event.Delta, &delta) == nil && strings.TrimSpace(delta.StopReason) != "" {
+				stopReason = strings.TrimSpace(delta.StopReason)
+			}
 			return nil
 		case "error":
 			message := strings.TrimSpace(event.Error.Message)
@@ -84,12 +205,41 @@ func ConvertStream(ctx context.Context, source io.Reader, destination io.Writer,
 			return fmt.Errorf("%s", message)
 		case "content_block_start":
 			index := eventIndex(event.Index)
-			startedBlocks[index] = contentBlockType(string(rawPayload))
+			blockType := contentBlockType(string(rawPayload))
+			startedBlocks[index] = blockType
+			nextContentIndex = maxStreamIndex(nextContentIndex, index+1)
+			if bridgeParser != nil && blockType == "text" {
+				if bridgeIndex < 0 {
+					bridgeIndex = index
+				}
+				return nil
+			}
+			if blockType == "tool_use" {
+				stopReason = "tool_use"
+			}
 			return writeRawSSE(destination, event.Type, rawPayload)
 		case "content_block_delta":
 			index := eventIndex(event.Index)
 			var delta webStreamDelta
 			_ = json.Unmarshal(event.Delta, &delta)
+			for _, text := range []string{delta.Text, delta.Thinking, delta.PartialJSON} {
+				if _, err := outputText.WriteString(text); err != nil {
+					return err
+				}
+			}
+			if bridgeParser != nil && delta.Type == "text_delta" {
+				if bridgeIndex < 0 {
+					bridgeIndex = index
+				}
+				text, calls, err := bridgeParser.Feed(delta.Text)
+				if err != nil {
+					return err
+				}
+				if err := writeBridgeText(text); err != nil {
+					return err
+				}
+				return emitBridgeCalls(calls)
+			}
 			if _, ok := startedBlocks[index]; !ok {
 				blockType := "text"
 				if delta.Type == "thinking_delta" {
@@ -112,14 +262,14 @@ func ConvertStream(ctx context.Context, source io.Reader, destination io.Writer,
 				if err := writeSSE(destination, "content_block_start", start); err != nil {
 					return err
 				}
-			}
-			for _, text := range []string{delta.Text, delta.Thinking, delta.PartialJSON} {
-				if _, err := outputText.WriteString(text); err != nil {
-					return err
-				}
+				nextContentIndex = maxStreamIndex(nextContentIndex, index+1)
 			}
 			return writeRawSSE(destination, event.Type, rawPayload)
 		case "content_block_stop":
+			index := eventIndex(event.Index)
+			if bridgeParser != nil && startedBlocks[index] == "text" {
+				return nil
+			}
 			return writeRawSSE(destination, event.Type, rawPayload)
 		default:
 			if event.Type != "" {
@@ -165,12 +315,30 @@ func ConvertStream(ctx context.Context, source io.Reader, destination io.Writer,
 	if err := flushEvent(); err != nil {
 		return usage, err
 	}
+	if bridgeParser != nil {
+		text, calls, err := bridgeParser.Finish()
+		if err != nil {
+			return usage, err
+		}
+		if err := writeBridgeText(text); err != nil {
+			return usage, err
+		}
+		if err := emitBridgeCalls(calls); err != nil {
+			return usage, err
+		}
+		if err := stopBridgeText(); err != nil {
+			return usage, err
+		}
+	}
 
 	usage.OutputTokens = anthropictokenizer.CountTokens(outputText.String())
+	if stopReason == "" {
+		stopReason = "end_turn"
+	}
 	messageDelta := map[string]any{
 		"type": "message_delta",
 		"delta": map[string]any{
-			"stop_reason":   "end_turn",
+			"stop_reason":   stopReason,
 			"stop_sequence": nil,
 		},
 		"usage": map[string]int{
@@ -184,6 +352,13 @@ func ConvertStream(ctx context.Context, source io.Reader, destination io.Writer,
 		return usage, err
 	}
 	return usage, nil
+}
+
+func maxStreamIndex(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func normalizeWebStreamEvent(eventType, payload string) ([]byte, webStreamEvent, bool) {

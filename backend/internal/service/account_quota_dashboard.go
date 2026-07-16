@@ -26,39 +26,45 @@ type UserAccountQuotaPoolDashboard struct {
 }
 
 type AccountQuotaSummary struct {
-	Platform                string                       `json:"platform"`
-	Type                    string                       `json:"type"`
-	AccountCount            int                          `json:"account_count"`
-	ActiveAccountCount      int                          `json:"active_account_count"`
-	SchedulableAccountCount int                          `json:"schedulable_account_count"`
-	RateLimitedAccountCount int                          `json:"rate_limited_account_count"`
-	ErrorAccountCount       int                          `json:"error_account_count"`
-	DisabledAccountCount    int                          `json:"disabled_account_count"`
-	QuotaAccountCount       int                          `json:"quota_account_count"`
-	UnlimitedAccountCount   int                          `json:"unlimited_account_count"`
-	Total                   AccountQuotaDimensionSummary `json:"total"`
-	Daily                   AccountQuotaDimensionSummary `json:"daily"`
-	Weekly                  AccountQuotaDimensionSummary `json:"weekly"`
-	UsageWindows            []AccountUsageWindowSummary  `json:"usage_windows,omitempty"`
+	Platform                       string                       `json:"platform"`
+	Type                           string                       `json:"type"`
+	AccountCount                   int                          `json:"account_count"`
+	ActiveAccountCount             int                          `json:"active_account_count"`
+	SchedulableAccountCount        int                          `json:"schedulable_account_count"`
+	RateLimitedAccountCount        int                          `json:"rate_limited_account_count"`
+	QuotaProtectedAccountCount     int                          `json:"quota_protected_account_count"`
+	ErrorAccountCount              int                          `json:"error_account_count"`
+	DisabledAccountCount           int                          `json:"disabled_account_count"`
+	ConcurrencyCapacity            int                          `json:"concurrency_capacity"`
+	SchedulableConcurrencyCapacity int                          `json:"schedulable_concurrency_capacity"`
+	QuotaAccountCount              int                          `json:"quota_account_count"`
+	UnlimitedAccountCount          int                          `json:"unlimited_account_count"`
+	Total                          AccountQuotaDimensionSummary `json:"total"`
+	Daily                          AccountQuotaDimensionSummary `json:"daily"`
+	Weekly                         AccountQuotaDimensionSummary `json:"weekly"`
+	UsageWindows                   []AccountUsageWindowSummary  `json:"usage_windows,omitempty"`
 }
 
 type AccountQuotaGroupSummary struct {
-	GroupID                 *int64                       `json:"group_id"`
-	GroupName               string                       `json:"group_name"`
-	GroupStatus             string                       `json:"group_status"`
-	Platform                string                       `json:"platform"`
-	AccountCount            int                          `json:"account_count"`
-	ActiveAccountCount      int                          `json:"active_account_count"`
-	SchedulableAccountCount int                          `json:"schedulable_account_count"`
-	RateLimitedAccountCount int                          `json:"rate_limited_account_count"`
-	ErrorAccountCount       int                          `json:"error_account_count"`
-	DisabledAccountCount    int                          `json:"disabled_account_count"`
-	QuotaAccountCount       int                          `json:"quota_account_count"`
-	UnlimitedAccountCount   int                          `json:"unlimited_account_count"`
-	Total                   AccountQuotaDimensionSummary `json:"total"`
-	Daily                   AccountQuotaDimensionSummary `json:"daily"`
-	Weekly                  AccountQuotaDimensionSummary `json:"weekly"`
-	UsageWindows            []AccountUsageWindowSummary  `json:"usage_windows,omitempty"`
+	GroupID                        *int64                       `json:"group_id"`
+	GroupName                      string                       `json:"group_name"`
+	GroupStatus                    string                       `json:"group_status"`
+	Platform                       string                       `json:"platform"`
+	AccountCount                   int                          `json:"account_count"`
+	ActiveAccountCount             int                          `json:"active_account_count"`
+	SchedulableAccountCount        int                          `json:"schedulable_account_count"`
+	RateLimitedAccountCount        int                          `json:"rate_limited_account_count"`
+	QuotaProtectedAccountCount     int                          `json:"quota_protected_account_count"`
+	ErrorAccountCount              int                          `json:"error_account_count"`
+	DisabledAccountCount           int                          `json:"disabled_account_count"`
+	ConcurrencyCapacity            int                          `json:"concurrency_capacity"`
+	SchedulableConcurrencyCapacity int                          `json:"schedulable_concurrency_capacity"`
+	QuotaAccountCount              int                          `json:"quota_account_count"`
+	UnlimitedAccountCount          int                          `json:"unlimited_account_count"`
+	Total                          AccountQuotaDimensionSummary `json:"total"`
+	Daily                          AccountQuotaDimensionSummary `json:"daily"`
+	Weekly                         AccountQuotaDimensionSummary `json:"weekly"`
+	UsageWindows                   []AccountUsageWindowSummary  `json:"usage_windows,omitempty"`
 }
 
 type AccountQuotaDimensionSummary struct {
@@ -487,22 +493,25 @@ func (a *accountQuotaGroupSummaryAccumulator) finalize() AccountQuotaGroupSummar
 	}
 	summary := a.core.finalize()
 	return AccountQuotaGroupSummary{
-		GroupID:                 cloneInt64Ptr(a.groupID),
-		GroupName:               a.groupName,
-		GroupStatus:             a.groupStatus,
-		Platform:                summary.Platform,
-		AccountCount:            summary.AccountCount,
-		ActiveAccountCount:      summary.ActiveAccountCount,
-		SchedulableAccountCount: summary.SchedulableAccountCount,
-		RateLimitedAccountCount: summary.RateLimitedAccountCount,
-		ErrorAccountCount:       summary.ErrorAccountCount,
-		DisabledAccountCount:    summary.DisabledAccountCount,
-		QuotaAccountCount:       summary.QuotaAccountCount,
-		UnlimitedAccountCount:   summary.UnlimitedAccountCount,
-		Total:                   summary.Total,
-		Daily:                   summary.Daily,
-		Weekly:                  summary.Weekly,
-		UsageWindows:            summary.UsageWindows,
+		GroupID:                        cloneInt64Ptr(a.groupID),
+		GroupName:                      a.groupName,
+		GroupStatus:                    a.groupStatus,
+		Platform:                       summary.Platform,
+		AccountCount:                   summary.AccountCount,
+		ActiveAccountCount:             summary.ActiveAccountCount,
+		SchedulableAccountCount:        summary.SchedulableAccountCount,
+		RateLimitedAccountCount:        summary.RateLimitedAccountCount,
+		QuotaProtectedAccountCount:     summary.QuotaProtectedAccountCount,
+		ErrorAccountCount:              summary.ErrorAccountCount,
+		DisabledAccountCount:           summary.DisabledAccountCount,
+		ConcurrencyCapacity:            summary.ConcurrencyCapacity,
+		SchedulableConcurrencyCapacity: summary.SchedulableConcurrencyCapacity,
+		QuotaAccountCount:              summary.QuotaAccountCount,
+		UnlimitedAccountCount:          summary.UnlimitedAccountCount,
+		Total:                          summary.Total,
+		Daily:                          summary.Daily,
+		Weekly:                         summary.Weekly,
+		UsageWindows:                   summary.UsageWindows,
 	}
 }
 
@@ -568,6 +577,8 @@ func (a *accountQuotaSummaryAccumulator) addAccount(account Account, now time.Ti
 
 func (a *accountQuotaSummaryAccumulator) addAccountWithSchedulability(account Account, now time.Time, schedulable bool) {
 	a.summary.AccountCount++
+	concurrencyCapacity := accountConcurrencyCapacity(account)
+	a.summary.ConcurrencyCapacity += concurrencyCapacity
 	if account.Status == StatusActive {
 		a.summary.ActiveAccountCount++
 	}
@@ -575,11 +586,14 @@ func (a *accountQuotaSummaryAccumulator) addAccountWithSchedulability(account Ac
 		a.summary.ErrorAccountCount++
 	} else if account.Status == StatusDisabled {
 		a.summary.DisabledAccountCount++
+	} else if account.IsAPIKeyOrBedrock() && account.IsQuotaExceededAt(now) {
+		a.summary.QuotaProtectedAccountCount++
 	} else if account.IsRateLimitedAt(now) || account.IsOverloadedAt(now) || isAccountTemporarilyUnschedulable(account, now) {
 		a.summary.RateLimitedAccountCount++
 	}
 	if schedulable {
 		a.summary.SchedulableAccountCount++
+		a.summary.SchedulableConcurrencyCapacity += concurrencyCapacity
 	}
 
 	if account.IsAPIKeyOrBedrock() {
@@ -608,6 +622,13 @@ func (a *accountQuotaSummaryAccumulator) addAccountWithSchedulability(account Ac
 		a.addOpenAIUsageWindow(account, "5h", now)
 		a.addOpenAIUsageWindow(account, "7d", now)
 	}
+}
+
+func accountConcurrencyCapacity(account Account) int {
+	if account.Concurrency > 0 {
+		return account.Concurrency
+	}
+	return 1
 }
 
 func isAccountTemporarilyUnschedulable(account Account, now time.Time) bool {

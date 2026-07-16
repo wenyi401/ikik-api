@@ -480,10 +480,19 @@ func (s *PaymentConfigService) buildReceiptCodeOSSUpdates(ctx context.Context, r
 	if req.ReceiptCodeOSSBucket != nil {
 		next.Bucket = strings.TrimSpace(*req.ReceiptCodeOSSBucket)
 	}
+	secretProvided := req.ReceiptCodeOSSSecretAccessKey != nil && strings.TrimSpace(*req.ReceiptCodeOSSSecretAccessKey) != ""
+	if req.ReceiptCodeOSSAccessKeyID != nil &&
+		strings.TrimSpace(*req.ReceiptCodeOSSAccessKeyID) != strings.TrimSpace(current.AccessKeyID) &&
+		!secretProvided {
+		return nil, infraerrors.BadRequest(
+			"RECEIPT_CODE_OSS_SECRET_REQUIRED_FOR_NEW_ACCESS_KEY",
+			"enter the Secret Access Key that belongs to the new Access Key ID",
+		)
+	}
 	if req.ReceiptCodeOSSAccessKeyID != nil {
 		next.AccessKeyID = strings.TrimSpace(*req.ReceiptCodeOSSAccessKeyID)
 	}
-	if req.ReceiptCodeOSSSecretAccessKey != nil && strings.TrimSpace(*req.ReceiptCodeOSSSecretAccessKey) != "" {
+	if secretProvided {
 		next.SecretAccessKey = strings.TrimSpace(*req.ReceiptCodeOSSSecretAccessKey)
 	}
 	if req.ReceiptCodeOSSPrefix != nil {

@@ -147,10 +147,17 @@ func (s *ShopService) UpdateFileCardStorageConfig(ctx context.Context, req Updat
 	if req.Bucket != nil {
 		next.Bucket = strings.TrimSpace(*req.Bucket)
 	}
+	secretProvided := req.SecretAccessKey != nil && strings.TrimSpace(*req.SecretAccessKey) != ""
+	if req.AccessKeyID != nil && strings.TrimSpace(*req.AccessKeyID) != strings.TrimSpace(current.AccessKeyID) && !secretProvided {
+		return nil, infraerrors.BadRequest(
+			"SHOP_FILE_CARD_OSS_SECRET_REQUIRED_FOR_NEW_ACCESS_KEY",
+			"enter the Secret Access Key that belongs to the new Access Key ID",
+		)
+	}
 	if req.AccessKeyID != nil {
 		next.AccessKeyID = strings.TrimSpace(*req.AccessKeyID)
 	}
-	if req.SecretAccessKey != nil && strings.TrimSpace(*req.SecretAccessKey) != "" {
+	if secretProvided {
 		next.SecretAccessKey = strings.TrimSpace(*req.SecretAccessKey)
 	}
 	if req.Prefix != nil {
@@ -210,10 +217,17 @@ func (s *ShopService) TestFileCardStorageConfig(ctx context.Context, req *Update
 		if req.Bucket != nil {
 			next.Bucket = strings.TrimSpace(*req.Bucket)
 		}
+		secretProvided := req.SecretAccessKey != nil && strings.TrimSpace(*req.SecretAccessKey) != ""
+		if req.AccessKeyID != nil && strings.TrimSpace(*req.AccessKeyID) != strings.TrimSpace(cfg.AccessKeyID) && !secretProvided {
+			return infraerrors.BadRequest(
+				"SHOP_FILE_CARD_OSS_SECRET_REQUIRED_FOR_NEW_ACCESS_KEY",
+				"enter the Secret Access Key that belongs to the new Access Key ID",
+			)
+		}
 		if req.AccessKeyID != nil {
 			next.AccessKeyID = strings.TrimSpace(*req.AccessKeyID)
 		}
-		if req.SecretAccessKey != nil && strings.TrimSpace(*req.SecretAccessKey) != "" {
+		if secretProvided {
 			next.SecretAccessKey = strings.TrimSpace(*req.SecretAccessKey)
 		}
 		if req.Prefix != nil {

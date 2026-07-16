@@ -125,6 +125,44 @@ func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesMessagesDispatchModelConf
 	s.Require().Equal("gpt-5.4-nano", got.Group.MessagesDispatchModelConfig.ExactModelMappings["claude-sonnet-4.5"])
 }
 
+func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesRouteGroupOwner() {
+	user := s.mustCreateUser("getbykey-auth-route-owner@test.com")
+	group, err := s.client.Group.Create().
+		SetName("g-auth-route-owner").
+		SetPlatform(service.PlatformOpenAI).
+		SetStatus(service.StatusActive).
+		SetScope(service.GroupScopeUserPrivate).
+		SetOwnerUserID(user.ID).
+		Save(s.ctx)
+	s.Require().NoError(err)
+
+	key := &service.APIKey{
+		UserID:  user.ID,
+		Key:     "sk-getbykey-auth-route-owner",
+		Name:    "Private Route Key",
+		GroupID: &group.ID,
+		Status:  service.StatusActive,
+		GroupRoutes: []service.APIKeyGroupRoute{
+			{
+				GroupID:         group.ID,
+				Priority:        100,
+				Weight:          1,
+				Enabled:         true,
+				CooldownSeconds: 30,
+			},
+		},
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	got, err := s.repo.GetByKeyForAuth(s.ctx, key.Key)
+	s.Require().NoError(err)
+	s.Require().Len(got.GroupRoutes, 1)
+	s.Require().NotNil(got.GroupRoutes[0].Group)
+	s.Require().NotNil(got.GroupRoutes[0].Group.OwnerUserID)
+	s.Require().Equal(user.ID, *got.GroupRoutes[0].Group.OwnerUserID)
+	s.Require().Equal(service.GroupScopeUserPrivate, got.GroupRoutes[0].Group.Scope)
+}
+
 // --- Update ---
 
 func (s *APIKeyRepoSuite) TestUpdate() {

@@ -37,3 +37,11 @@ func TestNormalizeCompletionOptionsRejectsUnknownEffort(t *testing.T) {
 	require.Equal(t, "auto", options.ThinkingMode)
 	require.Equal(t, DefaultModel, options.Model)
 }
+
+func TestBuildCompletionRequestDisablesWebToolsForClientToolBridge(t *testing.T) {
+	request, _, _ := buildCompletionRequest(CompletionOptions{
+		Prompt:          "use the client tool",
+		DisableWebTools: true,
+	})
+	require.JSONEq(t, `[]`, string(request.Tools))
+}

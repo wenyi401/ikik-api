@@ -1,9 +1,31 @@
 import { apiClient } from '../client'
 
-export type ModerationMode = 'off' | 'observe' | 'pre_block'
+export type ModerationMode = 'off' | 'observe' | 'pre_block' | 'adaptive'
 export type KeywordBlockingMode = 'keyword_only' | 'keyword_and_api' | 'api_only'
 export type ContentModerationModelFilterType = 'all' | 'include' | 'exclude'
-export type ContentModerationProvider = 'openai' | 'aliyun_guardrails'
+export type ContentModerationProvider = 'openai' | 'aliyun_guardrails' | 'model_classifier'
+
+export type ContentModerationEnforcementMode = 'shadow' | 'notify' | 'enforce'
+export type ContentModerationRiskLevel = 'new' | 'normal' | 'trusted' | 'watch' | 'high' | 'critical'
+export type ContentModerationManualLevel = 'auto' | 'trusted' | 'watch' | 'high' | 'critical'
+
+export interface ContentModerationAdaptivePolicy {
+  enforcement_mode: ContentModerationEnforcementMode
+  full_audit_requests: number
+  ramp_audit_requests: number
+  ramp_sample_rate: number
+  trusted_sample_rate: number
+  watch_sample_rate: number
+  high_risk_sample_rate: number
+  daily_decay_percent: number
+  low_risk_weight: number
+  medium_risk_weight: number
+  severe_risk_weight: number
+  watch_threshold: number
+  high_risk_threshold: number
+  critical_threshold: number
+  notification_cooldown_hours: number
+}
 
 export interface ContentModerationModelFilter {
   type: ContentModerationModelFilterType
@@ -16,6 +38,8 @@ export interface ContentModerationConfig {
   moderation_provider: ContentModerationProvider
   base_url: string
   model: string
+  classifier_prompt: string
+  classifier_prompt_default: string
   aliyun_region_id: string
   aliyun_endpoint: string
   aliyun_service: string
@@ -45,6 +69,7 @@ export interface ContentModerationConfig {
   blocked_keywords: string[]
   keyword_blocking_mode: KeywordBlockingMode
   model_filter: ContentModerationModelFilter
+  adaptive_policy: ContentModerationAdaptivePolicy
 }
 
 export type ContentModerationAPIKeyStatusValue = 'unknown' | 'ok' | 'error' | 'frozen'
@@ -70,6 +95,7 @@ export interface TestContentModerationAPIKeysPayload {
   moderation_provider?: ContentModerationProvider
   base_url?: string
   model?: string
+  classifier_prompt?: string
   aliyun_region_id?: string
   aliyun_endpoint?: string
   aliyun_service?: string
@@ -99,6 +125,7 @@ export interface UpdateContentModerationConfig {
   moderation_provider?: ContentModerationProvider
   base_url?: string
   model?: string
+  classifier_prompt?: string
   aliyun_region_id?: string
   aliyun_endpoint?: string
   aliyun_service?: string
@@ -128,6 +155,7 @@ export interface UpdateContentModerationConfig {
   blocked_keywords?: string[]
   keyword_blocking_mode?: KeywordBlockingMode
   model_filter?: ContentModerationModelFilter
+  adaptive_policy?: ContentModerationAdaptivePolicy
 }
 
 export interface ContentModerationRuntimeStatus {
@@ -231,6 +259,60 @@ export interface ContentModerationUnbanUserResponse {
   status: string
 }
 
+export interface ContentModerationRiskProfile {
+  user_id: number
+  user_email: string
+  user_status: string
+  total_requests: number
+  audited_requests: number
+  flagged_requests: number
+  risk_score: number
+  risk_level: ContentModerationRiskLevel
+  manual_level: ContentModerationManualLevel
+  current_sample_rate: number
+  last_category: string
+  last_score_delta: number
+  last_hit_at?: string
+  last_audited_at?: string
+  last_notified_at?: string
+  score_updated_at: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ContentModerationRiskOverview {
+  total_profiles: number
+  new_profiles: number
+  trusted_profiles: number
+  watch_profiles: number
+  high_profiles: number
+  critical_profiles: number
+  audited_requests: number
+  flagged_requests: number
+  average_risk_score: number
+}
+
+export interface ContentModerationRiskProfilesResponse {
+  items: ContentModerationRiskProfile[]
+  overview: ContentModerationRiskOverview
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface ListContentModerationRiskProfilesParams {
+  page?: number
+  page_size?: number
+  level?: string
+  search?: string
+}
+
+export interface UpdateContentModerationRiskProfilePayload {
+  manual_level?: ContentModerationManualLevel
+  reset_score?: boolean
+}
+
 export interface DeleteFlaggedHashResponse {
   input_hash: string
   deleted: boolean
@@ -280,6 +362,26 @@ export async function unbanUser(userID: number): Promise<ContentModerationUnbanU
   return data
 }
 
+export async function listRiskProfiles(
+  params: ListContentModerationRiskProfilesParams = {}
+): Promise<ContentModerationRiskProfilesResponse> {
+  const { data } = await apiClient.get<ContentModerationRiskProfilesResponse>('/admin/risk-control/risk-profiles', {
+    params,
+  })
+  return data
+}
+
+export async function updateRiskProfile(
+  userID: number,
+  payload: UpdateContentModerationRiskProfilePayload
+): Promise<ContentModerationRiskProfile> {
+  const { data } = await apiClient.patch<ContentModerationRiskProfile>(
+    `/admin/risk-control/risk-profiles/${userID}`,
+    payload
+  )
+  return data
+}
+
 export async function deleteFlaggedHash(inputHash: string): Promise<DeleteFlaggedHashResponse> {
   const { data } = await apiClient.delete<DeleteFlaggedHashResponse>('/admin/risk-control/hashes', {
     data: { input_hash: inputHash },
@@ -298,6 +400,8 @@ export const riskControlAPI = {
   getStatus,
   testAPIKeys,
   listLogs,
+  listRiskProfiles,
+  updateRiskProfile,
   unbanUser,
   deleteFlaggedHash,
   clearFlaggedHashes,

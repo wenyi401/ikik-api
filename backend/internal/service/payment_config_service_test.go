@@ -10,9 +10,11 @@ import (
 	dbent "ikik-api/ent"
 	"ikik-api/ent/enttest"
 	"ikik-api/internal/payment"
+	infraerrors "ikik-api/internal/pkg/errors"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
+	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 )
 
@@ -546,6 +548,29 @@ func TestPaymentConfigReceiptCodeOSSKeepsExistingSecretOnBlankUpdate(t *testing.
 	if cfg.SecretAccessKey != "secret" {
 		t.Fatalf("retained secret = %q, want secret", cfg.SecretAccessKey)
 	}
+}
+
+func TestPaymentConfigReceiptCodeOSSRequiresSecretWhenAccessKeyChanges(t *testing.T) {
+	t.Parallel()
+
+	key := []byte("12345678901234567890123456789012")
+	repo := &paymentConfigSettingRepoStub{values: map[string]string{}}
+	svc := &PaymentConfigService{settingRepo: repo, encryptionKey: key}
+	enabled := true
+	require.NoError(t, svc.UpdatePaymentConfig(context.Background(), UpdatePaymentConfigRequest{
+		ReceiptCodeOSSEnabled:         &enabled,
+		ReceiptCodeOSSEndpoint:        paymentConfigStrPtr("https://oss.example.com"),
+		ReceiptCodeOSSBucket:          paymentConfigStrPtr("receipts"),
+		ReceiptCodeOSSAccessKeyID:     paymentConfigStrPtr("old-access-key"),
+		ReceiptCodeOSSSecretAccessKey: paymentConfigStrPtr("old-secret"),
+	}))
+
+	err := svc.UpdatePaymentConfig(context.Background(), UpdatePaymentConfigRequest{
+		ReceiptCodeOSSAccessKeyID:     paymentConfigStrPtr("new-access-key"),
+		ReceiptCodeOSSSecretAccessKey: paymentConfigStrPtr(""),
+	})
+	require.Error(t, err)
+	require.Equal(t, "RECEIPT_CODE_OSS_SECRET_REQUIRED_FOR_NEW_ACCESS_KEY", infraerrors.Reason(err))
 }
 
 func paymentConfigStrPtr(value string) *string {

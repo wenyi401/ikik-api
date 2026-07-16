@@ -734,6 +734,7 @@ func apiKeyGroupRouteQueryOptions(q *dbent.APIKeyGroupRouteQuery) {
 			group.FieldPlatform,
 			group.FieldStatus,
 			group.FieldIsExclusive,
+			group.FieldOwnerUserID,
 			group.FieldScope,
 			group.FieldSubscriptionType,
 			group.FieldRateMultiplier,

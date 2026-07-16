@@ -49,9 +49,9 @@
               form.share_mode === 'public'
                 ? 'border-primary-400 bg-primary-50 text-primary-700 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-300'
                 : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-200 dark:hover:bg-dark-700',
-              userShareForcesPrivate && 'cursor-not-allowed opacity-50'
+              userApiKeyForcesPrivate && 'cursor-not-allowed opacity-50'
             ]"
-            :disabled="userShareForcesPrivate"
+            :disabled="userApiKeyForcesPrivate"
             @click="setUserShareMode('public')"
           >
             <Icon name="globe" size="sm" class="mr-2" />
@@ -60,20 +60,14 @@
         </div>
       </div>
 
-      <div v-if="account.platform === 'openai'">
+      <div v-if="!isUserScope && account.platform === 'openai'">
         <label class="input-label">{{ t('admin.accounts.accountLevel.label') }}</label>
         <Select
-          v-if="!isUserScope"
           v-model="form.account_level"
           :options="accountLevelOptions"
         />
-        <Select
-          v-else
-          v-model="form.account_level"
-          :options="userAccountLevelOptions"
-        />
         <p class="input-hint">
-          {{ isUserScope ? t('admin.accounts.accountLevel.userManualHint') : t('admin.accounts.accountLevel.manualHint') }}
+          {{ t('admin.accounts.accountLevel.manualHint') }}
         </p>
       </div>
 
@@ -1328,7 +1322,6 @@
       <div v-if="canManageProxy">
         <label class="input-label">{{ t('admin.accounts.proxy') }}</label>
         <ProxySelector v-model="form.proxy_id" :proxies="proxies" :scope="accountScope" />
-        <p v-if="userProxyForcesPrivate" class="input-hint">{{ t('userAccounts.proxyForcesPrivate') }}</p>
       </div>
 
       <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -2330,9 +2323,7 @@ const isUserScope = computed(() => accountScope.value === 'user')
 const canManageProxy = computed(() => props.allowProxy !== false)
 const canManageBillingRate = computed(() => !isUserScope.value && props.allowBillingRate !== false)
 const assignableGroups = computed(() => accountAssignableGroups(props.groups))
-const userProxyForcesPrivate = computed(() => isUserScope.value && !!form.proxy_id)
 const userApiKeyForcesPrivate = computed(() => isUserScope.value && props.account?.type === 'apikey')
-const userShareForcesPrivate = computed(() => userProxyForcesPrivate.value || userApiKeyForcesPrivate.value)
 const showHeaderOverrideEditor = computed(() =>
   !isUserScope.value &&
   props.account?.type === 'apikey' &&
@@ -2732,17 +2723,6 @@ const accountLevelOptions = computed(() => [
   { value: 'k12', label: t('admin.accounts.accountLevel.k12') }
 ])
 
-const userAccountLevelOptions = computed(() => [
-  { value: 'unknown', label: t('admin.accounts.accountLevel.unknown') },
-  { value: 'free', label: t('admin.accounts.accountLevel.free'), disabled: true },
-  { value: 'plus', label: t('admin.accounts.accountLevel.plus'), disabled: true },
-  { value: 'pro', label: t('admin.accounts.accountLevel.pro'), disabled: true },
-  { value: 'team', label: t('admin.accounts.accountLevel.team') },
-  { value: 'k12', label: t('admin.accounts.accountLevel.k12') }
-])
-
-const isUserEditableAccountLevel = (level: AccountLevel) => level === 'unknown' || level === 'team' || level === 'k12'
-
 const normalizeConcurrencyInput = () => {
   if (isUserScope.value && !canEditConcurrency.value) {
     form.concurrency = PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY
@@ -2764,7 +2744,7 @@ const applyUserScopeConcurrencyTemplate = () => {
 watch(() => isUserScope.value, applyUserScopeConcurrencyTemplate)
 
 const setUserShareMode = (mode: AccountShareMode) => {
-  if (mode === 'public' && userShareForcesPrivate.value) {
+  if (mode === 'public' && userApiKeyForcesPrivate.value) {
     return
   }
   form.share_mode = mode
@@ -2785,28 +2765,18 @@ watch(
     }
     form.concurrency = PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY
     form.load_factor = null
-    if (mode === 'public' && userShareForcesPrivate.value) {
+    if (mode === 'public' && userApiKeyForcesPrivate.value) {
       form.share_mode = 'private'
     }
   }
 )
 
-watch(userShareForcesPrivate, (forced) => {
+watch(userApiKeyForcesPrivate, (forced) => {
   if (forced) {
     form.share_mode = 'private'
     form.group_ids = []
   }
 })
-
-watch(
-  () => form.proxy_id,
-  (proxyID) => {
-    if (isUserScope.value && proxyID) {
-      form.share_mode = 'private'
-      form.group_ids = []
-    }
-  }
-)
 
 watch(customProtocol, () => {
   if (props.account?.platform !== 'custom') return
@@ -3689,7 +3659,7 @@ const sanitizeUpdatePayload = (payload: Record<string, unknown>) => {
     delete next.rate_multiplier
   }
   if (isUserScope.value) {
-    next.share_mode = next.share_mode === 'public' && !userShareForcesPrivate.value ? 'public' : 'private'
+    next.share_mode = next.share_mode === 'public' && !userApiKeyForcesPrivate.value ? 'public' : 'private'
     delete next.group_ids
     delete next.status
     if (next.share_mode === 'public') {
@@ -3769,7 +3739,7 @@ const handleSubmit = async () => {
   }
 
   const updatePayload: Record<string, unknown> = { ...form }
-  if (props.account.platform !== 'openai' || (isUserScope.value && !isUserEditableAccountLevel(form.account_level))) {
+  if (props.account.platform !== 'openai' || isUserScope.value) {
     delete updatePayload.account_level
   }
   try {

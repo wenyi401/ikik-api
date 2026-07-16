@@ -14,6 +14,8 @@ describe('useModelWhitelist', () => {
     expect(models).toContain('gpt-5.4-mini')
     expect(models).toContain('gpt-5.4-2026-03-05')
     expect(models).toContain('gpt-5.6')
+		expect(models).toContain('gpt-5.5-pro')
+		expect(models).toContain('codex-auto-review')
   })
 
   it('openai 模型列表不再暴露已下线的 ChatGPT 登录 Codex 模型', () => {
@@ -40,6 +42,13 @@ describe('useModelWhitelist', () => {
 
     expect(models).toContain('gemini-2.5-flash-image')
     expect(models).toContain('gemini-3.1-flash-image')
+		expect(models).toContain('gemini-3.5-flash')
+  })
+
+  it('includes the latest Claude and Grok OAuth models', () => {
+    expect(getModelsByPlatform('anthropic')).toContain('claude-sonnet-5')
+    expect(getModelsByPlatform('grok')).toContain('grok-4.5')
+    expect(getModelsByPlatform('grok')).toContain('grok-composer-2.5-fast')
   })
 
   it('antigravity 模型列表会把新的 Gemini 图片模型排在前面', () => {

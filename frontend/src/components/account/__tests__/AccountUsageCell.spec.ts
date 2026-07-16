@@ -72,6 +72,54 @@ describe('AccountUsageCell', () => {
     })
   })
 
+  it('does not query OAuth quota for Claude Web sessions', async () => {
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 9911,
+          platform: 'anthropic',
+          type: 'oauth',
+          extra: { claude_web_session: true }
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(getUsage).not.toHaveBeenCalled()
+    expect(wrapper.text()).toBe('-')
+  })
+
+  it('recognizes a string Claude Web session marker', async () => {
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 9912,
+          platform: 'anthropic',
+          type: 'oauth',
+          extra: { claude_web_session: 'TRUE' }
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(getUsage).not.toHaveBeenCalled()
+    expect(wrapper.text()).toBe('-')
+  })
+
   it('Antigravity 图片用量会聚合新旧 image 模型', async () => {
     getUsage.mockResolvedValue({
       antigravity_quota: {

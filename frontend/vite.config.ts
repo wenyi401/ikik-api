@@ -149,6 +149,97 @@ const mockAccounts: Array<Record<string, unknown>> = []
 const mockProxies: Array<Record<string, unknown>> = []
 const mockApiKeys: Array<Record<string, unknown>> = []
 const mockUsageLogs: Array<Record<string, unknown>> = []
+let mockRiskConfig: Record<string, unknown> = {
+  enabled: true,
+  mode: 'adaptive',
+  moderation_provider: 'model_classifier',
+  base_url: 'https://api.example.com',
+  model: 'gpt-5.3-codex-spark',
+  classifier_prompt: '',
+  classifier_prompt_default: 'Evaluate the latest end-user content against safety, privacy, minor safety, fraud, high-stakes automation, cyber abuse, and gateway abuse policies. Use context and authorization; do not classify by isolated keywords.',
+  aliyun_region_id: 'cn-shanghai',
+  aliyun_endpoint: 'green-cip.cn-shanghai.aliyuncs.com',
+  aliyun_service: 'query_security_check_cb',
+  api_key_configured: true,
+  api_key_masked: 'sk-****local',
+  api_key_count: 1,
+  api_key_masks: ['sk-****local'],
+  api_key_statuses: [],
+  timeout_ms: 5000,
+  sample_rate: 100,
+  all_groups: true,
+  group_ids: [],
+  record_non_hits: false,
+  thresholds: {
+    'gateway_abuse/safety_bypass': 0.8,
+    'gateway_abuse/credential_theft': 0.8,
+    'gateway_abuse/account_automation': 0.8,
+    'gateway_abuse/auth_reverse_engineering': 0.8,
+    'gateway_abuse/other': 0.85
+  },
+  worker_count: 4,
+  queue_size: 32768,
+  block_status: 403,
+  block_message: 'Content policy violation',
+  email_on_hit: true,
+  auto_ban_enabled: false,
+  ban_threshold: 10,
+  violation_window_hours: 720,
+  retry_count: 1,
+  hit_retention_days: 180,
+  non_hit_retention_days: 3,
+  pre_hash_check_enabled: true,
+  blocked_keywords: [],
+  keyword_blocking_mode: 'api_only',
+  model_filter: { type: 'all', models: [] },
+  adaptive_policy: {
+    enforcement_mode: 'shadow',
+    full_audit_requests: 100,
+    ramp_audit_requests: 300,
+    ramp_sample_rate: 30,
+    trusted_sample_rate: 5,
+    watch_sample_rate: 50,
+    high_risk_sample_rate: 100,
+    daily_decay_percent: 10,
+    low_risk_weight: 4,
+    medium_risk_weight: 12,
+    severe_risk_weight: 30,
+    watch_threshold: 40,
+    high_risk_threshold: 60,
+    critical_threshold: 80,
+    notification_cooldown_hours: 24
+  }
+}
+
+const mockRiskProfiles: Array<Record<string, unknown>> = [
+  {
+    user_id: 42, user_email: 'research@example.com', user_status: 'active', total_requests: 486,
+    audited_requests: 122, flagged_requests: 0, risk_score: 2.4, risk_level: 'trusted', manual_level: 'auto',
+    current_sample_rate: 5, last_category: '', last_score_delta: 0, last_audited_at: new Date(Date.now() - 36 * 60 * 1000).toISOString(),
+    score_updated_at: nowISO(), created_at: nowISO(), updated_at: nowISO()
+  },
+  {
+    user_id: 83, user_email: 'new-user@example.com', user_status: 'active', total_requests: 64,
+    audited_requests: 64, flagged_requests: 1, risk_score: 12, risk_level: 'new', manual_level: 'auto',
+    current_sample_rate: 100, last_category: 'gateway_abuse/other', last_score_delta: 4,
+    last_hit_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), last_audited_at: nowISO(),
+    score_updated_at: nowISO(), created_at: nowISO(), updated_at: nowISO()
+  },
+  {
+    user_id: 109, user_email: 'watch@example.com', user_status: 'active', total_requests: 822,
+    audited_requests: 248, flagged_requests: 4, risk_score: 47.6, risk_level: 'watch', manual_level: 'auto',
+    current_sample_rate: 50, last_category: 'gateway_abuse/auth_reverse_engineering', last_score_delta: 12,
+    last_hit_at: new Date(Date.now() - 70 * 60 * 1000).toISOString(), last_audited_at: nowISO(),
+    score_updated_at: nowISO(), created_at: nowISO(), updated_at: nowISO()
+  },
+  {
+    user_id: 128, user_email: 'critical@example.com', user_status: 'active', total_requests: 315,
+    audited_requests: 191, flagged_requests: 7, risk_score: 86.2, risk_level: 'critical', manual_level: 'auto',
+    current_sample_rate: 100, last_category: 'gateway_abuse/credential_theft', last_score_delta: 30,
+    last_hit_at: new Date(Date.now() - 12 * 60 * 1000).toISOString(), last_audited_at: nowISO(),
+    score_updated_at: nowISO(), created_at: nowISO(), updated_at: nowISO()
+  }
+]
 
 function nowISO(): string {
   return new Date().toISOString()
@@ -724,6 +815,7 @@ function localMockApiPlugin(enabled: boolean): Plugin {
         const url = req.url ? new URL(req.url, 'http://local.test') : null
         const path = url?.pathname || ''
 
+
         if (path === '/setup/status') {
           sendJson(res, 200, success({ needs_setup: false, step: 'done' }))
           return
@@ -821,6 +913,108 @@ function localMockApiPlugin(enabled: boolean): Plugin {
 
         if (path === '/api/v1/admin/settings') {
           sendJson(res, 200, success(localPublicSettings(req)))
+          return
+        }
+
+        if (path === '/api/v1/admin/risk-control/config') {
+          if (req.method === 'PUT') {
+            const body = await readBody(req)
+            const payload = parseJsonBody(body)
+            mockRiskConfig = { ...mockRiskConfig, ...payload, api_key_configured: true, api_key_count: 1 }
+          }
+          sendJson(res, 200, success(mockRiskConfig))
+          return
+        }
+
+        if (path === '/api/v1/admin/groups/all' && req.method === 'GET') {
+          sendJson(res, 200, success(mockGroups))
+          return
+        }
+
+        if (path === '/api/v1/admin/risk-control/status') {
+          sendJson(res, 200, success({
+            enabled: true,
+            risk_control_enabled: true,
+            mode: mockRiskConfig.mode,
+            worker_count: 4,
+            max_workers: 32,
+            active_workers: 1,
+            idle_workers: 3,
+            queue_size: 32768,
+            queue_length: 7,
+            queue_usage_percent: 0.02,
+            enqueued: 1842,
+            dropped: 0,
+            processed: 1835,
+            errors: 2,
+            pre_block_active: 0,
+            pre_block_checked: 0,
+            pre_block_allowed: 0,
+            pre_block_blocked: 0,
+            pre_block_errors: 0,
+            pre_block_avg_latency_ms: 0,
+            pre_block_api_key_active: 0,
+            pre_block_api_key_available_count: 1,
+            pre_block_api_key_total_calls: 0,
+            pre_block_api_key_loads: [],
+            api_key_statuses: [],
+            flagged_hash_count: 3,
+            last_cleanup_at: nowISO(),
+            last_cleanup_deleted_hit: 0,
+            last_cleanup_deleted_non_hit: 12
+          }))
+          return
+        }
+
+        if (path === '/api/v1/admin/risk-control/logs') {
+          sendJson(res, 200, success(paginateItems([], url)))
+          return
+        }
+
+        if (path === '/api/v1/admin/risk-control/risk-profiles') {
+          const search = (url.searchParams.get('search') || '').toLowerCase()
+          const level = url.searchParams.get('level') || ''
+          const filtered = mockRiskProfiles.filter((profile) => {
+            const matchesSearch = !search || String(profile.user_email).toLowerCase().includes(search) || String(profile.user_id).includes(search)
+            const matchesLevel = !level || profile.risk_level === level
+            return matchesSearch && matchesLevel
+          })
+          const page = paginateItems(filtered, url)
+          sendJson(res, 200, success({
+            ...page,
+            overview: {
+              total_profiles: mockRiskProfiles.length,
+              new_profiles: mockRiskProfiles.filter((item) => item.risk_level === 'new').length,
+              trusted_profiles: mockRiskProfiles.filter((item) => item.risk_level === 'trusted').length,
+              watch_profiles: mockRiskProfiles.filter((item) => item.risk_level === 'watch').length,
+              high_profiles: mockRiskProfiles.filter((item) => item.risk_level === 'high').length,
+              critical_profiles: mockRiskProfiles.filter((item) => item.risk_level === 'critical').length,
+              audited_requests: mockRiskProfiles.reduce((sum, item) => sum + Number(item.audited_requests || 0), 0),
+              flagged_requests: mockRiskProfiles.reduce((sum, item) => sum + Number(item.flagged_requests || 0), 0),
+              average_risk_score: mockRiskProfiles.reduce((sum, item) => sum + Number(item.risk_score || 0), 0) / mockRiskProfiles.length
+            }
+          }))
+          return
+        }
+
+        const riskProfileMatch = path.match(/^\/api\/v1\/admin\/risk-control\/risk-profiles\/(\d+)$/)
+        if (riskProfileMatch && req.method === 'PATCH') {
+          const profile = mockRiskProfiles.find((item) => Number(item.user_id) === Number(riskProfileMatch[1]))
+          if (!profile) {
+            sendJson(res, 404, { code: 404, message: 'profile not found' })
+            return
+          }
+          const body = await readBody(req)
+          const payload = parseJsonBody(body)
+          if (payload.manual_level) profile.manual_level = payload.manual_level
+          if (payload.reset_score) profile.risk_score = 0
+          profile.updated_at = nowISO()
+          sendJson(res, 200, success(profile))
+          return
+        }
+
+        if (path === '/api/v1/admin/risk-control/api-keys/test' && req.method === 'POST') {
+          sendJson(res, 200, success({ items: [], image_count: 0 }))
           return
         }
 
@@ -1514,18 +1708,27 @@ function localMockApiPlugin(enabled: boolean): Plugin {
             platform: string,
             fiveHourUsage: number,
             weeklyUsage: number
-          ) => ({
-            generated_at: nowISO(),
-            summaries: [],
-            totals: {
+          ) => {
+            const quotaProtectedCount = Math.min(1, Math.max(0, accountCount - schedulableCount - limitedCount))
+            const errorCount = Math.max(0, accountCount - schedulableCount - limitedCount - quotaProtectedCount)
+            const concurrencyCapacity = accountCount * 10
+            const schedulableConcurrencyCapacity = schedulableCount * 10
+
+            return {
+              generated_at: nowISO(),
+              summaries: [],
+              totals: {
               platform: 'all',
               type: 'all',
               account_count: accountCount,
               active_account_count: accountCount,
               schedulable_account_count: schedulableCount,
               rate_limited_account_count: limitedCount,
-              error_account_count: 0,
+              quota_protected_account_count: quotaProtectedCount,
+              error_account_count: errorCount,
               disabled_account_count: 0,
+              concurrency_capacity: concurrencyCapacity,
+              schedulable_concurrency_capacity: schedulableConcurrencyCapacity,
               quota_account_count: accountCount,
               unlimited_account_count: 0,
               daily: quotaDimension,
@@ -1542,8 +1745,11 @@ function localMockApiPlugin(enabled: boolean): Plugin {
               active_account_count: accountCount,
               schedulable_account_count: schedulableCount,
               rate_limited_account_count: limitedCount,
-              error_account_count: 0,
+              quota_protected_account_count: quotaProtectedCount,
+              error_account_count: errorCount,
               disabled_account_count: 0,
+              concurrency_capacity: concurrencyCapacity,
+              schedulable_concurrency_capacity: schedulableConcurrencyCapacity,
               quota_account_count: accountCount,
               unlimited_account_count: 0,
               daily: quotaDimension,
@@ -1563,11 +1769,12 @@ function localMockApiPlugin(enabled: boolean): Plugin {
                 remaining_capacity_percent: Math.max(0, 100 - weeklyUsage)
               }]
             }]
-          })
+            }
+          }
           sendJson(res, 200, success({
             generated_at: nowISO(),
             mine: makeQuotaDashboard(3, 2, 1, 'OpenAI Local', 'openai', 42.5, 61.8),
-            platform: makeQuotaDashboard(8, 7, 1, 'Claude Local', 'anthropic', 35.2, 48.4)
+            platform: makeQuotaDashboard(8, 5, 1, 'Claude Local', 'anthropic', 35.2, 48.4)
           }))
           return
         }

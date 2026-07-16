@@ -186,13 +186,14 @@ func (h *contentModerationPreFlightHook) CheckPreFlight(ctx context.Context, req
 //     gin key 与 request context，两者在审核执行点恒一致）。
 func moderationInputFromHookRequest(ctx context.Context, req *gatewayhook.Request) service.ContentModerationCheckInput {
 	input := service.ContentModerationCheckInput{
-		RequestID: contentModerationRequestID(ctx),
-		UserID:    req.Caller.UserID,
-		Endpoint:  req.Path,
-		Provider:  contentModerationProvider(req.APIKey),
-		Model:     strings.TrimSpace(req.Model),
-		Protocol:  req.Protocol,
-		Body:      req.Body,
+		RequestID:         contentModerationRequestID(ctx),
+		UserID:            req.Caller.UserID,
+		Endpoint:          req.Path,
+		Provider:          contentModerationProvider(req.APIKey),
+		Model:             strings.TrimSpace(req.Model),
+		Protocol:          req.Protocol,
+		Body:              req.Body,
+		InternalSignature: strings.TrimSpace(req.Headers.Get(service.ContentModerationInternalSignatureHeader)),
 	}
 	if forcedPlatform, ok := ctx.Value(ctxkey.ForcePlatform).(string); ok {
 		input.Provider = strings.TrimSpace(forcedPlatform)

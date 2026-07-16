@@ -71,13 +71,14 @@ func runContentModeration(c *gin.Context, reqLog *zap.Logger, svc *service.Conte
 
 func buildContentModerationInput(c *gin.Context, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol string, model string, body []byte) service.ContentModerationCheckInput {
 	input := service.ContentModerationCheckInput{
-		RequestID: contentModerationRequestID(c.Request.Context()),
-		UserID:    subject.UserID,
-		Endpoint:  GetInboundEndpoint(c),
-		Provider:  contentModerationProvider(apiKey),
-		Model:     strings.TrimSpace(model),
-		Protocol:  protocol,
-		Body:      body,
+		RequestID:         contentModerationRequestID(c.Request.Context()),
+		UserID:            subject.UserID,
+		Endpoint:          GetInboundEndpoint(c),
+		Provider:          contentModerationProvider(apiKey),
+		Model:             strings.TrimSpace(model),
+		Protocol:          protocol,
+		Body:              body,
+		InternalSignature: strings.TrimSpace(c.GetHeader(service.ContentModerationInternalSignatureHeader)),
 	}
 	if forcedPlatform, ok := middleware2.GetForcePlatformFromContext(c); ok {
 		input.Provider = strings.TrimSpace(forcedPlatform)

@@ -414,6 +414,12 @@ func (s *AccountUsageService) getUsageForAccount(ctx context.Context, account *A
 		return nil, fmt.Errorf("account is nil")
 	}
 
+	// Claude Web accounts authenticate with browser session cookies, not an
+	// Anthropic OAuth access token. They cannot call /api/oauth/usage.
+	if account.IsClaudeWebSession() {
+		return &UsageInfo{Source: "unsupported"}, nil
+	}
+
 	if account.Platform == PlatformOpenAI && account.Type == AccountTypeOAuth {
 		var (
 			usage *UsageInfo
@@ -560,6 +566,10 @@ func (s *AccountUsageService) GetPassiveUsage(ctx context.Context, accountID int
 	account, err := s.accountRepo.GetByID(ctx, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("get account failed: %w", err)
+	}
+
+	if account.IsClaudeWebSession() {
+		return &UsageInfo{Source: "unsupported"}, nil
 	}
 
 	if account.Platform == PlatformKiro {

@@ -144,15 +144,6 @@ func IsConcreteAccountLevel(level string) bool {
 	}
 }
 
-func IsUserEditableAccountLevel(level string) bool {
-	switch strings.ToLower(strings.TrimSpace(level)) {
-	case "", AccountLevelUnknown, AccountLevelTeam, AccountLevelK12:
-		return true
-	default:
-		return false
-	}
-}
-
 func IsOpenAIPlusAccount(platform, accountLevel string) bool {
 	return platform == PlatformOpenAI && NormalizeAccountLevel(accountLevel) == AccountLevelPlus
 }
@@ -506,7 +497,7 @@ func (a *Account) IsGeminiCodeAssist() bool {
 }
 
 func (a *Account) CanGetUsage() bool {
-	return a.Type == AccountTypeOAuth
+	return a.Type == AccountTypeOAuth && !a.IsClaudeWebSession()
 }
 
 func (a *Account) GetCredential(key string) string {

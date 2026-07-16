@@ -27,13 +27,12 @@ var (
 	ErrOwnedAccountTypeNotAllowed              = infraerrors.BadRequest("OWNED_ACCOUNT_TYPE_NOT_ALLOWED", "user accounts only support OAuth or API key accounts")
 	ErrOwnedAccountCredentialsInvalid          = infraerrors.BadRequest("OWNED_ACCOUNT_CREDENTIALS_INVALID", "account credentials are invalid")
 	ErrOwnedAccountCredentialsNotAllowed       = infraerrors.BadRequest("OWNED_ACCOUNT_CREDENTIALS_NOT_ALLOWED", "user OAuth accounts cannot include API keys, custom URLs, upstream endpoints, cookies or manual session credentials")
-	ErrOwnedAccountLevelNotAllowed             = infraerrors.BadRequest("OWNED_ACCOUNT_LEVEL_NOT_ALLOWED", "user accounts can only set unknown, team or k12 account level")
+	ErrOwnedAccountLevelNotAllowed             = infraerrors.BadRequest("OWNED_ACCOUNT_LEVEL_NOT_ALLOWED", "user account level is detected automatically and cannot be set manually")
 	ErrOwnedAccountGroupPlatformMismatch       = infraerrors.BadRequest("OWNED_ACCOUNT_GROUP_PLATFORM_MISMATCH", "account group platform does not match account platform")
 	ErrOwnedAccountGroupValidationUnavailable  = infraerrors.InternalServer("OWNED_ACCOUNT_GROUP_VALIDATION_UNAVAILABLE", "owned account group validation is unavailable")
 	ErrOwnedAccountPublicPoolUnavailable       = infraerrors.BadRequest("OWNED_ACCOUNT_PUBLIC_POOL_UNAVAILABLE", "public shared account pool group is not configured for this account platform")
 	ErrOwnedAccountPublicPolicyUnavailable     = infraerrors.BadRequest("OWNED_ACCOUNT_PUBLIC_POLICY_UNAVAILABLE", "account share policy is not configured for this public account pool")
 	ErrOwnedAccountPublicValidationFailed      = infraerrors.BadRequest("OWNED_ACCOUNT_PUBLIC_VALIDATION_FAILED", "public account validation failed")
-	ErrOwnedAccountProxyPublicShareNotAllowed  = infraerrors.BadRequest("OWNED_ACCOUNT_PROXY_PUBLIC_SHARE_NOT_ALLOWED", "accounts using a private proxy can only be private")
 	ErrOwnedAccountAPIKeyPublicShareNotAllowed = infraerrors.BadRequest("OWNED_ACCOUNT_APIKEY_PUBLIC_SHARE_NOT_ALLOWED", "user API key accounts can only be private")
 	ErrUserPrivateProxyLimitExceeded           = infraerrors.BadRequest("USER_PRIVATE_PROXY_LIMIT_EXCEEDED", "user private proxy limit exceeded")
 	ErrUserPrivateProxyInvalid                 = infraerrors.BadRequest("USER_PRIVATE_PROXY_INVALID", "invalid private proxy configuration")
@@ -42,7 +41,7 @@ var (
 const AccountListGroupUngrouped int64 = -1
 const AccountListProxyUnassigned int64 = -1
 const AccountPrivacyModeUnsetFilter = "__unset__"
-const ownedPersonalDefaultConcurrency = 3
+const ownedPersonalDefaultConcurrency = 10
 const ownedPersonalDefaultPriority = 1
 const ownedPersonalDefaultOpenAICompactMode = "force_on"
 const ownedPersonalDefaultOpenAIWSMode = OpenAIWSIngressModeOff
@@ -641,9 +640,9 @@ func (s *AccountService) createOwned(ctx context.Context, ownerUserID int64, req
 	if ownerUserID <= 0 {
 		return nil, ErrUserNotFound
 	}
-	if !IsUserEditableAccountLevel(req.AccountLevel) {
-		return nil, ErrOwnedAccountLevelNotAllowed
-	}
+	// User-owned accounts always start from an unknown level so credential metadata
+	// is the sole source of truth for OpenAI account-level detection.
+	req.AccountLevel = AccountLevelUnknown
 	applyOwnedPersonalAccountTemplateToCreate(&req)
 	if err := validateOwnedAccountSource(req.Type, req.Credentials, req.Extra); err != nil {
 		return nil, err
@@ -654,7 +653,7 @@ func (s *AccountService) createOwned(ctx context.Context, ownerUserID int64, req
 	}
 	req.ProxyID = proxyID
 	shareMode := NormalizeAccountShareMode(req.ShareMode)
-	if req.ProxyID != nil || ownedAccountForcesPrivateShare(req.Type) {
+	if ownedAccountForcesPrivateShare(req.Type) {
 		shareMode = AccountShareModePrivate
 	}
 
@@ -1043,7 +1042,7 @@ func (s *AccountService) Update(ctx context.Context, id int64, req UpdateAccount
 }
 
 func (s *AccountService) UpdateOwned(ctx context.Context, ownerUserID, accountID int64, req UpdateAccountRequest) (*Account, error) {
-	if req.AccountLevel != nil && !IsUserEditableAccountLevel(*req.AccountLevel) {
+	if req.AccountLevel != nil {
 		return nil, ErrOwnedAccountLevelNotAllowed
 	}
 	account, err := s.GetOwnedByID(ctx, ownerUserID, accountID)
@@ -1108,7 +1107,6 @@ func (s *AccountService) UpdateOwned(ctx context.Context, ownerUserID, accountID
 	}
 	shouldBindGroups := false
 	var groupIDs []int64
-	hasPrivateProxy := account.ProxyID != nil && *account.ProxyID > 0
 	if ownedAccountForcesPrivateShare(account.Type) && req.ShareMode != nil && NormalizeAccountShareMode(*req.ShareMode) == AccountShareModePublic {
 		return nil, ErrOwnedAccountAPIKeyPublicShareNotAllowed
 	}
@@ -1123,20 +1121,7 @@ func (s *AccountService) UpdateOwned(ctx context.Context, ownerUserID, accountID
 		groupIDs = managedGroupIDs
 		shouldBindGroups = true
 	}
-	if hasPrivateProxy && req.ShareMode != nil && NormalizeAccountShareMode(*req.ShareMode) == AccountShareModePublic {
-		return nil, ErrOwnedAccountProxyPublicShareNotAllowed
-	}
-	if !shouldBindGroups && hasPrivateProxy && NormalizeAccountShareMode(account.ShareMode) == AccountShareModePublic {
-		managedGroupIDs, err := s.managedOwnedAccountGroupIDsForShareMode(ctx, ownerUserID, account, AccountShareModePrivate)
-		if err != nil {
-			return nil, err
-		}
-		account.ShareMode = AccountShareModePrivate
-		account.ShareStatus = AccountShareStatusApproved
-		account.ErrorMessage = ""
-		groupIDs = managedGroupIDs
-		shouldBindGroups = true
-	} else if !shouldBindGroups && req.ShareMode != nil {
+	if !shouldBindGroups && req.ShareMode != nil {
 		nextMode := NormalizeAccountShareMode(*req.ShareMode)
 		managedGroupIDs, err := s.managedOwnedAccountGroupIDsForShareMode(ctx, ownerUserID, account, nextMode)
 		if err != nil {
@@ -1455,7 +1440,7 @@ func (s *AccountService) BulkUpdateOwned(ctx context.Context, ownerUserID int64,
 	if input.GroupIDs != nil {
 		return nil, ErrGroupNotAllowed
 	}
-	if input.AccountLevel != nil && !IsUserEditableAccountLevel(*input.AccountLevel) {
+	if input.AccountLevel != nil {
 		return nil, ErrOwnedAccountLevelNotAllowed
 	}
 	status, err := normalizeOwnedBulkStatus(input.Status)
@@ -1509,9 +1494,6 @@ func (s *AccountService) BulkUpdateOwned(ctx context.Context, ownerUserID int64,
 		nextConcurrency := ownedPersonalDefaultConcurrency
 		nextLoadFactor := (*int)(nil)
 		nextAccountLevel := NormalizeOpenAIAccountLevel(account.Platform, account.AccountLevel, nextCredentials, nextExtra)
-		if input.AccountLevel != nil {
-			nextAccountLevel = NormalizeAccountLevel(*input.AccountLevel)
-		}
 		if err := ValidateOpenAIPlusConcurrency(account.Platform, nextAccountLevel, nextConcurrency); err != nil {
 			return nil, err
 		}
@@ -1535,12 +1517,11 @@ func (s *AccountService) BulkUpdateOwned(ctx context.Context, ownerUserID int64,
 			account := accountsByID[accountID]
 			entry := BulkUpdateAccountResult{AccountID: accountID}
 			updateReq := UpdateAccountRequest{
-				Concurrency:  nil,
-				LoadFactor:   nil,
-				Priority:     input.Priority,
-				Schedulable:  input.Schedulable,
-				AccountLevel: input.AccountLevel,
-				ProxyID:      input.ProxyID,
+				Concurrency: nil,
+				LoadFactor:  nil,
+				Priority:    input.Priority,
+				Schedulable: input.Schedulable,
+				ProxyID:     input.ProxyID,
 			}
 			if status != "" {
 				updateReq.Status = &status
@@ -1580,10 +1561,6 @@ func (s *AccountService) BulkUpdateOwned(ctx context.Context, ownerUserID int64,
 		Schedulable: input.Schedulable,
 		Credentials: map[string]any{},
 		Extra:       map[string]any{},
-	}
-	if input.AccountLevel != nil {
-		level := NormalizeAccountLevel(*input.AccountLevel)
-		repoUpdates.AccountLevel = &level
 	}
 	if status != "" {
 		repoUpdates.Status = &status
@@ -1682,13 +1659,6 @@ func (s *AccountService) initialOwnedAccountGroupIDs(ctx context.Context, ownerU
 	if account == nil {
 		return nil, ErrAccountNotFound
 	}
-	if NormalizeAccountShareMode(account.ShareMode) == AccountShareModePublic {
-		publicGroup, err := s.resolveOwnedPublicShareGroup(ctx, account)
-		if err != nil {
-			return nil, err
-		}
-		return s.publicOwnedAccountGroupIDs(ctx, ownerUserID, account, publicGroup)
-	}
 	privateGroup, err := s.getPrivateGroupForOwnedAccount(ctx, ownerUserID, account.Platform)
 	if err != nil {
 		return nil, err
@@ -1700,18 +1670,14 @@ func (s *AccountService) managedOwnedAccountGroupIDsForShareMode(ctx context.Con
 	if account == nil {
 		return nil, ErrAccountNotFound
 	}
-	if NormalizeAccountShareMode(nextMode) == AccountShareModePublic {
+	if NormalizeAccountShareMode(nextMode) == AccountShareModePublic && account.IsPublicShareApproved() {
 		publicGroup, err := s.resolveOwnedPublicShareGroup(ctx, account)
 		if err != nil {
 			return nil, err
 		}
 		return s.publicOwnedAccountGroupIDs(ctx, ownerUserID, account, publicGroup)
 	}
-	privateGroup, err := s.getPrivateGroupForOwnedAccount(ctx, ownerUserID, account.Platform)
-	if err != nil {
-		return nil, err
-	}
-	return []int64{privateGroup.ID}, nil
+	return s.initialOwnedAccountGroupIDs(ctx, ownerUserID, account, nil)
 }
 
 func (s *AccountService) ApproveOwnedPublicShare(ctx context.Context, ownerUserID, accountID int64) (*Account, error) {
@@ -1722,9 +1688,6 @@ func (s *AccountService) ApproveOwnedPublicShareWithOptions(ctx context.Context,
 	account, err := s.GetOwnedByID(ctx, ownerUserID, accountID)
 	if err != nil {
 		return nil, err
-	}
-	if account.ProxyID != nil && *account.ProxyID > 0 {
-		return nil, ErrOwnedAccountProxyPublicShareNotAllowed
 	}
 	if ownedAccountForcesPrivateShare(account.Type) {
 		return nil, ErrOwnedAccountAPIKeyPublicShareNotAllowed
@@ -1784,10 +1747,7 @@ func (s *AccountService) MarkOwnedPublicSharePending(ctx context.Context, ownerU
 	if err != nil {
 		return nil, err
 	}
-	if account.ProxyID != nil && *account.ProxyID > 0 {
-		return nil, ErrOwnedAccountProxyPublicShareNotAllowed
-	}
-	groupIDs, err := s.managedOwnedAccountGroupIDsForShareMode(ctx, ownerUserID, account, AccountShareModePublic)
+	groupIDs, err := s.initialOwnedAccountGroupIDs(ctx, ownerUserID, account, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1849,14 +1809,11 @@ func (s *AccountService) repairedOpenAIAccountGroupIDs(ctx context.Context, acco
 	if account == nil || account.OwnerUserID == nil {
 		return nil, ErrAccountNotFound
 	}
-	groupIDs := []int64{}
-	if NormalizeAccountShareMode(account.ShareMode) != AccountShareModePublic {
-		privateGroup, err := s.getPrivateGroupForOwnedAccount(ctx, *account.OwnerUserID, account.Platform)
-		if err != nil {
-			return nil, err
-		}
-		groupIDs = append(groupIDs, privateGroup.ID)
+	privateGroup, err := s.getPrivateGroupForOwnedAccount(ctx, *account.OwnerUserID, account.Platform)
+	if err != nil {
+		return nil, err
 	}
+	groupIDs := []int64{privateGroup.ID}
 	if s.groupRepo == nil {
 		return normalizeGroupIDs(groupIDs)
 	}
@@ -1993,7 +1950,11 @@ func (s *AccountService) publicOwnedAccountGroupIDs(ctx context.Context, ownerUs
 	if account == nil || publicGroup == nil {
 		return nil, ErrOwnedAccountPublicPoolUnavailable
 	}
-	return normalizeGroupIDs([]int64{publicGroup.ID})
+	privateGroup, err := s.getPrivateGroupForOwnedAccount(ctx, ownerUserID, account.Platform)
+	if err != nil {
+		return nil, err
+	}
+	return normalizeGroupIDs([]int64{privateGroup.ID, publicGroup.ID})
 }
 
 func (s *AccountService) validateOwnedAccountGroupBinding(ctx context.Context, ownerUserID int64, platform, accountType string, groupIDs []int64) ([]int64, error) {

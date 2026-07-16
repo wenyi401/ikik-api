@@ -1052,8 +1052,11 @@ export interface AccountQuotaSummary {
   active_account_count: number
   schedulable_account_count: number
   rate_limited_account_count: number
+  quota_protected_account_count: number
   error_account_count: number
   disabled_account_count: number
+  concurrency_capacity: number
+  schedulable_concurrency_capacity: number
   quota_account_count: number
   unlimited_account_count: number
   total: AccountQuotaDimensionSummary
@@ -1071,8 +1074,11 @@ export interface AccountQuotaGroupSummary {
   active_account_count: number
   schedulable_account_count: number
   rate_limited_account_count: number
+  quota_protected_account_count: number
   error_account_count: number
   disabled_account_count: number
+  concurrency_capacity: number
+  schedulable_concurrency_capacity: number
   quota_account_count: number
   unlimited_account_count: number
   total: AccountQuotaDimensionSummary

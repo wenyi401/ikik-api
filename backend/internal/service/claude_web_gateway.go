@@ -27,6 +27,12 @@ type claudeWebStreamOptions struct {
 	ConversationKey string
 }
 
+type claudeWebPreparedPrompt struct {
+	Text        string
+	InputTokens int
+	ToolBridge  *claudeweb.ToolBridgeConfig
+}
+
 func (s *GatewayService) forwardClaudeWebMessages(
 	ctx context.Context,
 	c *gin.Context,
@@ -162,7 +168,7 @@ func startClaudeWebAnthropicStream(ctx context.Context, account *Account, anthro
 		}
 	}
 	hasExistingConversation := state != nil && state.conversationID != ""
-	prompt, inputTokens, err := buildClaudeWebPromptMode(anthropicBody, hasExistingConversation)
+	prepared, err := prepareClaudeWebPromptMode(anthropicBody, hasExistingConversation)
 	if err != nil {
 		releaseState()
 		return nil, err
@@ -173,11 +179,12 @@ func startClaudeWebAnthropicStream(ctx context.Context, account *Account, anthro
 		return nil, err
 	}
 	startOptions := claudeweb.CompletionOptions{
-		Model:        options.Model,
-		Prompt:       prompt,
-		Effort:       options.Effort,
-		ThinkingMode: options.ThinkingMode,
-		Persistent:   persistent,
+		Model:           options.Model,
+		Prompt:          prepared.Text,
+		Effort:          options.Effort,
+		ThinkingMode:    options.ThinkingMode,
+		Persistent:      persistent,
+		DisableWebTools: prepared.ToolBridge != nil,
 	}
 	if state != nil {
 		startOptions.ConversationID = state.conversationID
@@ -188,9 +195,10 @@ func startClaudeWebAnthropicStream(ctx context.Context, account *Account, anthro
 		state.conversationID = ""
 		state.lastHumanUUID = ""
 		state.lastAssistantUUID = ""
-		prompt, inputTokens, err = buildClaudeWebPromptMode(anthropicBody, false)
+		prepared, err = prepareClaudeWebPromptMode(anthropicBody, false)
 		if err == nil {
-			startOptions.Prompt = prompt
+			startOptions.Prompt = prepared.Text
+			startOptions.DisableWebTools = prepared.ToolBridge != nil
 			startOptions.ConversationID = ""
 			startOptions.ParentMessageUUID = ""
 			stream, err = client.StartCompletion(ctx, startOptions)
@@ -209,7 +217,11 @@ func startClaudeWebAnthropicStream(ctx context.Context, account *Account, anthro
 	go func() {
 		defer func() { _ = stream.Body.Close() }()
 		defer client.Close()
-		_, convertErr := claudeweb.ConvertStream(ctx, stream.Body, writer, options.Model, inputTokens)
+		_, convertErr := claudeweb.ConvertStreamWithOptions(ctx, stream.Body, writer, claudeweb.StreamOptions{
+			Model:       options.Model,
+			InputTokens: prepared.InputTokens,
+			ToolBridge:  prepared.ToolBridge,
+		})
 		if state != nil {
 			if convertErr == nil {
 				state.conversationID = stream.ConversationID
@@ -248,6 +260,29 @@ func claudeWebEffort(value *string) string {
 		return ""
 	}
 	return strings.TrimSpace(*value)
+}
+
+func applyClaudeWebParallelToolChoice(raw json.RawMessage, parallel *bool) json.RawMessage {
+	if parallel == nil || *parallel {
+		return raw
+	}
+	payload := map[string]any{"type": "auto"}
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed != "" && trimmed != "null" {
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			var choiceType string
+			if json.Unmarshal(raw, &choiceType) != nil || strings.TrimSpace(choiceType) == "" {
+				return raw
+			}
+			payload = map[string]any{"type": choiceType}
+		}
+	}
+	payload["disable_parallel_tool_use"] = true
+	updated, err := json.Marshal(payload)
+	if err != nil {
+		return raw
+	}
+	return updated
 }
 
 func claudeWebConversationKey(ctx context.Context, account *Account, parsed *ParsedRequest) string {
@@ -318,9 +353,29 @@ func buildClaudeWebPrompt(body []byte) (string, int, error) {
 }
 
 func buildClaudeWebPromptMode(body []byte, latestTurnOnly bool) (string, int, error) {
+	prepared, err := prepareClaudeWebPromptMode(body, latestTurnOnly)
+	if err != nil {
+		return "", 0, err
+	}
+	return prepared.Text, prepared.InputTokens, nil
+}
+
+func prepareClaudeWebPromptMode(body []byte, latestTurnOnly bool) (*claudeWebPreparedPrompt, error) {
 	var request apicompat.AnthropicRequest
 	if err := json.Unmarshal(body, &request); err != nil {
-		return "", 0, fmt.Errorf("parse Claude Web request: %w", err)
+		return nil, fmt.Errorf("parse Claude Web request: %w", err)
+	}
+	toolDefinitions := make([]claudeweb.ToolDefinition, 0, len(request.Tools))
+	for _, tool := range request.Tools {
+		toolDefinitions = append(toolDefinitions, claudeweb.ToolDefinition{
+			Name:        tool.Name,
+			Description: tool.Description,
+			InputSchema: tool.InputSchema,
+		})
+	}
+	toolBridge, err := claudeweb.NewToolBridgeConfig(toolDefinitions, request.ToolChoice)
+	if err != nil {
+		return nil, err
 	}
 	var prompt strings.Builder
 	writePrompt := func(text string) error {
@@ -330,14 +385,26 @@ func buildClaudeWebPromptMode(body []byte, latestTurnOnly bool) (string, int, er
 	if !latestTurnOnly {
 		if system := claudeWebRawContentText(request.System); system != "" {
 			if err := writePrompt("System: "); err != nil {
-				return "", 0, err
+				return nil, err
 			}
 			if err := writePrompt(system); err != nil {
-				return "", 0, err
+				return nil, err
 			}
 			if err := writePrompt("\n\n"); err != nil {
-				return "", 0, err
+				return nil, err
 			}
+		}
+	}
+	if toolBridge != nil && toolBridge.Enabled() {
+		toolPrompt, promptErr := toolBridge.Prompt()
+		if promptErr != nil {
+			return nil, promptErr
+		}
+		if err := writePrompt(toolPrompt); err != nil {
+			return nil, err
+		}
+		if err := writePrompt("\n\n"); err != nil {
+			return nil, err
 		}
 	}
 	messages := request.Messages
@@ -348,25 +415,30 @@ func buildClaudeWebPromptMode(body []byte, latestTurnOnly bool) (string, int, er
 		switch strings.ToLower(strings.TrimSpace(message.Role)) {
 		case "assistant":
 			if err := writePrompt("Assistant: "); err != nil {
-				return "", 0, err
+				return nil, err
 			}
 		default:
 			if err := writePrompt("Human: "); err != nil {
-				return "", 0, err
+				return nil, err
 			}
 		}
-		if err := writePrompt(claudeWebRawContentText(message.Content)); err != nil {
-			return "", 0, err
+		messageText := claudeWebRawContentText(message.Content)
+		if err := writePrompt(messageText); err != nil {
+			return nil, err
 		}
 		if err := writePrompt("\n\n"); err != nil {
-			return "", 0, err
+			return nil, err
 		}
 	}
 	text := strings.TrimSpace(prompt.String())
 	if text == "" {
-		return "", 0, fmt.Errorf("claude Web request contains no text content")
+		return nil, fmt.Errorf("claude Web request contains no text content")
 	}
-	return text, anthropictokenizer.CountTokens(text), nil
+	return &claudeWebPreparedPrompt{
+		Text:        text,
+		InputTokens: anthropictokenizer.CountTokens(text),
+		ToolBridge:  toolBridge,
+	}, nil
 }
 
 func claudeWebRawContentText(raw json.RawMessage) string {
@@ -393,9 +465,23 @@ func claudeWebRawContentText(raw json.RawMessage) string {
 				parts = append(parts, value)
 			}
 		case "tool_use":
-			parts = append(parts, fmt.Sprintf("[Tool call %s %s: %s]", block.ID, block.Name, strings.TrimSpace(string(block.Input))))
+			input := block.Input
+			if len(input) == 0 || !json.Valid(input) {
+				input = json.RawMessage(`{}`)
+			}
+			payload, err := json.Marshal([]map[string]any{{
+				"name":      block.Name,
+				"arguments": input,
+			}})
+			if err == nil {
+				parts = append(parts, fmt.Sprintf("Assistant tool call id=%s:\n<tool_calls>%s</tool_calls>", strings.TrimSpace(block.ID), string(payload)))
+			}
 		case "tool_result":
-			parts = append(parts, fmt.Sprintf("[Tool result %s: %s]", block.ToolUseID, claudeWebRawContentText(block.Content)))
+			result := claudeWebRawContentText(block.Content)
+			if block.IsError {
+				result = "Tool returned an error: " + result
+			}
+			parts = append(parts, fmt.Sprintf("Tool result for call_id=%s:\n<tool_result>\n%s\n</tool_result>", strings.TrimSpace(block.ToolUseID), result))
 		case "image":
 			parts = append(parts, "[Image attachment]")
 		}
@@ -445,6 +531,9 @@ func collectClaudeWebAnthropicResponse(body io.Reader) (*apicompat.AnthropicResp
 			case "thinking_delta":
 				block.Thinking += event.Delta.Thinking
 			case "input_json_delta":
+				if block.Type == "tool_use" && strings.TrimSpace(string(block.Input)) == "{}" {
+					block.Input = nil
+				}
 				block.Input = appendRawJSON(block.Input, event.Delta.PartialJSON)
 			}
 		case "message_delta":
@@ -488,13 +577,14 @@ func (s *GatewayService) claudeWebForwardError(ctx context.Context, account *Acc
 	statusCode := http.StatusBadGateway
 	responseBody := []byte(`{"error":{"type":"upstream_error","message":"Claude Web request failed"}}`)
 	var modelErr *claudeweb.UnsupportedModelError
-	isLocalValidationError := errors.As(err, &modelErr)
+	var toolRequestErr *claudeweb.ToolBridgeRequestError
+	isLocalValidationError := errors.As(err, &modelErr) || errors.As(err, &toolRequestErr)
 	if isLocalValidationError {
 		statusCode = http.StatusBadRequest
 		responseBody, _ = json.Marshal(map[string]any{
 			"error": map[string]any{
 				"type":    "invalid_request_error",
-				"message": modelErr.Error(),
+				"message": err.Error(),
 			},
 		})
 	}

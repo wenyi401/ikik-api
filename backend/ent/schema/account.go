@@ -116,7 +116,7 @@ func (Account) Fields() []ent.Field {
 		// concurrency: 账户最大并发请求数
 		// 用于限制同一时间对该账户发起的请求数量
 		field.Int("concurrency").
-			Default(3),
+			Default(10),
 
 		field.Int("load_factor").Optional().Nillable(),
 

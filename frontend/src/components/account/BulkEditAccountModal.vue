@@ -538,7 +538,6 @@
             :scope="accountScope"
             aria-labelledby="bulk-edit-proxy-label"
           />
-          <p v-if="userProxyForcesPrivate" class="input-hint">{{ t('userAccounts.proxyForcesPrivate') }}</p>
         </div>
       </div>
 
@@ -1152,7 +1151,6 @@ const isUserScope = computed(() => accountScope.value === 'user')
 const canManageProxy = computed(() => props.allowProxy !== false)
 const canManageBillingRate = computed(() => !isUserScope.value && props.allowBillingRate !== false)
 const canManageBaseUrl = computed(() => !isUserScope.value && props.allowBaseUrl !== false)
-const userProxyForcesPrivate = computed(() => isUserScope.value && enableProxy.value && proxyId.value !== null)
 
 // Platform awareness
 const targetMode = computed(() => props.target?.mode ?? 'selected')
@@ -1351,7 +1349,7 @@ const statusOptions = computed(() => [
 ])
 const shareModeOptions = computed(() => [
   { value: 'private', label: t('userAccounts.privateMode') },
-  { value: 'public', label: t('userAccounts.publicMode'), disabled: userProxyForcesPrivate.value }
+  { value: 'public', label: t('userAccounts.publicMode') }
 ])
 const accountLevelOptions = computed(() => [
   { value: 'unknown', label: t('admin.accounts.accountLevel.unknown') },
@@ -1952,13 +1950,4 @@ watch(
   { immediate: true }
 )
 
-watch(
-  userProxyForcesPrivate,
-  (enabled) => {
-    if (enabled) {
-      enableShareMode.value = true
-      shareMode.value = 'private'
-    }
-  }
-)
 </script>

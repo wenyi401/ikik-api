@@ -479,7 +479,6 @@ async function createFreeModelAccount() {
   const buildPayload = (apiKey: string, index: number): CreateAccountRequest => ({
     name: apiKeys.length > 1 ? `${baseName} #${index + 1}` : baseName,
     platform: 'openai',
-    account_level: 'unknown',
     type: 'apikey',
     share_mode: 'private',
     credentials: {

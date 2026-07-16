@@ -90,10 +90,10 @@
               form.share_mode === 'public'
                 ? 'border-primary-400 bg-primary-50 text-primary-700 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-300'
                 : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-200 dark:hover:bg-dark-700',
-              userShareForcesPrivate && 'cursor-not-allowed opacity-50'
+              userApiKeyForcesPrivate && 'cursor-not-allowed opacity-50'
             ]"
-            :disabled="userShareForcesPrivate"
-            @click="!userShareForcesPrivate && (form.share_mode = 'public')"
+            :disabled="userApiKeyForcesPrivate"
+            @click="!userApiKeyForcesPrivate && (form.share_mode = 'public')"
           >
             <Icon name="globe" size="sm" class="mr-2" />
             {{ t('userAccounts.publicMode') }}
@@ -356,7 +356,7 @@
       </div>
 
       <!-- Account Type Selection (OpenAI) -->
-      <div v-if="form.platform === 'openai'">
+      <div v-if="!isUserScope && form.platform === 'openai'">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
         <div :class="['mt-2 grid gap-3', isUserScope ? 'grid-cols-1' : 'grid-cols-2']" data-tour="account-form-type">
           <button
@@ -414,14 +414,14 @@
         </div>
       </div>
 
-      <div v-if="form.platform === 'openai'">
+      <div v-if="!isUserScope && form.platform === 'openai'">
         <label class="input-label">{{ t('admin.accounts.accountLevel.label') }}</label>
         <Select
           v-model="form.account_level"
-          :options="accountLevelOptions"
+          :options="adminAccountLevelOptions"
         />
         <p class="input-hint">
-          {{ isUserScope ? t('admin.accounts.accountLevel.userManualHint') : t('admin.accounts.accountLevel.manualHint') }}
+          {{ t('admin.accounts.accountLevel.manualHint') }}
         </p>
       </div>
 
@@ -2835,7 +2835,6 @@
       <div v-if="canManageProxy">
         <label class="input-label">{{ t('admin.accounts.proxy') }}</label>
         <ProxySelector v-model="form.proxy_id" :proxies="proxies" :scope="accountScope" />
-        <p v-if="userProxyForcesPrivate" class="input-hint">{{ t('userAccounts.proxyForcesPrivate') }}</p>
       </div>
 
       <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -3678,9 +3677,7 @@ const isUserScope = computed(() => accountScope.value === 'user')
 const canManageProxy = computed(() => props.allowProxy !== false)
 const canManageBillingRate = computed(() => !isUserScope.value && props.allowBillingRate !== false)
 const assignableGroups = computed(() => accountAssignableGroups(props.groups))
-const userProxyForcesPrivate = computed(() => isUserScope.value && !!form.proxy_id)
 const userApiKeyForcesPrivate = computed(() => isUserScope.value && form.type === 'apikey')
-const userShareForcesPrivate = computed(() => userProxyForcesPrivate.value || userApiKeyForcesPrivate.value)
 const showHeaderOverrideEditor = computed(() =>
   !isUserScope.value &&
   form.type === 'apikey' &&
@@ -4075,16 +4072,6 @@ const adminAccountLevelOptions = computed(() => [
   { value: 'k12', label: t('admin.accounts.accountLevel.k12') }
 ])
 
-const userAccountLevelOptions = computed(() => [
-  { value: 'unknown', label: t('admin.accounts.accountLevel.unknown') },
-  { value: 'team', label: t('admin.accounts.accountLevel.team') },
-  { value: 'k12', label: t('admin.accounts.accountLevel.k12') }
-])
-
-const accountLevelOptions = computed(() => (
-  isUserScope.value ? userAccountLevelOptions.value : adminAccountLevelOptions.value
-))
-
 const syncPreviewCredentials = computed(() => {
   const apiKey = apiKeyValue.value.trim()
   if (isUserScope.value || accountCategory.value !== 'apikey' || !apiKey) {
@@ -4120,16 +4107,7 @@ const applyOpenAIPlusConcurrencyDefaults = () => {
 
 watch(() => [form.platform, form.account_level], applyOpenAIPlusConcurrencyDefaults)
 
-watch(
-  () => form.proxy_id,
-  (proxyID) => {
-    if (isUserScope.value && proxyID) {
-      form.share_mode = 'private'
-    }
-  }
-)
-
-watch(userShareForcesPrivate, (forced) => {
+watch(userApiKeyForcesPrivate, (forced) => {
   if (forced) {
     form.share_mode = 'private'
   }
@@ -4746,6 +4724,7 @@ const sanitizeCreatePayload = (payload: CreateAccountRequest): CreateAccountRequ
     delete next.rate_multiplier
   }
   if (isUserScope.value) {
+    delete next.account_level
     delete next.group_ids
     next.concurrency = PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY
     next.load_factor = undefined

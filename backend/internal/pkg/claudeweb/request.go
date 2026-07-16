@@ -17,6 +17,7 @@ type CompletionOptions struct {
 	ConversationID    string
 	ParentMessageUUID string
 	Persistent        bool
+	DisableWebTools   bool
 }
 
 type completionRequest struct {
@@ -87,6 +88,13 @@ func buildCompletionRequest(options CompletionOptions) (*completionRequest, stri
 		parentUUID = uuid.NewString()
 	}
 
+	tools := WebTools()
+	if options.DisableWebTools {
+		// Client-defined tools use the prompt bridge. Keeping claude.ai's own
+		// server tools enabled would expose calls that the API client cannot run.
+		tools = json.RawMessage(`[]`)
+	}
+
 	return &completionRequest{
 		Prompt:            options.Prompt,
 		ParentMessageUUID: parentUUID,
@@ -95,7 +103,7 @@ func buildCompletionRequest(options CompletionOptions) (*completionRequest, stri
 		Model:             options.Model,
 		Effort:            options.Effort,
 		ThinkingMode:      options.ThinkingMode,
-		Tools:             WebTools(),
+		Tools:             tools,
 		TurnMessageUUIDs: &turnMessageUUIDs{
 			HumanMessageUUID:     humanUUID,
 			AssistantMessageUUID: assistantUUID,

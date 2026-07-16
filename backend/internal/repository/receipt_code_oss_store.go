@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"ikik-api/internal/config"
-	"ikik-api/internal/service"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"ikik-api/internal/config"
+	"ikik-api/internal/service"
 )
 
 type receiptCodeOSSStore struct {
@@ -70,7 +70,7 @@ func (s *receiptCodeOSSStore) Upload(ctx context.Context, key string, body io.Re
 		ContentType: &contentType,
 	})
 	if err != nil {
-		return fmt.Errorf("OSS PutObject: %w", err)
+		return mapObjectStorageError("upload receipt code object", err)
 	}
 	return nil
 }
@@ -81,7 +81,7 @@ func (s *receiptCodeOSSStore) Delete(ctx context.Context, key string) error {
 		Key:    &key,
 	})
 	if err != nil {
-		return fmt.Errorf("OSS DeleteObject: %w", err)
+		return mapObjectStorageError("delete receipt code object", err)
 	}
 	return nil
 }
@@ -93,7 +93,7 @@ func (s *receiptCodeOSSStore) PresignURL(ctx context.Context, key string, expiry
 		Key:    &key,
 	}, s3.WithPresignExpires(expiry))
 	if err != nil {
-		return "", fmt.Errorf("presign url: %w", err)
+		return "", mapObjectStorageError("presign receipt code object", err)
 	}
 	return result.URL, nil
 }
@@ -104,4 +104,3 @@ func (s *receiptCodeOSSStore) PublicURL(key string) string {
 	}
 	return s.publicBaseURL + "/" + strings.TrimLeft(key, "/")
 }
-

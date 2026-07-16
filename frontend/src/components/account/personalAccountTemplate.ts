@@ -2,7 +2,7 @@ import { getModelsByPlatform, getPresetMappingsByPlatform } from '@/composables/
 import { OPENAI_WS_MODE_OFF } from '@/utils/openaiWsMode'
 import type { AccountPlatform, OpenAICompactMode } from '@/types'
 
-export const PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY = 3
+export const PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY = 10
 export const PERSONAL_ACCOUNT_DEFAULT_PRIORITY = 1
 export const PERSONAL_ACCOUNT_DEFAULT_AUTO_PAUSE_ON_EXPIRED = true
 

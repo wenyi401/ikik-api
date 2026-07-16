@@ -50,6 +50,7 @@ const (
 
 	ContentModerationProviderOpenAI          = "openai"
 	ContentModerationProviderAliyunGuardrail = "aliyun_guardrails"
+	ContentModerationProviderModelClassifier = "model_classifier"
 
 	ContentModerationProtocolAnthropicMessages = "anthropic_messages"
 	ContentModerationProtocolOpenAIResponses   = "openai_responses"
@@ -92,6 +93,7 @@ const (
 	maxContentModerationBlockedKeywordRunes      = 200
 	maxContentModerationModelFilterModels        = 1000
 	maxContentModerationModelFilterRunes         = 200
+	maxContentModerationClassifierPromptRunes    = 20000
 
 	contentModerationCleanupInterval = 24 * time.Hour
 	contentModerationCleanupTimeout  = 30 * time.Minute
@@ -99,6 +101,32 @@ const (
 )
 
 var contentModerationCategoryOrder = []string{
+	ContentModerationRiskCategorySafetyBypass,
+	ContentModerationRiskCategoryCredentialTheft,
+	ContentModerationRiskCategoryAccountAutomation,
+	ContentModerationRiskCategoryAuthReverseEngineering,
+	ContentModerationRiskCategoryExploitReverseEngineering,
+	ContentModerationRiskCategoryCheatAutomation,
+	ContentModerationRiskCategoryOther,
+	ContentModerationPolicyCategoryHarassment,
+	ContentModerationPolicyCategorySelfHarm,
+	ContentModerationPolicyCategorySexualAbuse,
+	ContentModerationPolicyCategoryViolence,
+	ContentModerationPolicyCategoryWeapons,
+	ContentModerationPolicyCategoryIllicit,
+	ContentModerationPolicyCategoryCyberAbuse,
+	ContentModerationPolicyCategoryGambling,
+	ContentModerationPolicyCategoryUnlicensedAdvice,
+	ContentModerationPolicyCategoryPrivacy,
+	ContentModerationPolicyCategoryProfiling,
+	ContentModerationPolicyCategoryMinorExploitation,
+	ContentModerationPolicyCategoryMinorUnsafeContent,
+	ContentModerationPolicyCategoryFraud,
+	ContentModerationPolicyCategoryAcademicDishonesty,
+	ContentModerationPolicyCategoryPoliticalManipulation,
+	ContentModerationPolicyCategoryHighStakesAutomation,
+	ContentModerationPolicyCategoryNationalSecurity,
+	ContentModerationPolicyCategoryIPInfringement,
 	"aliyun.block",
 	"aliyun.high",
 	"harassment",
@@ -118,6 +146,32 @@ var contentModerationCategoryOrder = []string{
 
 func ContentModerationDefaultThresholds() map[string]float64 {
 	return map[string]float64{
+		ContentModerationRiskCategorySafetyBypass:              0.80,
+		ContentModerationRiskCategoryCredentialTheft:           0.80,
+		ContentModerationRiskCategoryAccountAutomation:         0.80,
+		ContentModerationRiskCategoryAuthReverseEngineering:    0.80,
+		ContentModerationRiskCategoryExploitReverseEngineering: 0.82,
+		ContentModerationRiskCategoryCheatAutomation:           0.82,
+		ContentModerationRiskCategoryOther:                     0.85,
+		ContentModerationPolicyCategoryHarassment:              0.88,
+		ContentModerationPolicyCategorySelfHarm:                0.85,
+		ContentModerationPolicyCategorySexualAbuse:             0.85,
+		ContentModerationPolicyCategoryViolence:                0.85,
+		ContentModerationPolicyCategoryWeapons:                 0.85,
+		ContentModerationPolicyCategoryIllicit:                 0.85,
+		ContentModerationPolicyCategoryCyberAbuse:              0.82,
+		ContentModerationPolicyCategoryGambling:                0.90,
+		ContentModerationPolicyCategoryUnlicensedAdvice:        0.88,
+		ContentModerationPolicyCategoryPrivacy:                 0.85,
+		ContentModerationPolicyCategoryProfiling:               0.88,
+		ContentModerationPolicyCategoryMinorExploitation:       0.75,
+		ContentModerationPolicyCategoryMinorUnsafeContent:      0.82,
+		ContentModerationPolicyCategoryFraud:                   0.84,
+		ContentModerationPolicyCategoryAcademicDishonesty:      0.90,
+		ContentModerationPolicyCategoryPoliticalManipulation:   0.88,
+		ContentModerationPolicyCategoryHighStakesAutomation:    0.85,
+		ContentModerationPolicyCategoryNationalSecurity:        0.88,
+		ContentModerationPolicyCategoryIPInfringement:          0.90,
 		"aliyun.block":           1.00,
 		"aliyun.high":            1.00,
 		"harassment":             0.98,
@@ -143,53 +197,17 @@ func ContentModerationCategories() []string {
 }
 
 type ContentModerationConfig struct {
-	Enabled              bool                         `json:"enabled"`
-	Mode                 string                       `json:"mode"`
-	ModerationProvider   string                       `json:"moderation_provider"`
-	BaseURL              string                       `json:"base_url"`
-	Model                string                       `json:"model"`
-	AliyunRegionID       string                       `json:"aliyun_region_id"`
-	AliyunEndpoint       string                       `json:"aliyun_endpoint"`
-	AliyunService        string                       `json:"aliyun_service"`
-	APIKey               string                       `json:"api_key,omitempty"`
-	APIKeys              []string                     `json:"api_keys,omitempty"`
-	TimeoutMS            int                          `json:"timeout_ms"`
-	SampleRate           int                          `json:"sample_rate"`
-	AllGroups            bool                         `json:"all_groups"`
-	GroupIDs             []int64                      `json:"group_ids"`
-	RecordNonHits        bool                         `json:"record_non_hits"`
-	Thresholds           map[string]float64           `json:"thresholds"`
-	WorkerCount          int                          `json:"worker_count"`
-	QueueSize            int                          `json:"queue_size"`
-	BlockStatus          int                          `json:"block_status"`
-	BlockMessage         string                       `json:"block_message"`
-	EmailOnHit           bool                         `json:"email_on_hit"`
-	AutoBanEnabled       bool                         `json:"auto_ban_enabled"`
-	BanThreshold         int                          `json:"ban_threshold"`
-	ViolationWindowHours int                          `json:"violation_window_hours"`
-	RetryCount           int                          `json:"retry_count"`
-	HitRetentionDays     int                          `json:"hit_retention_days"`
-	NonHitRetentionDays  int                          `json:"non_hit_retention_days"`
-	PreHashCheckEnabled  bool                         `json:"pre_hash_check_enabled"`
-	BlockedKeywords      []string                     `json:"blocked_keywords"`
-	KeywordBlockingMode  string                       `json:"keyword_blocking_mode"`
-	ModelFilter          ContentModerationModelFilter `json:"model_filter"`
-}
-
-type ContentModerationConfigView struct {
 	Enabled              bool                            `json:"enabled"`
 	Mode                 string                          `json:"mode"`
 	ModerationProvider   string                          `json:"moderation_provider"`
 	BaseURL              string                          `json:"base_url"`
 	Model                string                          `json:"model"`
+	ClassifierPrompt     string                          `json:"classifier_prompt,omitempty"`
 	AliyunRegionID       string                          `json:"aliyun_region_id"`
 	AliyunEndpoint       string                          `json:"aliyun_endpoint"`
 	AliyunService        string                          `json:"aliyun_service"`
-	APIKeyConfigured     bool                            `json:"api_key_configured"`
-	APIKeyMasked         string                          `json:"api_key_masked"`
-	APIKeyCount          int                             `json:"api_key_count"`
-	APIKeyMasks          []string                        `json:"api_key_masks"`
-	APIKeyStatuses       []ContentModerationAPIKeyStatus `json:"api_key_statuses"`
+	APIKey               string                          `json:"api_key,omitempty"`
+	APIKeys              []string                        `json:"api_keys,omitempty"`
 	TimeoutMS            int                             `json:"timeout_ms"`
 	SampleRate           int                             `json:"sample_rate"`
 	AllGroups            bool                            `json:"all_groups"`
@@ -211,6 +229,47 @@ type ContentModerationConfigView struct {
 	BlockedKeywords      []string                        `json:"blocked_keywords"`
 	KeywordBlockingMode  string                          `json:"keyword_blocking_mode"`
 	ModelFilter          ContentModerationModelFilter    `json:"model_filter"`
+	AdaptivePolicy       ContentModerationAdaptivePolicy `json:"adaptive_policy"`
+}
+
+type ContentModerationConfigView struct {
+	Enabled                 bool                            `json:"enabled"`
+	Mode                    string                          `json:"mode"`
+	ModerationProvider      string                          `json:"moderation_provider"`
+	BaseURL                 string                          `json:"base_url"`
+	Model                   string                          `json:"model"`
+	ClassifierPrompt        string                          `json:"classifier_prompt"`
+	ClassifierPromptDefault string                          `json:"classifier_prompt_default"`
+	AliyunRegionID          string                          `json:"aliyun_region_id"`
+	AliyunEndpoint          string                          `json:"aliyun_endpoint"`
+	AliyunService           string                          `json:"aliyun_service"`
+	APIKeyConfigured        bool                            `json:"api_key_configured"`
+	APIKeyMasked            string                          `json:"api_key_masked"`
+	APIKeyCount             int                             `json:"api_key_count"`
+	APIKeyMasks             []string                        `json:"api_key_masks"`
+	APIKeyStatuses          []ContentModerationAPIKeyStatus `json:"api_key_statuses"`
+	TimeoutMS               int                             `json:"timeout_ms"`
+	SampleRate              int                             `json:"sample_rate"`
+	AllGroups               bool                            `json:"all_groups"`
+	GroupIDs                []int64                         `json:"group_ids"`
+	RecordNonHits           bool                            `json:"record_non_hits"`
+	Thresholds              map[string]float64              `json:"thresholds"`
+	WorkerCount             int                             `json:"worker_count"`
+	QueueSize               int                             `json:"queue_size"`
+	BlockStatus             int                             `json:"block_status"`
+	BlockMessage            string                          `json:"block_message"`
+	EmailOnHit              bool                            `json:"email_on_hit"`
+	AutoBanEnabled          bool                            `json:"auto_ban_enabled"`
+	BanThreshold            int                             `json:"ban_threshold"`
+	ViolationWindowHours    int                             `json:"violation_window_hours"`
+	RetryCount              int                             `json:"retry_count"`
+	HitRetentionDays        int                             `json:"hit_retention_days"`
+	NonHitRetentionDays     int                             `json:"non_hit_retention_days"`
+	PreHashCheckEnabled     bool                            `json:"pre_hash_check_enabled"`
+	BlockedKeywords         []string                        `json:"blocked_keywords"`
+	KeywordBlockingMode     string                          `json:"keyword_blocking_mode"`
+	ModelFilter             ContentModerationModelFilter    `json:"model_filter"`
+	AdaptivePolicy          ContentModerationAdaptivePolicy `json:"adaptive_policy"`
 }
 
 type ContentModerationAPIKeyStatus struct {
@@ -248,6 +307,7 @@ type TestContentModerationAPIKeysInput struct {
 	ModerationProvider string   `json:"moderation_provider"`
 	BaseURL            string   `json:"base_url"`
 	Model              string   `json:"model"`
+	ClassifierPrompt   *string  `json:"classifier_prompt"`
 	AliyunRegionID     string   `json:"aliyun_region_id"`
 	AliyunEndpoint     string   `json:"aliyun_endpoint"`
 	AliyunService      string   `json:"aliyun_service"`
@@ -272,40 +332,42 @@ type ContentModerationTestAuditResult struct {
 }
 
 type UpdateContentModerationConfigInput struct {
-	Enabled              *bool                         `json:"enabled"`
-	Mode                 *string                       `json:"mode"`
-	ModerationProvider   *string                       `json:"moderation_provider"`
-	BaseURL              *string                       `json:"base_url"`
-	Model                *string                       `json:"model"`
-	AliyunRegionID       *string                       `json:"aliyun_region_id"`
-	AliyunEndpoint       *string                       `json:"aliyun_endpoint"`
-	AliyunService        *string                       `json:"aliyun_service"`
-	APIKey               *string                       `json:"api_key"`
-	APIKeys              *[]string                     `json:"api_keys"`
-	APIKeysMode          string                        `json:"api_keys_mode"`
-	DeleteAPIKeyHashes   *[]string                     `json:"delete_api_key_hashes"`
-	ClearAPIKey          bool                          `json:"clear_api_key"`
-	TimeoutMS            *int                          `json:"timeout_ms"`
-	SampleRate           *int                          `json:"sample_rate"`
-	AllGroups            *bool                         `json:"all_groups"`
-	GroupIDs             *[]int64                      `json:"group_ids"`
-	RecordNonHits        *bool                         `json:"record_non_hits"`
-	Thresholds           *map[string]float64           `json:"thresholds"`
-	WorkerCount          *int                          `json:"worker_count"`
-	QueueSize            *int                          `json:"queue_size"`
-	BlockStatus          *int                          `json:"block_status"`
-	BlockMessage         *string                       `json:"block_message"`
-	EmailOnHit           *bool                         `json:"email_on_hit"`
-	AutoBanEnabled       *bool                         `json:"auto_ban_enabled"`
-	BanThreshold         *int                          `json:"ban_threshold"`
-	ViolationWindowHours *int                          `json:"violation_window_hours"`
-	RetryCount           *int                          `json:"retry_count"`
-	HitRetentionDays     *int                          `json:"hit_retention_days"`
-	NonHitRetentionDays  *int                          `json:"non_hit_retention_days"`
-	PreHashCheckEnabled  *bool                         `json:"pre_hash_check_enabled"`
-	BlockedKeywords      *[]string                     `json:"blocked_keywords"`
-	KeywordBlockingMode  *string                       `json:"keyword_blocking_mode"`
-	ModelFilter          *ContentModerationModelFilter `json:"model_filter"`
+	Enabled              *bool                            `json:"enabled"`
+	Mode                 *string                          `json:"mode"`
+	ModerationProvider   *string                          `json:"moderation_provider"`
+	BaseURL              *string                          `json:"base_url"`
+	Model                *string                          `json:"model"`
+	ClassifierPrompt     *string                          `json:"classifier_prompt"`
+	AliyunRegionID       *string                          `json:"aliyun_region_id"`
+	AliyunEndpoint       *string                          `json:"aliyun_endpoint"`
+	AliyunService        *string                          `json:"aliyun_service"`
+	APIKey               *string                          `json:"api_key"`
+	APIKeys              *[]string                        `json:"api_keys"`
+	APIKeysMode          string                           `json:"api_keys_mode"`
+	DeleteAPIKeyHashes   *[]string                        `json:"delete_api_key_hashes"`
+	ClearAPIKey          bool                             `json:"clear_api_key"`
+	TimeoutMS            *int                             `json:"timeout_ms"`
+	SampleRate           *int                             `json:"sample_rate"`
+	AllGroups            *bool                            `json:"all_groups"`
+	GroupIDs             *[]int64                         `json:"group_ids"`
+	RecordNonHits        *bool                            `json:"record_non_hits"`
+	Thresholds           *map[string]float64              `json:"thresholds"`
+	WorkerCount          *int                             `json:"worker_count"`
+	QueueSize            *int                             `json:"queue_size"`
+	BlockStatus          *int                             `json:"block_status"`
+	BlockMessage         *string                          `json:"block_message"`
+	EmailOnHit           *bool                            `json:"email_on_hit"`
+	AutoBanEnabled       *bool                            `json:"auto_ban_enabled"`
+	BanThreshold         *int                             `json:"ban_threshold"`
+	ViolationWindowHours *int                             `json:"violation_window_hours"`
+	RetryCount           *int                             `json:"retry_count"`
+	HitRetentionDays     *int                             `json:"hit_retention_days"`
+	NonHitRetentionDays  *int                             `json:"non_hit_retention_days"`
+	PreHashCheckEnabled  *bool                            `json:"pre_hash_check_enabled"`
+	BlockedKeywords      *[]string                        `json:"blocked_keywords"`
+	KeywordBlockingMode  *string                          `json:"keyword_blocking_mode"`
+	ModelFilter          *ContentModerationModelFilter    `json:"model_filter"`
+	AdaptivePolicy       *ContentModerationAdaptivePolicy `json:"adaptive_policy"`
 }
 
 type ContentModerationModelFilter struct {
@@ -314,18 +376,19 @@ type ContentModerationModelFilter struct {
 }
 
 type ContentModerationCheckInput struct {
-	RequestID  string
-	UserID     int64
-	UserEmail  string
-	APIKeyID   int64
-	APIKeyName string
-	GroupID    *int64
-	GroupName  string
-	Endpoint   string
-	Provider   string
-	Model      string
-	Protocol   string
-	Body       []byte
+	RequestID         string
+	UserID            int64
+	UserEmail         string
+	APIKeyID          int64
+	APIKeyName        string
+	GroupID           *int64
+	GroupName         string
+	Endpoint          string
+	Provider          string
+	Model             string
+	Protocol          string
+	Body              []byte
+	InternalSignature string
 }
 
 type ContentModerationInput struct {
@@ -381,8 +444,10 @@ func (in ContentModerationInput) Hash() string {
 
 type ContentModerationDecision struct {
 	Allowed         bool               `json:"allowed"`
+	Audited         bool               `json:"audited"`
 	Blocked         bool               `json:"blocked"`
 	Flagged         bool               `json:"flagged"`
+	RiskSeverity    string             `json:"-"`
 	Message         string             `json:"message"`
 	StatusCode      int                `json:"status_code"`
 	InputHash       string             `json:"input_hash,omitempty"`
@@ -528,6 +593,11 @@ type ContentModerationService struct {
 	lastCleanupDeletedNonHit atomic.Int64
 	keyHealthMu              sync.Mutex
 	keyHealth                map[string]*contentModerationKeyHealth
+	adaptiveRiskMu           sync.RWMutex
+	adaptiveRiskProfiles     map[int64]ContentModerationRiskProfile
+	adaptiveOverviewMu       sync.Mutex
+	adaptiveOverview         *ContentModerationRiskOverview
+	adaptiveOverviewExpiry   time.Time
 }
 
 type contentModerationTask struct {
@@ -538,6 +608,7 @@ type contentModerationTask struct {
 	config           *ContentModerationConfig
 	recordHash       bool
 	applySideEffects bool
+	riskEvent        *ContentModerationRiskEvent
 	enqueuedAt       time.Time
 }
 
@@ -580,6 +651,7 @@ func NewContentModerationService(
 		workerCount:          maxContentModerationWorkerCount,
 		asyncQueue:           make(chan contentModerationTask, maxContentModerationQueueSize),
 		keyHealth:            make(map[string]*contentModerationKeyHealth),
+		adaptiveRiskProfiles: make(map[int64]ContentModerationRiskProfile),
 	}
 	if settingRepo != nil && repo != nil {
 		for i := 0; i < svc.workerCount; i++ {
@@ -617,6 +689,13 @@ func (s *ContentModerationService) UpdateConfig(ctx context.Context, input Updat
 	}
 	if input.Model != nil {
 		cfg.Model = strings.TrimSpace(*input.Model)
+	}
+	if input.ClassifierPrompt != nil {
+		prompt := strings.TrimSpace(*input.ClassifierPrompt)
+		if len([]rune(prompt)) > maxContentModerationClassifierPromptRunes {
+			return nil, infraerrors.BadRequest("CONTENT_MODERATION_CLASSIFIER_PROMPT_TOO_LONG", "classifier prompt is too long")
+		}
+		cfg.ClassifierPrompt = prompt
 	}
 	if input.AliyunRegionID != nil {
 		cfg.AliyunRegionID = strings.TrimSpace(*input.AliyunRegionID)
@@ -677,6 +756,9 @@ func (s *ContentModerationService) UpdateConfig(ctx context.Context, input Updat
 	}
 	if input.ModelFilter != nil {
 		cfg.ModelFilter = *input.ModelFilter
+	}
+	if input.AdaptivePolicy != nil {
+		cfg.AdaptivePolicy = *input.AdaptivePolicy
 	}
 	if input.AllGroups != nil {
 		cfg.AllGroups = *input.AllGroups
@@ -742,6 +824,9 @@ func (s *ContentModerationService) TestAPIKeys(ctx context.Context, input TestCo
 	}
 	if strings.TrimSpace(input.Model) != "" {
 		cfg.Model = input.Model
+	}
+	if input.ClassifierPrompt != nil {
+		cfg.ClassifierPrompt = strings.TrimSpace(*input.ClassifierPrompt)
 	}
 	if strings.TrimSpace(input.ModerationProvider) != "" {
 		cfg.ModerationProvider = input.ModerationProvider
@@ -829,6 +914,14 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 			"endpoint", input.Endpoint,
 			"protocol", input.Protocol,
 			"error", err)
+		return allow, nil
+	}
+	if isInternalContentModerationClassifierRequest(input, cfg) {
+		slog.Debug("content_moderation.skip_internal_classifier_request",
+			"user_id", input.UserID,
+			"api_key_id", input.APIKeyID,
+			"endpoint", input.Endpoint,
+			"model", input.Model)
 		return allow, nil
 	}
 	inGroupScope := cfg.includesGroup(input.GroupID)
@@ -981,8 +1074,21 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 			scores := map[string]float64{"hash": 1.0}
 			log := s.buildLog(input, cfg, ContentModerationActionHashBlock, true, "hash", 1.0, scores, content.ExcerptText(), nil, nil, "")
 			s.enqueueRecord(input, cfg, log, hashText, false, false)
+			if cfg.Mode == ContentModerationModeAdaptive {
+				riskEvent, _ := s.adaptiveSampleDecision(input, cfg, hashText)
+				if riskEvent != nil {
+					riskEvent.Audited = true
+					riskEvent.Flagged = true
+					riskEvent.Severity = ContentModerationSeveritySevere
+					riskEvent.Category = "hash"
+					riskEvent.Score = 1
+					riskEvent.ScoreDelta = cfg.AdaptivePolicy.SevereRiskWeight
+					s.enqueueAdaptiveRiskTask(input, cfg, ContentModerationInput{}, hashText, riskEvent, false)
+				}
+			}
 			return &ContentModerationDecision{
 				Allowed:    false,
+				Audited:    true,
 				Blocked:    true,
 				Flagged:    true,
 				Message:    message,
@@ -991,6 +1097,29 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 				Action:     ContentModerationActionHashBlock,
 			}, nil
 		}
+	}
+	if cfg.Mode == ContentModerationModeAdaptive {
+		riskEvent, sampled := s.adaptiveSampleDecision(input, cfg, hashText)
+		if !sampled {
+			s.enqueueAdaptiveRiskTask(input, cfg, ContentModerationInput{}, hashText, riskEvent, false)
+			slog.Info("content_moderation.skip_adaptive_sample",
+				"user_id", input.UserID,
+				"api_key_id", input.APIKeyID,
+				"endpoint", input.Endpoint,
+				"sample_rate", riskEvent.SampleRate)
+			return allow, nil
+		}
+		if len(cfg.apiKeys()) == 0 {
+			s.enqueueAdaptiveRiskTask(input, cfg, ContentModerationInput{}, hashText, riskEvent, false)
+			slog.Warn("content_moderation.skip_no_audit_api_keys",
+				"user_id", input.UserID,
+				"api_key_id", input.APIKeyID,
+				"endpoint", input.Endpoint,
+				"mode", cfg.Mode)
+			return allow, nil
+		}
+		s.enqueueAdaptiveRiskTask(input, cfg, content, hashText, riskEvent, true)
+		return allow, nil
 	}
 	if !cfg.shouldSample(hashText) {
 		if cfg.Mode == ContentModerationModePreBlock {
@@ -1095,17 +1224,20 @@ func (s *ContentModerationService) checkSync(ctx context.Context, input ContentM
 		"queue_delay_ms", queueDelay)
 	if flagged || cfg.RecordNonHits {
 		log := s.buildLog(input, cfg, action, flagged, highestCategory, highestScore, result.CategoryScores, content.ExcerptText(), &latency, queueDelay, "")
+		applyLegacySideEffects := flagged && cfg.Mode != ContentModerationModeAdaptive
 		if queueDelay == nil && cfg.Mode == ContentModerationModePreBlock {
-			s.enqueueRecord(input, cfg, log, hashText, flagged, flagged)
+			s.enqueueRecord(input, cfg, log, hashText, flagged, applyLegacySideEffects)
 		} else {
-			s.persistContentModerationLog(ctx, cfg, log, hashText, flagged, flagged)
+			s.persistContentModerationLog(ctx, cfg, log, hashText, flagged, applyLegacySideEffects)
 		}
 	}
 	if blocked {
 		return &ContentModerationDecision{
 			Allowed:         false,
+			Audited:         true,
 			Blocked:         true,
 			Flagged:         true,
+			RiskSeverity:    result.RiskSeverity,
 			Message:         cfg.BlockMessage,
 			StatusCode:      cfg.BlockStatus,
 			HighestCategory: highestCategory,
@@ -1116,7 +1248,9 @@ func (s *ContentModerationService) checkSync(ctx context.Context, input ContentM
 	}
 	return &ContentModerationDecision{
 		Allowed:         true,
+		Audited:         true,
 		Flagged:         flagged,
+		RiskSeverity:    result.RiskSeverity,
 		Message:         "",
 		HighestCategory: highestCategory,
 		HighestScore:    highestScore,
@@ -1244,19 +1378,40 @@ func (s *ContentModerationService) worker(id int) {
 				s.asyncProcessed.Add(1)
 				return
 			}
+			if task.riskEvent != nil && task.content.IsEmpty() {
+				s.recordAdaptiveRiskEvent(ctx, cfg, task.riskEvent)
+				s.asyncProcessed.Add(1)
+				return
+			}
 			if !cfg.Enabled || cfg.Mode == ContentModerationModeOff || len(cfg.apiKeys()) == 0 {
+				if task.riskEvent != nil {
+					s.recordAdaptiveRiskEvent(ctx, cfg, task.riskEvent)
+					s.asyncProcessed.Add(1)
+				}
 				return
 			}
 			if !cfg.includesGroup(task.input.GroupID) {
+				if task.riskEvent != nil {
+					s.recordAdaptiveRiskEvent(ctx, cfg, task.riskEvent)
+					s.asyncProcessed.Add(1)
+				}
 				return
 			}
 			if !cfg.includesModel(task.input.Model) {
+				if task.riskEvent != nil {
+					s.recordAdaptiveRiskEvent(ctx, cfg, task.riskEvent)
+					s.asyncProcessed.Add(1)
+				}
 				return
 			}
 			s.asyncActive.Add(1)
 			defer s.asyncActive.Add(-1)
 			queueDelay := int(time.Since(task.enqueuedAt).Milliseconds())
-			_ = s.checkSync(ctx, task.input, cfg, task.content, task.inputHash, &queueDelay, false)
+			decision := s.checkSync(ctx, task.input, cfg, task.content, task.inputHash, &queueDelay, false)
+			if task.riskEvent != nil {
+				applyAdaptiveDecisionToRiskEvent(task.riskEvent, decision, cfg.AdaptivePolicy)
+				s.recordAdaptiveRiskEvent(ctx, cfg, task.riskEvent)
+			}
 			s.asyncProcessed.Add(1)
 		}()
 	}
@@ -1507,7 +1662,7 @@ func (s *ContentModerationService) validateConfig(ctx context.Context, cfg *Cont
 	}
 	cfg.normalize()
 	switch cfg.Mode {
-	case ContentModerationModeOff, ContentModerationModeObserve, ContentModerationModePreBlock:
+	case ContentModerationModeOff, ContentModerationModeObserve, ContentModerationModePreBlock, ContentModerationModeAdaptive:
 	default:
 		return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_MODE", "内容审计模式无效")
 	}
@@ -1530,6 +1685,9 @@ func (s *ContentModerationService) validateConfig(ctx context.Context, cfg *Cont
 	}
 	if cfg.ModelFilter.Type != ContentModerationModelFilterAll && len(cfg.ModelFilter.Models) == 0 {
 		return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_MODEL_FILTER", "指定或排除模型时至少需要配置 1 个模型")
+	}
+	if cfg.AdaptivePolicy.WatchThreshold >= cfg.AdaptivePolicy.HighRiskThreshold || cfg.AdaptivePolicy.HighRiskThreshold >= cfg.AdaptivePolicy.CriticalThreshold {
+		return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_ADAPTIVE_THRESHOLDS", "adaptive risk thresholds must be strictly increasing")
 	}
 	if !cfg.AllGroups && len(cfg.GroupIDs) > 0 && s.groupRepo != nil {
 		for _, groupID := range cfg.GroupIDs {
@@ -1595,6 +1753,9 @@ func (s *ContentModerationService) callModeration(ctx context.Context, cfg *Cont
 func (s *ContentModerationService) callModerationOnceWithInput(ctx context.Context, cfg *ContentModerationConfig, apiKey string, input any, httpStatus *int) (*moderationAPIResult, error) {
 	if cfg != nil && cfg.ModerationProvider == ContentModerationProviderAliyunGuardrail {
 		return s.callAliyunGuardrailOnce(ctx, cfg, apiKey, input, httpStatus)
+	}
+	if cfg != nil && cfg.ModerationProvider == ContentModerationProviderModelClassifier {
+		return s.callModelClassifierOnce(ctx, cfg, apiKey, input, httpStatus)
 	}
 	base := strings.TrimRight(cfg.BaseURL, "/")
 	endpoint, err := url.JoinPath(base, "/v1/moderations")
@@ -1842,6 +2003,7 @@ func defaultContentModerationConfig() *ContentModerationConfig {
 		ModerationProvider:   ContentModerationProviderOpenAI,
 		BaseURL:              defaultContentModerationBaseURL,
 		Model:                defaultContentModerationModel,
+		ClassifierPrompt:     "",
 		AliyunRegionID:       defaultAliyunGuardrailRegionID,
 		AliyunEndpoint:       defaultAliyunGuardrailEndpoint,
 		AliyunService:        defaultAliyunGuardrailService,
@@ -1869,6 +2031,7 @@ func defaultContentModerationConfig() *ContentModerationConfig {
 			Type:   ContentModerationModelFilterAll,
 			Models: []string{},
 		},
+		AdaptivePolicy: DefaultContentModerationAdaptivePolicy(),
 	}
 }
 
@@ -1885,6 +2048,7 @@ func cloneContentModerationConfig(cfg *ContentModerationConfig) *ContentModerati
 		Type:   cfg.ModelFilter.Type,
 		Models: append([]string(nil), cfg.ModelFilter.Models...),
 	}
+	clone.AdaptivePolicy = cfg.AdaptivePolicy
 	return &clone
 }
 
@@ -1907,6 +2071,7 @@ func (cfg *ContentModerationConfig) normalize() {
 		cfg.Model = defaultContentModerationModel
 	}
 	cfg.Model = strings.TrimSpace(cfg.Model)
+	cfg.ClassifierPrompt = strings.TrimSpace(cfg.ClassifierPrompt)
 	if strings.TrimSpace(cfg.AliyunRegionID) == "" {
 		cfg.AliyunRegionID = defaultAliyunGuardrailRegionID
 	}
@@ -1979,6 +2144,7 @@ func (cfg *ContentModerationConfig) normalize() {
 	cfg.BlockedKeywords = normalizeBlockedKeywords(cfg.BlockedKeywords)
 	cfg.KeywordBlockingMode = normalizeKeywordBlockingMode(cfg.KeywordBlockingMode)
 	cfg.ModelFilter = normalizeContentModerationModelFilter(cfg.ModelFilter)
+	cfg.AdaptivePolicy.normalize()
 }
 
 func (cfg *ContentModerationConfig) includesGroup(groupID *int64) bool {
@@ -2178,40 +2344,43 @@ func (s *ContentModerationService) configView(cfg *ContentModerationConfig) *Con
 		apiKeyMasked = masks[0]
 	}
 	return &ContentModerationConfigView{
-		Enabled:              cfg.Enabled,
-		Mode:                 cfg.Mode,
-		ModerationProvider:   cfg.ModerationProvider,
-		BaseURL:              cfg.BaseURL,
-		Model:                cfg.Model,
-		AliyunRegionID:       cfg.AliyunRegionID,
-		AliyunEndpoint:       cfg.AliyunEndpoint,
-		AliyunService:        cfg.AliyunService,
-		APIKeyConfigured:     len(keys) > 0,
-		APIKeyMasked:         apiKeyMasked,
-		APIKeyCount:          len(keys),
-		APIKeyMasks:          masks,
-		APIKeyStatuses:       s.apiKeyStatuses(keys),
-		TimeoutMS:            cfg.TimeoutMS,
-		SampleRate:           cfg.SampleRate,
-		AllGroups:            cfg.AllGroups,
-		GroupIDs:             append([]int64(nil), cfg.GroupIDs...),
-		RecordNonHits:        cfg.RecordNonHits,
-		Thresholds:           cloneFloatMap(cfg.Thresholds),
-		WorkerCount:          cfg.WorkerCount,
-		QueueSize:            cfg.QueueSize,
-		BlockStatus:          cfg.BlockStatus,
-		BlockMessage:         cfg.BlockMessage,
-		EmailOnHit:           cfg.EmailOnHit,
-		AutoBanEnabled:       cfg.AutoBanEnabled,
-		BanThreshold:         cfg.BanThreshold,
-		ViolationWindowHours: cfg.ViolationWindowHours,
-		RetryCount:           cfg.RetryCount,
-		HitRetentionDays:     cfg.HitRetentionDays,
-		NonHitRetentionDays:  cfg.NonHitRetentionDays,
-		PreHashCheckEnabled:  cfg.PreHashCheckEnabled,
-		BlockedKeywords:      append([]string(nil), cfg.BlockedKeywords...),
-		KeywordBlockingMode:  cfg.KeywordBlockingMode,
-		ModelFilter:          cloneContentModerationModelFilter(cfg.ModelFilter),
+		Enabled:                 cfg.Enabled,
+		Mode:                    cfg.Mode,
+		ModerationProvider:      cfg.ModerationProvider,
+		BaseURL:                 cfg.BaseURL,
+		Model:                   cfg.Model,
+		ClassifierPrompt:        cfg.ClassifierPrompt,
+		ClassifierPromptDefault: contentModerationClassifierDefaultPolicyPrompt,
+		AliyunRegionID:          cfg.AliyunRegionID,
+		AliyunEndpoint:          cfg.AliyunEndpoint,
+		AliyunService:           cfg.AliyunService,
+		APIKeyConfigured:        len(keys) > 0,
+		APIKeyMasked:            apiKeyMasked,
+		APIKeyCount:             len(keys),
+		APIKeyMasks:             masks,
+		APIKeyStatuses:          s.apiKeyStatuses(keys),
+		TimeoutMS:               cfg.TimeoutMS,
+		SampleRate:              cfg.SampleRate,
+		AllGroups:               cfg.AllGroups,
+		GroupIDs:                append([]int64(nil), cfg.GroupIDs...),
+		RecordNonHits:           cfg.RecordNonHits,
+		Thresholds:              cloneFloatMap(cfg.Thresholds),
+		WorkerCount:             cfg.WorkerCount,
+		QueueSize:               cfg.QueueSize,
+		BlockStatus:             cfg.BlockStatus,
+		BlockMessage:            cfg.BlockMessage,
+		EmailOnHit:              cfg.EmailOnHit,
+		AutoBanEnabled:          cfg.AutoBanEnabled,
+		BanThreshold:            cfg.BanThreshold,
+		ViolationWindowHours:    cfg.ViolationWindowHours,
+		RetryCount:              cfg.RetryCount,
+		HitRetentionDays:        cfg.HitRetentionDays,
+		NonHitRetentionDays:     cfg.NonHitRetentionDays,
+		PreHashCheckEnabled:     cfg.PreHashCheckEnabled,
+		BlockedKeywords:         append([]string(nil), cfg.BlockedKeywords...),
+		KeywordBlockingMode:     cfg.KeywordBlockingMode,
+		ModelFilter:             cloneContentModerationModelFilter(cfg.ModelFilter),
+		AdaptivePolicy:          cfg.AdaptivePolicy,
 	}
 }
 
@@ -2452,6 +2621,7 @@ type moderationAPIResponse struct {
 type moderationAPIResult struct {
 	Flagged        bool               `json:"flagged"`
 	CategoryScores map[string]float64 `json:"category_scores"`
+	RiskSeverity   string             `json:"-"`
 }
 
 func evaluateModerationScores(scores map[string]float64, thresholds map[string]float64) (bool, string, float64) {
@@ -2513,6 +2683,8 @@ func normalizeContentModerationProvider(provider string) string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
 	case ContentModerationProviderAliyunGuardrail:
 		return ContentModerationProviderAliyunGuardrail
+	case ContentModerationProviderModelClassifier:
+		return ContentModerationProviderModelClassifier
 	default:
 		return ContentModerationProviderOpenAI
 	}

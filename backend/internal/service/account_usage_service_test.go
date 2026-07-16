@@ -16,6 +16,39 @@ type accountUsageCodexProbeRepo struct {
 	rateLimitCh   chan time.Time
 }
 
+func TestAccountUsageService_GetUsageForClaudeWebSessionDoesNotQueryOAuthUsage(t *testing.T) {
+	t.Parallel()
+
+	service := &AccountUsageService{}
+	usage, err := service.getUsageForAccount(context.Background(), &Account{
+		Platform: PlatformAnthropic,
+		Type:     AccountTypeOAuth,
+		Extra: map[string]any{
+			ClaudeWebSessionExtraKey: true,
+		},
+	}, false)
+
+	require.NoError(t, err)
+	require.NotNil(t, usage)
+	require.Equal(t, "unsupported", usage.Source)
+	require.Nil(t, usage.FiveHour)
+	require.Nil(t, usage.SevenDay)
+}
+
+func TestAccountCanGetUsage_ExcludesClaudeWebSession(t *testing.T) {
+	t.Parallel()
+
+	account := &Account{
+		Platform: PlatformAnthropic,
+		Type:     AccountTypeOAuth,
+		Extra: map[string]any{
+			ClaudeWebSessionExtraKey: true,
+		},
+	}
+
+	require.False(t, account.CanGetUsage())
+}
+
 func (r *accountUsageCodexProbeRepo) UpdateExtra(_ context.Context, _ int64, updates map[string]any) error {
 	if r.updateExtraCh != nil {
 		copied := make(map[string]any, len(updates))

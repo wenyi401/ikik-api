@@ -72,6 +72,9 @@ func (s *GatewayService) ForwardAsResponses(
 		}
 	}
 	anthropicReq.Model = mappedModel
+	if account.IsClaudeWebSession() {
+		anthropicReq.ToolChoice = applyClaudeWebParallelToolChoice(anthropicReq.ToolChoice, responsesReq.ParallelToolCalls)
+	}
 
 	logger.L().Debug("gateway forward_as_responses: model mapping applied",
 		zap.Int64("account_id", account.ID),

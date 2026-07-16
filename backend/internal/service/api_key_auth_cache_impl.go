@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 13 // v13: include user allowed_groups and group is_exclusive
+const apiKeyAuthSnapshotVersion = 14 // v14: include owner_user_id for API key route groups
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
