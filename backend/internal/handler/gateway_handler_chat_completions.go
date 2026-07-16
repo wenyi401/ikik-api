@@ -80,6 +80,10 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		h.chatCompletionsErrorResponse(c, http.StatusBadRequest, "invalid_request_error", invalidStreamFieldTypeMessage)
 		return
 	}
+	if service.IsGPTImageGenerationModel(reqModel) {
+		h.chatCompletionsErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "This model is not supported on the Chat Completions endpoint")
+		return
+	}
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 
 	setOpsRequestContext(c, reqModel, reqStream)
@@ -181,6 +185,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 			case FailoverContinue:
 				continue
 			case FailoverCanceled:
+				failoverClientGone(c)
 				return
 			default:
 				if fs.LastFailoverErr != nil {
@@ -265,6 +270,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 					h.handleCCFailoverExhausted(c, fs.LastFailoverErr, streamStarted)
 					return
 				case FailoverCanceled:
+					failoverClientGone(c)
 					return
 				}
 			}
