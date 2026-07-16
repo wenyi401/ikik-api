@@ -11,17 +11,17 @@ const {
   setTokenMock,
   copyToClipboardMock,
   exchangePendingOAuthCompletionMock,
-  apiPostMock,
+  apiPostMock
 } = vi.hoisted(() => ({
   routeState: {
     path: '/auth/callback',
-    query: {} as Record<string, unknown>,
+    query: {} as Record<string, unknown>
   },
   locationState: {
     current: {
       href: 'http://localhost/auth/callback',
-      hash: '',
-    } as { href: string; hash: string },
+      hash: ''
+    } as { href: string; hash: string }
   },
   routerReplaceMock: vi.fn(),
   showErrorMock: vi.fn(),
@@ -29,36 +29,36 @@ const {
   setTokenMock: vi.fn(),
   copyToClipboardMock: vi.fn(),
   exchangePendingOAuthCompletionMock: vi.fn(),
-  apiPostMock: vi.fn(),
+  apiPostMock: vi.fn()
 }))
 
 vi.mock('vue-router', () => ({
   useRoute: () => routeState,
   useRouter: () => ({
-    replace: (...args: any[]) => routerReplaceMock(...args),
-  }),
+    replace: (...args: any[]) => routerReplaceMock(...args)
+  })
 }))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string) => key,
-  }),
+    t: (key: string) => key
+  })
 }))
 
 vi.mock('@/stores', () => ({
   useAuthStore: () => ({
-    setToken: (...args: any[]) => setTokenMock(...args),
+    setToken: (...args: any[]) => setTokenMock(...args)
   }),
   useAppStore: () => ({
     showError: (...args: any[]) => showErrorMock(...args),
-    showSuccess: (...args: any[]) => showSuccessMock(...args),
-  }),
+    showSuccess: (...args: any[]) => showSuccessMock(...args)
+  })
 }))
 
 vi.mock('@/api/client', () => ({
   apiClient: {
-    post: (...args: any[]) => apiPostMock(...args),
-  },
+    post: (...args: any[]) => apiPostMock(...args)
+  }
 }))
 
 vi.mock('@/api/auth', async () => {
@@ -66,14 +66,14 @@ vi.mock('@/api/auth', async () => {
   return {
     ...actual,
     exchangePendingOAuthCompletion: (...args: any[]) => exchangePendingOAuthCompletionMock(...args),
-    persistOAuthTokenContext: vi.fn(),
+    persistOAuthTokenContext: vi.fn()
   }
 })
 
 vi.mock('@/composables/useClipboard', () => ({
   useClipboard: () => ({
-    copyToClipboard: (...args: any[]) => copyToClipboardMock(...args),
-  }),
+    copyToClipboard: (...args: any[]) => copyToClipboardMock(...args)
+  })
 }))
 
 describe('OAuthCallbackView', () => {
@@ -82,11 +82,11 @@ describe('OAuthCallbackView', () => {
     routeState.query = {}
     locationState.current = {
       href: 'http://localhost/auth/callback',
-      hash: '',
+      hash: ''
     }
     Object.defineProperty(window, 'location', {
       configurable: true,
-      value: locationState.current,
+      value: locationState.current
     })
     routerReplaceMock.mockReset()
     showErrorMock.mockReset()
@@ -101,7 +101,7 @@ describe('OAuthCallbackView', () => {
   it('renders localized callback copy actions', () => {
     routeState.query = {
       code: 'oauth-code',
-      state: 'oauth-state',
+      state: 'oauth-state'
     }
 
     const wrapper = mount(OAuthCallbackView)
@@ -115,7 +115,7 @@ describe('OAuthCallbackView', () => {
 
   it('sends callback errors to toast instead of rendering inline red text', () => {
     routeState.query = {
-      error: 'oauth failed',
+      error: 'oauth failed'
     }
 
     const wrapper = mount(OAuthCallbackView)
@@ -123,6 +123,19 @@ describe('OAuthCallbackView', () => {
     expect(showErrorMock).toHaveBeenCalledWith('oauth failed')
     expect(wrapper.text()).not.toContain('oauth failed')
     expect(wrapper.find('.bg-red-50').exists()).toBe(false)
+  })
+
+  it('finalizes hash token callbacks and redirects to the requested page', async () => {
+    locationState.current.hash =
+      '#access_token=access-1&refresh_token=refresh-1&expires_in=3600&token_type=Bearer&redirect=%2Fdashboard'
+
+    mount(OAuthCallbackView)
+    await vi.dynamicImportSettled()
+
+    expect(setTokenMock).toHaveBeenCalledWith('access-1')
+    expect(showSuccessMock).toHaveBeenCalledWith('auth.loginSuccess')
+    expect(routerReplaceMock).toHaveBeenCalledWith('/dashboard')
+    expect(exchangePendingOAuthCompletionMock).not.toHaveBeenCalled()
   })
 
   it('does not render manual copy fields for direct email oauth callback visits', async () => {
@@ -142,7 +155,7 @@ describe('OAuthCallbackView', () => {
     routeState.path = '/auth/oauth/callback'
     routeState.query = {
       code: 'provider-code',
-      state: 'provider-state',
+      state: 'provider-state'
     }
     window.sessionStorage.setItem('email_oauth_pending_provider', 'google')
 
@@ -162,12 +175,12 @@ describe('OAuthCallbackView', () => {
       provider: 'google',
       redirect: '/dashboard',
       resolved_email: 'pending@example.com',
-      invitation_required: true,
+      invitation_required: true
     })
     apiPostMock.mockResolvedValue({
       data: {
-        access_token: 'token-1',
-      },
+        access_token: 'token-1'
+      }
     })
     window.sessionStorage.setItem('oauth_aff_code', 'AFF456')
 
@@ -183,7 +196,7 @@ describe('OAuthCallbackView', () => {
     expect(apiPostMock).toHaveBeenCalledWith('/auth/oauth/google/complete-registration', {
       password: 'secret-123',
       invitation_code: 'INVITE456',
-      aff_code: 'AFF456',
+      aff_code: 'AFF456'
     })
     expect(setTokenMock).toHaveBeenCalledWith('token-1')
   })
@@ -195,12 +208,12 @@ describe('OAuthCallbackView', () => {
       provider: 'github',
       redirect: '/dashboard',
       resolved_email: 'verified@example.com',
-      invitation_required: false,
+      invitation_required: false
     })
     apiPostMock.mockResolvedValue({
       data: {
-        access_token: 'token-2',
-      },
+        access_token: 'token-2'
+      }
     })
 
     const wrapper = mount(OAuthCallbackView)
@@ -218,7 +231,7 @@ describe('OAuthCallbackView', () => {
     await wrapper.findAll('button').at(0)?.trigger('click')
 
     expect(apiPostMock).toHaveBeenCalledWith('/auth/oauth/github/complete-registration', {
-      password: 'secret-456',
+      password: 'secret-456'
     })
     expect(apiPostMock.mock.calls[0][1]).not.toHaveProperty('email')
     expect(setTokenMock).toHaveBeenCalledWith('token-2')

@@ -6,15 +6,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/announcement"
+	"ikik-api/ent/announcementread"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/user"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/announcement"
-	"ikik-api/ent/announcementread"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/user"
 )
 
 // AnnouncementReadUpdate is the builder for updating AnnouncementRead entities.

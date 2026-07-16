@@ -20,7 +20,7 @@ func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{JWT: config.JWTConfig{Secret: "test-secret", ExpireHour: 1}}
-	authService := service.NewAuthService(nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+	authService := service.NewAuthService(nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil, nil, nil)
 
 	admin := &service.User{
 		ID:           1,
@@ -96,7 +96,7 @@ func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/t", nil)
 		req.Header.Set("Upgrade", "websocket")
 		req.Header.Set("Connection", "Upgrade")
-		req.Header.Set("Sec-WebSocket-Protocol", "sub2api-admin, jwt."+token)
+		req.Header.Set("Sec-WebSocket-Protocol", "ikik-api-admin, jwt."+token)
 		router.ServeHTTP(w, req)
 
 		require.Equal(t, http.StatusUnauthorized, w.Code)
@@ -116,7 +116,7 @@ func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/t", nil)
 		req.Header.Set("Upgrade", "websocket")
 		req.Header.Set("Connection", "Upgrade")
-		req.Header.Set("Sec-WebSocket-Protocol", "sub2api-admin, jwt."+token)
+		req.Header.Set("Sec-WebSocket-Protocol", "ikik-api-admin, jwt."+token)
 		router.ServeHTTP(w, req)
 
 		require.Equal(t, http.StatusOK, w.Code)
@@ -198,9 +198,6 @@ func (s *stubUserRepo) UpdateConcurrency(ctx context.Context, id int64, amount i
 	panic("unexpected UpdateConcurrency call")
 }
 
-func (s *stubUserRepo) BatchSetConcurrency(context.Context, []int64, int) (int, error) { return 0, nil }
-func (s *stubUserRepo) BatchAddConcurrency(context.Context, []int64, int) (int, error) { return 0, nil }
-
 func (s *stubUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	panic("unexpected ExistsByEmail call")
 }
@@ -235,8 +232,4 @@ func (s *stubUserRepo) EnableTotp(ctx context.Context, userID int64) error {
 
 func (s *stubUserRepo) DisableTotp(ctx context.Context, userID int64) error {
 	panic("unexpected DisableTotp call")
-}
-
-func (s *stubUserRepo) GetByIDIncludeDeleted(ctx context.Context, id int64) (*service.User, error) {
-	panic("unexpected GetByIDIncludeDeleted call")
 }

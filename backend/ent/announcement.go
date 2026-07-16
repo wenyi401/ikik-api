@@ -5,13 +5,13 @@ package ent
 import (
 	"encoding/json"
 	"fmt"
+	"ikik-api/ent/announcement"
+	"ikik-api/internal/domain"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/announcement"
-	"ikik-api/internal/domain"
 )
 
 // Announcement is the model entity for the Announcement schema.

@@ -5,14 +5,14 @@ package ent
 import (
 	"encoding/json"
 	"fmt"
+	"ikik-api/ent/identityadoptiondecision"
+	"ikik-api/ent/pendingauthsession"
+	"ikik-api/ent/user"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/identityadoptiondecision"
-	"ikik-api/ent/pendingauthsession"
-	"ikik-api/ent/user"
 )
 
 // PendingAuthSession is the model entity for the PendingAuthSession schema.

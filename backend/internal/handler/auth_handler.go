@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"strings"
-	"sync"
 
 	"ikik-api/internal/config"
 	"ikik-api/internal/handler/dto"
@@ -19,42 +18,38 @@ import (
 
 // AuthHandler handles authentication-related requests
 type AuthHandler struct {
-	cfg                  *config.Config
-	authService          *service.AuthService
-	userService          *service.UserService
-	settingSvc           *service.SettingService
-	promoService         *service.PromoService
-	redeemService        *service.RedeemService
-	totpService          *service.TotpService
-	userAttributeService *service.UserAttributeService
-
-	dingTalkClientInstance *DingTalkClient
-	dingTalkClientMu       sync.Mutex
+	cfg           *config.Config
+	authService   *service.AuthService
+	userService   *service.UserService
+	settingSvc    *service.SettingService
+	promoService  *service.PromoService
+	redeemService *service.RedeemService
+	totpService   *service.TotpService
 }
 
 // NewAuthHandler creates a new AuthHandler
-func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userService *service.UserService, settingService *service.SettingService, promoService *service.PromoService, redeemService *service.RedeemService, totpService *service.TotpService, userAttributeService *service.UserAttributeService) *AuthHandler {
+func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userService *service.UserService, settingService *service.SettingService, promoService *service.PromoService, redeemService *service.RedeemService, totpService *service.TotpService) *AuthHandler {
 	return &AuthHandler{
-		cfg:                  cfg,
-		authService:          authService,
-		userService:          userService,
-		settingSvc:           settingService,
-		promoService:         promoService,
-		redeemService:        redeemService,
-		totpService:          totpService,
-		userAttributeService: userAttributeService,
+		cfg:           cfg,
+		authService:   authService,
+		userService:   userService,
+		settingSvc:    settingService,
+		promoService:  promoService,
+		redeemService: redeemService,
+		totpService:   totpService,
 	}
 }
 
 // RegisterRequest represents the registration request payload
 type RegisterRequest struct {
-	Email          string `json:"email" binding:"required,email"`
-	Password       string `json:"password" binding:"required,min=6"`
-	VerifyCode     string `json:"verify_code"`
-	TurnstileToken string `json:"turnstile_token"`
-	PromoCode      string `json:"promo_code"`      // 注册优惠码
-	InvitationCode string `json:"invitation_code"` // 邀请码
-	AffCode        string `json:"aff_code"`        // 邀请返利码
+	Email                  string `json:"email" binding:"required,email"`
+	Password               string `json:"password" binding:"required,min=6"`
+	VerifyCode             string `json:"verify_code"`
+	TurnstileToken         string `json:"turnstile_token"`
+	PromoCode              string `json:"promo_code"`      // 注册优惠码
+	InvitationCode         string `json:"invitation_code"` // 邀请码
+	AffCode                string `json:"aff_code"`        // 邀请返利码
+	LoginAgreementRevision string `json:"login_agreement_revision"`
 }
 
 // SendVerifyCodeRequest 发送验证码请求
@@ -71,9 +66,10 @@ type SendVerifyCodeResponse struct {
 
 // LoginRequest represents the login request payload
 type LoginRequest struct {
-	Email          string `json:"email" binding:"required,email"`
-	Password       string `json:"password" binding:"required"`
-	TurnstileToken string `json:"turnstile_token"`
+	Email                  string `json:"email" binding:"required,email"`
+	Password               string `json:"password" binding:"required"`
+	TurnstileToken         string `json:"turnstile_token"`
+	LoginAgreementRevision string `json:"login_agreement_revision"`
 }
 
 // AuthResponse 认证响应格式（匹配前端期望）
@@ -145,6 +141,27 @@ func (h *AuthHandler) ensureBackendModeAllowsNewUserLogin(ctx context.Context) e
 	return infraerrors.Forbidden("BACKEND_MODE_ADMIN_ONLY", "Backend mode is active. Only admin login is allowed.")
 }
 
+func (h *AuthHandler) ensureLoginAgreementAccepted(ctx context.Context, acceptedRevision string) error {
+	if h == nil || h.settingSvc == nil {
+		return nil
+	}
+	settings, err := h.settingSvc.GetPublicSettings(ctx)
+	if err != nil {
+		return err
+	}
+	if settings == nil || !settings.LoginAgreementEnabled {
+		return nil
+	}
+	currentRevision := strings.TrimSpace(settings.LoginAgreementRevision)
+	if currentRevision == "" {
+		return infraerrors.ServiceUnavailable("LOGIN_AGREEMENT_NOT_READY", "login agreement is not ready")
+	}
+	if strings.TrimSpace(acceptedRevision) != currentRevision {
+		return infraerrors.Forbidden("LOGIN_AGREEMENT_REQUIRED", "please read and accept the latest login agreement before signing in")
+	}
+	return nil
+}
+
 func (h *AuthHandler) isBackendModeEnabled(ctx context.Context) bool {
 	if h == nil || h.settingSvc == nil {
 		return false
@@ -167,6 +184,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	// Turnstile 验证（邮箱验证码注册场景避免重复校验一次性 token）
 	if err := h.authService.VerifyTurnstileForRegister(c.Request.Context(), req.TurnstileToken, ip.GetClientIP(c), req.VerifyCode); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if err := h.ensureLoginAgreementAccepted(c.Request.Context(), req.LoginAgreementRevision); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
@@ -203,7 +224,7 @@ func (h *AuthHandler) SendVerifyCode(c *gin.Context) {
 		return
 	}
 
-	result, err := h.authService.SendVerifyCodeAsync(c.Request.Context(), req.Email, c.GetHeader("Accept-Language"))
+	result, err := h.authService.SendVerifyCodeAsync(c.Request.Context(), req.Email)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -226,6 +247,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// Turnstile 验证
 	if err := h.authService.VerifyTurnstile(c.Request.Context(), req.TurnstileToken, ip.GetClientIP(c)); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if err := h.ensureLoginAgreementAccepted(c.Request.Context(), req.LoginAgreementRevision); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
@@ -273,8 +298,9 @@ type TotpLoginResponse struct {
 
 // Login2FARequest represents the 2FA login request
 type Login2FARequest struct {
-	TempToken string `json:"temp_token" binding:"required"`
-	TotpCode  string `json:"totp_code" binding:"required,len=6"`
+	TempToken              string `json:"temp_token" binding:"required"`
+	TotpCode               string `json:"totp_code" binding:"required,len=6"`
+	LoginAgreementRevision string `json:"login_agreement_revision"`
 }
 
 // Login2FA completes the login with 2FA verification
@@ -329,6 +355,29 @@ func (h *AuthHandler) Login2FA(c *gin.Context) {
 	}
 
 	if err := h.ensureBackendModeAllowsUser(c.Request.Context(), user); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	acceptedAgreementRevision := req.LoginAgreementRevision
+	if strings.TrimSpace(acceptedAgreementRevision) == "" && session.PendingOAuthBind != nil {
+		pendingSvc, err := h.pendingIdentityService()
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		pendingSession, err := pendingSvc.GetBrowserSession(
+			c.Request.Context(),
+			session.PendingOAuthBind.PendingSessionToken,
+			session.PendingOAuthBind.BrowserSessionKey,
+		)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		acceptedAgreementRevision = pendingOAuthLoginAgreementRevision(pendingSession)
+	}
+	if err := h.ensureLoginAgreementAccepted(c.Request.Context(), acceptedAgreementRevision); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
@@ -602,7 +651,7 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 
 	// Request password reset (async)
 	// Note: This returns success even if email doesn't exist (to prevent enumeration)
-	if err := h.authService.RequestPasswordResetAsync(c.Request.Context(), req.Email, frontendBaseURL, c.GetHeader("Accept-Language")); err != nil {
+	if err := h.authService.RequestPasswordResetAsync(c.Request.Context(), req.Email, frontendBaseURL); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}

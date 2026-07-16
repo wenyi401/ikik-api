@@ -68,13 +68,6 @@ func (s *userRepoStubForGroupUpdate) DeductBalance(context.Context, int64, float
 func (s *userRepoStubForGroupUpdate) UpdateConcurrency(context.Context, int64, int) error {
 	panic("unexpected")
 }
-
-func (s *userRepoStubForGroupUpdate) BatchSetConcurrency(context.Context, []int64, int) (int, error) {
-	return 0, nil
-}
-func (s *userRepoStubForGroupUpdate) BatchAddConcurrency(context.Context, []int64, int) (int, error) {
-	return 0, nil
-}
 func (s *userRepoStubForGroupUpdate) ExistsByEmail(context.Context, string) (bool, error) {
 	panic("unexpected")
 }
@@ -86,9 +79,6 @@ func (s *userRepoStubForGroupUpdate) UpdateTotpSecret(context.Context, int64, *s
 }
 func (s *userRepoStubForGroupUpdate) EnableTotp(context.Context, int64) error  { panic("unexpected") }
 func (s *userRepoStubForGroupUpdate) DisableTotp(context.Context, int64) error { panic("unexpected") }
-func (s *userRepoStubForGroupUpdate) GetByIDIncludeDeleted(ctx context.Context, id int64) (*User, error) {
-	panic("unexpected GetByIDIncludeDeleted call")
-}
 func (s *userRepoStubForGroupUpdate) ListUserAuthIdentities(context.Context, int64) ([]UserAuthIdentityRecord, error) {
 	panic("unexpected")
 }
@@ -146,9 +136,6 @@ func (s *apiKeyRepoStubForGroupUpdate) GetByKeyForAuth(context.Context, string) 
 	panic("unexpected")
 }
 func (s *apiKeyRepoStubForGroupUpdate) Delete(context.Context, int64) error { panic("unexpected") }
-func (s *apiKeyRepoStubForGroupUpdate) DeleteWithAudit(context.Context, int64) error {
-	panic("unexpected")
-}
 func (s *apiKeyRepoStubForGroupUpdate) ListByUserID(context.Context, int64, pagination.PaginationParams, APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {
 	panic("unexpected")
 }
@@ -303,7 +290,19 @@ func TestAdminService_AdminUpdateAPIKeyGroupID_NilGroupID_NoOp(t *testing.T) {
 }
 
 func TestAdminService_AdminUpdateAPIKeyGroupID_Unbind(t *testing.T) {
-	existing := &APIKey{ID: 1, Key: "sk-test", GroupID: int64Ptr(5), Group: &Group{ID: 5, Name: "Old"}}
+	existing := &APIKey{
+		ID:      1,
+		Key:     "sk-test",
+		GroupID: int64Ptr(5),
+		Group:   &Group{ID: 5, Name: "Old"},
+		GroupRoutes: []APIKeyGroupRoute{{
+			GroupID:         5,
+			Priority:        100,
+			Weight:          1,
+			Enabled:         true,
+			CooldownSeconds: 30,
+		}},
+	}
 	repo := &apiKeyRepoStubForGroupUpdate{key: existing}
 	cache := &authCacheInvalidatorStub{}
 	svc := &adminServiceImpl{apiKeyRepo: repo, authCacheInvalidator: cache}
@@ -314,6 +313,7 @@ func TestAdminService_AdminUpdateAPIKeyGroupID_Unbind(t *testing.T) {
 	require.Nil(t, got.APIKey.Group, "group object should be nil after unbind")
 	require.NotNil(t, repo.updated, "Update should have been called")
 	require.Nil(t, repo.updated.GroupID)
+	require.Empty(t, repo.updated.GroupRoutes)
 	require.Equal(t, []string{"sk-test"}, cache.keys, "cache should be invalidated")
 }
 
@@ -329,6 +329,12 @@ func TestAdminService_AdminUpdateAPIKeyGroupID_BindActiveGroup(t *testing.T) {
 	require.NotNil(t, got.APIKey.GroupID)
 	require.Equal(t, int64(10), *got.APIKey.GroupID)
 	require.Equal(t, int64(10), *apiKeyRepo.updated.GroupID)
+	require.Len(t, apiKeyRepo.updated.GroupRoutes, 1)
+	require.Equal(t, int64(10), apiKeyRepo.updated.GroupRoutes[0].GroupID)
+	require.True(t, apiKeyRepo.updated.GroupRoutes[0].Enabled)
+	require.Equal(t, 100, apiKeyRepo.updated.GroupRoutes[0].Priority)
+	require.Equal(t, 1, apiKeyRepo.updated.GroupRoutes[0].Weight)
+	require.Equal(t, 30, apiKeyRepo.updated.GroupRoutes[0].CooldownSeconds)
 	require.Equal(t, []string{"sk-test"}, cache.keys)
 	// M3: verify correct group ID was passed to repo
 	require.Equal(t, int64(10), groupRepo.lastGetByIDArg)

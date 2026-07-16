@@ -1,9 +1,7 @@
 <template>
   <div class="empty-state">
     <!-- Icon -->
-    <div
-      class="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-gray-100 dark:bg-dark-800"
-    >
+    <div class="mb-4 text-[var(--app-muted)]">
       <slot name="icon">
         <component v-if="icon" :is="icon" class="empty-state-icon h-10 w-10" aria-hidden="true" />
         <svg
@@ -43,7 +41,7 @@
           @click="!actionTo && $emit('action')"
           class="btn btn-primary"
         >
-          <Icon v-if="actionIcon" name="plus" size="md" class="mr-2" />
+          <Icon v-if="actionIcon" name="plus" size="md" />
           {{ actionText }}
         </component>
       </slot>
@@ -71,7 +69,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   description: '',
-  actionIcon: true
+  actionIcon: false
 })
 
 const displayTitle = computed(() => props.title || t('common.noData'))

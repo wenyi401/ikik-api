@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"ikik-api/internal/pkg/proxyutil"
 	"github.com/redis/go-redis/v9"
+	"ikik-api/internal/pkg/proxyutil"
 )
 
 // ProviderConfig holds the configuration for a single search provider.

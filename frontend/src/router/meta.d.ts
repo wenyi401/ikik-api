@@ -50,10 +50,22 @@ declare module 'vue-router' {
     requiresPayment?: boolean
 
     /**
-     * 是否要求风控中心功能开关已启用
+     * Whether this route requires Available Channels / Model Market to be enabled
      * @default false
      */
-    requiresRiskControl?: boolean
+    requiresAvailableChannels?: boolean
+
+    /**
+     * Whether this route requires Free Models to be enabled
+     * @default false
+     */
+    requiresFreeModels?: boolean
+
+    /**
+     * Whether this route requires Carpool Pools to be enabled
+     * @default false
+     */
+    requiresCarpool?: boolean
 
     /**
      * i18n key for the page title

@@ -8,10 +8,10 @@ import (
 	"net"
 	"testing"
 
-	"ikik-api/internal/config"
 	coderws "github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"ikik-api/internal/config"
 )
 
 func TestIsOpenAIWSClientDisconnectError(t *testing.T) {
@@ -140,108 +140,6 @@ func TestDropPreviousResponseIDFromRawPayload(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, removed)
 		require.False(t, gjson.GetBytes(updated, "previous_response_id").Exists())
-	})
-}
-
-func TestStripCodexSparkImageGenerationToolFromRawPayload(t *testing.T) {
-	t.Run("strips_image_generation_for_spark", func(t *testing.T) {
-		payload := []byte(`{"type":"response.create","model":"gpt-5.3-codex-spark","tools":[{"type":"function","name":"shell"},{"type":"image_generation","output_format":"png"}]}`)
-		updated, changed, err := stripCodexSparkImageGenerationToolFromRawPayload(payload, "gpt-5.3-codex-spark")
-		require.NoError(t, err)
-		require.True(t, changed)
-		require.False(t, gjson.GetBytes(updated, `tools.#(type=="image_generation")`).Exists())
-		require.True(t, gjson.GetBytes(updated, `tools.#(type=="function")`).Exists())
-	})
-
-	t.Run("strips_namespace_tools_for_spark", func(t *testing.T) {
-		payload := []byte(`{
-			"type":"response.create",
-			"model":"gpt-5.3-codex-spark",
-			"input":[
-				{"type":"message","role":"user","content":"hello"},
-				{"type":"additional_tools","tools":[{"type":"namespace","name":"image_gen"}]}
-			],
-			"tool_choice":{"type":"namespace","name":"image_gen"}
-		}`)
-		updated, changed, err := stripCodexSparkImageGenerationToolFromRawPayload(payload, "gpt-5.3-codex-spark")
-		require.NoError(t, err)
-		require.True(t, changed)
-		require.False(t, IsImageGenerationIntent(openAIResponsesEndpoint, "gpt-5.3-codex-spark", updated))
-		require.Equal(t, "hello", gjson.GetBytes(updated, "input.0.content").String())
-		require.False(t, gjson.GetBytes(updated, "tool_choice").Exists())
-	})
-
-	t.Run("keeps_image_generation_for_non_spark", func(t *testing.T) {
-		payload := []byte(`{"type":"response.create","model":"gpt-5.3-codex","tools":[{"type":"image_generation","output_format":"png"}]}`)
-		updated, changed, err := stripCodexSparkImageGenerationToolFromRawPayload(payload, "gpt-5.3-codex")
-		require.NoError(t, err)
-		require.False(t, changed)
-		require.Equal(t, string(payload), string(updated))
-	})
-
-	t.Run("noop_when_no_image_tool", func(t *testing.T) {
-		payload := []byte(`{"type":"response.create","model":"gpt-5.3-codex-spark","tools":[{"type":"function","name":"shell"}]}`)
-		updated, changed, err := stripCodexSparkImageGenerationToolFromRawPayload(payload, "gpt-5.3-codex-spark")
-		require.NoError(t, err)
-		require.False(t, changed)
-		require.Equal(t, string(payload), string(updated))
-	})
-}
-
-func TestStripOpenAIImageGenerationToolsFromRawPayload(t *testing.T) {
-	t.Run("flat image tool", func(t *testing.T) {
-		payload := []byte(`{
-			"type":"response.create",
-			"model":"gpt-5.4",
-			"tools":[
-				{"type":"function","name":"shell"},
-				{"type":"image_generation","output_format":"png"}
-			],
-			"tool_choice":{"type":"image_generation"}
-		}`)
-
-		updated, changed, err := stripOpenAIImageGenerationToolsFromRawPayload(payload)
-
-		require.NoError(t, err)
-		require.True(t, changed)
-		require.False(t, gjson.GetBytes(updated, `tools.#(type=="image_generation")`).Exists())
-		require.True(t, gjson.GetBytes(updated, `tools.#(type=="function")`).Exists())
-		require.False(t, gjson.GetBytes(updated, "tool_choice").Exists())
-	})
-
-	t.Run("namespace and Responses Lite tools", func(t *testing.T) {
-		payload := []byte(`{
-			"type":"response.create",
-			"model":"gpt-5.5",
-			"tools":[
-				{"type":"namespace","name":"image_gen","tools":[{"type":"function","name":"imagegen"}]},
-				{"type":"namespace","name":"code_tools","tools":[{"type":"function","name":"run"}]}
-			],
-			"input":[
-				{"type":"message","role":"user","content":"hello"},
-				{"type":"additional_tools","tools":[{"type":"namespace","name":"image_gen"}]}
-			],
-			"tool_choice":{"type":"namespace","name":"image_gen"}
-		}`)
-
-		updated, changed, err := stripOpenAIImageGenerationToolsFromRawPayload(payload)
-
-		require.NoError(t, err)
-		require.True(t, changed)
-		require.False(t, IsImageGenerationIntent(openAIResponsesEndpoint, "gpt-5.5", updated))
-		require.True(t, gjson.GetBytes(updated, `tools.#(name=="code_tools")`).Exists())
-		require.Equal(t, "hello", gjson.GetBytes(updated, "input.0.content").String())
-		require.False(t, gjson.GetBytes(updated, "tool_choice").Exists())
-	})
-
-	t.Run("non-image namespace is unchanged", func(t *testing.T) {
-		payload := []byte(`{"type":"response.create","model":"gpt-5.5","tools":[{"type":"namespace","name":"code_tools"}]}`)
-
-		updated, changed, err := stripOpenAIImageGenerationToolsFromRawPayload(payload)
-
-		require.NoError(t, err)
-		require.False(t, changed)
-		require.Equal(t, payload, updated)
 	})
 }
 
@@ -796,36 +694,6 @@ func TestBuildOpenAIWSReplayInputSequence(t *testing.T) {
 		require.Len(t, items, 2)
 		require.Equal(t, "hello", gjson.GetBytes(items[0], "text").String())
 		require.Equal(t, "world", gjson.GetBytes(items[1], "text").String())
-	})
-}
-
-func TestOpenAIWSRawPayloadHasToolCallOutput(t *testing.T) {
-	t.Parallel()
-
-	for _, typ := range []string{
-		"function_call_output",
-		"tool_search_output",
-		"custom_tool_call_output",
-		"mcp_tool_call_output",
-	} {
-		typ := typ
-		t.Run(typ, func(t *testing.T) {
-			t.Parallel()
-			payload := []byte(`{"input":[{"type":"` + typ + `","call_id":"call_1","output":"ok"}]}`)
-			require.True(t, openAIWSRawPayloadHasToolCallOutput(payload))
-		})
-	}
-
-	t.Run("object_input", func(t *testing.T) {
-		t.Parallel()
-		payload := []byte(`{"input":{"type":"tool_search_output","call_id":"call_1","output":"ok"}}`)
-		require.True(t, openAIWSRawPayloadHasToolCallOutput(payload))
-	})
-
-	t.Run("non_tool_output", func(t *testing.T) {
-		t.Parallel()
-		payload := []byte(`{"input":[{"type":"input_text","text":"hello"}]}`)
-		require.False(t, openAIWSRawPayloadHasToolCallOutput(payload))
 	})
 }
 

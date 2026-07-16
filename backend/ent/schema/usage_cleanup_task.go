@@ -36,7 +36,12 @@ func (UsageCleanupTask) Fields() []ent.Field {
 			MaxLen(20).
 			Validate(validateUsageCleanupStatus),
 		field.JSON("filters", json.RawMessage{}),
-		field.Int64("created_by"),
+		field.Int64("created_by").
+			Optional().
+			Nillable(),
+		field.String("created_source").
+			MaxLen(50).
+			Default("admin"),
 		field.Int64("deleted_rows").
 			Default(0),
 		field.String("error_message").

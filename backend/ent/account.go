@@ -5,13 +5,14 @@ package ent
 import (
 	"encoding/json"
 	"fmt"
+	"ikik-api/ent/account"
+	"ikik-api/ent/proxy"
+	"ikik-api/ent/user"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/account"
-	"ikik-api/ent/proxy"
 )
 
 // Account is the model entity for the Account schema.
@@ -27,6 +28,8 @@ type Account struct {
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
+	// Account capability level: unknown/free/plus/pro/team/k12.
+	AccountLevel string `json:"account_level,omitempty"`
 	// Notes holds the value of the "notes" field.
 	Notes *string `json:"notes,omitempty"`
 	// Platform holds the value of the "platform" field.
@@ -37,9 +40,17 @@ type Account struct {
 	Credentials map[string]interface{} `json:"credentials,omitempty"`
 	// Extra holds the value of the "extra" field.
 	Extra map[string]interface{} `json:"extra,omitempty"`
+	// OwnerUserID holds the value of the "owner_user_id" field.
+	OwnerUserID *int64 `json:"owner_user_id,omitempty"`
+	// ShareMode holds the value of the "share_mode" field.
+	ShareMode string `json:"share_mode,omitempty"`
+	// ShareStatus holds the value of the "share_status" field.
+	ShareStatus string `json:"share_status,omitempty"`
+	// SharePolicyID holds the value of the "share_policy_id" field.
+	SharePolicyID *int64 `json:"share_policy_id,omitempty"`
 	// ProxyID holds the value of the "proxy_id" field.
 	ProxyID *int64 `json:"proxy_id,omitempty"`
-	// Original proxy id replaced by expiry-fallback; for manual revert. NULL = not in fallback.
+	// ProxyFallbackOriginID holds the value of the "proxy_fallback_origin_id" field.
 	ProxyFallbackOriginID *int64 `json:"proxy_fallback_origin_id,omitempty"`
 	// Concurrency holds the value of the "concurrency" field.
 	Concurrency int `json:"concurrency,omitempty"`
@@ -77,10 +88,6 @@ type Account struct {
 	SessionWindowEnd *time.Time `json:"session_window_end,omitempty"`
 	// SessionWindowStatus holds the value of the "session_window_status" field.
 	SessionWindowStatus *string `json:"session_window_status,omitempty"`
-	// Parent account id for a linked spark shadow (NULL = normal).
-	ParentAccountID *int64 `json:"parent_account_id,omitempty"`
-	// 'global' (default) or 'spark' (shadow reads codex_bengalfox).
-	QuotaDimension account.QuotaDimension `json:"quota_dimension,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the AccountQuery when eager-loading is set.
 	Edges        AccountEdges `json:"edges"`
@@ -93,17 +100,15 @@ type AccountEdges struct {
 	Groups []*Group `json:"groups,omitempty"`
 	// Proxy holds the value of the proxy edge.
 	Proxy *Proxy `json:"proxy,omitempty"`
-	// Parent holds the value of the parent edge.
-	Parent *Account `json:"parent,omitempty"`
-	// Children holds the value of the children edge.
-	Children []*Account `json:"children,omitempty"`
+	// Owner holds the value of the owner edge.
+	Owner *User `json:"owner,omitempty"`
 	// UsageLogs holds the value of the usage_logs edge.
 	UsageLogs []*UsageLog `json:"usage_logs,omitempty"`
 	// AccountGroups holds the value of the account_groups edge.
 	AccountGroups []*AccountGroup `json:"account_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [6]bool
+	loadedTypes [5]bool
 }
 
 // GroupsOrErr returns the Groups value or an error if the edge
@@ -126,30 +131,21 @@ func (e AccountEdges) ProxyOrErr() (*Proxy, error) {
 	return nil, &NotLoadedError{edge: "proxy"}
 }
 
-// ParentOrErr returns the Parent value or an error if the edge
+// OwnerOrErr returns the Owner value or an error if the edge
 // was not loaded in eager-loading, or loaded but was not found.
-func (e AccountEdges) ParentOrErr() (*Account, error) {
-	if e.Parent != nil {
-		return e.Parent, nil
+func (e AccountEdges) OwnerOrErr() (*User, error) {
+	if e.Owner != nil {
+		return e.Owner, nil
 	} else if e.loadedTypes[2] {
-		return nil, &NotFoundError{label: account.Label}
+		return nil, &NotFoundError{label: user.Label}
 	}
-	return nil, &NotLoadedError{edge: "parent"}
-}
-
-// ChildrenOrErr returns the Children value or an error if the edge
-// was not loaded in eager-loading.
-func (e AccountEdges) ChildrenOrErr() ([]*Account, error) {
-	if e.loadedTypes[3] {
-		return e.Children, nil
-	}
-	return nil, &NotLoadedError{edge: "children"}
+	return nil, &NotLoadedError{edge: "owner"}
 }
 
 // UsageLogsOrErr returns the UsageLogs value or an error if the edge
 // was not loaded in eager-loading.
 func (e AccountEdges) UsageLogsOrErr() ([]*UsageLog, error) {
-	if e.loadedTypes[4] {
+	if e.loadedTypes[3] {
 		return e.UsageLogs, nil
 	}
 	return nil, &NotLoadedError{edge: "usage_logs"}
@@ -158,7 +154,7 @@ func (e AccountEdges) UsageLogsOrErr() ([]*UsageLog, error) {
 // AccountGroupsOrErr returns the AccountGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e AccountEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
-	if e.loadedTypes[5] {
+	if e.loadedTypes[4] {
 		return e.AccountGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "account_groups"}
@@ -175,9 +171,9 @@ func (*Account) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case account.FieldRateMultiplier:
 			values[i] = new(sql.NullFloat64)
-		case account.FieldID, account.FieldProxyID, account.FieldProxyFallbackOriginID, account.FieldConcurrency, account.FieldLoadFactor, account.FieldPriority, account.FieldParentAccountID:
+		case account.FieldID, account.FieldOwnerUserID, account.FieldSharePolicyID, account.FieldProxyID, account.FieldProxyFallbackOriginID, account.FieldConcurrency, account.FieldLoadFactor, account.FieldPriority:
 			values[i] = new(sql.NullInt64)
-		case account.FieldName, account.FieldNotes, account.FieldPlatform, account.FieldType, account.FieldStatus, account.FieldErrorMessage, account.FieldTempUnschedulableReason, account.FieldSessionWindowStatus, account.FieldQuotaDimension:
+		case account.FieldName, account.FieldAccountLevel, account.FieldNotes, account.FieldPlatform, account.FieldType, account.FieldShareMode, account.FieldShareStatus, account.FieldStatus, account.FieldErrorMessage, account.FieldTempUnschedulableReason, account.FieldSessionWindowStatus:
 			values[i] = new(sql.NullString)
 		case account.FieldCreatedAt, account.FieldUpdatedAt, account.FieldDeletedAt, account.FieldLastUsedAt, account.FieldExpiresAt, account.FieldRateLimitedAt, account.FieldRateLimitResetAt, account.FieldOverloadUntil, account.FieldTempUnschedulableUntil, account.FieldSessionWindowStart, account.FieldSessionWindowEnd:
 			values[i] = new(sql.NullTime)
@@ -227,6 +223,12 @@ func (_m *Account) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Name = value.String
 			}
+		case account.FieldAccountLevel:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field account_level", values[i])
+			} else if value.Valid {
+				_m.AccountLevel = value.String
+			}
 		case account.FieldNotes:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field notes", values[i])
@@ -261,6 +263,32 @@ func (_m *Account) assignValues(columns []string, values []any) error {
 				if err := json.Unmarshal(*value, &_m.Extra); err != nil {
 					return fmt.Errorf("unmarshal field extra: %w", err)
 				}
+			}
+		case account.FieldOwnerUserID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field owner_user_id", values[i])
+			} else if value.Valid {
+				_m.OwnerUserID = new(int64)
+				*_m.OwnerUserID = value.Int64
+			}
+		case account.FieldShareMode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field share_mode", values[i])
+			} else if value.Valid {
+				_m.ShareMode = value.String
+			}
+		case account.FieldShareStatus:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field share_status", values[i])
+			} else if value.Valid {
+				_m.ShareStatus = value.String
+			}
+		case account.FieldSharePolicyID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field share_policy_id", values[i])
+			} else if value.Valid {
+				_m.SharePolicyID = new(int64)
+				*_m.SharePolicyID = value.Int64
 			}
 		case account.FieldProxyID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -396,19 +424,6 @@ func (_m *Account) assignValues(columns []string, values []any) error {
 				_m.SessionWindowStatus = new(string)
 				*_m.SessionWindowStatus = value.String
 			}
-		case account.FieldParentAccountID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field parent_account_id", values[i])
-			} else if value.Valid {
-				_m.ParentAccountID = new(int64)
-				*_m.ParentAccountID = value.Int64
-			}
-		case account.FieldQuotaDimension:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field quota_dimension", values[i])
-			} else if value.Valid {
-				_m.QuotaDimension = account.QuotaDimension(value.String)
-			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -432,14 +447,9 @@ func (_m *Account) QueryProxy() *ProxyQuery {
 	return NewAccountClient(_m.config).QueryProxy(_m)
 }
 
-// QueryParent queries the "parent" edge of the Account entity.
-func (_m *Account) QueryParent() *AccountQuery {
-	return NewAccountClient(_m.config).QueryParent(_m)
-}
-
-// QueryChildren queries the "children" edge of the Account entity.
-func (_m *Account) QueryChildren() *AccountQuery {
-	return NewAccountClient(_m.config).QueryChildren(_m)
+// QueryOwner queries the "owner" edge of the Account entity.
+func (_m *Account) QueryOwner() *UserQuery {
+	return NewAccountClient(_m.config).QueryOwner(_m)
 }
 
 // QueryUsageLogs queries the "usage_logs" edge of the Account entity.
@@ -489,6 +499,9 @@ func (_m *Account) String() string {
 	builder.WriteString("name=")
 	builder.WriteString(_m.Name)
 	builder.WriteString(", ")
+	builder.WriteString("account_level=")
+	builder.WriteString(_m.AccountLevel)
+	builder.WriteString(", ")
 	if v := _m.Notes; v != nil {
 		builder.WriteString("notes=")
 		builder.WriteString(*v)
@@ -505,6 +518,22 @@ func (_m *Account) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("extra=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Extra))
+	builder.WriteString(", ")
+	if v := _m.OwnerUserID; v != nil {
+		builder.WriteString("owner_user_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("share_mode=")
+	builder.WriteString(_m.ShareMode)
+	builder.WriteString(", ")
+	builder.WriteString("share_status=")
+	builder.WriteString(_m.ShareStatus)
+	builder.WriteString(", ")
+	if v := _m.SharePolicyID; v != nil {
+		builder.WriteString("share_policy_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	if v := _m.ProxyID; v != nil {
 		builder.WriteString("proxy_id=")
@@ -593,14 +622,6 @@ func (_m *Account) String() string {
 		builder.WriteString("session_window_status=")
 		builder.WriteString(*v)
 	}
-	builder.WriteString(", ")
-	if v := _m.ParentAccountID; v != nil {
-		builder.WriteString("parent_account_id=")
-		builder.WriteString(fmt.Sprintf("%v", *v))
-	}
-	builder.WriteString(", ")
-	builder.WriteString("quota_dimension=")
-	builder.WriteString(fmt.Sprintf("%v", _m.QuotaDimension))
 	builder.WriteByte(')')
 	return builder.String()
 }

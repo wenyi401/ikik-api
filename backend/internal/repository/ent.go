@@ -15,7 +15,7 @@ import (
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
-	"github.com/lib/pq"
+	_ "github.com/lib/pq" // PostgreSQL 驱动，通过副作用导入注册驱动
 )
 
 // InitEnt 初始化 Ent ORM 客户端并返回客户端实例和底层的 *sql.DB。
@@ -48,19 +48,9 @@ func InitEnt(cfg *config.Config) (*ent.Client, *sql.DB, error) {
 
 	// 使用 Ent 的 SQL 驱动打开 PostgreSQL 连接。
 	// dialect.Postgres 指定使用 PostgreSQL 方言进行 SQL 生成。
-	var drv *entsql.Driver
-	if cfg.Server.EnableServerTiming {
-		connector, err := pq.NewConnector(dsn)
-		if err != nil {
-			return nil, nil, err
-		}
-		drv = entsql.OpenDB(dialect.Postgres, sql.OpenDB(newServerTimingConnector(connector)))
-	} else {
-		var err error
-		drv, err = entsql.Open(dialect.Postgres, dsn)
-		if err != nil {
-			return nil, nil, err
-		}
+	drv, err := entsql.Open(dialect.Postgres, dsn)
+	if err != nil {
+		return nil, nil, err
 	}
 	applyDBPoolSettings(drv.DB(), cfg)
 

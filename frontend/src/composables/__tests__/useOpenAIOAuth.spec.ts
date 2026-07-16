@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
@@ -29,8 +29,62 @@ vi.mock('@/api/admin', () => ({
   }
 }))
 
+vi.mock('@/api/accounts', () => ({
+  accountsAPI: {
+    generateOpenAIOAuthUrl: vi.fn(),
+    exchangeOpenAIOAuthCode: vi.fn(),
+    refreshOpenAIToken: vi.fn()
+  }
+}))
+
 import { useOpenAIOAuth } from '@/composables/useOpenAIOAuth'
 import { adminAPI } from '@/api/admin'
+import { accountsAPI } from '@/api/accounts'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+describe('useOpenAIOAuth.generateAuthUrl', () => {
+  it('uses the user-scoped OpenAI auth-url endpoint for personal accounts', async () => {
+    vi.mocked(accountsAPI.generateOpenAIOAuthUrl).mockResolvedValueOnce({
+      auth_url: 'https://example.com/oauth?state=user-state',
+      session_id: 'user-session'
+    })
+
+    const oauth = useOpenAIOAuth('user')
+
+    const ok = await oauth.generateAuthUrl(7, 'http://localhost:3000/auth/callback')
+
+    expect(ok).toBe(true)
+    expect(accountsAPI.generateOpenAIOAuthUrl).toHaveBeenCalledWith({
+      proxy_id: 7,
+      redirect_uri: 'http://localhost:3000/auth/callback'
+    })
+    expect(adminAPI.accounts.generateAuthUrl).not.toHaveBeenCalled()
+    expect(oauth.authUrl.value).toBe('https://example.com/oauth?state=user-state')
+    expect(oauth.sessionId.value).toBe('user-session')
+    expect(oauth.oauthState.value).toBe('user-state')
+  })
+
+  it('keeps the admin OpenAI generate-auth-url endpoint unchanged', async () => {
+    vi.mocked(adminAPI.accounts.generateAuthUrl).mockResolvedValueOnce({
+      auth_url: 'https://example.com/oauth?state=admin-state',
+      session_id: 'admin-session'
+    })
+
+    const oauth = useOpenAIOAuth('admin')
+
+    const ok = await oauth.generateAuthUrl(9)
+
+    expect(ok).toBe(true)
+    expect(adminAPI.accounts.generateAuthUrl).toHaveBeenCalledWith(
+      '/admin/openai/generate-auth-url',
+      { proxy_id: 9 }
+    )
+    expect(accountsAPI.generateOpenAIOAuthUrl).not.toHaveBeenCalled()
+  })
+})
 
 describe('useOpenAIOAuth.buildCredentials', () => {
   it('should keep client_id when token response contains it', () => {
@@ -58,20 +112,6 @@ describe('useOpenAIOAuth.buildCredentials', () => {
     expect(Object.prototype.hasOwnProperty.call(creds, 'client_id')).toBe(false)
     expect(creds.access_token).toBe('at')
     expect(creds.refresh_token).toBe('rt')
-  })
-
-  it('should keep ChatGPT subscription expiration from token response', () => {
-    const oauth = useOpenAIOAuth()
-    const creds = oauth.buildCredentials({
-      access_token: 'at',
-      refresh_token: 'rt',
-      expires_at: 1700000000,
-      plan_type: 'team',
-      subscription_expires_at: '2026-07-20T19:22:48+00:00'
-    })
-
-    expect(creds.plan_type).toBe('team')
-    expect(creds.subscription_expires_at).toBe('2026-07-20T19:22:48+00:00')
   })
 })
 

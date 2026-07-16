@@ -5,14 +5,14 @@ package ent
 import (
 	"encoding/json"
 	"fmt"
+	"ikik-api/ent/apikey"
+	"ikik-api/ent/group"
+	"ikik-api/ent/user"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/apikey"
-	"ikik-api/ent/group"
-	"ikik-api/ent/user"
 )
 
 // APIKey is the model entity for the APIKey schema.
@@ -78,11 +78,13 @@ type APIKeyEdges struct {
 	User *User `json:"user,omitempty"`
 	// Group holds the value of the group edge.
 	Group *Group `json:"group,omitempty"`
+	// GroupRoutes holds the value of the group_routes edge.
+	GroupRoutes []*APIKeyGroupRoute `json:"group_routes,omitempty"`
 	// UsageLogs holds the value of the usage_logs edge.
 	UsageLogs []*UsageLog `json:"usage_logs,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [3]bool
+	loadedTypes [4]bool
 }
 
 // UserOrErr returns the User value or an error if the edge
@@ -107,10 +109,19 @@ func (e APIKeyEdges) GroupOrErr() (*Group, error) {
 	return nil, &NotLoadedError{edge: "group"}
 }
 
+// GroupRoutesOrErr returns the GroupRoutes value or an error if the edge
+// was not loaded in eager-loading.
+func (e APIKeyEdges) GroupRoutesOrErr() ([]*APIKeyGroupRoute, error) {
+	if e.loadedTypes[2] {
+		return e.GroupRoutes, nil
+	}
+	return nil, &NotLoadedError{edge: "group_routes"}
+}
+
 // UsageLogsOrErr returns the UsageLogs value or an error if the edge
 // was not loaded in eager-loading.
 func (e APIKeyEdges) UsageLogsOrErr() ([]*UsageLog, error) {
-	if e.loadedTypes[2] {
+	if e.loadedTypes[3] {
 		return e.UsageLogs, nil
 	}
 	return nil, &NotLoadedError{edge: "usage_logs"}
@@ -322,6 +333,11 @@ func (_m *APIKey) QueryUser() *UserQuery {
 // QueryGroup queries the "group" edge of the APIKey entity.
 func (_m *APIKey) QueryGroup() *GroupQuery {
 	return NewAPIKeyClient(_m.config).QueryGroup(_m)
+}
+
+// QueryGroupRoutes queries the "group_routes" edge of the APIKey entity.
+func (_m *APIKey) QueryGroupRoutes() *APIKeyGroupRouteQuery {
+	return NewAPIKeyClient(_m.config).QueryGroupRoutes(_m)
 }
 
 // QueryUsageLogs queries the "usage_logs" edge of the APIKey entity.

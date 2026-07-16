@@ -142,6 +142,7 @@ const (
 type ChannelService struct {
 	repo                 ChannelRepository
 	groupRepo            GroupRepository
+	accountModelRepo     AvailableChannelAccountModelRepository
 	authCacheInvalidator APIKeyAuthCacheInvalidator
 	pricingService       *PricingService // 用于「可用渠道」展示时回落到全局定价；可为 nil（测试场景）
 
@@ -152,10 +153,11 @@ type ChannelService struct {
 // NewChannelService 创建渠道服务实例。
 // pricingService 仅供 ListAvailable 在渠道未配置定价时回落到全局 LiteLLM 数据；
 // 计费热路径走独立的 ModelPricingResolver，与此参数无关。可传 nil。
-func NewChannelService(repo ChannelRepository, groupRepo GroupRepository, authCacheInvalidator APIKeyAuthCacheInvalidator, pricingService *PricingService) *ChannelService {
+func NewChannelService(repo ChannelRepository, groupRepo GroupRepository, accountModelRepo AvailableChannelAccountModelRepository, authCacheInvalidator APIKeyAuthCacheInvalidator, pricingService *PricingService) *ChannelService {
 	s := &ChannelService{
 		repo:                 repo,
 		groupRepo:            groupRepo,
+		accountModelRepo:     accountModelRepo,
 		authCacheInvalidator: authCacheInvalidator,
 		pricingService:       pricingService,
 	}
@@ -572,21 +574,6 @@ func ReplaceModelInBody(body []byte, newModel string) []byte {
 	return newBody
 }
 
-// RemovePreviousResponseIDFromBody 删除请求体中的 previous_response_id，用于会话失配时改用完整 input 重建上下文。
-func RemovePreviousResponseIDFromBody(body []byte) []byte {
-	if len(body) == 0 {
-		return body
-	}
-	if !gjson.GetBytes(body, "previous_response_id").Exists() {
-		return body
-	}
-	newBody, err := sjson.DeleteBytes(body, "previous_response_id")
-	if err != nil {
-		return body
-	}
-	return newBody
-}
-
 // validateChannelConfig 校验渠道的定价和映射配置（冲突检测 + 区间校验 + 计费模式校验）。
 // Create 和 Update 共用此函数，避免重复。
 func validateChannelConfig(pricing []ChannelModelPricing, mapping map[string]map[string]string) error {
@@ -966,7 +953,7 @@ func validateNoConflictingMappings(mapping map[string]map[string]string) error {
 
 func validatePricingIntervals(pricingList []ChannelModelPricing) error {
 	for _, pricing := range pricingList {
-		if err := ValidateIntervals(pricing.Intervals, pricing.BillingMode); err != nil {
+		if err := ValidateIntervals(pricing.Intervals); err != nil {
 			return infraerrors.BadRequest(
 				"INVALID_PRICING_INTERVALS",
 				fmt.Sprintf("invalid pricing intervals for platform '%s' models %v: %v",
@@ -983,8 +970,7 @@ func detectConflicts(entries []modelEntry, platform, errCode, label string) erro
 		for j := i + 1; j < len(entries); j++ {
 			if conflictsBetween(entries[i], entries[j]) {
 				return infraerrors.BadRequest(errCode,
-					fmt.Sprintf("%s '%s' and '%s' conflict in platform '%s': overlapping match range "+
-						"(model names are matched case-insensitively, so an existing entry already covers all case variants)",
+					fmt.Sprintf("%s '%s' and '%s' conflict in platform '%s': overlapping match range",
 						label, entries[i].pattern, entries[j].pattern, platform))
 			}
 		}

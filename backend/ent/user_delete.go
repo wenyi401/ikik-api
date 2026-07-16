@@ -4,12 +4,12 @@ package ent
 
 import (
 	"context"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/user"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/user"
 )
 
 // UserDelete is the builder for deleting a User entity.

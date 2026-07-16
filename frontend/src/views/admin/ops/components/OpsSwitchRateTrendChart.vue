@@ -33,10 +33,10 @@ const { t } = useI18n()
 
 const isDarkMode = computed(() => document.documentElement.classList.contains('dark'))
 const colors = computed(() => ({
-  teal: '#14b8a6',
-  tealAlpha: '#14b8a620',
-  grid: isDarkMode.value ? '#374151' : '#f3f4f6',
-  text: isDarkMode.value ? '#9ca3af' : '#6b7280'
+  blue: '#10a37f',
+  blueAlpha: '#10a37f20',
+  grid: isDarkMode.value ? '#40414f' : '#ececf1',
+  text: isDarkMode.value ? '#acacbe' : '#6e6e80'
 }))
 
 const totalRequests = computed(() => sumNumbers(props.points.map((p) => p.request_count)))
@@ -54,8 +54,8 @@ const chartData = computed(() => {
           if (requests <= 0) return 0
           return switches / requests
         }),
-        borderColor: colors.value.teal,
-        backgroundColor: colors.value.tealAlpha,
+        borderColor: colors.value.blue,
+        backgroundColor: colors.value.blueAlpha,
         fill: true,
         tension: 0.35,
         pointRadius: 0,
@@ -84,9 +84,9 @@ const options = computed(() => {
         labels: { color: c.text, usePointStyle: true, boxWidth: 6, font: { size: 10 } }
       },
       tooltip: {
-        backgroundColor: isDarkMode.value ? '#1f2937' : '#ffffff',
-        titleColor: isDarkMode.value ? '#f3f4f6' : '#111827',
-        bodyColor: isDarkMode.value ? '#d1d5db' : '#4b5563',
+        backgroundColor: isDarkMode.value ? '#2f3037' : '#ffffff',
+        titleColor: isDarkMode.value ? '#ececf1' : '#171717',
+        bodyColor: isDarkMode.value ? '#c5c5d2' : '#565869',
         borderColor: c.grid,
         borderWidth: 1,
         padding: 10,
@@ -128,10 +128,10 @@ const options = computed(() => {
 </script>
 
 <template>
-  <div class="flex h-full flex-col rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
+  <div class="ops-panel flex h-full flex-col">
     <div class="mb-4 flex shrink-0 items-center justify-between">
       <h3 class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
-        <svg class="h-4 w-4 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg class="h-4 w-4 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10M7 12h6m-6 5h3" />
         </svg>
         {{ t('admin.ops.switchRateTrend') }}

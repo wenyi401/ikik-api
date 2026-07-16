@@ -214,23 +214,25 @@ func TestUsageCleanupTaskFromEntFull(t *testing.T) {
 	canceledAt := start.Add(time.Minute)
 	startedAt := start.Add(2 * time.Minute)
 	finishedAt := start.Add(3 * time.Minute)
+	createdBy := int64(11)
 	filters := service.UsageCleanupFilters{StartTime: start, EndTime: end}
 	filtersJSON, err := json.Marshal(filters)
 	require.NoError(t, err)
 
 	task, err := usageCleanupTaskFromEnt(&dbent.UsageCleanupTask{
-		ID:           10,
-		Status:       service.UsageCleanupStatusFailed,
-		Filters:      filtersJSON,
-		CreatedBy:    11,
-		DeletedRows:  7,
-		ErrorMessage: &errMsg,
-		CanceledBy:   &canceledBy,
-		CanceledAt:   &canceledAt,
-		StartedAt:    &startedAt,
-		FinishedAt:   &finishedAt,
-		CreatedAt:    start,
-		UpdatedAt:    end,
+		ID:            10,
+		Status:        service.UsageCleanupStatusFailed,
+		Filters:       filtersJSON,
+		CreatedBy:     &createdBy,
+		CreatedSource: "admin",
+		DeletedRows:   7,
+		ErrorMessage:  &errMsg,
+		CanceledBy:    &canceledBy,
+		CanceledAt:    &canceledAt,
+		StartedAt:     &startedAt,
+		FinishedAt:    &finishedAt,
+		CreatedAt:     start,
+		UpdatedAt:     end,
 	})
 	require.NoError(t, err)
 	require.Equal(t, int64(10), task.ID)

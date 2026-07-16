@@ -1,0 +1,227 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e43]:
+    - complementary [ref=e44]:
+      - generic [ref=e45]:
+        - img "Logo" [ref=e47]
+        - generic [ref=e48]:
+          - generic [ref=e49]: ikik-api Local
+          - button "v1.0.2-local" [ref=e51] [cursor=pointer]
+      - tablist "工作区" [ref=e53]:
+        - tab "用户端" [selected] [ref=e54] [cursor=pointer]
+        - tab "管理端" [ref=e55] [cursor=pointer]
+      - navigation [ref=e56]:
+        - generic [ref=e57]:
+          - link "仪表盘" [ref=e58] [cursor=pointer]:
+            - /url: /dashboard
+          - link "API 密钥" [ref=e62] [cursor=pointer]:
+            - /url: /keys
+          - button "账号管理" [ref=e66] [cursor=pointer]
+          - link "使用记录" [ref=e73] [cursor=pointer]:
+            - /url: /usage
+          - button "模型大厅" [ref=e77] [cursor=pointer]
+          - link "充值/订阅" [ref=e86] [cursor=pointer]:
+            - /url: /purchase
+          - button "个人中心" [ref=e94] [cursor=pointer]
+          - button "更多" [ref=e101] [cursor=pointer]
+      - generic [ref=e109]:
+        - button "深色模式" [ref=e110] [cursor=pointer]
+        - button "收起" [ref=e114] [cursor=pointer]
+    - generic [ref=e118]:
+      - banner [ref=e119]:
+        - generic [ref=e120]:
+          - heading "仪表盘" [level=1] [ref=e123]
+          - generic [ref=e124]:
+            - button "ZH" [ref=e126] [cursor=pointer]
+            - button "公告" [ref=e133] [cursor=pointer]
+            - button "用户菜单" [ref=e137] [cursor=pointer]:
+              - generic [ref=e138]: LO
+      - main [ref=e140]:
+        - generic [ref=e141]:
+          - generic [ref=e142]:
+            - generic [ref=e143]:
+              - term [ref=e144]: 余额
+              - definition [ref=e145]: $1,000.00
+              - definition [ref=e146]: 可用
+            - generic [ref=e147]:
+              - term [ref=e148]: 今日请求
+              - definition [ref=e149]: 1,280
+              - definition [ref=e150]: "总计: 128,000"
+            - generic [ref=e151]:
+              - term [ref=e152]: 今日 Token
+              - definition [ref=e153]: 3.3M
+              - definition [ref=e154]: 输入 1.8M · 输出 920.0K
+            - generic [ref=e155]:
+              - term [ref=e156]: 今日消费
+              - definition [ref=e157]: $5.1200
+              - definition [ref=e158]: "总计: $512.0000"
+            - generic [ref=e159]:
+              - term [ref=e160]: 平均响应
+              - definition [ref=e161]: 5.40s
+              - definition [ref=e162]: 18 RPM · 52.0K TPM
+          - generic [ref=e163]:
+            - generic [ref=e166]:
+              - generic [ref=e167]:
+                - generic [ref=e168]: 时间范围
+                - button "近 7 天" [ref=e170] [cursor=pointer]
+              - generic [ref=e178]:
+                - generic [ref=e179]: 粒度
+                - button "Select option" [ref=e182] [cursor=pointer]:
+                  - generic [ref=e183]: 按天
+              - generic [ref=e187]:
+                - button "刷新" [ref=e188] [cursor=pointer]
+                - tooltip "刷新"
+            - generic [ref=e191]:
+              - heading "Token 使用趋势" [level=2] [ref=e196]
+              - generic [ref=e201]:
+                - heading "模型分布" [level=2] [ref=e204]
+                - table [ref=e211]:
+                  - rowgroup [ref=e212]:
+                    - row [ref=e213]:
+                      - columnheader "模型" [ref=e214]
+                      - columnheader "请求" [ref=e215]
+                      - columnheader "Token" [ref=e216]
+                      - columnheader "实际" [ref=e217]
+                  - rowgroup [ref=e218]:
+                    - row [ref=e219]:
+                      - cell "gpt-5.5" [ref=e220]
+                      - cell "620" [ref=e221]
+                      - cell "1.6M" [ref=e222]
+                      - cell "$2.8000" [ref=e223]
+                    - row [ref=e224]:
+                      - cell "claude-sonnet-4.6" [ref=e225]
+                      - cell "420" [ref=e226]
+                      - cell "1.2M" [ref=e227]
+                      - cell "$1.9000" [ref=e228]
+          - generic [ref=e229]:
+            - generic [ref=e230]:
+              - heading "今日平台用量" [level=2] [ref=e232]
+              - generic [ref=e234]:
+                - generic [ref=e235]: 1,280 请求
+                - generic [ref=e236]: 3.3M Token
+                - generic [ref=e237]: $5.1200
+            - generic [ref=e239]:
+              - generic [ref=e240]:
+                - generic [ref=e243]:
+                  - paragraph [ref=e244]: OpenAI
+                  - text: 860 请求
+                - generic [ref=e246]:
+                  - generic [ref=e247]: 2.2M
+                  - generic [ref=e248]: 66%
+                - generic [ref=e251]:
+                  - generic [ref=e252]:
+                    - text: 输入
+                    - strong [ref=e253]: 1.2M
+                  - generic [ref=e254]:
+                    - text: 输出
+                    - strong [ref=e255]: 620.0K
+                  - generic [ref=e256]:
+                    - text: 实际
+                    - strong [ref=e257]: $3.4200
+              - generic [ref=e258]:
+                - generic [ref=e261]:
+                  - paragraph [ref=e262]: Anthropic
+                  - text: 420 请求
+                - generic [ref=e264]:
+                  - generic [ref=e265]: 1.1M
+                  - generic [ref=e266]: 34%
+                - generic [ref=e269]:
+                  - generic [ref=e270]:
+                    - text: 输入
+                    - strong [ref=e271]: 640.0K
+                  - generic [ref=e272]:
+                    - text: 输出
+                    - strong [ref=e273]: 300.0K
+                  - generic [ref=e274]:
+                    - text: 实际
+                    - strong [ref=e275]: $1.7000
+          - generic [ref=e276]:
+            - generic [ref=e277]:
+              - generic [ref=e278]:
+                - heading "个人账号用量" [level=2] [ref=e279]
+                - paragraph [ref=e280]: 2026-07-07 - 2026-07-13
+              - generic [ref=e281]: 结算流水
+            - generic [ref=e284]:
+              - generic [ref=e285]:
+                - generic [ref=e286]:
+                  - term [ref=e287]: 我的账号
+                  - definition [ref=e288]: "0"
+                  - definition [ref=e289]: 公共已通过 0
+                - generic [ref=e290]:
+                  - term [ref=e291]: 自己使用
+                  - definition [ref=e292]: $0.0000
+                  - definition [ref=e293]: 0 请求
+                - generic [ref=e294]:
+                  - term [ref=e295]: 别人使用
+                  - definition [ref=e296]: $0.0000
+                  - definition [ref=e297]: 0 请求
+                - generic [ref=e298]:
+                  - term [ref=e299]: 分成入账
+                  - definition [ref=e300]: $0.0000
+                  - definition [ref=e301]: 平台留存 $0.0000
+                - generic [ref=e302]:
+                  - term [ref=e303]: 余额净变化
+                  - definition [ref=e304]: +$0.0000
+                  - definition [ref=e305]: 余额扣减 $0.0000
+              - generic [ref=e306]:
+                - generic [ref=e307]:
+                  - generic [ref=e308]: 私有
+                  - generic [ref=e309]: "0"
+                - generic [ref=e310]:
+                  - generic [ref=e311]: 公共待校验
+                  - generic [ref=e312]: "0"
+                - generic [ref=e313]:
+                  - generic [ref=e314]: 公共已通过
+                  - generic [ref=e315]: "0"
+                - generic [ref=e316]:
+                  - generic [ref=e317]: 公共已暂停
+                  - generic [ref=e318]: "0"
+              - generic [ref=e319]:
+                - generic [ref=e320]:
+                  - heading "共享账号明细" [level=4] [ref=e321]
+                  - generic [ref=e322]: 账号成本 $0.0000
+                - generic [ref=e323]: 当前时间范围内暂无共享账号用量
+          - generic [ref=e324]:
+            - generic [ref=e325]:
+              - heading "最近使用" [level=2] [ref=e327]
+              - generic [ref=e328]: 近 7 天
+            - generic [ref=e332]:
+              - generic [ref=e333]:
+                - generic [ref=e334]:
+                  - paragraph [ref=e335]: gpt-5.5
+                  - paragraph [ref=e336]: 2026/07/13 18:50:19
+                - generic [ref=e337]:
+                  - paragraph [ref=e338]: $0.2689 / $0.3842
+                  - paragraph [ref=e339]: 57,474 tokens
+              - generic [ref=e340]:
+                - generic [ref=e341]:
+                  - paragraph [ref=e342]: claude-sonnet-4.6
+                  - paragraph [ref=e343]: 2026/07/13 18:03:19
+                - generic [ref=e344]:
+                  - paragraph [ref=e345]: $0.2045 / $0.2921
+                  - paragraph [ref=e346]: 39,520 tokens
+              - generic [ref=e347]:
+                - generic [ref=e348]:
+                  - paragraph [ref=e349]: gpt-5.4-mini
+                  - paragraph [ref=e350]: 2026/07/13 15:57:19
+                - generic [ref=e351]:
+                  - paragraph [ref=e352]: $0.0454 / $0.0648
+                  - paragraph [ref=e353]: 14,710 tokens
+              - generic [ref=e354]:
+                - generic [ref=e355]:
+                  - paragraph [ref=e356]: gemini-3.1-pro
+                  - paragraph [ref=e357]: 2026/07/12 20:57:19
+                - generic [ref=e358]:
+                  - paragraph [ref=e359]: $0.1022 / $0.1460
+                  - paragraph [ref=e360]: 27,780 tokens
+              - generic [ref=e361]:
+                - generic [ref=e362]:
+                  - paragraph [ref=e363]: claude-opus-4.7
+                  - paragraph [ref=e364]: 2026/07/12 14:57:19
+                - generic [ref=e365]:
+                  - paragraph [ref=e366]: $0.5768 / $0.8240
+                  - paragraph [ref=e367]: 69,800 tokens
+              - link "查看全部" [ref=e368] [cursor=pointer]:
+                - /url: /usage
+  - generic [ref=e371]:
+    - paragraph [ref=e375]: 登录成功！欢迎回来。
+    - button "Close notification" [ref=e376] [cursor=pointer]

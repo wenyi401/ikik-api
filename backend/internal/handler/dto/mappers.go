@@ -18,7 +18,11 @@ func UserFromServiceShallow(u *service.User) *User {
 		Username:                   u.Username,
 		Role:                       u.Role,
 		Balance:                    u.Balance,
-		FrozenBalance:              u.FrozenBalance,
+		RechargeBalance:            u.RechargeBalance,
+		InviteIncomeBalance:        u.InviteIncomeBalance,
+		ShareIncomeBalance:         u.ShareIncomeBalance,
+		PointsBalance:              u.PointsBalance,
+		PreferPointsBilling:        u.PreferPointsBilling,
 		Concurrency:                u.Concurrency,
 		Status:                     u.Status,
 		AllowedGroups:              u.AllowedGroups,
@@ -30,8 +34,9 @@ func UserFromServiceShallow(u *service.User) *User {
 		BalanceNotifyThreshold:     u.BalanceNotifyThreshold,
 		BalanceNotifyExtraEmails:   NotifyEmailEntriesFromService(u.BalanceNotifyExtraEmails),
 		TotalRecharged:             u.TotalRecharged,
+		TotalInviteIncome:          u.TotalInviteIncome,
+		TotalShareIncome:           u.TotalShareIncome,
 		RPMLimit:                   u.RPMLimit,
-		DeletedAt:                  u.DeletedAt,
 	}
 }
 
@@ -89,7 +94,6 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		IPWhitelist:        k.IPWhitelist,
 		IPBlacklist:        k.IPBlacklist,
 		LastUsedAt:         k.LastUsedAt,
-		LastUsedIP:         k.LastUsedIP,
 		Quota:              k.Quota,
 		QuotaUsed:          k.QuotaUsed,
 		ExpiresAt:          k.ExpiresAt,
@@ -108,6 +112,12 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		User:               UserFromServiceShallow(k.User),
 		Group:              GroupFromServiceShallow(k.Group),
 	}
+	if len(k.GroupRoutes) > 0 {
+		out.GroupRoutes = make([]APIKeyGroupRoute, 0, len(k.GroupRoutes))
+		for i := range k.GroupRoutes {
+			out.GroupRoutes = append(out.GroupRoutes, *APIKeyGroupRouteFromService(&k.GroupRoutes[i]))
+		}
+	}
 	if k.Window5hStart != nil && !service.IsWindowExpired(k.Window5hStart, service.RateLimitWindow5h) {
 		t := k.Window5hStart.Add(service.RateLimitWindow5h)
 		out.Reset5hAt = &t
@@ -119,6 +129,29 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 	if k.Window7dStart != nil && !service.IsWindowExpired(k.Window7dStart, service.RateLimitWindow7d) {
 		t := k.Window7dStart.Add(service.RateLimitWindow7d)
 		out.Reset7dAt = &t
+	}
+	return out
+}
+
+func APIKeyGroupRouteFromService(route *service.APIKeyGroupRoute) *APIKeyGroupRoute {
+	if route == nil {
+		return nil
+	}
+	out := &APIKeyGroupRoute{
+		ID:              route.ID,
+		APIKeyID:        route.APIKeyID,
+		GroupID:         route.GroupID,
+		Priority:        route.Priority,
+		Weight:          route.Weight,
+		Enabled:         route.Enabled,
+		CooldownSeconds: route.CooldownSeconds,
+		Group:           GroupFromServiceShallow(route.Group),
+	}
+	if !route.CreatedAt.IsZero() {
+		out.CreatedAt = &route.CreatedAt
+	}
+	if !route.UpdatedAt.IsZero() {
+		out.UpdatedAt = &route.UpdatedAt
 	}
 	return out
 }
@@ -174,32 +207,22 @@ func groupFromServiceBase(g *service.Group) Group {
 		Name:                            g.Name,
 		Description:                     g.Description,
 		Platform:                        g.Platform,
+		RequiredAccountLevel:            service.NormalizeRequiredAccountLevel(g.RequiredAccountLevel),
 		RateMultiplier:                  g.RateMultiplier,
 		IsExclusive:                     g.IsExclusive,
 		Status:                          g.Status,
+		OwnerUserID:                     g.OwnerUserID,
+		Scope:                           service.NormalizeGroupScope(g.Scope),
 		SubscriptionType:                g.SubscriptionType,
 		DailyLimitUSD:                   g.DailyLimitUSD,
 		WeeklyLimitUSD:                  g.WeeklyLimitUSD,
 		MonthlyLimitUSD:                 g.MonthlyLimitUSD,
 		AllowImageGeneration:            g.AllowImageGeneration,
-		AllowBatchImageGeneration:       g.AllowBatchImageGeneration,
 		ImageRateIndependent:            g.ImageRateIndependent,
 		ImageRateMultiplier:             g.ImageRateMultiplier,
-		BatchImageDiscountMultiplier:    g.BatchImageDiscountMultiplier,
-		BatchImageHoldMultiplier:        g.BatchImageHoldMultiplier,
-		VideoRateIndependent:            g.VideoRateIndependent,
-		VideoRateMultiplier:             g.VideoRateMultiplier,
-		PeakRateEnabled:                 g.PeakRateEnabled,
-		PeakStart:                       g.PeakStart,
-		PeakEnd:                         g.PeakEnd,
-		PeakRateMultiplier:              g.PeakRateMultiplier,
 		ImagePrice1K:                    g.ImagePrice1K,
 		ImagePrice2K:                    g.ImagePrice2K,
 		ImagePrice4K:                    g.ImagePrice4K,
-		VideoPrice480P:                  g.VideoPrice480P,
-		VideoPrice720P:                  g.VideoPrice720P,
-		VideoPrice1080P:                 g.VideoPrice1080P,
-		WebSearchPricePerCall:           g.WebSearchPricePerCall,
 		ClaudeCodeOnly:                  g.ClaudeCodeOnly,
 		FallbackGroupID:                 g.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: g.FallbackGroupIDOnInvalidRequest,
@@ -207,6 +230,11 @@ func groupFromServiceBase(g *service.Group) Group {
 		RequireOAuthOnly:                g.RequireOAuthOnly,
 		RequirePrivacySet:               g.RequirePrivacySet,
 		RPMLimit:                        g.RPMLimit,
+		KiroCacheEmulationEnabled:       g.EffectiveKiroCacheEmulationEnabled(),
+		KiroAutoStickyEnabled:           g.EffectiveKiroAutoStickyEnabled(),
+		KiroStickySessionTTLSeconds:     g.EffectiveKiroStickySessionTTLSeconds(),
+		KiroCacheEmulationRatio:         g.EffectiveKiroCacheEmulationRatio(),
+		KiroEndpointMode:                g.EffectiveKiroEndpointMode(),
 		CreatedAt:                       g.CreatedAt,
 		UpdatedAt:                       g.UpdatedAt,
 	}
@@ -216,19 +244,21 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 	if a == nil {
 		return nil
 	}
-	redactedCreds, credsStatus := RedactCredentials(a.Credentials)
 	out := &Account{
 		ID:                      a.ID,
 		Name:                    a.Name,
 		Notes:                   a.Notes,
 		Platform:                a.Platform,
+		AccountLevel:            service.NormalizeAccountLevel(a.AccountLevel),
 		Type:                    a.Type,
-		Credentials:             redactedCreds,
-		CredentialsStatus:       credsStatus,
+		Credentials:             a.Credentials,
 		Extra:                   a.Extra,
+		OwnerUserID:             a.OwnerUserID,
+		ShareMode:               service.NormalizeAccountShareMode(a.ShareMode),
+		ShareStatus:             service.NormalizeAccountShareStatus(a.ShareStatus),
+		SharePolicyID:           a.SharePolicyID,
 		ProxyID:                 a.ProxyID,
 		ProxyFallbackOriginID:   a.ProxyFallbackOriginID,
-		ProxyFallbackOriginName: a.ProxyFallbackOriginName,
 		Concurrency:             a.Concurrency,
 		LoadFactor:              a.LoadFactor,
 		Priority:                a.Priority,
@@ -250,8 +280,9 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		SessionWindowEnd:        a.SessionWindowEnd,
 		SessionWindowStatus:     a.SessionWindowStatus,
 		GroupIDs:                a.GroupIDs,
-		ParentAccountID:         a.ParentAccountID,
-		QuotaDimension:          a.QuotaDimension,
+	}
+	if a.ProxyFallbackOrigin != nil {
+		out.ProxyFallbackOriginName = a.ProxyFallbackOrigin.Name
 	}
 
 	// 提取 5h 窗口费用控制和会话数量控制配置（仅 Anthropic OAuth/SetupToken 账号有效）
@@ -439,6 +470,7 @@ func ProxyFromService(p *service.Proxy) *Proxy {
 		Port:           p.Port,
 		Username:       p.Username,
 		Status:         p.Status,
+		OwnerUserID:    p.OwnerUserID,
 		CreatedAt:      p.CreatedAt,
 		UpdatedAt:      p.UpdatedAt,
 		ExpiresAt:      p.ExpiresAt,
@@ -559,19 +591,15 @@ func redeemCodeFromServiceBase(rc *service.RedeemCode) RedeemCode {
 		UsedBy:       rc.UsedBy,
 		UsedAt:       rc.UsedAt,
 		CreatedAt:    rc.CreatedAt,
-		ExpiresAt:    rc.ExpiresAt,
 		GroupID:      rc.GroupID,
 		ValidityDays: rc.ValidityDays,
 		User:         UserFromServiceShallow(rc.User),
 		Group:        GroupFromServiceShallow(rc.Group),
 	}
-	if rc.IsExpired() {
-		out.Status = service.StatusExpired
-	}
 
-	// For admin_balance/admin_concurrency types, include notes so users can see
+	// For admin adjustment types, include notes so users can see
 	// why they were charged or credited by admin
-	if (rc.Type == "admin_balance" || rc.Type == "admin_concurrency") && rc.Notes != "" {
+	if (rc.Type == "admin_balance" || rc.Type == "admin_points" || rc.Type == "admin_concurrency") && rc.Notes != "" {
 		out.Notes = &rc.Notes
 	}
 
@@ -591,7 +619,7 @@ func AccountSummaryFromService(a *service.Account) *AccountSummary {
 }
 
 func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
-	// 普通用户 DTO：严禁包含管理员字段（例如 account_rate_multiplier、account、upstream_model）。
+	// 普通用户 DTO：严禁包含管理员字段（例如 account_rate_multiplier、ip_address、account）。
 	requestType := l.EffectiveRequestType()
 	stream, openAIWSMode := service.ApplyLegacyRequestFields(requestType, l.Stream, l.OpenAIWSMode)
 	requestedModel := l.RequestedModel
@@ -599,60 +627,59 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		requestedModel = l.Model
 	}
 	return UsageLog{
-		ID:                        l.ID,
-		UserID:                    l.UserID,
-		APIKeyID:                  l.APIKeyID,
-		AccountID:                 l.AccountID,
-		RequestID:                 l.RequestID,
-		Model:                     requestedModel,
-		ServiceTier:               l.ServiceTier,
-		ReasoningEffort:           l.ReasoningEffort,
-		InboundEndpoint:           l.InboundEndpoint,
-		GroupID:                   l.GroupID,
-		SubscriptionID:            l.SubscriptionID,
-		InputTokens:               l.InputTokens,
-		OutputTokens:              l.OutputTokens,
-		CacheCreationTokens:       l.CacheCreationTokens,
-		CacheReadTokens:           l.CacheReadTokens,
-		CacheCreation5mTokens:     l.CacheCreation5mTokens,
-		CacheCreation1hTokens:     l.CacheCreation1hTokens,
-		InputCost:                 l.InputCost,
-		OutputCost:                l.OutputCost,
-		CacheCreationCost:         l.CacheCreationCost,
-		CacheReadCost:             l.CacheReadCost,
-		TotalCost:                 l.TotalCost,
-		ActualCost:                l.ActualCost,
-		RateMultiplier:            l.RateMultiplier,
-		LongContextBillingApplied: l.LongContextBillingApplied,
-		BillingType:               l.BillingType,
-		RequestType:               requestType.String(),
-		Stream:                    stream,
-		OpenAIWSMode:              openAIWSMode,
-		DurationMs:                l.DurationMs,
-		FirstTokenMs:              l.FirstTokenMs,
-		ImageCount:                l.ImageCount,
-		ImageSize:                 l.ImageSize,
-		ImageInputSize:            l.ImageInputSize,
-		ImageOutputSize:           l.ImageOutputSize,
-		ImageOutputTokens:         l.ImageOutputTokens,
-		ImageOutputCost:           l.ImageOutputCost,
-		ImageSizeSource:           l.ImageSizeSource,
-		ImageSizeBreakdown:        l.ImageSizeBreakdown,
-		MediaType:                 l.MediaType,
-		UserAgent:                 l.UserAgent,
-		IPAddress:                 l.IPAddress,
-		CacheTTLOverridden:        l.CacheTTLOverridden,
-		BillingMode:               l.BillingMode,
-		CreatedAt:                 l.CreatedAt,
-		User:                      UserFromServiceShallow(l.User),
-		APIKey:                    APIKeyFromService(l.APIKey),
-		Group:                     GroupFromServiceShallow(l.Group),
-		Subscription:              UserSubscriptionFromService(l.Subscription),
+		ID:                    l.ID,
+		UserID:                l.UserID,
+		APIKeyID:              l.APIKeyID,
+		AccountID:             l.AccountID,
+		RequestID:             l.RequestID,
+		Model:                 requestedModel,
+		ServiceTier:           l.ServiceTier,
+		ReasoningEffort:       l.ReasoningEffort,
+		InboundEndpoint:       l.InboundEndpoint,
+		UpstreamEndpoint:      l.UpstreamEndpoint,
+		GroupID:               l.GroupID,
+		SubscriptionID:        l.SubscriptionID,
+		InputTokens:           l.InputTokens,
+		OutputTokens:          l.OutputTokens,
+		CacheCreationTokens:   l.CacheCreationTokens,
+		CacheReadTokens:       l.CacheReadTokens,
+		ReasoningTokens:       l.ReasoningTokens,
+		CacheCreation5mTokens: l.CacheCreation5mTokens,
+		CacheCreation1hTokens: l.CacheCreation1hTokens,
+		InputCost:             l.InputCost,
+		OutputCost:            l.OutputCost,
+		CacheCreationCost:     l.CacheCreationCost,
+		CacheReadCost:         l.CacheReadCost,
+		TotalCost:             l.TotalCost,
+		ActualCost:            l.ActualCost,
+		RateMultiplier:        l.RateMultiplier,
+		PointsDeducted:        l.PointsDeducted,
+		BalanceDeducted:       l.BalanceDeducted,
+		BillingWalletType:     l.BillingWalletType,
+		BillingType:           l.BillingType,
+		RequestType:           requestType.String(),
+		Stream:                stream,
+		OpenAIWSMode:          openAIWSMode,
+		DurationMs:            l.DurationMs,
+		FirstTokenMs:          l.FirstTokenMs,
+		ImageCount:            l.ImageCount,
+		ImageSize:             l.ImageSize,
+		ImageOutputTokens:     l.ImageOutputTokens,
+		ImageOutputCost:       l.ImageOutputCost,
+		MediaType:             l.MediaType,
+		UserAgent:             l.UserAgent,
+		CacheTTLOverridden:    l.CacheTTLOverridden,
+		BillingMode:           l.BillingMode,
+		CreatedAt:             l.CreatedAt,
+		User:                  UserFromServiceShallow(l.User),
+		APIKey:                APIKeyFromService(l.APIKey),
+		Group:                 GroupFromServiceShallow(l.Group),
+		Subscription:          UserSubscriptionFromService(l.Subscription),
 	}
 }
 
 // UsageLogFromService converts a service UsageLog to DTO for regular users.
-// It excludes admin-only account/upstream internals while keeping user billing and request metadata.
+// It excludes Account details and IP address - users should not see these.
 func UsageLogFromService(l *service.UsageLog) *UsageLog {
 	if l == nil {
 		return nil
@@ -667,10 +694,8 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 	if l == nil {
 		return nil
 	}
-	usageLog := usageLogFromServiceUser(l)
-	usageLog.UpstreamEndpoint = l.UpstreamEndpoint
 	return &AdminUsageLog{
-		UsageLog:              usageLog,
+		UsageLog:              usageLogFromServiceUser(l),
 		UpstreamModel:         l.UpstreamModel,
 		ChannelID:             l.ChannelID,
 		ModelMappingChain:     l.ModelMappingChain,
@@ -701,15 +726,16 @@ func UsageCleanupTaskFromService(task *service.UsageCleanupTask) *UsageCleanupTa
 			Stream:      task.Filters.Stream,
 			BillingType: task.Filters.BillingType,
 		},
-		CreatedBy:    task.CreatedBy,
-		DeletedRows:  task.DeletedRows,
-		ErrorMessage: task.ErrorMsg,
-		CanceledBy:   task.CanceledBy,
-		CanceledAt:   task.CanceledAt,
-		StartedAt:    task.StartedAt,
-		FinishedAt:   task.FinishedAt,
-		CreatedAt:    task.CreatedAt,
-		UpdatedAt:    task.UpdatedAt,
+		CreatedBy:     task.CreatedBy,
+		CreatedSource: task.CreatedSource,
+		DeletedRows:   task.DeletedRows,
+		ErrorMessage:  task.ErrorMsg,
+		CanceledBy:    task.CanceledBy,
+		CanceledAt:    task.CanceledAt,
+		StartedAt:     task.StartedAt,
+		FinishedAt:    task.FinishedAt,
+		CreatedAt:     task.CreatedAt,
+		UpdatedAt:     task.UpdatedAt,
 	}
 }
 
@@ -772,7 +798,6 @@ func userSubscriptionFromServiceBase(sub *service.UserSubscription) UserSubscrip
 		MonthlyUsageUSD:    sub.MonthlyUsageUSD,
 		CreatedAt:          sub.CreatedAt,
 		UpdatedAt:          sub.UpdatedAt,
-		RevokedAt:          sub.DeletedAt,
 		User:               UserFromServiceShallow(sub.User),
 		Group:              GroupFromServiceShallow(sub.Group),
 	}

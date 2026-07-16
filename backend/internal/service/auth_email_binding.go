@@ -40,9 +40,6 @@ func (s *AuthService) BindEmailIdentity(
 	if err := s.VerifyOAuthEmailCode(ctx, normalizedEmail, verifyCode); err != nil {
 		return nil, err
 	}
-	if err := s.validateRegistrationEmailPolicy(ctx, normalizedEmail); err != nil {
-		return nil, err
-	}
 
 	currentUser, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -97,7 +94,7 @@ func (s *AuthService) BindEmailIdentity(
 }
 
 // SendEmailIdentityBindCode sends a verification code for authenticated email binding flows.
-func (s *AuthService) SendEmailIdentityBindCode(ctx context.Context, userID int64, email string, locale ...string) error {
+func (s *AuthService) SendEmailIdentityBindCode(ctx context.Context, userID int64, email string) error {
 	if s == nil {
 		return ErrServiceUnavailable
 	}
@@ -108,9 +105,6 @@ func (s *AuthService) SendEmailIdentityBindCode(ctx context.Context, userID int6
 	}
 	if isReservedEmail(normalizedEmail) {
 		return ErrEmailReserved
-	}
-	if err := s.validateRegistrationEmailPolicy(ctx, normalizedEmail); err != nil {
-		return err
 	}
 	if s.emailService == nil {
 		return ErrServiceUnavailable
@@ -130,11 +124,11 @@ func (s *AuthService) SendEmailIdentityBindCode(ctx context.Context, userID int6
 		return ErrServiceUnavailable
 	}
 
-	siteName := "Sub2API"
+	siteName := "ikik-api"
 	if s.settingService != nil {
 		siteName = s.settingService.GetSiteName(ctx)
 	}
-	return s.emailService.SendVerifyCode(ctx, normalizedEmail, siteName, firstEmailLocale(locale))
+	return s.emailService.SendVerifyCode(ctx, normalizedEmail, siteName)
 }
 
 func normalizeEmailForIdentityBinding(email string) (string, error) {

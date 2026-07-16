@@ -148,29 +148,12 @@ describe('AccountTestModal', () => {
     })
   })
 
-  it('renders Chat Completions path status from test SSE', async () => {
-    const encoder = new TextEncoder()
-    const chunks = [
-      encoder.encode('data: {"type":"status","text":"已通过 /v1/chat/completions 验证"}\n\n'),
-      encoder.encode('data: {"type":"test_complete","success":true}\n\n')
-    ]
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      body: {
-        getReader: () => ({
-          read: vi.fn().mockImplementation(() => Promise.resolve(
-            chunks.length > 0
-              ? { done: false, value: chunks.shift() }
-              : { done: true, value: undefined }
-          ))
-        })
-      }
-    } as any)
-
+  it('uses user-scoped endpoint and default models for user accounts', async () => {
     const wrapper = mount(AccountTestModal, {
       props: {
         show: true,
-        account: buildAccount()
+        account: buildAccount(),
+        accountScope: 'user'
       },
       global: {
         stubs: {
@@ -183,10 +166,17 @@ describe('AccountTestModal', () => {
     })
 
     await flushPromises()
-    ;(wrapper.vm as any).selectedModelId = 'gpt-5.4'
+    ;(wrapper.vm as any).selectedModelId = 'gpt-5.5'
     await (wrapper.vm as any).startTest()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('已通过 /v1/chat/completions 验证')
+    expect(getAvailableModelsMock).not.toHaveBeenCalled()
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    const [url, options] = (global.fetch as any).mock.calls[0]
+    expect(url).toBe('/api/v1/accounts/1/test')
+    expect(JSON.parse(options.body)).toMatchObject({
+      model_id: 'gpt-5.5',
+      mode: 'default'
+    })
   })
 })

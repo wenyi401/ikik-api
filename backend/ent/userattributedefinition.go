@@ -5,12 +5,12 @@ package ent
 import (
 	"encoding/json"
 	"fmt"
+	"ikik-api/ent/userattributedefinition"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/userattributedefinition"
 )
 
 // UserAttributeDefinition is the model entity for the UserAttributeDefinition schema.

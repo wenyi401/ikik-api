@@ -6,14 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
 	"ikik-api/ent/group"
 	"ikik-api/ent/predicate"
 	"ikik-api/ent/user"
 	"ikik-api/ent/userallowedgroup"
+
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 )
 
 // UserAllowedGroupUpdate is the builder for updating UserAllowedGroup entities.

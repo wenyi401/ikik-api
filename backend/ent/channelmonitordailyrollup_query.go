@@ -5,6 +5,9 @@ package ent
 import (
 	"context"
 	"fmt"
+	"ikik-api/ent/channelmonitor"
+	"ikik-api/ent/channelmonitordailyrollup"
+	"ikik-api/ent/predicate"
 	"math"
 
 	"entgo.io/ent"
@@ -12,9 +15,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/channelmonitor"
-	"ikik-api/ent/channelmonitordailyrollup"
-	"ikik-api/ent/predicate"
 )
 
 // ChannelMonitorDailyRollupQuery is the builder for querying ChannelMonitorDailyRollup entities.

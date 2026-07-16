@@ -33,6 +33,7 @@ vi.mock('vue-i18n', async (importOriginal) => {
         if (key === 'profile.memberSince') return 'Member Since'
         if (key === 'profile.administrator') return 'Administrator'
         if (key === 'profile.user') return 'User'
+        if (key === 'profile.share.action') return 'Share'
         if (key === 'profile.authBindings.providers.email') return 'Email'
         if (key === 'profile.authBindings.providers.linuxdo') return 'LinuxDo'
         if (key === 'profile.authBindings.providers.wechat') return 'WeChat'
@@ -77,7 +78,8 @@ describe('ProfileInfoCard', () => {
       },
       global: {
         stubs: {
-          Icon: true
+          Icon: true,
+          ProfileTokenActivityHeatmap: true
         }
       }
     })
@@ -85,7 +87,8 @@ describe('ProfileInfoCard', () => {
     expect(wrapper.text()).toContain('alice@example.com')
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('User')
-    expect(wrapper.get('[data-testid="profile-basics-panel"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="profile-share-action"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="profile-edit-action"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="profile-auth-bindings-panel"]').exists()).toBe(true)
   })
 
@@ -102,7 +105,8 @@ describe('ProfileInfoCard', () => {
       },
       global: {
         stubs: {
-          Icon: true
+          Icon: true,
+          ProfileTokenActivityHeatmap: true
         }
       }
     })
@@ -123,7 +127,8 @@ describe('ProfileInfoCard', () => {
       },
       global: {
         stubs: {
-          Icon: true
+          Icon: true,
+          ProfileTokenActivityHeatmap: true
         }
       }
     })
@@ -144,7 +149,8 @@ describe('ProfileInfoCard', () => {
       },
       global: {
         stubs: {
-          Icon: true
+          Icon: true,
+          ProfileTokenActivityHeatmap: true
         }
       }
     })
@@ -164,7 +170,8 @@ describe('ProfileInfoCard', () => {
       },
       global: {
         stubs: {
-          Icon: true
+          Icon: true,
+          ProfileTokenActivityHeatmap: true
         }
       }
     })
@@ -179,7 +186,8 @@ describe('ProfileInfoCard', () => {
       },
       global: {
         stubs: {
-          Icon: true
+          Icon: true,
+          ProfileTokenActivityHeatmap: true
         }
       }
     })
@@ -189,9 +197,9 @@ describe('ProfileInfoCard', () => {
     expect(wrapper.get('[data-testid="profile-overview-metric-concurrency"]').text()).toContain('Concurrency Limit')
     expect(wrapper.get('[data-testid="profile-overview-metric-member-since"]').text()).toContain('Member Since')
     expect(wrapper.find('[data-testid="profile-info-summary-grid"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'ProfileTokenActivityHeatmap' }).exists()).toBe(true)
     expect(wrapper.get('[data-testid="profile-main-column"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="profile-side-column"]').exists()).toBe(true)
-    expect(wrapper.get('[data-testid="profile-basics-panel"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="profile-auth-bindings-panel"]').exists()).toBe(true)
   })
 })

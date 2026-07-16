@@ -35,7 +35,7 @@ type ResolvedPricing struct {
 	// 是否支持缓存细分
 	SupportsCacheBreakdown bool
 
-	// 渠道定价原始配置（用于区间模式下获取 ImageOutputPrice）
+	// Raw channel pricing used by interval pricing to preserve image output overrides.
 	channelPricing *ChannelModelPricing
 }
 
@@ -147,13 +147,8 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 	// 如果有有效的区间定价，使用区间
 	if len(validIntervals) > 0 {
 		resolved.Intervals = validIntervals
-		// 区间不匹配时回退到 BasePricing，也需要覆盖图片价格
 		if resolved.BasePricing == nil {
 			resolved.BasePricing = &ModelPricing{}
-		} else {
-			// 防止修改 fallbackPrices 中的共享指针
-			cloned := *resolved.BasePricing
-			resolved.BasePricing = &cloned
 		}
 		if chPricing.ImageOutputPrice != nil {
 			resolved.BasePricing.ImageOutputPricePerToken = *chPricing.ImageOutputPrice
@@ -167,10 +162,6 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 	// 否则用 flat 字段覆盖 BasePricing
 	if resolved.BasePricing == nil {
 		resolved.BasePricing = &ModelPricing{}
-	} else {
-		// 防止修改 fallbackPrices 中的共享指针
-		cloned := *resolved.BasePricing
-		resolved.BasePricing = &cloned
 	}
 
 	if chPricing.InputPrice != nil {
@@ -192,7 +183,6 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 		resolved.BasePricing.CacheReadPricePerToken = *chPricing.CacheReadPrice
 		resolved.BasePricing.CacheReadPricePerTokenPriority = *chPricing.CacheReadPrice
 	}
-	// 渠道定价覆盖一切：显式配置则用配置值，未配置则归零（不回退到 LiteLLM）
 	if chPricing.ImageOutputPrice != nil {
 		resolved.BasePricing.ImageOutputPricePerToken = *chPricing.ImageOutputPrice
 	} else {
@@ -262,7 +252,6 @@ func intervalToModelPricing(iv *PricingInterval, supportsCacheBreakdown bool, ch
 		pricing.CacheReadPricePerToken = *iv.CacheReadPrice
 		pricing.CacheReadPricePerTokenPriority = *iv.CacheReadPrice
 	}
-	// 渠道定价存在时，ImageOutputPrice 显式覆盖
 	if chPricing != nil {
 		pricing.ImageOutputPriceExplicit = true
 		if chPricing.ImageOutputPrice != nil {

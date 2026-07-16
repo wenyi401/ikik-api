@@ -4,14 +4,14 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/user"
+	"ikik-api/ent/userattributedefinition"
+	"ikik-api/ent/userattributevalue"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/user"
-	"ikik-api/ent/userattributedefinition"
-	"ikik-api/ent/userattributevalue"
 )
 
 // UserAttributeValue is the model entity for the UserAttributeValue schema.

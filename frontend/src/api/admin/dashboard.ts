@@ -167,8 +167,7 @@ export interface UserBreakdownParams {
   endpoint?: string
   endpoint_type?: 'inbound' | 'upstream' | 'path'
   limit?: number
-  // Sort column for the ranking (allowlisted server-side; falls back to actual_cost)
-  sort_by?: 'total_tokens' | 'input_tokens' | 'output_tokens' | 'cache_tokens' | 'requests' | 'cost' | 'actual_cost'
+  sort_by?: 'actual_cost' | 'tokens' | 'total_tokens' | 'requests' | 'cost' | 'account_cost'
   // Additional filter conditions
   user_id?: number
   api_key_id?: number
@@ -176,6 +175,7 @@ export interface UserBreakdownParams {
   request_type?: UsageRequestType
   stream?: boolean
   billing_type?: number | null
+  billing_mode?: string | null
 }
 
 export interface UserBreakdownResponse {
@@ -268,17 +268,10 @@ export async function getUserSpendingRanking(
   return data
 }
 
-export interface PlatformUsage {
-  platform: string
-  today_actual_cost: number
-  total_actual_cost: number
-}
-
 export interface BatchUserUsageStats {
   user_id: number
   today_actual_cost: number
   total_actual_cost: number
-  by_platform?: PlatformUsage[]
 }
 
 export interface BatchUsersUsageResponse {
@@ -331,6 +324,7 @@ export const dashboardAPI = {
   getModelStats,
   getGroupStats,
   getSnapshotV2,
+  getUserBreakdown,
   getApiKeyUsageTrend,
   getUserUsageTrend,
   getUserSpendingRanking,

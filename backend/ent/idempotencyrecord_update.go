@@ -6,13 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/idempotencyrecord"
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/idempotencyrecord"
-	"ikik-api/ent/predicate"
 )
 
 // IdempotencyRecordUpdate is the builder for updating IdempotencyRecord entities.

@@ -12,13 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"ikik-api/internal/pkg/apicompat"
 	"ikik-api/internal/pkg/claude"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/util/responseheaders"
-	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
-	"go.uber.org/zap"
 )
 
 // ForwardAsResponses accepts an OpenAI Responses API request body, converts it
@@ -58,7 +57,7 @@ func (s *GatewayService) ForwardAsResponses(
 	// 4. Model mapping
 	mappedModel := originalModel
 	reasoningEffort := ExtractResponsesReasoningEffortFromBody(body)
-	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
+	if account.IsClaudeWebSession() || account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
 		mappedModel = account.GetMappedModel(originalModel)
 	}
 	if mappedModel == originalModel && account.Platform == PlatformAnthropic && account.Type == AccountTypeServiceAccount {
@@ -66,15 +65,16 @@ func (s *GatewayService) ForwardAsResponses(
 		if normalized != originalModel {
 			mappedModel = normalized
 		}
-	} else if mappedModel == originalModel && account.Platform == PlatformAnthropic && account.Type != AccountTypeAPIKey {
+	} else if mappedModel == originalModel && account.Platform == PlatformAnthropic && account.Type != AccountTypeAPIKey && !account.IsClaudeWebSession() {
 		normalized := claude.NormalizeModelID(originalModel)
 		if normalized != originalModel {
 			mappedModel = normalized
 		}
 	}
-	// 国产模型默认 effort 补充：需要 mappedModel 判定，推迟到 mapping 完成之后。
-	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, mappedModel)
 	anthropicReq.Model = mappedModel
+	if account.IsClaudeWebSession() {
+		anthropicReq.ToolChoice = applyClaudeWebParallelToolChoice(anthropicReq.ToolChoice, responsesReq.ParallelToolCalls)
+	}
 
 	logger.L().Debug("gateway forward_as_responses: model mapping applied",
 		zap.Int64("account_id", account.ID),
@@ -87,6 +87,20 @@ func (s *GatewayService) ForwardAsResponses(
 	anthropicBody, err := json.Marshal(anthropicReq)
 	if err != nil {
 		return nil, fmt.Errorf("marshal anthropic request: %w", err)
+	}
+	if account.IsClaudeWebSession() {
+		return s.forwardClaudeWebAsResponses(
+			ctx,
+			c,
+			account,
+			anthropicBody,
+			originalModel,
+			mappedModel,
+			clientStream,
+			reasoningEffort,
+			startTime,
+			parsed,
+		)
 	}
 
 	// 6. Apply Claude Code mimicry for OAuth accounts (non-Claude-Code endpoints).
@@ -165,7 +179,7 @@ func (s *GatewayService) ForwardAsResponses(
 				Message:            upstreamMsg,
 			})
 			if s.rateLimitService != nil {
-				s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, mappedModel)
+				s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 			}
 			return nil, &UpstreamFailoverError{
 				StatusCode:   resp.StatusCode,
@@ -190,10 +204,10 @@ func (s *GatewayService) ForwardAsResponses(
 	return result, handleErr
 }
 
-// ExtractResponsesReasoningEffortFromBody reads Responses API reasoning.effort
-// and normalizes it for usage logging.
+// ExtractResponsesReasoningEffortFromBody reads reasoning effort from Responses
+// requests, including OpenAI native fields and AI SDK provider options.
 func ExtractResponsesReasoningEffortFromBody(body []byte) *string {
-	raw := strings.TrimSpace(gjson.GetBytes(body, "reasoning.effort").String())
+	raw := extractOpenAIReasoningEffortRawFromBody(body)
 	if raw == "" {
 		return nil
 	}
@@ -339,12 +353,6 @@ func (s *GatewayService) handleResponsesBufferedStreamingResponse(
 	if s.responseHeaderFilter != nil {
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	}
-	// 非流式响应必须是 application/json。上游被强制流式后会返回
-	// Content-Type: text/event-stream，经 WriteFilteredHeaders 透传后会污染
-	// 响应头；而 c.Data/c.JSON 走 Gin 的 writeContentType（仅当头不存在时才设置），
-	// 无法覆盖已存在的 SSE 头。这里显式 Set 强制改回 JSON，避免下游中间层
-	// （如 new-api）按 Content-Type 误判为流式。
-	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if respBytes, err := json.Marshal(responsesResp); err == nil {
 		respBytes = reverseToolNamesIfPresent(c, respBytes)
 		c.Data(http.StatusOK, "application/json; charset=utf-8", respBytes)
@@ -522,7 +530,6 @@ func appendRawJSON(existing json.RawMessage, fragment string) json.RawMessage {
 
 // writeResponsesError writes an error response in OpenAI Responses API format.
 func writeResponsesError(c *gin.Context, statusCode int, code, message string) {
-	MarkResponseCommitted(c)
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{
 			"code":    code,

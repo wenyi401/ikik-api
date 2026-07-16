@@ -3,11 +3,11 @@
 package proxy
 
 import (
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"ikik-api/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
@@ -103,6 +103,11 @@ func Password(v string) predicate.Proxy {
 // Status applies equality check predicate on the "status" field. It's identical to StatusEQ.
 func Status(v string) predicate.Proxy {
 	return predicate.Proxy(sql.FieldEQ(FieldStatus, v))
+}
+
+// OwnerUserID applies equality check predicate on the "owner_user_id" field. It's identical to OwnerUserIDEQ.
+func OwnerUserID(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldEQ(FieldOwnerUserID, v))
 }
 
 // ExpiresAt applies equality check predicate on the "expires_at" field. It's identical to ExpiresAtEQ.
@@ -703,6 +708,56 @@ func StatusEqualFold(v string) predicate.Proxy {
 // StatusContainsFold applies the ContainsFold predicate on the "status" field.
 func StatusContainsFold(v string) predicate.Proxy {
 	return predicate.Proxy(sql.FieldContainsFold(FieldStatus, v))
+}
+
+// OwnerUserIDEQ applies the EQ predicate on the "owner_user_id" field.
+func OwnerUserIDEQ(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldEQ(FieldOwnerUserID, v))
+}
+
+// OwnerUserIDNEQ applies the NEQ predicate on the "owner_user_id" field.
+func OwnerUserIDNEQ(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldNEQ(FieldOwnerUserID, v))
+}
+
+// OwnerUserIDIn applies the In predicate on the "owner_user_id" field.
+func OwnerUserIDIn(vs ...int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldIn(FieldOwnerUserID, vs...))
+}
+
+// OwnerUserIDNotIn applies the NotIn predicate on the "owner_user_id" field.
+func OwnerUserIDNotIn(vs ...int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldNotIn(FieldOwnerUserID, vs...))
+}
+
+// OwnerUserIDGT applies the GT predicate on the "owner_user_id" field.
+func OwnerUserIDGT(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldGT(FieldOwnerUserID, v))
+}
+
+// OwnerUserIDGTE applies the GTE predicate on the "owner_user_id" field.
+func OwnerUserIDGTE(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldGTE(FieldOwnerUserID, v))
+}
+
+// OwnerUserIDLT applies the LT predicate on the "owner_user_id" field.
+func OwnerUserIDLT(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldLT(FieldOwnerUserID, v))
+}
+
+// OwnerUserIDLTE applies the LTE predicate on the "owner_user_id" field.
+func OwnerUserIDLTE(v int64) predicate.Proxy {
+	return predicate.Proxy(sql.FieldLTE(FieldOwnerUserID, v))
+}
+
+// OwnerUserIDIsNil applies the IsNil predicate on the "owner_user_id" field.
+func OwnerUserIDIsNil() predicate.Proxy {
+	return predicate.Proxy(sql.FieldIsNull(FieldOwnerUserID))
+}
+
+// OwnerUserIDNotNil applies the NotNil predicate on the "owner_user_id" field.
+func OwnerUserIDNotNil() predicate.Proxy {
+	return predicate.Proxy(sql.FieldNotNull(FieldOwnerUserID))
 }
 
 // ExpiresAtEQ applies the EQ predicate on the "expires_at" field.

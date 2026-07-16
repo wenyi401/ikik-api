@@ -6,13 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/userattributedefinition"
+	"ikik-api/ent/userattributevalue"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/userattributedefinition"
-	"ikik-api/ent/userattributevalue"
 )
 
 // UserAttributeDefinitionCreate is the builder for creating a UserAttributeDefinition entity.

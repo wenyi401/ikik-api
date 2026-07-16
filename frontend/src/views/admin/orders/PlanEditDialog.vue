@@ -92,7 +92,7 @@ import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
 import type { AdminPaymentConfig } from '@/api/admin/payment'
 import { extractApiErrorMessage } from '@/utils/apiError'
-import { formatPaymentAmount } from '@/components/payment/currency'
+import { formatCurrency } from '@/utils/format'
 import type { SubscriptionPlan } from '@/types/payment'
 import type { AdminGroup } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -160,9 +160,9 @@ const subscriptionCnyPreview = computed(() => {
   const total = feeRate > 0 ? roundCnyAmount(amount + fee) : amount
 
   return {
-    amount: formatPaymentAmount(amount, 'CNY'),
+    amount: formatCurrency(amount, 'CNY'),
     feeRate,
-    total: formatPaymentAmount(total, 'CNY'),
+    total: formatCurrency(total, 'CNY'),
   }
 })
 

@@ -6,16 +6,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
 	"ikik-api/ent/group"
 	"ikik-api/ent/predicate"
 	"ikik-api/ent/usagelog"
 	"ikik-api/ent/user"
 	"ikik-api/ent/usersubscription"
+	"time"
+
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 )
 
 // UserSubscriptionUpdate is the builder for updating UserSubscription entities.

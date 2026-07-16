@@ -6,13 +6,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
-	"math"
-
-	"entgo.io/ent"
-	"entgo.io/ent/dialect"
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"ikik-api/ent/account"
 	"ikik-api/ent/announcementread"
 	"ikik-api/ent/apikey"
 	"ikik-api/ent/authidentity"
@@ -22,12 +16,21 @@ import (
 	"ikik-api/ent/predicate"
 	"ikik-api/ent/promocodeusage"
 	"ikik-api/ent/redeemcode"
+	"ikik-api/ent/shopbalanceledger"
+	"ikik-api/ent/shopdrawcycle"
+	"ikik-api/ent/shoporder"
 	"ikik-api/ent/usagelog"
 	"ikik-api/ent/user"
 	"ikik-api/ent/userallowedgroup"
 	"ikik-api/ent/userattributevalue"
-	"ikik-api/ent/userplatformquota"
 	"ikik-api/ent/usersubscription"
+	"math"
+
+	"entgo.io/ent"
+	"entgo.io/ent/dialect"
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 )
 
 // UserQuery is the builder for querying User entities.
@@ -47,9 +50,12 @@ type UserQuery struct {
 	withAttributeValues       *UserAttributeValueQuery
 	withPromoCodeUsages       *PromoCodeUsageQuery
 	withPaymentOrders         *PaymentOrderQuery
+	withShopOrders            *ShopOrderQuery
+	withShopDrawCycles        *ShopDrawCycleQuery
+	withShopBalanceLedger     *ShopBalanceLedgerQuery
+	withOwnedAccounts         *AccountQuery
 	withAuthIdentities        *AuthIdentityQuery
 	withPendingAuthSessions   *PendingAuthSessionQuery
-	withPlatformQuotas        *UserPlatformQuotaQuery
 	withUserAllowedGroups     *UserAllowedGroupQuery
 	modifiers                 []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
@@ -308,6 +314,94 @@ func (_q *UserQuery) QueryPaymentOrders() *PaymentOrderQuery {
 	return query
 }
 
+// QueryShopOrders chains the current query on the "shop_orders" edge.
+func (_q *UserQuery) QueryShopOrders() *ShopOrderQuery {
+	query := (&ShopOrderClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(shoporder.Table, shoporder.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ShopOrdersTable, user.ShopOrdersColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryShopDrawCycles chains the current query on the "shop_draw_cycles" edge.
+func (_q *UserQuery) QueryShopDrawCycles() *ShopDrawCycleQuery {
+	query := (&ShopDrawCycleClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(shopdrawcycle.Table, shopdrawcycle.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ShopDrawCyclesTable, user.ShopDrawCyclesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryShopBalanceLedger chains the current query on the "shop_balance_ledger" edge.
+func (_q *UserQuery) QueryShopBalanceLedger() *ShopBalanceLedgerQuery {
+	query := (&ShopBalanceLedgerClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(shopbalanceledger.Table, shopbalanceledger.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ShopBalanceLedgerTable, user.ShopBalanceLedgerColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryOwnedAccounts chains the current query on the "owned_accounts" edge.
+func (_q *UserQuery) QueryOwnedAccounts() *AccountQuery {
+	query := (&AccountClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(account.Table, account.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.OwnedAccountsTable, user.OwnedAccountsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // QueryAuthIdentities chains the current query on the "auth_identities" edge.
 func (_q *UserQuery) QueryAuthIdentities() *AuthIdentityQuery {
 	query := (&AuthIdentityClient{config: _q.config}).Query()
@@ -345,28 +439,6 @@ func (_q *UserQuery) QueryPendingAuthSessions() *PendingAuthSessionQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(pendingauthsession.Table, pendingauthsession.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.PendingAuthSessionsTable, user.PendingAuthSessionsColumn),
-		)
-		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
-		return fromU, nil
-	}
-	return query
-}
-
-// QueryPlatformQuotas chains the current query on the "platform_quotas" edge.
-func (_q *UserQuery) QueryPlatformQuotas() *UserPlatformQuotaQuery {
-	query := (&UserPlatformQuotaClient{config: _q.config}).Query()
-	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
-		if err := _q.prepareQuery(ctx); err != nil {
-			return nil, err
-		}
-		selector := _q.sqlQuery(ctx)
-		if err := selector.Err(); err != nil {
-			return nil, err
-		}
-		step := sqlgraph.NewStep(
-			sqlgraph.From(user.Table, user.FieldID, selector),
-			sqlgraph.To(userplatformquota.Table, userplatformquota.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, user.PlatformQuotasTable, user.PlatformQuotasColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -598,9 +670,12 @@ func (_q *UserQuery) Clone() *UserQuery {
 		withAttributeValues:       _q.withAttributeValues.Clone(),
 		withPromoCodeUsages:       _q.withPromoCodeUsages.Clone(),
 		withPaymentOrders:         _q.withPaymentOrders.Clone(),
+		withShopOrders:            _q.withShopOrders.Clone(),
+		withShopDrawCycles:        _q.withShopDrawCycles.Clone(),
+		withShopBalanceLedger:     _q.withShopBalanceLedger.Clone(),
+		withOwnedAccounts:         _q.withOwnedAccounts.Clone(),
 		withAuthIdentities:        _q.withAuthIdentities.Clone(),
 		withPendingAuthSessions:   _q.withPendingAuthSessions.Clone(),
-		withPlatformQuotas:        _q.withPlatformQuotas.Clone(),
 		withUserAllowedGroups:     _q.withUserAllowedGroups.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
@@ -718,6 +793,50 @@ func (_q *UserQuery) WithPaymentOrders(opts ...func(*PaymentOrderQuery)) *UserQu
 	return _q
 }
 
+// WithShopOrders tells the query-builder to eager-load the nodes that are connected to
+// the "shop_orders" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithShopOrders(opts ...func(*ShopOrderQuery)) *UserQuery {
+	query := (&ShopOrderClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withShopOrders = query
+	return _q
+}
+
+// WithShopDrawCycles tells the query-builder to eager-load the nodes that are connected to
+// the "shop_draw_cycles" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithShopDrawCycles(opts ...func(*ShopDrawCycleQuery)) *UserQuery {
+	query := (&ShopDrawCycleClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withShopDrawCycles = query
+	return _q
+}
+
+// WithShopBalanceLedger tells the query-builder to eager-load the nodes that are connected to
+// the "shop_balance_ledger" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithShopBalanceLedger(opts ...func(*ShopBalanceLedgerQuery)) *UserQuery {
+	query := (&ShopBalanceLedgerClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withShopBalanceLedger = query
+	return _q
+}
+
+// WithOwnedAccounts tells the query-builder to eager-load the nodes that are connected to
+// the "owned_accounts" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithOwnedAccounts(opts ...func(*AccountQuery)) *UserQuery {
+	query := (&AccountClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withOwnedAccounts = query
+	return _q
+}
+
 // WithAuthIdentities tells the query-builder to eager-load the nodes that are connected to
 // the "auth_identities" edge. The optional arguments are used to configure the query builder of the edge.
 func (_q *UserQuery) WithAuthIdentities(opts ...func(*AuthIdentityQuery)) *UserQuery {
@@ -737,17 +856,6 @@ func (_q *UserQuery) WithPendingAuthSessions(opts ...func(*PendingAuthSessionQue
 		opt(query)
 	}
 	_q.withPendingAuthSessions = query
-	return _q
-}
-
-// WithPlatformQuotas tells the query-builder to eager-load the nodes that are connected to
-// the "platform_quotas" edge. The optional arguments are used to configure the query builder of the edge.
-func (_q *UserQuery) WithPlatformQuotas(opts ...func(*UserPlatformQuotaQuery)) *UserQuery {
-	query := (&UserPlatformQuotaClient{config: _q.config}).Query()
-	for _, opt := range opts {
-		opt(query)
-	}
-	_q.withPlatformQuotas = query
 	return _q
 }
 
@@ -840,7 +948,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [14]bool{
+		loadedTypes = [17]bool{
 			_q.withAPIKeys != nil,
 			_q.withRedeemCodes != nil,
 			_q.withSubscriptions != nil,
@@ -851,9 +959,12 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			_q.withAttributeValues != nil,
 			_q.withPromoCodeUsages != nil,
 			_q.withPaymentOrders != nil,
+			_q.withShopOrders != nil,
+			_q.withShopDrawCycles != nil,
+			_q.withShopBalanceLedger != nil,
+			_q.withOwnedAccounts != nil,
 			_q.withAuthIdentities != nil,
 			_q.withPendingAuthSessions != nil,
-			_q.withPlatformQuotas != nil,
 			_q.withUserAllowedGroups != nil,
 		}
 	)
@@ -950,6 +1061,34 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			return nil, err
 		}
 	}
+	if query := _q.withShopOrders; query != nil {
+		if err := _q.loadShopOrders(ctx, query, nodes,
+			func(n *User) { n.Edges.ShopOrders = []*ShopOrder{} },
+			func(n *User, e *ShopOrder) { n.Edges.ShopOrders = append(n.Edges.ShopOrders, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withShopDrawCycles; query != nil {
+		if err := _q.loadShopDrawCycles(ctx, query, nodes,
+			func(n *User) { n.Edges.ShopDrawCycles = []*ShopDrawCycle{} },
+			func(n *User, e *ShopDrawCycle) { n.Edges.ShopDrawCycles = append(n.Edges.ShopDrawCycles, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withShopBalanceLedger; query != nil {
+		if err := _q.loadShopBalanceLedger(ctx, query, nodes,
+			func(n *User) { n.Edges.ShopBalanceLedger = []*ShopBalanceLedger{} },
+			func(n *User, e *ShopBalanceLedger) { n.Edges.ShopBalanceLedger = append(n.Edges.ShopBalanceLedger, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withOwnedAccounts; query != nil {
+		if err := _q.loadOwnedAccounts(ctx, query, nodes,
+			func(n *User) { n.Edges.OwnedAccounts = []*Account{} },
+			func(n *User, e *Account) { n.Edges.OwnedAccounts = append(n.Edges.OwnedAccounts, e) }); err != nil {
+			return nil, err
+		}
+	}
 	if query := _q.withAuthIdentities; query != nil {
 		if err := _q.loadAuthIdentities(ctx, query, nodes,
 			func(n *User) { n.Edges.AuthIdentities = []*AuthIdentity{} },
@@ -963,13 +1102,6 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			func(n *User, e *PendingAuthSession) {
 				n.Edges.PendingAuthSessions = append(n.Edges.PendingAuthSessions, e)
 			}); err != nil {
-			return nil, err
-		}
-	}
-	if query := _q.withPlatformQuotas; query != nil {
-		if err := _q.loadPlatformQuotas(ctx, query, nodes,
-			func(n *User) { n.Edges.PlatformQuotas = []*UserPlatformQuota{} },
-			func(n *User, e *UserPlatformQuota) { n.Edges.PlatformQuotas = append(n.Edges.PlatformQuotas, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -1320,6 +1452,129 @@ func (_q *UserQuery) loadPaymentOrders(ctx context.Context, query *PaymentOrderQ
 	}
 	return nil
 }
+func (_q *UserQuery) loadShopOrders(ctx context.Context, query *ShopOrderQuery, nodes []*User, init func(*User), assign func(*User, *ShopOrder)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(shoporder.FieldUserID)
+	}
+	query.Where(predicate.ShopOrder(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.ShopOrdersColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadShopDrawCycles(ctx context.Context, query *ShopDrawCycleQuery, nodes []*User, init func(*User), assign func(*User, *ShopDrawCycle)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(shopdrawcycle.FieldUserID)
+	}
+	query.Where(predicate.ShopDrawCycle(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.ShopDrawCyclesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadShopBalanceLedger(ctx context.Context, query *ShopBalanceLedgerQuery, nodes []*User, init func(*User), assign func(*User, *ShopBalanceLedger)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(shopbalanceledger.FieldUserID)
+	}
+	query.Where(predicate.ShopBalanceLedger(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.ShopBalanceLedgerColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadOwnedAccounts(ctx context.Context, query *AccountQuery, nodes []*User, init func(*User), assign func(*User, *Account)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(account.FieldOwnerUserID)
+	}
+	query.Where(predicate.Account(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.OwnedAccountsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.OwnerUserID
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "owner_user_id" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "owner_user_id" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
 func (_q *UserQuery) loadAuthIdentities(ctx context.Context, query *AuthIdentityQuery, nodes []*User, init func(*User), assign func(*User, *AuthIdentity)) error {
 	fks := make([]driver.Value, 0, len(nodes))
 	nodeids := make(map[int64]*User)
@@ -1378,36 +1633,6 @@ func (_q *UserQuery) loadPendingAuthSessions(ctx context.Context, query *Pending
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "target_user_id" returned %v for node %v`, *fk, n.ID)
-		}
-		assign(node, n)
-	}
-	return nil
-}
-func (_q *UserQuery) loadPlatformQuotas(ctx context.Context, query *UserPlatformQuotaQuery, nodes []*User, init func(*User), assign func(*User, *UserPlatformQuota)) error {
-	fks := make([]driver.Value, 0, len(nodes))
-	nodeids := make(map[int64]*User)
-	for i := range nodes {
-		fks = append(fks, nodes[i].ID)
-		nodeids[nodes[i].ID] = nodes[i]
-		if init != nil {
-			init(nodes[i])
-		}
-	}
-	if len(query.ctx.Fields) > 0 {
-		query.ctx.AppendFieldOnce(userplatformquota.FieldUserID)
-	}
-	query.Where(predicate.UserPlatformQuota(func(s *sql.Selector) {
-		s.Where(sql.InValues(s.C(user.PlatformQuotasColumn), fks...))
-	}))
-	neighbors, err := query.All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, n := range neighbors {
-		fk := n.UserID
-		node, ok := nodeids[fk]
-		if !ok {
-			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
 		}
 		assign(node, n)
 	}

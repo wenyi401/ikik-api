@@ -53,6 +53,7 @@
  *   9. **Frontend `utils/featureFlags.ts` (this file)** → register via `defineFlag`
  *  10. Frontend `views/admin/SettingsView.vue` → Toggle UI + form defaults + save payload
  *  11. Frontend `components/layout/AppSidebar.vue` → attach via `makeSidebarFlag`
+ *  12. Frontend `router/index.ts`                → guard direct route access
  *
  * ## Usage
  *
@@ -103,6 +104,16 @@ export const FeatureFlags = {
     key: 'available_channels_enabled',
     mode: 'opt-in',
     label: 'Available Channels',
+  }),
+  freeModels: defineFlag({
+    key: 'free_models_enabled',
+    mode: 'opt-in',
+    label: 'Free Models',
+  }),
+  carpool: defineFlag({
+    key: 'carpool_enabled',
+    mode: 'opt-in',
+    label: 'Carpool Pools',
   }),
   payment: defineFlag({
     key: 'payment_enabled',

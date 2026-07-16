@@ -1,0 +1,86 @@
+:root {
+  color-scheme: light;
+
+  --ui-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+  --ui-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+  --ui-bg: #ffffff;
+  --ui-surface: #ffffff;
+  --ui-surface-subtle: #f7f7f7;
+  --ui-surface-hover: #f1f1f1;
+  --ui-sidebar: #f7f7f7;
+  --ui-border: #e5e5e5;
+  --ui-border-strong: #cdcdcd;
+  --ui-text: #0d0d0d;
+  --ui-text-secondary: #5d5d5d;
+  --ui-text-tertiary: #8f8f8f;
+
+  --ui-brand: #0d0d0d;
+  --ui-brand-hover: #2f2f2f;
+  --ui-brand-contrast: #ffffff;
+  --ui-focus: rgba(13, 13, 13, 0.18);
+
+  --ui-success: #0f7b5c;
+  --ui-success-soft: #e9f6f1;
+  --ui-warning: #9a6700;
+  --ui-warning-soft: #fff7df;
+  --ui-danger: #c83232;
+  --ui-danger-soft: #fff0f0;
+
+  --ui-radius-sm: 4px;
+  --ui-radius-md: 6px;
+  --ui-radius-lg: 8px;
+  --ui-shadow-popover: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --ui-shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.16);
+
+  --ui-page-narrow: 760px;
+  --ui-page-standard: 1120px;
+  --ui-page-wide: 1600px;
+
+  /* Compatibility aliases while feature pages move to the new UI layer. */
+  --font-app: var(--ui-font-sans);
+  --font-admin: var(--ui-font-sans);
+  --font-admin-display: var(--ui-font-sans);
+  --app-bg: var(--ui-bg);
+  --app-surface: var(--ui-surface);
+  --app-surface-muted: var(--ui-surface-subtle);
+  --app-border: var(--ui-border);
+  --app-border-strong: var(--ui-border-strong);
+  --app-text: var(--ui-text);
+  --app-muted: var(--ui-text-tertiary);
+  --app-muted-strong: var(--ui-text-secondary);
+  --app-primary: var(--ui-brand);
+  --app-primary-hover: var(--ui-brand-hover);
+  --app-primary-soft: var(--ui-surface-hover);
+  --app-sidebar: var(--ui-sidebar);
+}
+
+html.dark {
+  color-scheme: dark;
+
+  --ui-bg: #212121;
+  --ui-surface: #2f2f2f;
+  --ui-surface-subtle: #292929;
+  --ui-surface-hover: #3a3a3a;
+  --ui-sidebar: #171717;
+  --ui-border: #3a3a3a;
+  --ui-border-strong: #515151;
+  --ui-text: #f2f2f2;
+  --ui-text-secondary: #c2c2c2;
+  --ui-text-tertiary: #9b9b9b;
+
+  --ui-brand: #f2f2f2;
+  --ui-brand-hover: #ffffff;
+  --ui-brand-contrast: #171717;
+  --ui-focus: rgba(255, 255, 255, 0.2);
+
+  --ui-success: #5fcaa5;
+  --ui-success-soft: rgba(27, 110, 82, 0.24);
+  --ui-warning: #e6b94e;
+  --ui-warning-soft: rgba(154, 103, 0, 0.22);
+  --ui-danger: #ff8585;
+  --ui-danger-soft: rgba(200, 50, 50, 0.2);
+  --ui-shadow-popover: 0 14px 36px rgba(0, 0, 0, 0.34);
+  --ui-shadow-dialog: 0 28px 72px rgba(0, 0, 0, 0.46);
+}

@@ -2,7 +2,7 @@
  * Setup API endpoints
  */
 import axios from 'axios'
-import { buildGatewayUrl } from './url'
+import { buildGatewayUrl } from './client'
 
 // Create a separate client for setup endpoints (not under /api/v1)
 const setupClient = axios.create({

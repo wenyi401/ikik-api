@@ -1,14 +1,18 @@
 <template>
   <div
     v-if="mode === 'checkbox' && documents.length > 0"
-    class="px-0.5"
+    class="rounded-lg px-0.5 py-0.5 transition"
+    :class="hasError ? 'ring-1 ring-red-200 dark:ring-red-500/30' : ''"
   >
     <div class="flex items-start gap-2">
       <input
         id="login-agreement-consent"
         type="checkbox"
         :checked="accepted"
+        :aria-invalid="hasError"
+        :aria-describedby="hasError ? 'login-agreement-consent-error' : undefined"
         class="mt-[2px] h-4 w-4 flex-shrink-0 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-900"
+        :class="hasError ? 'border-red-500 focus:ring-red-500 dark:border-red-400' : ''"
         @change="handleCheckboxChange"
       />
       <div class="min-w-0 flex-1">
@@ -17,7 +21,7 @@
             for="login-agreement-consent"
             class="cursor-pointer text-gray-700 dark:text-dark-200"
           >
-            {{ t('legal.loginAgreementPrompt.checkboxPrefix') }}
+            我已阅读并同意
           </label>
           <template v-for="(doc, index) in documents" :key="doc.id || doc.title">
             <RouterLink
@@ -28,8 +32,15 @@
             >
               {{ doc.title }}
             </RouterLink>
-            <span v-if="index < documents.length - 1">{{ t('legal.loginAgreementPrompt.documentSeparator') }}</span>
+            <span v-if="index < documents.length - 1">、</span>
           </template>
+        </p>
+        <p
+          v-if="hasError"
+          id="login-agreement-consent-error"
+          class="mt-1 text-[13px] leading-5 text-red-600 dark:text-red-400"
+        >
+          {{ errorMessage }}
         </p>
       </div>
     </div>
@@ -37,14 +48,25 @@
 
   <div
     v-else-if="!accepted && documents.length > 0"
-    class="rounded-lg border border-primary-100 bg-primary-50/70 p-3 text-sm text-primary-900 dark:border-primary-500/20 dark:bg-primary-500/10 dark:text-primary-100"
+    class="rounded-lg border p-3 text-sm transition"
+    :class="hasError
+      ? 'border-red-200 bg-red-50/80 text-red-900 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-100'
+      : 'border-primary-100 bg-primary-50/70 text-primary-900 dark:border-primary-500/20 dark:bg-primary-500/10 dark:text-primary-100'"
   >
     <div class="flex items-start gap-3">
-      <Icon name="shield" size="sm" class="mt-0.5 flex-shrink-0 text-primary-600 dark:text-primary-300" />
+      <Icon
+        name="shield"
+        size="sm"
+        class="mt-0.5 flex-shrink-0"
+        :class="hasError ? 'text-red-600 dark:text-red-300' : 'text-primary-600 dark:text-primary-300'"
+      />
       <div class="min-w-0 flex-1">
-        <p class="font-medium">{{ t('legal.loginAgreementPrompt.noticeTitle') }}</p>
-        <p class="mt-1 text-primary-700 dark:text-primary-200/80">
-          {{ t('legal.loginAgreementPrompt.noticeDescription') }}
+        <p class="font-medium">继续{{ actionName }}前需要先同意最新条款。</p>
+        <p
+          class="mt-1"
+          :class="hasError ? 'text-red-700 dark:text-red-200/80' : 'text-primary-700 dark:text-primary-200/80'"
+        >
+          {{ hasError ? errorMessage : '提交前请先查看并同意条款。' }}
         </p>
       </div>
       <button
@@ -52,7 +74,7 @@
         class="flex-shrink-0 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-700"
         @click="emit('open')"
       >
-        {{ t('legal.loginAgreementPrompt.viewTerms') }}
+        查看条款
       </button>
     </div>
   </div>
@@ -72,7 +94,7 @@
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
                   <h2 class="text-xl font-bold tracking-normal text-gray-950 dark:text-white">
-                    {{ t('legal.loginAgreementPrompt.dialogTitle') }}
+                    条款更新通知
                   </h2>
                   <span
                     v-if="updatedAt"
@@ -82,11 +104,7 @@
                   </span>
                 </div>
                 <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-dark-300">
-                  {{
-                    t('legal.loginAgreementPrompt.dialogDescription', {
-                      date: updatedAt || t('legal.loginAgreementPrompt.recently'),
-                    })
-                  }}
+                  我们的服务条款已于 {{ updatedAt || '近期' }} 更新。在继续使用服务之前，请仔细阅读并同意以下条款。
                 </p>
               </div>
             </div>
@@ -94,7 +112,7 @@
 
           <div class="max-h-[58vh] overflow-y-auto px-6 py-5">
             <div class="mb-3 flex items-center justify-between gap-3">
-              <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('legal.loginAgreementPrompt.relatedDocuments') }}</p>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">相关文档</p>
             </div>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <RouterLink
@@ -125,14 +143,14 @@
                 class="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-200 dark:hover:bg-dark-700"
                 @click="emit('reject')"
               >
-                {{ t('legal.loginAgreementPrompt.reject') }}
+                拒绝
               </button>
               <button
                 type="button"
                 class="rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-primary-600/20 transition hover:bg-primary-700"
                 @click="emit('accept')"
               >
-                {{ t('legal.loginAgreementPrompt.accept') }}
+                同意并继续
               </button>
             </div>
           </div>
@@ -144,11 +162,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import type { LoginAgreementDocument } from '@/types'
-
-const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   accepted: boolean
@@ -156,8 +171,12 @@ const props = withDefaults(defineProps<{
   mode: 'modal' | 'checkbox' | string
   updatedAt?: string
   visible: boolean
+  errorMessage?: string
+  actionName?: string
 }>(), {
-  updatedAt: ''
+  updatedAt: '',
+  errorMessage: '',
+  actionName: '登录'
 })
 
 const emit = defineEmits<{
@@ -171,6 +190,9 @@ const documents = computed(() => props.documents.filter((doc) => doc.title.trim(
 const updatedAt = computed(() => props.updatedAt || '')
 const accepted = computed(() => props.accepted)
 const mode = computed(() => props.mode === 'checkbox' ? 'checkbox' : 'modal')
+const errorMessage = computed(() => props.errorMessage.trim())
+const hasError = computed(() => errorMessage.value.length > 0)
+const actionName = computed(() => props.actionName.trim() || '登录')
 
 function documentRoute(doc: LoginAgreementDocument) {
   return {
@@ -191,21 +213,10 @@ function handleCheckboxChange(event: Event): void {
 }
 
 function documentIcon(index: number, title: string): 'document' | 'shield' | 'globe' | 'cog' {
-  const normalizedTitle = title.toLowerCase()
-  if (
-    normalizedTitle.includes('policy') ||
-    normalizedTitle.includes('privacy') ||
-    title.includes('政策') ||
-    title.includes('隐私')
-  ) {
+  if (title.includes('政策') || title.includes('隐私')) {
     return 'shield'
   }
-  if (
-    normalizedTitle.includes('country') ||
-    normalizedTitle.includes('region') ||
-    title.includes('国家') ||
-    title.includes('地区')
-  ) {
+  if (title.includes('国家') || title.includes('地区')) {
     return 'globe'
   }
   if (index === 3) {

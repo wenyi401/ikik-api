@@ -12,7 +12,6 @@ describe('API Client', () => {
 
   beforeEach(async () => {
     localStorage.clear()
-    window.history.replaceState({}, '', '/')
     // 每次测试重新导入以获取干净的模块状态
     vi.resetModules()
     const mod = await import('@/api/client')
@@ -21,24 +20,11 @@ describe('API Client', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    vi.unstubAllEnvs()
   })
 
   // --- 请求拦截器 ---
 
   describe('请求拦截器', () => {
-    it('规范化相对 API base，避免在回调页拼出相对 v1 路径', async () => {
-      vi.resetModules()
-      vi.stubEnv('VITE_API_BASE_URL', 'api/v1')
-
-      const mod = await import('@/api/client')
-
-      expect(mod.apiClient.defaults.baseURL).toBe('/api/v1')
-      expect(mod.buildApiUrl('/auth/oauth/github/callback?code=abc')).toBe(
-        '/api/v1/auth/oauth/github/callback?code=abc'
-      )
-    })
-
     it('自动附加 Authorization 头', async () => {
       localStorage.setItem('auth_token', 'my-jwt-token')
 
@@ -121,55 +107,6 @@ describe('API Client', () => {
       const config = adapter.mock.calls[0][0]
       expect(config.withCredentials).toBe(true)
     })
-
-    it('Admin API 在进入管理页面前也带 Admin UI 标记', async () => {
-      const adapter = vi.fn().mockResolvedValue({
-        status: 200,
-        data: { code: 0, data: {} },
-        headers: {},
-        config: {},
-        statusText: 'OK',
-      })
-      apiClient.defaults.adapter = adapter
-
-      await apiClient.get('/admin/users')
-
-      const config = adapter.mock.calls[0][0]
-      expect(config.headers.get('X-Admin-UI-Request')).toBe('1')
-    })
-
-    it('管理页面调用共享 API 时带 Admin UI 标记', async () => {
-      window.history.replaceState({}, '', '/admin/dashboard')
-      const adapter = vi.fn().mockResolvedValue({
-        status: 200,
-        data: { code: 0, data: {} },
-        headers: {},
-        config: {},
-        statusText: 'OK',
-      })
-      apiClient.defaults.adapter = adapter
-
-      await apiClient.get('/groups/available')
-
-      const config = adapter.mock.calls[0][0]
-      expect(config.headers.get('X-Admin-UI-Request')).toBe('1')
-    })
-
-    it('普通用户页面调用共享 API 时不带 Admin UI 标记', async () => {
-      const adapter = vi.fn().mockResolvedValue({
-        status: 200,
-        data: { code: 0, data: {} },
-        headers: {},
-        config: {},
-        statusText: 'OK',
-      })
-      apiClient.defaults.adapter = adapter
-
-      await apiClient.get('/groups/available')
-
-      const config = adapter.mock.calls[0][0]
-      expect(config.headers.get('X-Admin-UI-Request')).toBeFalsy()
-    })
   })
 
   // --- 响应拦截器 ---
@@ -205,53 +142,6 @@ describe('API Client', () => {
           message: '参数错误',
         })
       )
-    })
-
-    it('部署与运营合规未确认时广播事件且保留登录态', async () => {
-      localStorage.setItem('auth_token', 'admin-token')
-      const listener = vi.fn()
-      window.addEventListener('admin-compliance-required', listener)
-
-      const adapter = vi.fn().mockRejectedValue({
-        response: {
-          status: 423,
-          data: {
-            code: 'ADMIN_COMPLIANCE_ACK_REQUIRED',
-            message: 'administrator compliance acknowledgement is required',
-            metadata: {
-              version: 'v2026.06.10',
-              document_path_zh: 'docs/legal/admin-compliance.zh.md',
-              document_path_en: 'docs/legal/admin-compliance.en.md',
-            },
-          },
-        },
-        config: {
-          url: '/admin/users',
-          headers: { Authorization: 'Bearer admin-token' },
-        },
-        code: 'ERR_BAD_REQUEST',
-      })
-      apiClient.defaults.adapter = adapter
-
-      await expect(apiClient.get('/admin/users')).rejects.toEqual(
-        expect.objectContaining({
-          status: 423,
-          code: 'ADMIN_COMPLIANCE_ACK_REQUIRED',
-          metadata: expect.objectContaining({
-            version: 'v2026.06.10',
-          }),
-        })
-      )
-
-      expect(listener).toHaveBeenCalledTimes(1)
-      expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual(
-        expect.objectContaining({
-          version: 'v2026.06.10',
-        })
-      )
-      expect(localStorage.getItem('auth_token')).toBe('admin-token')
-
-      window.removeEventListener('admin-compliance-required', listener)
     })
   })
 
@@ -292,6 +182,127 @@ describe('API Client', () => {
         writable: true,
       })
     })
+
+    it('refresh token 被其他标签页轮换后复用最新 token 重试请求', async () => {
+      localStorage.setItem('auth_token', 'expired-token')
+      localStorage.setItem('refresh_token', 'old-refresh-token')
+
+      vi.spyOn(axios, 'post').mockImplementation(async () => {
+        localStorage.setItem('auth_token', 'new-token')
+        localStorage.setItem('refresh_token', 'new-refresh-token')
+        localStorage.setItem('token_expires_at', String(Date.now() + 3600_000))
+        return Promise.reject({
+          response: {
+            status: 401,
+            data: { code: 'REFRESH_TOKEN_INVALID', message: 'invalid refresh token' },
+          },
+        })
+      })
+
+      const adapter = vi
+        .fn()
+        .mockRejectedValueOnce({
+          response: {
+            status: 401,
+            data: { code: 'TOKEN_EXPIRED', message: 'Token expired' },
+          },
+          config: {
+            url: '/test',
+            headers: { Authorization: 'Bearer expired-token' },
+          },
+          code: 'ERR_BAD_REQUEST',
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: { code: 0, data: { ok: true } },
+          headers: {},
+          config: {},
+          statusText: 'OK',
+        })
+      apiClient.defaults.adapter = adapter
+
+      const response = await apiClient.get('/test')
+
+      expect(response.data).toEqual({ ok: true })
+      expect(localStorage.getItem('auth_token')).toBe('new-token')
+      expect(localStorage.getItem('refresh_token')).toBe('new-refresh-token')
+      expect(adapter).toHaveBeenCalledTimes(2)
+      const retryConfig = adapter.mock.calls[1][0]
+      expect(retryConfig.headers.get('Authorization')).toBe('Bearer new-token')
+    })
+
+    it('refresh 被限流时保留本地登录态', async () => {
+      localStorage.setItem('auth_token', 'expired-token')
+      localStorage.setItem('refresh_token', 'refresh-token')
+      localStorage.setItem('auth_user', JSON.stringify({ id: 1 }))
+      localStorage.setItem('token_expires_at', String(Date.now() - 1000))
+
+      vi.spyOn(axios, 'post').mockRejectedValue({
+        response: {
+          status: 429,
+          data: { message: 'rate limit exceeded' },
+        },
+      })
+
+      const adapter = vi.fn().mockRejectedValue({
+        response: {
+          status: 401,
+          data: { code: 'TOKEN_EXPIRED', message: 'Token expired' },
+        },
+        config: {
+          url: '/test',
+          headers: { Authorization: 'Bearer expired-token' },
+        },
+        code: 'ERR_BAD_REQUEST',
+      })
+      apiClient.defaults.adapter = adapter
+
+      await expect(apiClient.get('/test')).rejects.toEqual(
+        expect.objectContaining({
+          status: 429,
+          code: 'TOKEN_REFRESH_DEFERRED',
+        })
+      )
+
+      expect(localStorage.getItem('auth_token')).toBe('expired-token')
+      expect(localStorage.getItem('refresh_token')).toBe('refresh-token')
+      expect(localStorage.getItem('auth_user')).toBe(JSON.stringify({ id: 1 }))
+      expect(localStorage.getItem('token_expires_at')).not.toBeNull()
+    })
+
+    it('/auth/session 401 时不清理状态也不强制跳转登录页', async () => {
+      const originalLocation = window.location
+      Object.defineProperty(window, 'location', {
+        value: { ...originalLocation, pathname: '/', href: '/' },
+        writable: true,
+      })
+
+      const adapter = vi.fn().mockRejectedValue({
+        response: {
+          status: 401,
+          data: { code: 'UNAUTHORIZED', message: 'User session is not available' },
+        },
+        config: {
+          url: '/auth/session',
+          headers: {},
+        },
+        code: 'ERR_BAD_REQUEST',
+      })
+      apiClient.defaults.adapter = adapter
+
+      await expect(apiClient.get('/auth/session')).rejects.toEqual(
+        expect.objectContaining({
+          status: 401,
+          code: 'UNAUTHORIZED',
+        })
+      )
+      expect(window.location.href).toBe('/')
+
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        writable: true,
+      })
+    })
   })
 
   // --- 网络错误 ---
@@ -310,6 +321,23 @@ describe('API Client', () => {
         expect.objectContaining({
           status: 0,
           message: 'Network error. Please check your connection.',
+        })
+      )
+    })
+
+    it('请求超时返回明确的超时错误', async () => {
+      const adapter = vi.fn().mockRejectedValue({
+        code: 'ECONNABORTED',
+        message: 'timeout of 30000ms exceeded',
+        config: { url: '/test' },
+      })
+      apiClient.defaults.adapter = adapter
+
+      await expect(apiClient.get('/test')).rejects.toEqual(
+        expect.objectContaining({
+          status: 0,
+          code: 'ECONNABORTED',
+          message: 'Request timed out. Please try again later.',
         })
       )
     })

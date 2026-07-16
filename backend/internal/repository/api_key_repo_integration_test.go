@@ -125,6 +125,44 @@ func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesMessagesDispatchModelConf
 	s.Require().Equal("gpt-5.4-nano", got.Group.MessagesDispatchModelConfig.ExactModelMappings["claude-sonnet-4.5"])
 }
 
+func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesRouteGroupOwner() {
+	user := s.mustCreateUser("getbykey-auth-route-owner@test.com")
+	group, err := s.client.Group.Create().
+		SetName("g-auth-route-owner").
+		SetPlatform(service.PlatformOpenAI).
+		SetStatus(service.StatusActive).
+		SetScope(service.GroupScopeUserPrivate).
+		SetOwnerUserID(user.ID).
+		Save(s.ctx)
+	s.Require().NoError(err)
+
+	key := &service.APIKey{
+		UserID:  user.ID,
+		Key:     "sk-getbykey-auth-route-owner",
+		Name:    "Private Route Key",
+		GroupID: &group.ID,
+		Status:  service.StatusActive,
+		GroupRoutes: []service.APIKeyGroupRoute{
+			{
+				GroupID:         group.ID,
+				Priority:        100,
+				Weight:          1,
+				Enabled:         true,
+				CooldownSeconds: 30,
+			},
+		},
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	got, err := s.repo.GetByKeyForAuth(s.ctx, key.Key)
+	s.Require().NoError(err)
+	s.Require().Len(got.GroupRoutes, 1)
+	s.Require().NotNil(got.GroupRoutes[0].Group)
+	s.Require().NotNil(got.GroupRoutes[0].Group.OwnerUserID)
+	s.Require().Equal(user.ID, *got.GroupRoutes[0].Group.OwnerUserID)
+	s.Require().Equal(service.GroupScopeUserPrivate, got.GroupRoutes[0].Group.Scope)
+}
+
 // --- Update ---
 
 func (s *APIKeyRepoSuite) TestUpdate() {
@@ -148,6 +186,44 @@ func (s *APIKeyRepoSuite) TestUpdate() {
 	s.Require().Equal(user.ID, got.UserID, "Update should not change user_id")
 	s.Require().Equal("Renamed", got.Name)
 	s.Require().Equal(service.StatusDisabled, got.Status)
+}
+
+func (s *APIKeyRepoSuite) TestUpdate_PreservesLoadedGroupRoutesOnScalarUpdate() {
+	user := s.mustCreateUser("update-routes@test.com")
+	groupA := s.mustCreateGroup("g-update-routes-a")
+	groupB := s.mustCreateGroup("g-update-routes-b")
+
+	key := &service.APIKey{
+		UserID:  user.ID,
+		Key:     "sk-update-routes",
+		Name:    "Route Key",
+		GroupID: &groupA.ID,
+		Status:  service.StatusActive,
+		GroupRoutes: []service.APIKeyGroupRoute{
+			{GroupID: groupA.ID, Priority: 100, Weight: 2, Enabled: true, CooldownSeconds: 30},
+			{GroupID: groupB.ID, Priority: 200, Weight: 1, Enabled: true, CooldownSeconds: 60},
+		},
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	loaded, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err)
+	loaded.Name = "Route Key Renamed"
+
+	s.Require().NoError(s.repo.Update(s.ctx, loaded), "Update scalar field")
+
+	got, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err)
+	s.Require().Equal("Route Key Renamed", got.Name)
+	s.Require().Len(got.GroupRoutes, 2)
+	s.Require().Equal(groupA.ID, got.GroupRoutes[0].GroupID)
+	s.Require().Equal(100, got.GroupRoutes[0].Priority)
+	s.Require().Equal(2, got.GroupRoutes[0].Weight)
+	s.Require().Equal(30, got.GroupRoutes[0].CooldownSeconds)
+	s.Require().Equal(groupB.ID, got.GroupRoutes[1].GroupID)
+	s.Require().Equal(200, got.GroupRoutes[1].Priority)
+	s.Require().Equal(1, got.GroupRoutes[1].Weight)
+	s.Require().Equal(60, got.GroupRoutes[1].CooldownSeconds)
 }
 
 func (s *APIKeyRepoSuite) TestUpdate_ClearGroupID() {
@@ -347,6 +423,35 @@ func (s *APIKeyRepoSuite) TestClearGroupIDByGroupID() {
 
 	count, _ := s.repo.CountByGroupID(s.ctx, group.ID)
 	s.Require().Zero(count)
+}
+
+func (s *APIKeyRepoSuite) TestClearGroupIDByGroupID_RemovesGroupRoutesOnlyBindings() {
+	user := s.mustCreateUser("cleargrproutes@test.com")
+	targetGroup := s.mustCreateGroup("g-clear-route-target")
+	otherGroup := s.mustCreateGroup("g-clear-route-other")
+
+	key := s.mustCreateApiKey(user.ID, "sk-clr-route-1", "RouteOnly", nil)
+	key.GroupRoutes = []service.APIKeyGroupRoute{
+		{GroupID: targetGroup.ID, Priority: 100, Weight: 1, Enabled: true, CooldownSeconds: 30},
+		{GroupID: otherGroup.ID, Priority: 200, Weight: 1, Enabled: true, CooldownSeconds: 30},
+	}
+	s.Require().NoError(s.repo.Update(s.ctx, key), "add route bindings")
+
+	countBefore, err := s.repo.CountByGroupID(s.ctx, targetGroup.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1), countBefore)
+
+	affected, err := s.repo.ClearGroupIDByGroupID(s.ctx, targetGroup.ID)
+	s.Require().NoError(err)
+	s.Require().Zero(affected, "route-only bindings should not count as cleared primary group_id rows")
+
+	countAfterTarget, err := s.repo.CountByGroupID(s.ctx, targetGroup.ID)
+	s.Require().NoError(err)
+	s.Require().Zero(countAfterTarget)
+
+	countAfterOther, err := s.repo.CountByGroupID(s.ctx, otherGroup.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1), countAfterOther)
 }
 
 // --- Combined CRUD/Search/ClearGroupID (original test preserved as integration) ---
@@ -554,47 +659,4 @@ func TestIncrementQuotaUsed_Concurrent(t *testing.T) {
 	require.NoError(t, err, "GetByID")
 	require.Equal(t, float64(goroutines)*increment, got.QuotaUsed,
 		"并发递增后总和应为 %v，实际为 %v", float64(goroutines)*increment, got.QuotaUsed)
-}
-
-func (s *APIKeyRepoSuite) TestDeleteWithAudit_WritesAuditAndSoftDeletes() {
-	user := s.mustCreateUser("delwithaudit@test.com")
-	key := &service.APIKey{
-		UserID: user.ID,
-		Key:    "sk-del-audit-1",
-		Name:   "Audit Me",
-		Status: service.StatusActive,
-	}
-	s.Require().NoError(s.repo.Create(s.ctx, key))
-
-	s.Require().NoError(s.repo.DeleteWithAudit(s.ctx, key.ID))
-
-	_, err := s.repo.GetByID(s.ctx, key.ID)
-	s.Require().Error(err)
-
-	rows, qErr := s.client.QueryContext(s.ctx,
-		`SELECT key, key_name, user_id, api_key_id FROM deleted_api_key_audits WHERE api_key_id = $1`, key.ID)
-	s.Require().NoError(qErr)
-	defer rows.Close()
-	s.Require().True(rows.Next(), "expected one audit row")
-	var auditKey, auditName string
-	var auditUserID, auditAPIKeyID int64
-	s.Require().NoError(rows.Scan(&auditKey, &auditName, &auditUserID, &auditAPIKeyID))
-	s.Require().Equal("sk-del-audit-1", auditKey)
-	s.Require().Equal("Audit Me", auditName)
-	s.Require().Equal(user.ID, auditUserID)
-	s.Require().Equal(key.ID, auditAPIKeyID)
-}
-
-func (s *APIKeyRepoSuite) TestDeleteWithAudit_RepeatIsIdempotent() {
-	user := s.mustCreateUser("delwithaudit-idem@test.com")
-	key := &service.APIKey{UserID: user.ID, Key: "sk-del-audit-2", Name: "K", Status: service.StatusActive}
-	s.Require().NoError(s.repo.Create(s.ctx, key))
-
-	s.Require().NoError(s.repo.DeleteWithAudit(s.ctx, key.ID))
-	s.Require().NoError(s.repo.DeleteWithAudit(s.ctx, key.ID))
-}
-
-func (s *APIKeyRepoSuite) TestDeleteWithAudit_NotFound() {
-	err := s.repo.DeleteWithAudit(s.ctx, 999999)
-	s.Require().ErrorIs(err, service.ErrAPIKeyNotFound)
 }

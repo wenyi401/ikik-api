@@ -4,11 +4,11 @@ package ent
 
 import (
 	"context"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/userallowedgroup"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/userallowedgroup"
 )
 
 // UserAllowedGroupDelete is the builder for deleting a UserAllowedGroup entity.

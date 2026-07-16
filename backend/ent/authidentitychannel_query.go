@@ -5,6 +5,9 @@ package ent
 import (
 	"context"
 	"fmt"
+	"ikik-api/ent/authidentity"
+	"ikik-api/ent/authidentitychannel"
+	"ikik-api/ent/predicate"
 	"math"
 
 	"entgo.io/ent"
@@ -12,9 +15,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/authidentity"
-	"ikik-api/ent/authidentitychannel"
-	"ikik-api/ent/predicate"
 )
 
 // AuthIdentityChannelQuery is the builder for querying AuthIdentityChannel entities.

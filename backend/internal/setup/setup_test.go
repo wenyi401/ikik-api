@@ -74,8 +74,8 @@ func TestSetupDefaultAdminConcurrency(t *testing.T) {
 func TestSetupMigrationTimeout(t *testing.T) {
 	t.Run("uses default timeout when unset", func(t *testing.T) {
 		cfg := &SetupConfig{}
-		if got := cfg.migrationTimeout(); got != 60*time.Second {
-			t.Fatalf("migrationTimeout()=%s, want 60s", got)
+		if got := cfg.migrationTimeout(); got != defaultMigrationTimeout {
+			t.Fatalf("migrationTimeout()=%s, want %s", got, defaultMigrationTimeout)
 		}
 	})
 
@@ -91,7 +91,12 @@ func TestWriteConfigFileKeepsDefaultUserConcurrency(t *testing.T) {
 	t.Setenv("RUN_MODE", "simple")
 	t.Setenv("DATA_DIR", t.TempDir())
 
-	if err := writeConfigFile(&SetupConfig{}); err != nil {
+	cfg := &SetupConfig{
+		Totp: TotpConfig{
+			EncryptionKey: strings.Repeat("a", 64),
+		},
+	}
+	if err := writeConfigFile(cfg); err != nil {
 		t.Fatalf("writeConfigFile() error = %v", err)
 	}
 
@@ -105,25 +110,25 @@ func TestWriteConfigFileKeepsDefaultUserConcurrency(t *testing.T) {
 	}
 }
 
-func TestBuildDatabaseConnectionDSNsUsesPostgresForBootstrap(t *testing.T) {
-	cfg := &DatabaseConfig{
-		Host:     "db",
-		Port:     5432,
-		User:     "sub2api",
-		Password: "secret",
-		DBName:   "sub2api",
-		SSLMode:  "disable",
+func TestWriteConfigFilePersistsTotpEncryptionKey(t *testing.T) {
+	t.Setenv("DATA_DIR", t.TempDir())
+
+	key := strings.Repeat("b", 64)
+	if err := writeConfigFile(&SetupConfig{
+		Totp: TotpConfig{
+			EncryptionKey: key,
+		},
+	}); err != nil {
+		t.Fatalf("writeConfigFile() error = %v", err)
 	}
 
-	bootstrapDSN, targetDSN := buildDatabaseConnectionDSNs(cfg)
+	data, err := os.ReadFile(GetConfigFilePath())
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
 
-	if !strings.Contains(bootstrapDSN, "dbname=postgres") {
-		t.Fatalf("bootstrap DSN = %q, want default postgres database", bootstrapDSN)
-	}
-	if strings.Contains(bootstrapDSN, "dbname=sub2api") {
-		t.Fatalf("bootstrap DSN = %q, should not connect to target database before checking/creating it", bootstrapDSN)
-	}
-	if !strings.Contains(targetDSN, "dbname=sub2api") {
-		t.Fatalf("target DSN = %q, want configured database", targetDSN)
+	content := string(data)
+	if !strings.Contains(content, "totp:") || !strings.Contains(content, "encryption_key: "+key) {
+		t.Fatalf("config missing totp encryption key, got:\n%s", content)
 	}
 }

@@ -6,13 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/promocode"
+	"ikik-api/ent/promocodeusage"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/promocode"
-	"ikik-api/ent/promocodeusage"
 )
 
 // PromoCodeCreate is the builder for creating a PromoCode entity.

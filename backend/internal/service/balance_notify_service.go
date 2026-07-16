@@ -22,7 +22,7 @@ const (
 	quotaDimWeekly = "weekly"
 	quotaDimTotal  = "total"
 
-	defaultSiteName = "Sub2API"
+	defaultSiteName = "ikik-api"
 )
 
 // quotaDimLabels maps dimension names to display labels.
@@ -39,10 +39,9 @@ type AccountQuotaReader interface {
 
 // BalanceNotifyService handles balance and quota threshold notifications.
 type BalanceNotifyService struct {
-	emailService             *EmailService
-	settingRepo              SettingRepository
-	accountRepo              AccountQuotaReader
-	notificationEmailService *NotificationEmailService
+	emailService *EmailService
+	settingRepo  SettingRepository
+	accountRepo  AccountQuotaReader
 }
 
 // NewBalanceNotifyService creates a new BalanceNotifyService.
@@ -52,10 +51,6 @@ func NewBalanceNotifyService(emailService *EmailService, settingRepo SettingRepo
 		settingRepo:  settingRepo,
 		accountRepo:  accountRepo,
 	}
-}
-
-func (s *BalanceNotifyService) SetNotificationEmailService(notificationEmailService *NotificationEmailService) {
-	s.notificationEmailService = notificationEmailService
 }
 
 // resolveBalanceThreshold returns the effective balance threshold.
@@ -130,7 +125,7 @@ func (s *BalanceNotifyService) dispatchBalanceLowEmail(ctx context.Context, user
 				slog.Error("panic in balance notification", "recover", r)
 			}
 		}()
-		s.sendBalanceLowEmails(recipients, user.ID, user.Username, user.Email, newBalance, threshold, siteName, rechargeURL)
+		s.sendBalanceLowEmails(recipients, user.Username, user.Email, newBalance, threshold, siteName, rechargeURL)
 	}()
 }
 
@@ -347,43 +342,10 @@ func (s *BalanceNotifyService) sendEmails(recipients []string, subject, body str
 }
 
 // sendBalanceLowEmails sends balance low notification to all recipients.
-func (s *BalanceNotifyService) sendBalanceLowEmails(recipients []string, userID int64, userName, userEmail string, balance, threshold float64, siteName, rechargeURL string) {
+func (s *BalanceNotifyService) sendBalanceLowEmails(recipients []string, userName, userEmail string, balance, threshold float64, siteName, rechargeURL string) {
 	displayName := userName
 	if displayName == "" {
 		displayName = userEmail
-	}
-	if s.notificationEmailService != nil {
-		fallbackRecipients := make([]string, 0, len(recipients))
-		for _, to := range recipients {
-			ctx, cancel := context.WithTimeout(context.Background(), emailSendTimeout)
-			err := s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
-				Event:          NotificationEmailEventBalanceLow,
-				RecipientEmail: to,
-				RecipientName:  displayName,
-				UserID:         userID,
-				SourceType:     "balance_low",
-				SourceID:       firstNonEmpty(strconv.FormatInt(userID, 10), userEmail),
-				ReminderKey:    time.Now().UTC().Format("2006-01-02"),
-				Variables: map[string]string{
-					"current_balance": fmt.Sprintf("%.2f", balance),
-					"threshold":       fmt.Sprintf("%.2f", threshold),
-					"recharge_url":    rechargeURL,
-				},
-			})
-			cancel()
-			if err != nil {
-				if shouldFallbackNotificationEmail(err) {
-					slog.Warn("template balance low notification failed; falling back to built-in body", "to", to, "err", err.Error())
-					fallbackRecipients = append(fallbackRecipients, to)
-				} else {
-					slog.Warn("template balance low notification delivery failed; not sending fallback to avoid duplicates", "to", to, "err", err.Error())
-				}
-			}
-		}
-		if len(fallbackRecipients) == 0 {
-			return
-		}
-		recipients = fallbackRecipients
 	}
 	subject := fmt.Sprintf("[%s] 余额不足提醒 / Balance Low Alert", sanitizeEmailHeader(siteName))
 	body := s.buildBalanceLowEmailBody(html.EscapeString(displayName), balance, threshold, html.EscapeString(siteName), rechargeURL)
@@ -407,44 +369,6 @@ func (s *BalanceNotifyService) sendQuotaAlertEmails(adminEmails []string, accoun
 		remaining = 0
 	}
 
-	if s.notificationEmailService != nil {
-		fallbackRecipients := make([]string, 0, len(adminEmails))
-		for _, to := range adminEmails {
-			ctx, cancel := context.WithTimeout(context.Background(), emailSendTimeout)
-			err := s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
-				Event:          NotificationEmailEventAccountQuotaAlert,
-				RecipientEmail: to,
-				RecipientName:  emailRecipientName(to),
-				SourceType:     "account_quota",
-				SourceID:       fmt.Sprintf("%d-%s", accountID, dim.name),
-				ReminderKey:    time.Now().UTC().Format("2006-01-02"),
-				Variables: map[string]string{
-					"account_id":      strconv.FormatInt(accountID, 10),
-					"account_name":    accountName,
-					"platform":        platform,
-					"quota_dimension": dimLabel,
-					"quota_used":      fmt.Sprintf("%.2f", used),
-					"quota_limit":     fmt.Sprintf("%.2f", dim.limit),
-					"quota_remaining": fmt.Sprintf("%.2f", remaining),
-					"quota_threshold": thresholdDisplay,
-				},
-			})
-			cancel()
-			if err != nil {
-				if shouldFallbackNotificationEmail(err) {
-					slog.Warn("template account quota alert failed; falling back to built-in body", "to", to, "account_id", accountID, "dimension", dim.name, "err", err.Error())
-					fallbackRecipients = append(fallbackRecipients, to)
-				} else {
-					slog.Warn("template account quota alert delivery failed; not sending fallback to avoid duplicates", "to", to, "account_id", accountID, "dimension", dim.name, "err", err.Error())
-				}
-			}
-		}
-		if len(fallbackRecipients) == 0 {
-			return
-		}
-		adminEmails = fallbackRecipients
-	}
-
 	subject := fmt.Sprintf("[%s] 账号限额告警 / Account Quota Alert - %s", sanitizeEmailHeader(siteName), sanitizeEmailHeader(accountName))
 	body := s.buildQuotaAlertEmailBody(accountID, html.EscapeString(accountName), html.EscapeString(platform), html.EscapeString(dimLabel), used, dim.limit, remaining, thresholdDisplay, html.EscapeString(siteName))
 	s.sendEmails(adminEmails, subject, body, "account", accountName, "dimension", dim.name)
@@ -463,23 +387,23 @@ const balanceLowEmailTemplate = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .header { background: linear-gradient(135deg, #f59e0b 0%%, #d97706 100%%); color: white; padding: 30px; text-align: center; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f7f7f8; margin: 0; padding: 20px; color: #202123; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; }
+        .header { background: #ffffff; color: #0d0d0d; padding: 28px 30px; text-align: left; border-bottom: 1px solid #e5e5e5; }
         .header h1 { margin: 0; font-size: 24px; }
         .content { padding: 40px 30px; text-align: center; }
         .balance { font-size: 36px; font-weight: bold; color: #dc2626; margin: 20px 0; }
-        .info { color: #666; font-size: 14px; line-height: 1.6; margin-top: 20px; }
-        .recharge-btn { display: inline-block; margin-top: 24px; padding: 12px 32px; background: linear-gradient(135deg, #f59e0b 0%%, #d97706 100%%); color: #fff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: bold; }
-        .footer { background-color: #f8f9fa; padding: 20px; text-align: center; color: #999; font-size: 12px; }
+        .info { color: #6e6e80; font-size: 14px; line-height: 1.6; margin-top: 20px; }
+        .recharge-btn { display: inline-block; margin-top: 24px; padding: 12px 32px; background: #0d0d0d; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: bold; }
+        .footer { background-color: #ffffff; padding: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6e6e80; font-size: 12px; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header"><h1>%s</h1></div>
         <div class="content">
-            <p style="font-size: 18px; color: #333;">%s，您的余额不足</p>
-            <p style="color: #666;">Dear %s, your balance is running low</p>
+            <p style="font-size: 18px; color: #202123;">%s，您的余额不足</p>
+            <p style="color: #6e6e80;">Dear %s, your balance is running low</p>
             <div class="balance">$%.2f</div>
             <div class="info">
                 <p>您的账户余额已低于提醒阈值 <strong>$%.2f</strong>。</p>
@@ -501,23 +425,23 @@ const quotaAlertEmailTemplate = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .header { background: linear-gradient(135deg, #ef4444 0%%, #dc2626 100%%); color: white; padding: 30px; text-align: center; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f7f7f8; margin: 0; padding: 20px; color: #202123; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; }
+        .header { background: #ffffff; color: #0d0d0d; padding: 28px 30px; text-align: left; border-bottom: 3px solid #dc2626; }
         .header h1 { margin: 0; font-size: 24px; }
         .content { padding: 40px 30px; }
-        .metric { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
-        .metric-label { color: #666; }
-        .metric-value { font-weight: bold; color: #333; }
-        .info { color: #666; font-size: 14px; line-height: 1.6; margin-top: 20px; text-align: center; }
-        .footer { background-color: #f8f9fa; padding: 20px; text-align: center; color: #999; font-size: 12px; }
+        .metric { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e5e5; }
+        .metric-label { color: #6e6e80; }
+        .metric-value { font-weight: bold; color: #202123; }
+        .info { color: #6e6e80; font-size: 14px; line-height: 1.6; margin-top: 20px; text-align: center; }
+        .footer { background-color: #ffffff; padding: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6e6e80; font-size: 12px; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header"><h1>%s</h1></div>
         <div class="content">
-            <p style="font-size: 18px; color: #333; text-align: center;">账号限额告警 / Account Quota Alert</p>
+            <p style="font-size: 18px; color: #202123; text-align: center;">账号限额告警 / Account Quota Alert</p>
             <div class="metric"><span class="metric-label">账号 ID / Account ID</span><span class="metric-value">#%d</span></div>
             <div class="metric"><span class="metric-label">账号 / Account</span><span class="metric-value">%s</span></div>
             <div class="metric"><span class="metric-label">平台 / Platform</span><span class="metric-value">%s</span></div>

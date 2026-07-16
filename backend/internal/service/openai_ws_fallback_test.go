@@ -108,6 +108,10 @@ func TestClassifyOpenAIWSErrorEvent(t *testing.T) {
 	reason, recoverable = classifyOpenAIWSErrorEvent([]byte(`{"type":"error","error":{"code":"previous_response_not_found","message":"not found"}}`))
 	require.Equal(t, "previous_response_not_found", reason)
 	require.True(t, recoverable)
+
+	reason, recoverable = classifyOpenAIWSErrorEvent([]byte(`{"type":"error","error":{"code":"server_error","type":"server_error","message":"Selected model is at capacity. Please try a different model."}}`))
+	require.Equal(t, "upstream_capacity", reason)
+	require.True(t, recoverable)
 }
 
 func TestClassifyOpenAIWSReconnectReason(t *testing.T) {
@@ -125,6 +129,7 @@ func TestOpenAIWSErrorHTTPStatus(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, openAIWSErrorHTTPStatus([]byte(`{"type":"error","error":{"type":"authentication_error","code":"invalid_api_key","message":"auth failed"}}`)))
 	require.Equal(t, http.StatusForbidden, openAIWSErrorHTTPStatus([]byte(`{"type":"error","error":{"type":"permission_error","code":"forbidden","message":"forbidden"}}`)))
 	require.Equal(t, http.StatusTooManyRequests, openAIWSErrorHTTPStatus([]byte(`{"type":"error","error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":"rate limited"}}`)))
+	require.Equal(t, http.StatusServiceUnavailable, openAIWSErrorHTTPStatus([]byte(`{"type":"error","error":{"type":"server_error","code":"model_capacity_exhausted","message":"Selected model is at capacity. Please try a different model."}}`)))
 	require.Equal(t, http.StatusBadGateway, openAIWSErrorHTTPStatus([]byte(`{"type":"error","error":{"type":"server_error","code":"server_error","message":"server"}}`)))
 }
 
@@ -157,6 +162,17 @@ func TestResolveOpenAIWSFallbackErrorResponse(t *testing.T) {
 	t.Run("non_fallback_error_not_resolved", func(t *testing.T) {
 		_, _, _, _, ok := resolveOpenAIWSFallbackErrorResponse(errors.New("plain error"))
 		require.False(t, ok)
+	})
+
+	t.Run("upstream_capacity", func(t *testing.T) {
+		statusCode, errType, clientMessage, upstreamMessage, ok := resolveOpenAIWSFallbackErrorResponse(
+			wrapOpenAIWSFallback("upstream_capacity", errors.New("Selected model is at capacity. Please try a different model.")),
+		)
+		require.True(t, ok)
+		require.Equal(t, http.StatusServiceUnavailable, statusCode)
+		require.Equal(t, "upstream_error", errType)
+		require.Equal(t, "Selected model is at capacity. Please try a different model.", clientMessage)
+		require.Equal(t, "Selected model is at capacity. Please try a different model.", upstreamMessage)
 	})
 }
 

@@ -5,8 +5,8 @@ package service
 import (
 	"bytes"
 	"context"
-	"ikik-api/internal/pkg/tlsfingerprint"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/tlsfingerprint"
 	"io"
 	"net/http"
 	"strings"
@@ -328,10 +328,9 @@ func TestHandleSmartRetry_ShortDelay_SmartRetryFailed_ReturnsSwitchError(t *test
 	require.Equal(t, "gemini-3-flash", result.switchError.RateLimitedModel)
 	require.False(t, result.switchError.IsStickySession)
 
-	// 验证模型限流已设置：Gemini 同时写入精确模型和家族级 scope
-	require.Len(t, repo.modelRateLimitCalls, 2)
+	// 验证模型限流已设置
+	require.Len(t, repo.modelRateLimitCalls, 1)
 	require.Equal(t, "gemini-3-flash", repo.modelRateLimitCalls[0].modelKey)
-	require.Equal(t, antigravityGeminiModelRateLimitKey, repo.modelRateLimitCalls[1].modelKey)
 	require.Len(t, upstream.calls, 1, "should have made one retry call (max attempts)")
 }
 
@@ -1106,7 +1105,7 @@ func TestHandleSmartRetry_ShortDelay_StickySession_SuccessRetry_NoDeleteSession(
 }
 
 // TestHandleSmartRetry_LongDelay_StickySession_ClearsSession
-// 长延迟路径（情况1）应立即清除 sticky 绑定，避免下一次请求继续命中已限流账号。
+// 长延迟路径（情况1）设置模型限流并切换账号时，应同步清除粘性绑定。
 func TestHandleSmartRetry_LongDelay_StickySession_ClearsSession(t *testing.T) {
 	repo := &stubAntigravityAccountRepo{}
 	cache := &stubSmartRetryCache{}
@@ -1159,7 +1158,7 @@ func TestHandleSmartRetry_LongDelay_StickySession_ClearsSession(t *testing.T) {
 	require.NotNil(t, result.switchError)
 	require.True(t, result.switchError.IsStickySession)
 
-	require.Len(t, cache.deleteCalls, 1, "long delay path should clear sticky session in handleSmartRetry")
+	require.Len(t, cache.deleteCalls, 1, "long delay path should clear sticky session")
 	require.Equal(t, int64(42), cache.deleteCalls[0].groupID)
 	require.Equal(t, "sticky-hash-long-delay", cache.deleteCalls[0].sessionHash)
 }
@@ -1226,10 +1225,6 @@ func TestHandleSmartRetry_ShortDelay_NetworkError_StickySession_ClearsSession(t 
 	require.Len(t, cache.deleteCalls, 1, "should call DeleteSessionAccountID after network error exhausts retry")
 	require.Equal(t, int64(99), cache.deleteCalls[0].groupID)
 	require.Equal(t, "sticky-net-error", cache.deleteCalls[0].sessionHash)
-
-	require.Len(t, repo.modelRateLimitCalls, 2)
-	require.Equal(t, "gemini-3-flash", repo.modelRateLimitCalls[0].modelKey)
-	require.Equal(t, antigravityGeminiModelRateLimitKey, repo.modelRateLimitCalls[1].modelKey)
 }
 
 // TestHandleSmartRetry_ShortDelay_503_StickySession_FailedRetry_ClearsSession
@@ -1311,10 +1306,9 @@ func TestHandleSmartRetry_ShortDelay_503_StickySession_FailedRetry_ClearsSession
 	require.Equal(t, int64(77), cache.deleteCalls[0].groupID)
 	require.Equal(t, "sticky-503-short", cache.deleteCalls[0].sessionHash)
 
-	// 验证模型限流已设置：Gemini 同时写入精确模型和家族级 scope
-	require.Len(t, repo.modelRateLimitCalls, 2)
+	// 验证模型限流已设置
+	require.Len(t, repo.modelRateLimitCalls, 1)
 	require.Equal(t, "gemini-3-pro", repo.modelRateLimitCalls[0].modelKey)
-	require.Equal(t, antigravityGeminiModelRateLimitKey, repo.modelRateLimitCalls[1].modelKey)
 }
 
 // TestAntigravityRetryLoop_SmartRetryFailed_StickySession_SwitchErrorPropagates

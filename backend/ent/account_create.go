@@ -6,15 +6,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/account"
+	"ikik-api/ent/group"
+	"ikik-api/ent/proxy"
+	"ikik-api/ent/usagelog"
+	"ikik-api/ent/user"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/account"
-	"ikik-api/ent/group"
-	"ikik-api/ent/proxy"
-	"ikik-api/ent/usagelog"
 )
 
 // AccountCreate is the builder for creating a Account entity.
@@ -73,6 +74,20 @@ func (_c *AccountCreate) SetName(v string) *AccountCreate {
 	return _c
 }
 
+// SetAccountLevel sets the "account_level" field.
+func (_c *AccountCreate) SetAccountLevel(v string) *AccountCreate {
+	_c.mutation.SetAccountLevel(v)
+	return _c
+}
+
+// SetNillableAccountLevel sets the "account_level" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableAccountLevel(v *string) *AccountCreate {
+	if v != nil {
+		_c.SetAccountLevel(*v)
+	}
+	return _c
+}
+
 // SetNotes sets the "notes" field.
 func (_c *AccountCreate) SetNotes(v string) *AccountCreate {
 	_c.mutation.SetNotes(v)
@@ -108,6 +123,62 @@ func (_c *AccountCreate) SetCredentials(v map[string]interface{}) *AccountCreate
 // SetExtra sets the "extra" field.
 func (_c *AccountCreate) SetExtra(v map[string]interface{}) *AccountCreate {
 	_c.mutation.SetExtra(v)
+	return _c
+}
+
+// SetOwnerUserID sets the "owner_user_id" field.
+func (_c *AccountCreate) SetOwnerUserID(v int64) *AccountCreate {
+	_c.mutation.SetOwnerUserID(v)
+	return _c
+}
+
+// SetNillableOwnerUserID sets the "owner_user_id" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableOwnerUserID(v *int64) *AccountCreate {
+	if v != nil {
+		_c.SetOwnerUserID(*v)
+	}
+	return _c
+}
+
+// SetShareMode sets the "share_mode" field.
+func (_c *AccountCreate) SetShareMode(v string) *AccountCreate {
+	_c.mutation.SetShareMode(v)
+	return _c
+}
+
+// SetNillableShareMode sets the "share_mode" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableShareMode(v *string) *AccountCreate {
+	if v != nil {
+		_c.SetShareMode(*v)
+	}
+	return _c
+}
+
+// SetShareStatus sets the "share_status" field.
+func (_c *AccountCreate) SetShareStatus(v string) *AccountCreate {
+	_c.mutation.SetShareStatus(v)
+	return _c
+}
+
+// SetNillableShareStatus sets the "share_status" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableShareStatus(v *string) *AccountCreate {
+	if v != nil {
+		_c.SetShareStatus(*v)
+	}
+	return _c
+}
+
+// SetSharePolicyID sets the "share_policy_id" field.
+func (_c *AccountCreate) SetSharePolicyID(v int64) *AccountCreate {
+	_c.mutation.SetSharePolicyID(v)
+	return _c
+}
+
+// SetNillableSharePolicyID sets the "share_policy_id" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableSharePolicyID(v *int64) *AccountCreate {
+	if v != nil {
+		_c.SetSharePolicyID(*v)
+	}
 	return _c
 }
 
@@ -391,34 +462,6 @@ func (_c *AccountCreate) SetNillableSessionWindowStatus(v *string) *AccountCreat
 	return _c
 }
 
-// SetParentAccountID sets the "parent_account_id" field.
-func (_c *AccountCreate) SetParentAccountID(v int64) *AccountCreate {
-	_c.mutation.SetParentAccountID(v)
-	return _c
-}
-
-// SetNillableParentAccountID sets the "parent_account_id" field if the given value is not nil.
-func (_c *AccountCreate) SetNillableParentAccountID(v *int64) *AccountCreate {
-	if v != nil {
-		_c.SetParentAccountID(*v)
-	}
-	return _c
-}
-
-// SetQuotaDimension sets the "quota_dimension" field.
-func (_c *AccountCreate) SetQuotaDimension(v account.QuotaDimension) *AccountCreate {
-	_c.mutation.SetQuotaDimension(v)
-	return _c
-}
-
-// SetNillableQuotaDimension sets the "quota_dimension" field if the given value is not nil.
-func (_c *AccountCreate) SetNillableQuotaDimension(v *account.QuotaDimension) *AccountCreate {
-	if v != nil {
-		_c.SetQuotaDimension(*v)
-	}
-	return _c
-}
-
 // AddGroupIDs adds the "groups" edge to the Group entity by IDs.
 func (_c *AccountCreate) AddGroupIDs(ids ...int64) *AccountCreate {
 	_c.mutation.AddGroupIDs(ids...)
@@ -439,38 +482,23 @@ func (_c *AccountCreate) SetProxy(v *Proxy) *AccountCreate {
 	return _c.SetProxyID(v.ID)
 }
 
-// SetParentID sets the "parent" edge to the Account entity by ID.
-func (_c *AccountCreate) SetParentID(id int64) *AccountCreate {
-	_c.mutation.SetParentID(id)
+// SetOwnerID sets the "owner" edge to the User entity by ID.
+func (_c *AccountCreate) SetOwnerID(id int64) *AccountCreate {
+	_c.mutation.SetOwnerID(id)
 	return _c
 }
 
-// SetNillableParentID sets the "parent" edge to the Account entity by ID if the given value is not nil.
-func (_c *AccountCreate) SetNillableParentID(id *int64) *AccountCreate {
+// SetNillableOwnerID sets the "owner" edge to the User entity by ID if the given value is not nil.
+func (_c *AccountCreate) SetNillableOwnerID(id *int64) *AccountCreate {
 	if id != nil {
-		_c = _c.SetParentID(*id)
+		_c = _c.SetOwnerID(*id)
 	}
 	return _c
 }
 
-// SetParent sets the "parent" edge to the Account entity.
-func (_c *AccountCreate) SetParent(v *Account) *AccountCreate {
-	return _c.SetParentID(v.ID)
-}
-
-// AddChildIDs adds the "children" edge to the Account entity by IDs.
-func (_c *AccountCreate) AddChildIDs(ids ...int64) *AccountCreate {
-	_c.mutation.AddChildIDs(ids...)
-	return _c
-}
-
-// AddChildren adds the "children" edges to the Account entity.
-func (_c *AccountCreate) AddChildren(v ...*Account) *AccountCreate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _c.AddChildIDs(ids...)
+// SetOwner sets the "owner" edge to the User entity.
+func (_c *AccountCreate) SetOwner(v *User) *AccountCreate {
+	return _c.SetOwnerID(v.ID)
 }
 
 // AddUsageLogIDs adds the "usage_logs" edge to the UsageLog entity by IDs.
@@ -539,6 +567,10 @@ func (_c *AccountCreate) defaults() error {
 		v := account.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.AccountLevel(); !ok {
+		v := account.DefaultAccountLevel
+		_c.mutation.SetAccountLevel(v)
+	}
 	if _, ok := _c.mutation.Credentials(); !ok {
 		if account.DefaultCredentials == nil {
 			return fmt.Errorf("ent: uninitialized account.DefaultCredentials (forgotten import ent/runtime?)")
@@ -552,6 +584,14 @@ func (_c *AccountCreate) defaults() error {
 		}
 		v := account.DefaultExtra()
 		_c.mutation.SetExtra(v)
+	}
+	if _, ok := _c.mutation.ShareMode(); !ok {
+		v := account.DefaultShareMode
+		_c.mutation.SetShareMode(v)
+	}
+	if _, ok := _c.mutation.ShareStatus(); !ok {
+		v := account.DefaultShareStatus
+		_c.mutation.SetShareStatus(v)
 	}
 	if _, ok := _c.mutation.Concurrency(); !ok {
 		v := account.DefaultConcurrency
@@ -577,10 +617,6 @@ func (_c *AccountCreate) defaults() error {
 		v := account.DefaultSchedulable
 		_c.mutation.SetSchedulable(v)
 	}
-	if _, ok := _c.mutation.QuotaDimension(); !ok {
-		v := account.DefaultQuotaDimension
-		_c.mutation.SetQuotaDimension(v)
-	}
 	return nil
 }
 
@@ -598,6 +634,14 @@ func (_c *AccountCreate) check() error {
 	if v, ok := _c.mutation.Name(); ok {
 		if err := account.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "Account.name": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.AccountLevel(); !ok {
+		return &ValidationError{Name: "account_level", err: errors.New(`ent: missing required field "Account.account_level"`)}
+	}
+	if v, ok := _c.mutation.AccountLevel(); ok {
+		if err := account.AccountLevelValidator(v); err != nil {
+			return &ValidationError{Name: "account_level", err: fmt.Errorf(`ent: validator failed for field "Account.account_level": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.Platform(); !ok {
@@ -621,6 +665,22 @@ func (_c *AccountCreate) check() error {
 	}
 	if _, ok := _c.mutation.Extra(); !ok {
 		return &ValidationError{Name: "extra", err: errors.New(`ent: missing required field "Account.extra"`)}
+	}
+	if _, ok := _c.mutation.ShareMode(); !ok {
+		return &ValidationError{Name: "share_mode", err: errors.New(`ent: missing required field "Account.share_mode"`)}
+	}
+	if v, ok := _c.mutation.ShareMode(); ok {
+		if err := account.ShareModeValidator(v); err != nil {
+			return &ValidationError{Name: "share_mode", err: fmt.Errorf(`ent: validator failed for field "Account.share_mode": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.ShareStatus(); !ok {
+		return &ValidationError{Name: "share_status", err: errors.New(`ent: missing required field "Account.share_status"`)}
+	}
+	if v, ok := _c.mutation.ShareStatus(); ok {
+		if err := account.ShareStatusValidator(v); err != nil {
+			return &ValidationError{Name: "share_status", err: fmt.Errorf(`ent: validator failed for field "Account.share_status": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.Concurrency(); !ok {
 		return &ValidationError{Name: "concurrency", err: errors.New(`ent: missing required field "Account.concurrency"`)}
@@ -648,14 +708,6 @@ func (_c *AccountCreate) check() error {
 	if v, ok := _c.mutation.SessionWindowStatus(); ok {
 		if err := account.SessionWindowStatusValidator(v); err != nil {
 			return &ValidationError{Name: "session_window_status", err: fmt.Errorf(`ent: validator failed for field "Account.session_window_status": %w`, err)}
-		}
-	}
-	if _, ok := _c.mutation.QuotaDimension(); !ok {
-		return &ValidationError{Name: "quota_dimension", err: errors.New(`ent: missing required field "Account.quota_dimension"`)}
-	}
-	if v, ok := _c.mutation.QuotaDimension(); ok {
-		if err := account.QuotaDimensionValidator(v); err != nil {
-			return &ValidationError{Name: "quota_dimension", err: fmt.Errorf(`ent: validator failed for field "Account.quota_dimension": %w`, err)}
 		}
 	}
 	return nil
@@ -701,6 +753,10 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 		_spec.SetField(account.FieldName, field.TypeString, value)
 		_node.Name = value
 	}
+	if value, ok := _c.mutation.AccountLevel(); ok {
+		_spec.SetField(account.FieldAccountLevel, field.TypeString, value)
+		_node.AccountLevel = value
+	}
 	if value, ok := _c.mutation.Notes(); ok {
 		_spec.SetField(account.FieldNotes, field.TypeString, value)
 		_node.Notes = &value
@@ -720,6 +776,18 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Extra(); ok {
 		_spec.SetField(account.FieldExtra, field.TypeJSON, value)
 		_node.Extra = value
+	}
+	if value, ok := _c.mutation.ShareMode(); ok {
+		_spec.SetField(account.FieldShareMode, field.TypeString, value)
+		_node.ShareMode = value
+	}
+	if value, ok := _c.mutation.ShareStatus(); ok {
+		_spec.SetField(account.FieldShareStatus, field.TypeString, value)
+		_node.ShareStatus = value
+	}
+	if value, ok := _c.mutation.SharePolicyID(); ok {
+		_spec.SetField(account.FieldSharePolicyID, field.TypeInt64, value)
+		_node.SharePolicyID = &value
 	}
 	if value, ok := _c.mutation.ProxyFallbackOriginID(); ok {
 		_spec.SetField(account.FieldProxyFallbackOriginID, field.TypeInt64, value)
@@ -797,10 +865,6 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 		_spec.SetField(account.FieldSessionWindowStatus, field.TypeString, value)
 		_node.SessionWindowStatus = &value
 	}
-	if value, ok := _c.mutation.QuotaDimension(); ok {
-		_spec.SetField(account.FieldQuotaDimension, field.TypeEnum, value)
-		_node.QuotaDimension = value
-	}
 	if nodes := _c.mutation.GroupsIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2M,
@@ -838,37 +902,21 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 		_node.ProxyID = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
-	if nodes := _c.mutation.ParentIDs(); len(nodes) > 0 {
+	if nodes := _c.mutation.OwnerIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
 			Inverse: true,
-			Table:   account.ParentTable,
-			Columns: []string{account.ParentColumn},
+			Table:   account.OwnerTable,
+			Columns: []string{account.OwnerColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
-		_node.ParentAccountID = &nodes[0]
-		_spec.Edges = append(_spec.Edges, edge)
-	}
-	if nodes := _c.mutation.ChildrenIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   account.ChildrenTable,
-			Columns: []string{account.ChildrenColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
+		_node.OwnerUserID = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := _c.mutation.UsageLogsIDs(); len(nodes) > 0 {
@@ -981,6 +1029,18 @@ func (u *AccountUpsert) UpdateName() *AccountUpsert {
 	return u
 }
 
+// SetAccountLevel sets the "account_level" field.
+func (u *AccountUpsert) SetAccountLevel(v string) *AccountUpsert {
+	u.Set(account.FieldAccountLevel, v)
+	return u
+}
+
+// UpdateAccountLevel sets the "account_level" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateAccountLevel() *AccountUpsert {
+	u.SetExcluded(account.FieldAccountLevel)
+	return u
+}
+
 // SetNotes sets the "notes" field.
 func (u *AccountUpsert) SetNotes(v string) *AccountUpsert {
 	u.Set(account.FieldNotes, v)
@@ -1044,6 +1104,72 @@ func (u *AccountUpsert) SetExtra(v map[string]interface{}) *AccountUpsert {
 // UpdateExtra sets the "extra" field to the value that was provided on create.
 func (u *AccountUpsert) UpdateExtra() *AccountUpsert {
 	u.SetExcluded(account.FieldExtra)
+	return u
+}
+
+// SetOwnerUserID sets the "owner_user_id" field.
+func (u *AccountUpsert) SetOwnerUserID(v int64) *AccountUpsert {
+	u.Set(account.FieldOwnerUserID, v)
+	return u
+}
+
+// UpdateOwnerUserID sets the "owner_user_id" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateOwnerUserID() *AccountUpsert {
+	u.SetExcluded(account.FieldOwnerUserID)
+	return u
+}
+
+// ClearOwnerUserID clears the value of the "owner_user_id" field.
+func (u *AccountUpsert) ClearOwnerUserID() *AccountUpsert {
+	u.SetNull(account.FieldOwnerUserID)
+	return u
+}
+
+// SetShareMode sets the "share_mode" field.
+func (u *AccountUpsert) SetShareMode(v string) *AccountUpsert {
+	u.Set(account.FieldShareMode, v)
+	return u
+}
+
+// UpdateShareMode sets the "share_mode" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateShareMode() *AccountUpsert {
+	u.SetExcluded(account.FieldShareMode)
+	return u
+}
+
+// SetShareStatus sets the "share_status" field.
+func (u *AccountUpsert) SetShareStatus(v string) *AccountUpsert {
+	u.Set(account.FieldShareStatus, v)
+	return u
+}
+
+// UpdateShareStatus sets the "share_status" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateShareStatus() *AccountUpsert {
+	u.SetExcluded(account.FieldShareStatus)
+	return u
+}
+
+// SetSharePolicyID sets the "share_policy_id" field.
+func (u *AccountUpsert) SetSharePolicyID(v int64) *AccountUpsert {
+	u.Set(account.FieldSharePolicyID, v)
+	return u
+}
+
+// UpdateSharePolicyID sets the "share_policy_id" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateSharePolicyID() *AccountUpsert {
+	u.SetExcluded(account.FieldSharePolicyID)
+	return u
+}
+
+// AddSharePolicyID adds v to the "share_policy_id" field.
+func (u *AccountUpsert) AddSharePolicyID(v int64) *AccountUpsert {
+	u.Add(account.FieldSharePolicyID, v)
+	return u
+}
+
+// ClearSharePolicyID clears the value of the "share_policy_id" field.
+func (u *AccountUpsert) ClearSharePolicyID() *AccountUpsert {
+	u.SetNull(account.FieldSharePolicyID)
 	return u
 }
 
@@ -1401,36 +1527,6 @@ func (u *AccountUpsert) ClearSessionWindowStatus() *AccountUpsert {
 	return u
 }
 
-// SetParentAccountID sets the "parent_account_id" field.
-func (u *AccountUpsert) SetParentAccountID(v int64) *AccountUpsert {
-	u.Set(account.FieldParentAccountID, v)
-	return u
-}
-
-// UpdateParentAccountID sets the "parent_account_id" field to the value that was provided on create.
-func (u *AccountUpsert) UpdateParentAccountID() *AccountUpsert {
-	u.SetExcluded(account.FieldParentAccountID)
-	return u
-}
-
-// ClearParentAccountID clears the value of the "parent_account_id" field.
-func (u *AccountUpsert) ClearParentAccountID() *AccountUpsert {
-	u.SetNull(account.FieldParentAccountID)
-	return u
-}
-
-// SetQuotaDimension sets the "quota_dimension" field.
-func (u *AccountUpsert) SetQuotaDimension(v account.QuotaDimension) *AccountUpsert {
-	u.Set(account.FieldQuotaDimension, v)
-	return u
-}
-
-// UpdateQuotaDimension sets the "quota_dimension" field to the value that was provided on create.
-func (u *AccountUpsert) UpdateQuotaDimension() *AccountUpsert {
-	u.SetExcluded(account.FieldQuotaDimension)
-	return u
-}
-
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -1525,6 +1621,20 @@ func (u *AccountUpsertOne) UpdateName() *AccountUpsertOne {
 	})
 }
 
+// SetAccountLevel sets the "account_level" field.
+func (u *AccountUpsertOne) SetAccountLevel(v string) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetAccountLevel(v)
+	})
+}
+
+// UpdateAccountLevel sets the "account_level" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateAccountLevel() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateAccountLevel()
+	})
+}
+
 // SetNotes sets the "notes" field.
 func (u *AccountUpsertOne) SetNotes(v string) *AccountUpsertOne {
 	return u.Update(func(s *AccountUpsert) {
@@ -1599,6 +1709,83 @@ func (u *AccountUpsertOne) SetExtra(v map[string]interface{}) *AccountUpsertOne 
 func (u *AccountUpsertOne) UpdateExtra() *AccountUpsertOne {
 	return u.Update(func(s *AccountUpsert) {
 		s.UpdateExtra()
+	})
+}
+
+// SetOwnerUserID sets the "owner_user_id" field.
+func (u *AccountUpsertOne) SetOwnerUserID(v int64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetOwnerUserID(v)
+	})
+}
+
+// UpdateOwnerUserID sets the "owner_user_id" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateOwnerUserID() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateOwnerUserID()
+	})
+}
+
+// ClearOwnerUserID clears the value of the "owner_user_id" field.
+func (u *AccountUpsertOne) ClearOwnerUserID() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.ClearOwnerUserID()
+	})
+}
+
+// SetShareMode sets the "share_mode" field.
+func (u *AccountUpsertOne) SetShareMode(v string) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetShareMode(v)
+	})
+}
+
+// UpdateShareMode sets the "share_mode" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateShareMode() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateShareMode()
+	})
+}
+
+// SetShareStatus sets the "share_status" field.
+func (u *AccountUpsertOne) SetShareStatus(v string) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetShareStatus(v)
+	})
+}
+
+// UpdateShareStatus sets the "share_status" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateShareStatus() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateShareStatus()
+	})
+}
+
+// SetSharePolicyID sets the "share_policy_id" field.
+func (u *AccountUpsertOne) SetSharePolicyID(v int64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetSharePolicyID(v)
+	})
+}
+
+// AddSharePolicyID adds v to the "share_policy_id" field.
+func (u *AccountUpsertOne) AddSharePolicyID(v int64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.AddSharePolicyID(v)
+	})
+}
+
+// UpdateSharePolicyID sets the "share_policy_id" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateSharePolicyID() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateSharePolicyID()
+	})
+}
+
+// ClearSharePolicyID clears the value of the "share_policy_id" field.
+func (u *AccountUpsertOne) ClearSharePolicyID() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.ClearSharePolicyID()
 	})
 }
 
@@ -2015,41 +2202,6 @@ func (u *AccountUpsertOne) ClearSessionWindowStatus() *AccountUpsertOne {
 	})
 }
 
-// SetParentAccountID sets the "parent_account_id" field.
-func (u *AccountUpsertOne) SetParentAccountID(v int64) *AccountUpsertOne {
-	return u.Update(func(s *AccountUpsert) {
-		s.SetParentAccountID(v)
-	})
-}
-
-// UpdateParentAccountID sets the "parent_account_id" field to the value that was provided on create.
-func (u *AccountUpsertOne) UpdateParentAccountID() *AccountUpsertOne {
-	return u.Update(func(s *AccountUpsert) {
-		s.UpdateParentAccountID()
-	})
-}
-
-// ClearParentAccountID clears the value of the "parent_account_id" field.
-func (u *AccountUpsertOne) ClearParentAccountID() *AccountUpsertOne {
-	return u.Update(func(s *AccountUpsert) {
-		s.ClearParentAccountID()
-	})
-}
-
-// SetQuotaDimension sets the "quota_dimension" field.
-func (u *AccountUpsertOne) SetQuotaDimension(v account.QuotaDimension) *AccountUpsertOne {
-	return u.Update(func(s *AccountUpsert) {
-		s.SetQuotaDimension(v)
-	})
-}
-
-// UpdateQuotaDimension sets the "quota_dimension" field to the value that was provided on create.
-func (u *AccountUpsertOne) UpdateQuotaDimension() *AccountUpsertOne {
-	return u.Update(func(s *AccountUpsert) {
-		s.UpdateQuotaDimension()
-	})
-}
-
 // Exec executes the query.
 func (u *AccountUpsertOne) Exec(ctx context.Context) error {
 	if len(u.create.conflict) == 0 {
@@ -2310,6 +2462,20 @@ func (u *AccountUpsertBulk) UpdateName() *AccountUpsertBulk {
 	})
 }
 
+// SetAccountLevel sets the "account_level" field.
+func (u *AccountUpsertBulk) SetAccountLevel(v string) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetAccountLevel(v)
+	})
+}
+
+// UpdateAccountLevel sets the "account_level" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateAccountLevel() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateAccountLevel()
+	})
+}
+
 // SetNotes sets the "notes" field.
 func (u *AccountUpsertBulk) SetNotes(v string) *AccountUpsertBulk {
 	return u.Update(func(s *AccountUpsert) {
@@ -2384,6 +2550,83 @@ func (u *AccountUpsertBulk) SetExtra(v map[string]interface{}) *AccountUpsertBul
 func (u *AccountUpsertBulk) UpdateExtra() *AccountUpsertBulk {
 	return u.Update(func(s *AccountUpsert) {
 		s.UpdateExtra()
+	})
+}
+
+// SetOwnerUserID sets the "owner_user_id" field.
+func (u *AccountUpsertBulk) SetOwnerUserID(v int64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetOwnerUserID(v)
+	})
+}
+
+// UpdateOwnerUserID sets the "owner_user_id" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateOwnerUserID() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateOwnerUserID()
+	})
+}
+
+// ClearOwnerUserID clears the value of the "owner_user_id" field.
+func (u *AccountUpsertBulk) ClearOwnerUserID() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.ClearOwnerUserID()
+	})
+}
+
+// SetShareMode sets the "share_mode" field.
+func (u *AccountUpsertBulk) SetShareMode(v string) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetShareMode(v)
+	})
+}
+
+// UpdateShareMode sets the "share_mode" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateShareMode() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateShareMode()
+	})
+}
+
+// SetShareStatus sets the "share_status" field.
+func (u *AccountUpsertBulk) SetShareStatus(v string) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetShareStatus(v)
+	})
+}
+
+// UpdateShareStatus sets the "share_status" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateShareStatus() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateShareStatus()
+	})
+}
+
+// SetSharePolicyID sets the "share_policy_id" field.
+func (u *AccountUpsertBulk) SetSharePolicyID(v int64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetSharePolicyID(v)
+	})
+}
+
+// AddSharePolicyID adds v to the "share_policy_id" field.
+func (u *AccountUpsertBulk) AddSharePolicyID(v int64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.AddSharePolicyID(v)
+	})
+}
+
+// UpdateSharePolicyID sets the "share_policy_id" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateSharePolicyID() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateSharePolicyID()
+	})
+}
+
+// ClearSharePolicyID clears the value of the "share_policy_id" field.
+func (u *AccountUpsertBulk) ClearSharePolicyID() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.ClearSharePolicyID()
 	})
 }
 
@@ -2797,41 +3040,6 @@ func (u *AccountUpsertBulk) UpdateSessionWindowStatus() *AccountUpsertBulk {
 func (u *AccountUpsertBulk) ClearSessionWindowStatus() *AccountUpsertBulk {
 	return u.Update(func(s *AccountUpsert) {
 		s.ClearSessionWindowStatus()
-	})
-}
-
-// SetParentAccountID sets the "parent_account_id" field.
-func (u *AccountUpsertBulk) SetParentAccountID(v int64) *AccountUpsertBulk {
-	return u.Update(func(s *AccountUpsert) {
-		s.SetParentAccountID(v)
-	})
-}
-
-// UpdateParentAccountID sets the "parent_account_id" field to the value that was provided on create.
-func (u *AccountUpsertBulk) UpdateParentAccountID() *AccountUpsertBulk {
-	return u.Update(func(s *AccountUpsert) {
-		s.UpdateParentAccountID()
-	})
-}
-
-// ClearParentAccountID clears the value of the "parent_account_id" field.
-func (u *AccountUpsertBulk) ClearParentAccountID() *AccountUpsertBulk {
-	return u.Update(func(s *AccountUpsert) {
-		s.ClearParentAccountID()
-	})
-}
-
-// SetQuotaDimension sets the "quota_dimension" field.
-func (u *AccountUpsertBulk) SetQuotaDimension(v account.QuotaDimension) *AccountUpsertBulk {
-	return u.Update(func(s *AccountUpsert) {
-		s.SetQuotaDimension(v)
-	})
-}
-
-// UpdateQuotaDimension sets the "quota_dimension" field to the value that was provided on create.
-func (u *AccountUpsertBulk) UpdateQuotaDimension() *AccountUpsertBulk {
-	return u.Update(func(s *AccountUpsert) {
-		s.UpdateQuotaDimension()
 	})
 }
 

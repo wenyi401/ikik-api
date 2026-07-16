@@ -4,12 +4,12 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/paymentproviderinstance"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/paymentproviderinstance"
 )
 
 // PaymentProviderInstance is the model entity for the PaymentProviderInstance schema.

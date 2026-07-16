@@ -173,6 +173,7 @@ const emit = defineEmits<{
 
 // Computed: is rate limited (429)
 const isRateLimited = computed(() => {
+  if (hasError.value) return false
   if (!props.account.rate_limit_reset_at) return false
   return new Date(props.account.rate_limit_reset_at) > new Date()
 })
@@ -220,7 +221,6 @@ const activeModelStatuses = computed<AccountModelStatusItem[]>(() => {
 const formatScopeName = (scope: string): string => {
   const aliases: Record<string, string> = {
     // Claude 系列
-    'claude-fable-5': 'CFable5',
     'claude-opus-4-6': 'COpus46',
     'claude-opus-4-6-thinking': 'COpus46T',
     'claude-opus-4-7': 'COpus47',
@@ -233,15 +233,10 @@ const formatScopeName = (scope: string): string => {
     'gemini-2.5-flash-lite': 'G25FL',
     'gemini-2.5-flash-thinking': 'G25FT',
     'gemini-2.5-pro': 'G25P',
-    'gemini-2.5-flash-image': 'G25I',
-    // Gemini 3.5 系列
-    'gemini-3.5-flash': 'G35F',
     // Gemini 3 系列
     'gemini-3-flash': 'G3F',
     'gemini-3.1-pro-high': 'G3PH',
     'gemini-3.1-pro-low': 'G3PL',
-    'gemini-3-pro-image': 'G3PI',
-    'gemini-3.1-flash-image': 'G31FI',
     // 其他
     'gpt-oss-120b-medium': 'GPT120',
     'tab_flash_lite_preview': 'TabFL',
@@ -251,7 +246,6 @@ const formatScopeName = (scope: string): string => {
     claude_opus: 'COpus',
     claude_haiku: 'CHaiku',
     gemini_text: 'Gemini',
-    gemini_image: 'GImg',
     gemini_flash: 'GFlash',
     gemini_pro: 'GPro',
   }
@@ -274,6 +268,7 @@ const formatModelResetTime = (resetAt: string): string => {
 
 // Computed: is overloaded (529)
 const isOverloaded = computed(() => {
+  if (hasError.value) return false
   if (!props.account.overload_until) return false
   return new Date(props.account.overload_until) > new Date()
 })

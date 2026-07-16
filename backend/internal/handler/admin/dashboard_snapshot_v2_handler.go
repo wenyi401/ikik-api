@@ -160,7 +160,7 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 	}
 
 	if includeStats {
-		stats, err := h.dashboardService.GetDashboardStats(ctx)
+		stats, err := h.dashboardService.GetDashboardStatsWithRange(ctx, startTime, endTime)
 		if err != nil {
 			return nil, errors.New("failed to get dashboard statistics")
 		}

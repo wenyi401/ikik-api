@@ -6,14 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/tlsfingerprintprofile"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/tlsfingerprintprofile"
 )
 
 // TLSFingerprintProfileUpdate is the builder for updating TLSFingerprintProfile entities.

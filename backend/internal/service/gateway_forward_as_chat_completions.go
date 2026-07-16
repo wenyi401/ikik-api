@@ -12,13 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"ikik-api/internal/pkg/apicompat"
 	"ikik-api/internal/pkg/claude"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/util/responseheaders"
-	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
-	"go.uber.org/zap"
 )
 
 // ForwardAsChatCompletions accepts an OpenAI Chat Completions API request body,
@@ -43,6 +42,7 @@ func (s *GatewayService) ForwardAsChatCompletions(
 	originalModel := ccReq.Model
 	clientStream := ccReq.Stream
 	includeUsage := ccReq.StreamOptions != nil && ccReq.StreamOptions.IncludeUsage
+	reasoningEffort := extractCCReasoningEffortFromBody(body)
 
 	// 2. Convert CC → Responses → Anthropic (chained conversion)
 	responsesReq, err := apicompat.ChatCompletionsToResponses(&ccReq)
@@ -61,7 +61,7 @@ func (s *GatewayService) ForwardAsChatCompletions(
 
 	// 4. Model mapping
 	mappedModel := originalModel
-	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
+	if account.IsClaudeWebSession() || account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
 		mappedModel = account.GetMappedModel(originalModel)
 	}
 	if mappedModel == originalModel && account.Platform == PlatformAnthropic && account.Type == AccountTypeServiceAccount {
@@ -69,13 +69,16 @@ func (s *GatewayService) ForwardAsChatCompletions(
 		if normalized != originalModel {
 			mappedModel = normalized
 		}
-	} else if mappedModel == originalModel && account.Platform == PlatformAnthropic && account.Type != AccountTypeAPIKey {
+	} else if mappedModel == originalModel && account.Platform == PlatformAnthropic && account.Type != AccountTypeAPIKey && !account.IsClaudeWebSession() {
 		normalized := claude.NormalizeModelID(originalModel)
 		if normalized != originalModel {
 			mappedModel = normalized
 		}
 	}
 	anthropicReq.Model = mappedModel
+	if account.IsClaudeWebSession() {
+		anthropicReq.ToolChoice = applyClaudeWebParallelToolChoice(anthropicReq.ToolChoice, ccReq.ParallelToolCalls)
+	}
 
 	logger.L().Debug("gateway forward_as_chat_completions: model mapping applied",
 		zap.Int64("account_id", account.ID),
@@ -88,6 +91,21 @@ func (s *GatewayService) ForwardAsChatCompletions(
 	anthropicBody, err := json.Marshal(anthropicReq)
 	if err != nil {
 		return nil, fmt.Errorf("marshal anthropic request: %w", err)
+	}
+	if account.IsClaudeWebSession() {
+		return s.forwardClaudeWebAsChatCompletions(
+			ctx,
+			c,
+			account,
+			anthropicBody,
+			originalModel,
+			mappedModel,
+			clientStream,
+			includeUsage,
+			reasoningEffort,
+			startTime,
+			parsed,
+		)
 	}
 
 	// 6. Apply Claude Code mimicry for OAuth accounts.
@@ -166,7 +184,7 @@ func (s *GatewayService) ForwardAsChatCompletions(
 				Message:            upstreamMsg,
 			})
 			if s.rateLimitService != nil {
-				s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, mappedModel)
+				s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 			}
 			return nil, &UpstreamFailoverError{
 				StatusCode:   resp.StatusCode,
@@ -178,14 +196,7 @@ func (s *GatewayService) ForwardAsChatCompletions(
 		return nil, fmt.Errorf("upstream error: %d %s", resp.StatusCode, upstreamMsg)
 	}
 
-	// 13. Extract reasoning effort from CC request body
-	reasoningEffort := extractCCReasoningEffortFromBody(body)
-	// 国产模型默认 effort 补充：本路径是客户端 CC 请求 → Anthropic 上游，
-	// 如果上游是 passback-required 国产模型 (Kimi-anthropic / GLM-anthropic / MiniMax)
-	// 且客户端在 body 里传了 thinking.type=enabled，补中默认 effort。
-	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, mappedModel)
-
-	// 14. Handle normal response
+	// 13. Handle normal response
 	// Read Anthropic SSE → convert to Responses events → convert to CC format
 	var result *ForwardResult
 	var handleErr error
@@ -199,13 +210,9 @@ func (s *GatewayService) ForwardAsChatCompletions(
 }
 
 // extractCCReasoningEffortFromBody reads reasoning effort from a Chat Completions
-// request body. It checks both nested (reasoning.effort) and flat (reasoning_effort)
-// formats used by OpenAI-compatible clients.
+// request body, including OpenAI native fields and AI SDK provider options.
 func extractCCReasoningEffortFromBody(body []byte) *string {
-	raw := strings.TrimSpace(gjson.GetBytes(body, "reasoning.effort").String())
-	if raw == "" {
-		raw = strings.TrimSpace(gjson.GetBytes(body, "reasoning_effort").String())
-	}
+	raw := extractOpenAIReasoningEffortRawFromBody(body)
 	if raw == "" {
 		return nil
 	}
@@ -322,12 +329,6 @@ func (s *GatewayService) handleCCBufferedFromAnthropic(
 	if s.responseHeaderFilter != nil {
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	}
-	// 非流式响应必须是 application/json。上游被强制流式后会返回
-	// Content-Type: text/event-stream，经 WriteFilteredHeaders 透传后会污染
-	// 响应头；而 c.Data/c.JSON 走 Gin 的 writeContentType（仅当头不存在时才设置），
-	// 无法覆盖已存在的 SSE 头。这里显式 Set 强制改回 JSON，避免下游中间层
-	// （如 new-api）按 Content-Type 误判为流式。
-	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	// Marshal then bytes-replace so tool name mapping is reversed at byte level
 	// (parity with Parrot non-stream flow that marshals → restore → emit).
 	if respBytes, err := json.Marshal(ccResp); err == nil {
@@ -502,7 +503,6 @@ func (s *GatewayService) handleCCStreamingFromAnthropic(
 // writeGatewayCCError writes an error in OpenAI Chat Completions format for
 // the Anthropic-upstream CC forwarding path.
 func writeGatewayCCError(c *gin.Context, statusCode int, errType, message string) {
-	MarkResponseCommitted(c)
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{
 			"type":    errType,

@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[1-9]*'
   workflow_dispatch:
     inputs:
       tag:
@@ -33,6 +33,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Validate ikik release tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG='${{ github.event.inputs.tag }}'
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          if [[ ! "$TAG" =~ ^v[1-9][0-9]*\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Refusing non-ikik release tag: $TAG"
+            exit 1
+          fi
+
       - name: Update VERSION file
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -58,7 +71,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v4
         with:
           version: 9
 
@@ -194,8 +207,8 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ secrets.DOCKERHUB_USERNAME }}/sub2api
-          short-description: "Sub2API - AI API Gateway Platform"
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/ikik-api
+          short-description: "ikik-api - AI API Gateway Platform"
           readme-filepath: ./deploy/DOCKER.md
 
       # Send Telegram notification
@@ -232,7 +245,7 @@ jobs:
           fi
 
           # 构建消息内容
-          MESSAGE="🚀 *Sub2API 新版本发布！*"$'\n'$'\n'
+          MESSAGE="🚀 *ikik-api 新版本发布！*"$'\n'$'\n'
           MESSAGE+="📦 版本号: \`${VERSION}\`"$'\n'$'\n'
 
           # 添加更新内容
@@ -244,7 +257,7 @@ jobs:
           MESSAGE+="\`\`\`bash"$'\n'
           # 根据是否配置 DockerHub 动态生成
           if [ -n "$DOCKERHUB_USERNAME" ]; then
-            DOCKER_IMAGE="${DOCKERHUB_USERNAME}/sub2api"
+            DOCKER_IMAGE="${DOCKERHUB_USERNAME}/ikik_api"
             MESSAGE+="# Docker Hub"$'\n'
             MESSAGE+="docker pull ${DOCKER_IMAGE}:${VERSION}"$'\n'
             MESSAGE+="# GitHub Container Registry"$'\n'
@@ -256,8 +269,8 @@ jobs:
           if [ -n "$DOCKERHUB_USERNAME" ]; then
             MESSAGE+="• [Docker Hub](https://hub.docker.com/r/${DOCKER_IMAGE})"$'\n'
           fi
-          MESSAGE+="• [GitHub Packages](https://github.com/${REPO}/pkgs/container/sub2api)"$'\n'$'\n'
-          MESSAGE+="#Sub2API #Release #${TAG_NAME//./_}"
+          MESSAGE+="• [GitHub Packages](https://github.com/${REPO}/pkgs/container/ikik-api)"$'\n'$'\n'
+          MESSAGE+="#ikik-api #Release #${TAG_NAME//./_}"
 
           # 发送消息
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \

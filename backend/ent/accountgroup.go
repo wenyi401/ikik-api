@@ -4,14 +4,14 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/account"
+	"ikik-api/ent/accountgroup"
+	"ikik-api/ent/group"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/account"
-	"ikik-api/ent/accountgroup"
-	"ikik-api/ent/group"
 )
 
 // AccountGroup is the model entity for the AccountGroup schema.

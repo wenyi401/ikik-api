@@ -54,6 +54,11 @@ func (Account) Fields() []ent.Field {
 		field.String("name").
 			MaxLen(100).
 			NotEmpty(),
+
+		field.String("account_level").
+			MaxLen(20).
+			Default(domain.AccountLevelUnknown).
+			Comment("Account capability level: unknown/free/plus/pro/team/k12."),
 		// notes: 管理员备注（可为空）
 		field.String("notes").
 			Optional().
@@ -86,19 +91,32 @@ func (Account) Fields() []ent.Field {
 			Default(func() map[string]any { return map[string]any{} }).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}),
 
+		field.Int64("owner_user_id").
+			Optional().
+			Nillable(),
+		field.String("share_mode").
+			MaxLen(20).
+			Default("private"),
+		field.String("share_status").
+			MaxLen(20).
+			Default("approved"),
+		field.Int64("share_policy_id").
+			Optional().
+			Nillable(),
+
 		// proxy_id: 关联的代理配置 ID（可选）
 		// 用于需要通过特定代理访问 API 的场景
 		field.Int64("proxy_id").
 			Optional().
 			Nillable(),
 		field.Int64("proxy_fallback_origin_id").
-			Optional().Nillable().
-			Comment("Original proxy id replaced by expiry-fallback; for manual revert. NULL = not in fallback."),
+			Optional().
+			Nillable(),
 
 		// concurrency: 账户最大并发请求数
 		// 用于限制同一时间对该账户发起的请求数量
 		field.Int("concurrency").
-			Default(3),
+			Default(10),
 
 		field.Int("load_factor").Optional().Nillable(),
 
@@ -196,11 +214,6 @@ func (Account) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			MaxLen(20),
-
-		field.Int64("parent_account_id").Optional().Nillable().
-			Comment("Parent account id for a linked spark shadow (NULL = normal)."),
-		field.Enum("quota_dimension").Values("global", "spark").Default("global").
-			Comment("'global' (default) or 'spark' (shadow reads codex_bengalfox)."),
 	}
 }
 
@@ -217,13 +230,9 @@ func (Account) Edges() []ent.Edge {
 		edge.To("proxy", Proxy.Type).
 			Field("proxy_id").
 			Unique(),
-		// children/parent: linked spark shadow relationship.
-		// parent_account_id is nullable, and the active one-shadow-per-parent rule
-		// is enforced by the partial unique index in migration 154a.
-		edge.To("children", Account.Type).
-			Annotations(entsql.OnDelete(entsql.Restrict)).
-			From("parent").
-			Field("parent_account_id").
+		edge.From("owner", User.Type).
+			Ref("owned_accounts").
+			Field("owner_user_id").
 			Unique(),
 		// usage_logs: 该账户的使用日志
 		edge.To("usage_logs", UsageLog.Type),
@@ -247,7 +256,8 @@ func (Account) Indexes() []ent.Index {
 		// 调度热路径复合索引（线上由 SQL 迁移创建部分索引，schema 仅用于模型可读性对齐）
 		index.Fields("platform", "priority"),
 		index.Fields("priority", "status"),
+		index.Fields("owner_user_id"),
+		index.Fields("share_mode", "share_status"),
 		index.Fields("deleted_at"), // 软删除查询优化
-		index.Fields("parent_account_id"),
 	}
 }

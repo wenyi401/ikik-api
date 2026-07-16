@@ -7,23 +7,27 @@ import (
 )
 
 type User struct {
-	ID             int64
-	Email          string
-	Username       string
-	Notes          string
-	AvatarURL      string
-	AvatarSource   string
-	AvatarMIME     string
-	AvatarByteSize int
-	AvatarSHA256   string
-	PasswordHash   string
-	Role           string
-	Balance        float64
-	FrozenBalance  float64
-	Concurrency    int
-	Status         string
-	AllowedGroups  []int64
-	TokenVersion   int64 // Incremented on password change to invalidate existing tokens
+	ID                  int64
+	Email               string
+	Username            string
+	Notes               string
+	AvatarURL           string
+	AvatarSource        string
+	AvatarMIME          string
+	AvatarByteSize      int
+	AvatarSHA256        string
+	PasswordHash        string
+	Role                string
+	Balance             float64
+	RechargeBalance     float64
+	InviteIncomeBalance float64
+	ShareIncomeBalance  float64
+	PointsBalance       float64
+	PreferPointsBilling bool
+	Concurrency         int
+	Status              string
+	AllowedGroups       []int64
+	TokenVersion        int64 // Incremented on password change to invalidate existing tokens
 	// TokenVersionResolved indicates TokenVersion already contains the fingerprint-derived
 	// value expected in JWT claims and refresh-token state.
 	TokenVersionResolved bool
@@ -33,7 +37,6 @@ type User struct {
 	LastUsedAt           *time.Time
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
-	DeletedAt            *time.Time // 非 nil 表示用户已软删除
 
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]rateMultiplier
@@ -50,6 +53,8 @@ type User struct {
 	BalanceNotifyThreshold     *float64
 	BalanceNotifyExtraEmails   []NotifyEmailEntry
 	TotalRecharged             float64
+	TotalInviteIncome          float64
+	TotalShareIncome           float64
 
 	// RPMLimit 用户级每分钟请求数上限（0 = 不限制）。仅在所用分组未设置 rpm_limit
 	// 且该 (用户, 分组) 无 rpm_override 时作为全局兜底生效，计数键 rpm:u:{userID}:{min}。
@@ -70,6 +75,14 @@ func (u *User) IsAdmin() bool {
 
 func (u *User) IsActive() bool {
 	return u.Status == StatusActive
+}
+
+func CanUsePointsForUsage(user *User) bool {
+	return user != nil && user.PreferPointsBilling && user.PointsBalance > 0
+}
+
+func HasUsageBillingFunds(user *User) bool {
+	return user != nil && (user.Balance > 0 || CanUsePointsForUsage(user))
 }
 
 // CanBindGroup checks whether a user can bind to a given group.

@@ -5,6 +5,7 @@ package web
 import (
 	"bytes"
 	"context"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,17 +23,17 @@ func init() {
 
 func TestInjectSiteTitle(t *testing.T) {
 	t.Run("replaces_title_with_site_name", func(t *testing.T) {
-		html := []byte(`<html><head><title>Sub2API - AI API Gateway</title></head><body></body></html>`)
+		html := []byte(`<html><head><title>ikik-api - AI API Gateway</title></head><body></body></html>`)
 		settingsJSON := []byte(`{"site_name":"MyCustomSite"}`)
 
 		result := injectSiteTitle(html, settingsJSON)
 
 		assert.Contains(t, string(result), "<title>MyCustomSite - AI API Gateway</title>")
-		assert.NotContains(t, string(result), "Sub2API")
+		assert.NotContains(t, string(result), "ikik-api")
 	})
 
 	t.Run("returns_unchanged_when_site_name_empty", func(t *testing.T) {
-		html := []byte(`<html><head><title>Sub2API - AI API Gateway</title></head><body></body></html>`)
+		html := []byte(`<html><head><title>ikik-api - AI API Gateway</title></head><body></body></html>`)
 		settingsJSON := []byte(`{"site_name":""}`)
 
 		result := injectSiteTitle(html, settingsJSON)
@@ -41,7 +42,7 @@ func TestInjectSiteTitle(t *testing.T) {
 	})
 
 	t.Run("returns_unchanged_when_site_name_missing", func(t *testing.T) {
-		html := []byte(`<html><head><title>Sub2API - AI API Gateway</title></head><body></body></html>`)
+		html := []byte(`<html><head><title>ikik-api - AI API Gateway</title></head><body></body></html>`)
 		settingsJSON := []byte(`{"other_field":"value"}`)
 
 		result := injectSiteTitle(html, settingsJSON)
@@ -50,7 +51,7 @@ func TestInjectSiteTitle(t *testing.T) {
 	})
 
 	t.Run("returns_unchanged_when_invalid_json", func(t *testing.T) {
-		html := []byte(`<html><head><title>Sub2API - AI API Gateway</title></head><body></body></html>`)
+		html := []byte(`<html><head><title>ikik-api - AI API Gateway</title></head><body></body></html>`)
 		settingsJSON := []byte(`{invalid json}`)
 
 		result := injectSiteTitle(html, settingsJSON)
@@ -70,7 +71,7 @@ func TestInjectSiteTitle(t *testing.T) {
 	t.Run("returns_unchanged_when_title_has_attributes", func(t *testing.T) {
 		// The function looks for "<title>" literally, so attributes are not supported
 		// This is acceptable since index.html uses plain <title> without attributes
-		html := []byte(`<html><head><title lang="en">Sub2API</title></head><body></body></html>`)
+		html := []byte(`<html><head><title lang="en">ikik-api</title></head><body></body></html>`)
 		settingsJSON := []byte(`{"site_name":"NewSite"}`)
 
 		result := injectSiteTitle(html, settingsJSON)
@@ -79,27 +80,8 @@ func TestInjectSiteTitle(t *testing.T) {
 		assert.Equal(t, string(html), string(result))
 	})
 
-	t.Run("escapes_html_in_site_name", func(t *testing.T) {
-		html := []byte(`<html><head><title>Sub2API - AI API Gateway</title></head><body></body></html>`)
-		settingsJSON := []byte(`{"site_name":"</title><script>alert(1)</script><title>"}`)
-
-		result := injectSiteTitle(html, settingsJSON)
-
-		assert.NotContains(t, string(result), "<script>")
-		assert.Contains(t, string(result), "&lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;title&gt;")
-	})
-
-	t.Run("escapes_ampersand_in_site_name", func(t *testing.T) {
-		html := []byte(`<html><head><title>Sub2API</title></head><body></body></html>`)
-		settingsJSON := []byte(`{"site_name":"A&B"}`)
-
-		result := injectSiteTitle(html, settingsJSON)
-
-		assert.Contains(t, string(result), "<title>A&amp;B - AI API Gateway</title>")
-	})
-
 	t.Run("preserves_rest_of_html", func(t *testing.T) {
-		html := []byte(`<html><head><meta charset="UTF-8"><title>Sub2API</title><script src="app.js"></script></head><body><div id="app"></div></body></html>`)
+		html := []byte(`<html><head><meta charset="UTF-8"><title>ikik-api</title><script src="app.js"></script></head><body><div id="app"></div></body></html>`)
 		settingsJSON := []byte(`{"site_name":"TestSite"}`)
 
 		result := injectSiteTitle(html, settingsJSON)
@@ -507,32 +489,6 @@ func TestFrontendServer_Middleware(t *testing.T) {
 		assert.JSONEq(t, `{"ok":true}`, w.Body.String())
 	})
 
-	t.Run("skips_alpha_search_post_route", func(t *testing.T) {
-		provider := &mockSettingsProvider{
-			settings: map[string]string{"test": "value"},
-		}
-
-		server, err := NewFrontendServer(provider)
-		require.NoError(t, err)
-
-		router := gin.New()
-		router.Use(server.Middleware())
-		nextCalled := false
-		router.POST("/alpha/search", func(c *gin.Context) {
-			nextCalled = true
-			c.JSON(http.StatusOK, gin.H{"ok": true})
-		})
-
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/alpha/search", strings.NewReader(`{"model":"gpt-5.6-sol"}`))
-		req.Header.Set("Content-Type", "application/json")
-		router.ServeHTTP(w, req)
-
-		assert.True(t, nextCalled, "next handler should be called for alpha search API route")
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.JSONEq(t, `{"ok":true}`, w.Body.String())
-	})
-
 	t.Run("serves_index_for_spa_routes", func(t *testing.T) {
 		provider := &mockSettingsProvider{
 			settings: map[string]string{"test": "value"},
@@ -579,24 +535,14 @@ func TestFrontendServer_Middleware(t *testing.T) {
 		router.Use(server.Middleware())
 
 		// Request for existing static file
+		staticPath := firstEmbeddedStaticFile(t, server.distFS)
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/logo.png", nil)
+		req := httptest.NewRequest(http.MethodGet, "/"+staticPath, nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Header().Get("Content-Type"), "image/png")
+		assert.NotContains(t, w.Header().Get("Content-Type"), "text/html")
 	})
-}
-
-func TestEmbeddedFrontendBypassesBareVideoAPIRoutes(t *testing.T) {
-	for _, path := range []string{
-		"/videos/generations",
-		"/videos/edits",
-		"/videos/extensions",
-		"/videos/request-123",
-	} {
-		require.True(t, shouldBypassEmbeddedFrontend(path), "path=%s", path)
-	}
 }
 
 func TestNewFrontendServer(t *testing.T) {
@@ -644,12 +590,16 @@ func TestServeEmbeddedFrontend(t *testing.T) {
 		router := gin.New()
 		router.Use(middleware)
 
+		distFS, err := fs.Sub(frontendFS, "dist")
+		require.NoError(t, err)
+		staticPath := firstEmbeddedStaticFile(t, distFS)
+
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/logo.png", nil)
+		req := httptest.NewRequest(http.MethodGet, "/"+staticPath, nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Header().Get("Content-Type"), "image/png")
+		assert.NotContains(t, w.Header().Get("Content-Type"), "text/html")
 	})
 
 	t.Run("serves_index_html_for_root", func(t *testing.T) {
@@ -721,6 +671,25 @@ func TestServeEmbeddedFrontend(t *testing.T) {
 			})
 		}
 	})
+}
+
+func firstEmbeddedStaticFile(t *testing.T, distFS fs.FS) string {
+	t.Helper()
+
+	var out string
+	err := fs.WalkDir(distFS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || path == "index.html" {
+			return nil
+		}
+		out = path
+		return fs.SkipAll
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, out)
+	return out
 }
 
 // Tests for HTMLCache

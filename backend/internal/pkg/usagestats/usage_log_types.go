@@ -164,16 +164,13 @@ type UserSpendingRankingResponse struct {
 
 // UserBreakdownItem represents per-user usage breakdown within a dimension (group, model, endpoint).
 type UserBreakdownItem struct {
-	UserID       int64   `json:"user_id"`
-	Email        string  `json:"email"`
-	Requests     int64   `json:"requests"`
-	InputTokens  int64   `json:"input_tokens"`  // 输入 token 累计
-	OutputTokens int64   `json:"output_tokens"` // 输出 token 累计
-	CacheTokens  int64   `json:"cache_tokens"`  // 缓存创建 + 读取 token 累计
-	TotalTokens  int64   `json:"total_tokens"`  // 输入+输出+缓存 token 累计
-	Cost         float64 `json:"cost"`          // 标准计费
-	ActualCost   float64 `json:"actual_cost"`   // 实际扣除
-	AccountCost  float64 `json:"account_cost"`  // 账号成本
+	UserID      int64   `json:"user_id"`
+	Email       string  `json:"email"`
+	Requests    int64   `json:"requests"`
+	TotalTokens int64   `json:"total_tokens"`
+	Cost        float64 `json:"cost"`         // 标准计费
+	ActualCost  float64 `json:"actual_cost"`  // 实际扣除
+	AccountCost float64 `json:"account_cost"` // 账号成本
 }
 
 // UserBreakdownDimension specifies the dimension to filter for user breakdown.
@@ -183,6 +180,7 @@ type UserBreakdownDimension struct {
 	ModelType    string // "requested", "upstream", or "mapping"
 	Endpoint     string // filter by endpoint value (non-empty to enable)
 	EndpointType string // "inbound", "upstream", or "path"
+	SortBy       string // "actual_cost", "tokens", "requests", "cost", or "account_cost"
 	// Additional filter conditions
 	UserID      int64  // filter by user_id (>0 to enable)
 	APIKeyID    int64  // filter by api_key_id (>0 to enable)
@@ -190,8 +188,7 @@ type UserBreakdownDimension struct {
 	RequestType *int16 // filter by request_type (non-nil to enable)
 	Stream      *bool  // filter by stream flag (non-nil to enable)
 	BillingType *int8  // filter by billing_type (non-nil to enable)
-	// SortBy 指定排序列(空 = 默认按 actual_cost)。合法值由 repo 层 allowlist 校验。
-	SortBy string
+	BillingMode string // filter by billing_mode (non-empty to enable)
 }
 
 // APIKeyUsageTrendPoint represents API key usage trend data point
@@ -203,17 +200,17 @@ type APIKeyUsageTrendPoint struct {
 	Tokens   int64  `json:"tokens"`
 }
 
-// APIKeyDailyUsagePoint represents one day of usage for a single API key.
-type APIKeyDailyUsagePoint struct {
-	Date             string  `json:"date"`
-	Requests         int64   `json:"requests"`
-	InputTokens      int64   `json:"input_tokens"`
-	OutputTokens     int64   `json:"output_tokens"`
-	CacheReadTokens  int64   `json:"cache_read_tokens"`
-	CacheWriteTokens int64   `json:"cache_write_tokens"`
-	TotalTokens      int64   `json:"total_tokens"`
-	Cost             float64 `json:"cost"`        // 标准计费
-	ActualCost       float64 `json:"actual_cost"` // 实际扣除
+// DashboardPlatformUsage represents today's usage grouped by upstream platform.
+type DashboardPlatformUsage struct {
+	Platform            string  `json:"platform"`
+	Requests            int64   `json:"requests"`
+	InputTokens         int64   `json:"input_tokens"`
+	OutputTokens        int64   `json:"output_tokens"`
+	CacheCreationTokens int64   `json:"cache_creation_tokens"`
+	CacheReadTokens     int64   `json:"cache_read_tokens"`
+	TotalTokens         int64   `json:"total_tokens"`
+	Cost                float64 `json:"cost"`
+	ActualCost          float64 `json:"actual_cost"`
 }
 
 // UserDashboardStats 用户仪表盘统计
@@ -233,14 +230,15 @@ type UserDashboardStats struct {
 	TotalActualCost          float64 `json:"total_actual_cost"` // 累计实际扣除
 
 	// 今日 Token 使用统计
-	TodayRequests            int64   `json:"today_requests"`
-	TodayInputTokens         int64   `json:"today_input_tokens"`
-	TodayOutputTokens        int64   `json:"today_output_tokens"`
-	TodayCacheCreationTokens int64   `json:"today_cache_creation_tokens"`
-	TodayCacheReadTokens     int64   `json:"today_cache_read_tokens"`
-	TodayTokens              int64   `json:"today_tokens"`
-	TodayCost                float64 `json:"today_cost"`        // 今日标准计费
-	TodayActualCost          float64 `json:"today_actual_cost"` // 今日实际扣除
+	TodayRequests            int64                    `json:"today_requests"`
+	TodayInputTokens         int64                    `json:"today_input_tokens"`
+	TodayOutputTokens        int64                    `json:"today_output_tokens"`
+	TodayCacheCreationTokens int64                    `json:"today_cache_creation_tokens"`
+	TodayCacheReadTokens     int64                    `json:"today_cache_read_tokens"`
+	TodayTokens              int64                    `json:"today_tokens"`
+	TodayCost                float64                  `json:"today_cost"`        // 今日标准计费
+	TodayActualCost          float64                  `json:"today_actual_cost"` // 今日实际扣除
+	TodayPlatforms           []DashboardPlatformUsage `json:"today_platforms"`
 
 	// 性能统计
 	AverageDurationMs float64 `json:"average_duration_ms"`
@@ -248,37 +246,22 @@ type UserDashboardStats struct {
 	// 性能指标
 	Rpm int64 `json:"rpm"` // 近5分钟平均每分钟请求数
 	Tpm int64 `json:"tpm"` // 近5分钟平均每分钟Token数
-
-	// 按"有效平台"维度拆分（与 ops 路径口径一致：group.platform 优先，否则 account.platform）
-	ByPlatform []PlatformDashboardStats `json:"by_platform,omitempty"`
-}
-
-// PlatformDashboardStats 单个平台的用量明细。
-type PlatformDashboardStats struct {
-	Platform        string  `json:"platform"`
-	TotalRequests   int64   `json:"total_requests"`
-	TotalTokens     int64   `json:"total_tokens"`
-	TotalActualCost float64 `json:"total_actual_cost"`
-	TodayRequests   int64   `json:"today_requests"`
-	TodayTokens     int64   `json:"today_tokens"`
-	TodayActualCost float64 `json:"today_actual_cost"`
 }
 
 // UsageLogFilters represents filters for usage log queries
 type UsageLogFilters struct {
-	UserID    int64
-	APIKeyID  int64
-	AccountID int64
-	GroupID   int64
-	Model     string
-	// ModelFilterSource controls how Model is matched. Empty preserves raw usage_logs.model semantics.
-	ModelFilterSource string
-	RequestType       *int16
-	Stream            *bool
-	BillingType       *int8
-	BillingMode       string
-	StartTime         *time.Time
-	EndTime           *time.Time
+	UserID      int64
+	APIKeyID    int64
+	AccountID   int64
+	GroupID     int64
+	RequestID   string
+	Model       string
+	RequestType *int16
+	Stream      *bool
+	BillingType *int8
+	BillingMode string
+	StartTime   *time.Time
+	EndTime     *time.Time
 	// ExactTotal requests exact COUNT(*) for pagination. Default false for fast large-table paging.
 	ExactTotal bool
 }
@@ -296,25 +279,29 @@ type UsageStats struct {
 	TotalActualCost          float64        `json:"total_actual_cost"`
 	TotalAccountCost         *float64       `json:"total_account_cost,omitempty"`
 	AverageDurationMs        float64        `json:"average_duration_ms"`
+	AverageFirstTokenMs      float64        `json:"-"`
+	RequestsWithFirstToken   int64          `json:"-"`
 	Endpoints                []EndpointStat `json:"endpoints,omitempty"`
 	UpstreamEndpoints        []EndpointStat `json:"upstream_endpoints,omitempty"`
 	EndpointPaths            []EndpointStat `json:"endpoint_paths,omitempty"`
 }
 
-// PlatformUsage 表示某用户/某 API key 在单个"有效平台"维度的用量明细。
-// Platform 取值与 ops 路径口径一致：优先 groups.platform，否则 accounts.platform。
-type PlatformUsage struct {
-	Platform        string  `json:"platform"`
-	TodayActualCost float64 `json:"today_actual_cost"`
-	TotalActualCost float64 `json:"total_actual_cost"`
+// PublicTodayUsageStats represents public homepage usage metrics.
+type PublicTodayUsageStats struct {
+	TodayRequests       int64    `json:"today_requests"`
+	TodayTokens         int64    `json:"today_tokens"`
+	SuccessCount        int64    `json:"success_count"`
+	ErrorCount          int64    `json:"error_count"`
+	SuccessRate         *float64 `json:"success_rate"`
+	AverageDurationMs   *float64 `json:"average_duration_ms"`
+	AverageFirstTokenMs *float64 `json:"average_first_token_ms"`
 }
 
 // BatchUserUsageStats represents usage stats for a single user
 type BatchUserUsageStats struct {
-	UserID          int64           `json:"user_id"`
-	TodayActualCost float64         `json:"today_actual_cost"`
-	TotalActualCost float64         `json:"total_actual_cost"`
-	ByPlatform      []PlatformUsage `json:"by_platform,omitempty"`
+	UserID          int64   `json:"user_id"`
+	TodayActualCost float64 `json:"today_actual_cost"`
+	TotalActualCost float64 `json:"total_actual_cost"`
 }
 
 // BatchAPIKeyUsageStats represents usage stats for a single API key

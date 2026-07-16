@@ -8,6 +8,7 @@ import type {
 } from '@/types/payment'
 
 export const PAYMENT_RECOVERY_STORAGE_KEY = 'payment.recovery.current'
+export const PAYMENT_RECOVERY_STORAGE_KEY_PREFIX = 'payment.recovery'
 
 const VISIBLE_METHOD_ALIASES = {
   alipay: 'alipay',
@@ -55,8 +56,6 @@ export interface PaymentLaunchContext {
   orderType: OrderType
   isMobile: boolean
   isWechatBrowser?: boolean
-  /** When true, Alipay payments always use QR code regardless of device type */
-  forceQRCode?: boolean
   now?: number
   stripePopupUrl?: string
   stripeRouteUrl?: string
@@ -80,15 +79,21 @@ export interface BuildCreateOrderPayloadInput {
   origin?: string
   isMobile: boolean
   isWechatBrowser: boolean
-  /** When true, Alipay payments always use QR code (passes is_mobile: false to backend) */
-  forceQRCode?: boolean
 }
 
 type CreateOrderFlowResult = CreateOrderResult & {
   resume_token?: string
 }
 
+type StorageReader = Pick<Storage, 'getItem'>
 type StorageWriter = Pick<Storage, 'removeItem' | 'setItem'>
+
+export interface PaymentRecoveryLookup {
+  orderId?: number
+  outTradeNo?: string
+  resumeToken?: string
+  now?: number
+}
 
 export function normalizeVisibleMethod(method: string): VisiblePaymentMethod | '' {
   const normalized = VISIBLE_METHOD_ALIASES[method.trim() as keyof typeof VISIBLE_METHOD_ALIASES]
@@ -99,7 +104,7 @@ export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<
   const visible: Record<string, MethodLimit> = {}
 
   Object.entries(methods).forEach(([type, limit]) => {
-    const normalized = normalizeVisibleMethod(type) || type.trim()
+    const normalized = normalizeVisibleMethod(type)
     if (!normalized) return
 
     const isCanonical = type === normalized
@@ -115,16 +120,11 @@ export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<
 export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): CreateOrderRequest {
   const visibleMethod = normalizeVisibleMethod(input.paymentType) || input.paymentType.trim()
   const normalizedOrigin = (input.origin || '').trim().replace(/\/+$/, '')
-  // When forceQRCode is enabled for alipay, always tell the backend this is not a mobile
-  // request so it generates a QR code instead of a mobile-redirect URL.
-  const effectiveMobile = (input.forceQRCode && visibleMethod === 'alipay')
-    ? false
-    : input.isMobile
   const payload: CreateOrderRequest = {
     amount: input.amount,
     payment_type: visibleMethod,
     order_type: input.orderType,
-    is_mobile: effectiveMobile,
+    is_mobile: input.isMobile,
     payment_source: visibleMethod === 'wxpay' && input.isWechatBrowser
       ? 'wechat_in_app_resume'
       : 'hosted_redirect',
@@ -168,7 +168,7 @@ export function decidePaymentLaunch(
     if (!context.airwallexRouteUrl) {
       return { kind: 'unhandled', paymentState: baseState, recovery: baseState }
     }
-    const paymentState = { ...baseState, payUrl: context.airwallexRouteUrl || '' }
+    const paymentState = { ...baseState, payUrl: context.airwallexRouteUrl }
     return { kind: 'airwallex_route', paymentState, recovery: paymentState }
   }
 
@@ -199,14 +199,9 @@ export function decidePaymentLaunch(
   }
 
   const normalizedPaymentMode = baseState.paymentMode.trim().toLowerCase()
-  // When forceQRCode is on for alipay, treat the device as desktop so the mobile-redirect
-  // branch is bypassed and we fall through to qr_waiting.
-  const effectiveMobile = (context.forceQRCode && visibleMethod === 'alipay')
-    ? false
-    : context.isMobile
   const prefersRedirect = normalizedPaymentMode === 'redirect'
     || normalizedPaymentMode === 'popup'
-    || (effectiveMobile && !!baseState.payUrl)
+    || (context.isMobile && !!baseState.payUrl)
   const prefersQr = normalizedPaymentMode === 'qrcode'
     || normalizedPaymentMode === 'native'
     || (!prefersRedirect && !!baseState.qrCode)
@@ -245,19 +240,45 @@ export function writePaymentRecoverySnapshot(
   snapshot: PaymentRecoverySnapshot,
   key = PAYMENT_RECOVERY_STORAGE_KEY,
 ): void {
-  storage.setItem(key, JSON.stringify(snapshot))
+  const value = JSON.stringify(snapshot)
+  storage.setItem(key, value)
+
+  if (key !== PAYMENT_RECOVERY_STORAGE_KEY) {
+    return
+  }
+  for (const snapshotKey of paymentRecoveryStorageKeys(snapshot)) {
+    storage.setItem(snapshotKey, value)
+  }
 }
 
 export function clearPaymentRecoverySnapshot(
-  storage: Pick<Storage, 'removeItem'>,
+  storage: Pick<Storage, 'getItem' | 'removeItem'>,
   key = PAYMENT_RECOVERY_STORAGE_KEY,
+  lookup: PaymentRecoveryLookup = {},
 ): void {
+  if (key === PAYMENT_RECOVERY_STORAGE_KEY) {
+    const matched = readPaymentRecoverySnapshotFromStorage(storage, lookup, key)
+    const keysToRemove = new Set([
+      ...paymentRecoveryStorageKeys(lookup),
+      ...paymentRecoveryStorageKeys(matched || {}),
+    ])
+    for (const snapshotKey of keysToRemove) {
+      storage.removeItem(snapshotKey)
+    }
+    const rawLegacySnapshot = storage.getItem(key)
+    const legacySnapshot = readPaymentRecoverySnapshot(rawLegacySnapshot, lookup)
+      || (lookup.resumeToken ? readPaymentRecoverySnapshot(rawLegacySnapshot, { resumeToken: lookup.resumeToken }) : null)
+    if (legacySnapshot || Object.keys(lookup).length === 0) {
+      storage.removeItem(key)
+    }
+    return
+  }
   storage.removeItem(key)
 }
 
 export function readPaymentRecoverySnapshot(
   raw: string | null | undefined,
-  options: { now?: number; resumeToken?: string } = {},
+  options: PaymentRecoveryLookup = {},
 ): PaymentRecoverySnapshot | null {
   if (!raw) return null
 
@@ -292,6 +313,12 @@ export function readPaymentRecoverySnapshot(
     if (options.resumeToken && parsed.resumeToken !== options.resumeToken) {
       return null
     }
+    if (options.orderId && parsed.orderId !== options.orderId) {
+      return null
+    }
+    if (options.outTradeNo && (parsed.outTradeNo || '') !== options.outTradeNo) {
+      return null
+    }
 
     return {
       orderId: parsed.orderId,
@@ -315,4 +342,37 @@ export function readPaymentRecoverySnapshot(
   } catch {
     return null
   }
+}
+
+export function readPaymentRecoverySnapshotFromStorage(
+  storage: StorageReader,
+  lookup: PaymentRecoveryLookup = {},
+  key = PAYMENT_RECOVERY_STORAGE_KEY,
+): PaymentRecoverySnapshot | null {
+  if (key !== PAYMENT_RECOVERY_STORAGE_KEY) {
+    return readPaymentRecoverySnapshot(storage.getItem(key), lookup)
+  }
+
+  for (const snapshotKey of paymentRecoveryStorageKeys(lookup)) {
+    const restored = readPaymentRecoverySnapshot(storage.getItem(snapshotKey), lookup)
+    if (restored) {
+      return restored
+    }
+  }
+
+  return readPaymentRecoverySnapshot(storage.getItem(key), lookup)
+}
+
+export function paymentRecoveryStorageKeys(lookup: PaymentRecoveryLookup): string[] {
+  const keys: string[] = []
+  if (lookup.resumeToken) {
+    keys.push(`${PAYMENT_RECOVERY_STORAGE_KEY_PREFIX}.resume.${encodeURIComponent(lookup.resumeToken)}`)
+  }
+  if (lookup.outTradeNo) {
+    keys.push(`${PAYMENT_RECOVERY_STORAGE_KEY_PREFIX}.out.${encodeURIComponent(lookup.outTradeNo)}`)
+  }
+  if (lookup.orderId && lookup.orderId > 0) {
+    keys.push(`${PAYMENT_RECOVERY_STORAGE_KEY_PREFIX}.order.${lookup.orderId}`)
+  }
+  return keys
 }

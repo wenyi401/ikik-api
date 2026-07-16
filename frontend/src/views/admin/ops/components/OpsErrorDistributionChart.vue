@@ -23,18 +23,14 @@ const { t } = useI18n()
 
 const isDarkMode = computed(() => document.documentElement.classList.contains('dark'))
 const colors = computed(() => ({
-  blue: '#3b82f6',
+  blue: isDarkMode.value ? '#f2f2f2' : '#171717',
   red: '#ef4444',
-  orange: '#f59e0b',
-  gray: '#9ca3af',
-  text: isDarkMode.value ? '#9ca3af' : '#6b7280'
+  orange: isDarkMode.value ? '#c8bfb5' : '#8b7d6b',
+  gray: isDarkMode.value ? '#8a8a8a' : '#9a9a9a',
+  text: isDarkMode.value ? '#b4b4b4' : '#676767'
 }))
 
-const totalSlaErrors = computed(() =>
-  (props.data?.items ?? []).reduce((total, item) => total + Number(item.sla || 0), 0)
-)
-
-const hasData = computed(() => totalSlaErrors.value > 0)
+const hasData = computed(() => (props.data?.total ?? 0) > 0)
 
 const state = computed<ChartState>(() => {
   if (hasData.value) return 'ready'
@@ -58,7 +54,7 @@ const categories = computed<ErrorCategory[]>(() => {
 
   for (const item of props.data.items || []) {
     const code = Number(item.status_code || 0)
-    const count = Number(item.sla || 0)
+    const count = Number(item.total || 0)
     if (!Number.isFinite(code) || !Number.isFinite(count)) continue
 
     if ([502, 503, 504].includes(code)) upstream += count
@@ -109,7 +105,7 @@ const options = computed(() => ({
 </script>
 
 <template>
-  <div class="flex h-full flex-col rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
+  <div class="ops-panel flex h-full flex-col">
     <div class="mb-4 flex items-center justify-between">
       <h3 class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
         <svg class="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

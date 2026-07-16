@@ -4,12 +4,12 @@ package ent
 
 import (
 	"context"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/proxy"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/proxy"
 )
 
 // ProxyDelete is the builder for deleting a Proxy entity.

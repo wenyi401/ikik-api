@@ -5,12 +5,12 @@ package ent
 import (
 	"encoding/json"
 	"fmt"
+	"ikik-api/ent/usagecleanuptask"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/usagecleanuptask"
 )
 
 // UsageCleanupTask is the model entity for the UsageCleanupTask schema.
@@ -27,7 +27,9 @@ type UsageCleanupTask struct {
 	// Filters holds the value of the "filters" field.
 	Filters json.RawMessage `json:"filters,omitempty"`
 	// CreatedBy holds the value of the "created_by" field.
-	CreatedBy int64 `json:"created_by,omitempty"`
+	CreatedBy *int64 `json:"created_by,omitempty"`
+	// CreatedSource holds the value of the "created_source" field.
+	CreatedSource string `json:"created_source,omitempty"`
 	// DeletedRows holds the value of the "deleted_rows" field.
 	DeletedRows int64 `json:"deleted_rows,omitempty"`
 	// ErrorMessage holds the value of the "error_message" field.
@@ -52,7 +54,7 @@ func (*UsageCleanupTask) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case usagecleanuptask.FieldID, usagecleanuptask.FieldCreatedBy, usagecleanuptask.FieldDeletedRows, usagecleanuptask.FieldCanceledBy:
 			values[i] = new(sql.NullInt64)
-		case usagecleanuptask.FieldStatus, usagecleanuptask.FieldErrorMessage:
+		case usagecleanuptask.FieldStatus, usagecleanuptask.FieldCreatedSource, usagecleanuptask.FieldErrorMessage:
 			values[i] = new(sql.NullString)
 		case usagecleanuptask.FieldCreatedAt, usagecleanuptask.FieldUpdatedAt, usagecleanuptask.FieldCanceledAt, usagecleanuptask.FieldStartedAt, usagecleanuptask.FieldFinishedAt:
 			values[i] = new(sql.NullTime)
@@ -107,7 +109,14 @@ func (_m *UsageCleanupTask) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field created_by", values[i])
 			} else if value.Valid {
-				_m.CreatedBy = value.Int64
+				_m.CreatedBy = new(int64)
+				*_m.CreatedBy = value.Int64
+			}
+		case usagecleanuptask.FieldCreatedSource:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field created_source", values[i])
+			} else if value.Valid {
+				_m.CreatedSource = value.String
 			}
 		case usagecleanuptask.FieldDeletedRows:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -198,8 +207,13 @@ func (_m *UsageCleanupTask) String() string {
 	builder.WriteString("filters=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Filters))
 	builder.WriteString(", ")
-	builder.WriteString("created_by=")
-	builder.WriteString(fmt.Sprintf("%v", _m.CreatedBy))
+	if v := _m.CreatedBy; v != nil {
+		builder.WriteString("created_by=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("created_source=")
+	builder.WriteString(_m.CreatedSource)
 	builder.WriteString(", ")
 	builder.WriteString("deleted_rows=")
 	builder.WriteString(fmt.Sprintf("%v", _m.DeletedRows))

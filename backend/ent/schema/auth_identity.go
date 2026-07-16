@@ -15,13 +15,10 @@ import (
 )
 
 var authProviderTypes = map[string]struct{}{
-	"email":    {},
-	"github":   {},
-	"google":   {},
-	"linuxdo":  {},
-	"oidc":     {},
-	"wechat":   {},
-	"dingtalk": {},
+	"email":   {},
+	"linuxdo": {},
+	"oidc":    {},
+	"wechat":  {},
 }
 
 func validateAuthProviderType(value string) error {

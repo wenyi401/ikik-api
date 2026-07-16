@@ -2,6 +2,8 @@
  * Payment System Type Definitions
  */
 
+import type { StoreOrder } from '@/types/store'
+
 // ==================== Enums / Union Types ====================
 
 export type OrderStatus =
@@ -21,7 +23,7 @@ export type OrderStatus =
 
 export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'airwallex'
 
-export type OrderType = 'balance' | 'subscription'
+export type OrderType = 'balance' | 'subscription' | 'shop'
 
 // ==================== Configuration ====================
 
@@ -34,16 +36,24 @@ export interface PaymentConfig {
   order_timeout_minutes: number
   balance_disabled: boolean
   balance_recharge_multiplier: number
-  subscription_usd_to_cny_rate: number
+  balance_pricing_tiers?: BalancePricingTier[]
   enabled_payment_types: PaymentType[]
   help_image_url: string
   help_text: string
   stripe_publishable_key: string
 }
 
+export interface BalancePricingTier {
+  min: number
+  max: number
+  multiplier: number
+  label: string
+  enabled: boolean
+  sortOrder: number
+}
+
 export interface MethodLimit {
   currency?: string
-  display_name?: string
   daily_limit: number
   daily_used: number
   daily_remaining: number
@@ -65,17 +75,16 @@ export interface CheckoutInfoResponse {
   methods: Record<string, MethodLimit>
   global_min: number
   global_max: number
+  min_amount: number
+  max_amount: number
   plans: SubscriptionPlan[]
   balance_disabled: boolean
   balance_recharge_multiplier: number
-  /** Subscription CNY conversion rate (1 USD = X CNY); 0 = disabled, plan price is charged as-is */
-  subscription_usd_to_cny_rate: number
+  balance_pricing_tiers?: BalancePricingTier[]
   recharge_fee_rate: number
   help_text: string
   help_image_url: string
   stripe_publishable_key: string
-  /** When true, Alipay payments on mobile always show the QR code instead of redirecting */
-  alipay_force_qrcode?: boolean
 }
 
 // ==================== Orders ====================
@@ -95,13 +104,31 @@ export interface PaymentOrder {
   expires_at: string
   paid_at?: string
   completed_at?: string
+  failed_at?: string
+  failed_reason?: string
   refund_amount: number
   refund_reason?: string
   refund_requested_at?: string
   refund_requested_by?: number
   refund_request_reason?: string
   plan_id?: number
+  shop_order_id?: number
   provider_instance_id?: string
+}
+
+export interface PaymentOrderAuditLog {
+  id: number
+  action: string
+  detail: string | null
+  operator: string | null
+  created_at: string
+}
+
+export interface AdminPaymentOrderDetail {
+  order: PaymentOrder
+  auditLogs?: PaymentOrderAuditLog[]
+  audit_logs?: PaymentOrderAuditLog[]
+  shop_order?: StoreOrder
 }
 
 // ==================== Plans & Channels ====================
@@ -112,10 +139,6 @@ export interface SubscriptionPlan {
   group_platform?: string
   group_name?: string
   rate_multiplier?: number
-  peak_rate_enabled?: boolean
-  peak_start?: string
-  peak_end?: string
-  peak_rate_multiplier?: number
   daily_limit_usd?: number | null
   weekly_limit_usd?: number | null
   monthly_limit_usd?: number | null
@@ -167,6 +190,7 @@ export interface CreateOrderRequest {
   payment_type: string
   order_type: string
   plan_id?: number
+  shop_order_id?: number
   return_url?: string
   payment_source?: string
   openid?: string

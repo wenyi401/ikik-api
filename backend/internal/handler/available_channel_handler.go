@@ -2,6 +2,7 @@ package handler
 
 import (
 	"sort"
+	"strings"
 
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/server/middleware"
@@ -50,19 +51,15 @@ func (h *AvailableChannelHandler) featureEnabled(c *gin.Context) bool {
 // userAvailableGroup 用户可见的分组概要（白名单字段）。
 //
 // 前端据此区分专属 vs 公开分组（IsExclusive）、订阅 vs 标准分组（SubscriptionType，
-// 订阅视觉加深），并展示默认倍率与高峰倍率规则；用户专属倍率前端走
+// 订阅视觉加深），并用 RateMultiplier 作为默认倍率；用户专属倍率前端走
 // /groups/rates，和 API 密钥页面保持一致。
 type userAvailableGroup struct {
-	ID                 int64   `json:"id"`
-	Name               string  `json:"name"`
-	Platform           string  `json:"platform"`
-	SubscriptionType   string  `json:"subscription_type"`
-	RateMultiplier     float64 `json:"rate_multiplier"`
-	PeakRateEnabled    bool    `json:"peak_rate_enabled"`
-	PeakStart          string  `json:"peak_start"`
-	PeakEnd            string  `json:"peak_end"`
-	PeakRateMultiplier float64 `json:"peak_rate_multiplier"`
-	IsExclusive        bool    `json:"is_exclusive"`
+	ID               int64   `json:"id"`
+	Name             string  `json:"name"`
+	Platform         string  `json:"platform"`
+	SubscriptionType string  `json:"subscription_type"`
+	RateMultiplier   float64 `json:"rate_multiplier"`
+	IsExclusive      bool    `json:"is_exclusive"`
 }
 
 // userSupportedModelPricing 用户可见的定价字段白名单。
@@ -141,12 +138,13 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 		allowedGroupIDs[userGroups[i].ID] = struct{}{}
 	}
 
-	channels, err := h.channelService.ListAvailable(c.Request.Context())
+	channels, err := h.channelService.ListAvailableForGroups(c.Request.Context(), userGroups)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
+	groupModelCache := make(map[int64][]service.SupportedModel)
 	out := make([]userAvailableChannel, 0, len(channels))
 	for _, ch := range channels {
 		if ch.Status != service.StatusActive {
@@ -157,6 +155,15 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 			continue
 		}
 		sections := buildPlatformSections(ch, visibleGroups)
+		if !ch.RestrictModels {
+			visibleRefs := filterAvailableGroupRefs(ch.Groups, allowedGroupIDs)
+			groupModels, err := h.supportedModelsForGroups(c, visibleRefs, groupModelCache)
+			if err != nil {
+				response.ErrorFrom(c, err)
+				return
+			}
+			mergeGroupSupportedModels(sections, groupModels)
+		}
 		if len(sections) == 0 {
 			continue
 		}
@@ -168,6 +175,42 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 	}
 
 	response.Success(c, out)
+}
+
+func (h *AvailableChannelHandler) supportedModelsForGroups(
+	c *gin.Context,
+	groups []service.AvailableGroupRef,
+	cache map[int64][]service.SupportedModel,
+) (map[int64][]service.SupportedModel, error) {
+	missing := make([]service.AvailableGroupRef, 0, len(groups))
+	seen := make(map[int64]struct{}, len(groups))
+	for _, group := range groups {
+		if _, ok := cache[group.ID]; ok {
+			continue
+		}
+		if _, ok := seen[group.ID]; ok {
+			continue
+		}
+		seen[group.ID] = struct{}{}
+		missing = append(missing, group)
+	}
+	if len(missing) > 0 {
+		models, err := h.channelService.ListSupportedModelsForGroups(c.Request.Context(), missing)
+		if err != nil {
+			return nil, err
+		}
+		for _, group := range missing {
+			cache[group.ID] = models[group.ID]
+		}
+	}
+
+	out := make(map[int64][]service.SupportedModel, len(groups))
+	for _, group := range groups {
+		if models, ok := cache[group.ID]; ok && len(models) > 0 {
+			out[group.ID] = models
+		}
+	}
+	return out, nil
 }
 
 // buildPlatformSections 把一个渠道按 visibleGroups 的平台集合拆成有序的 section 列表：
@@ -206,6 +249,69 @@ func buildPlatformSections(
 	return sections
 }
 
+func mergeGroupSupportedModels(
+	sections []userChannelPlatformSection,
+	groupModels map[int64][]service.SupportedModel,
+) {
+	if len(sections) == 0 || len(groupModels) == 0 {
+		return
+	}
+	for i := range sections {
+		sections[i].SupportedModels = mergeSupportedModelsForSection(
+			sections[i].SupportedModels,
+			sections[i].Groups,
+			groupModels,
+			sections[i].Platform,
+		)
+	}
+}
+
+func mergeSupportedModelsForSection(
+	configured []userSupportedModel,
+	groups []userAvailableGroup,
+	groupModels map[int64][]service.SupportedModel,
+	platform string,
+) []userSupportedModel {
+	seen := make(map[string]struct{}, len(configured))
+	out := make([]userSupportedModel, 0, len(configured))
+	for _, model := range configured {
+		out = append(out, model)
+		seen[supportedModelKey(model.Platform, model.Name)] = struct{}{}
+	}
+
+	for _, group := range groups {
+		if group.Platform != platform {
+			continue
+		}
+		for _, model := range groupModels[group.ID] {
+			if model.Platform != platform {
+				continue
+			}
+			key := supportedModelKey(model.Platform, model.Name)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, userSupportedModel{
+				Name:     model.Name,
+				Platform: model.Platform,
+				Pricing:  toUserPricing(model.Pricing),
+			})
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Platform != out[j].Platform {
+			return out[i].Platform < out[j].Platform
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+func supportedModelKey(platform, name string) string {
+	return strings.TrimSpace(platform) + "\x00" + strings.ToLower(strings.TrimSpace(name))
+}
+
 // filterUserVisibleGroups 仅保留用户可访问的分组。
 func filterUserVisibleGroups(
 	groups []service.AvailableGroupRef,
@@ -217,17 +323,27 @@ func filterUserVisibleGroups(
 			continue
 		}
 		visible = append(visible, userAvailableGroup{
-			ID:                 g.ID,
-			Name:               g.Name,
-			Platform:           g.Platform,
-			SubscriptionType:   g.SubscriptionType,
-			RateMultiplier:     g.RateMultiplier,
-			PeakRateEnabled:    g.PeakRateEnabled,
-			PeakStart:          g.PeakStart,
-			PeakEnd:            g.PeakEnd,
-			PeakRateMultiplier: g.PeakRateMultiplier,
-			IsExclusive:        g.IsExclusive,
+			ID:               g.ID,
+			Name:             g.Name,
+			Platform:         g.Platform,
+			SubscriptionType: g.SubscriptionType,
+			RateMultiplier:   g.RateMultiplier,
+			IsExclusive:      g.IsExclusive,
 		})
+	}
+	return visible
+}
+
+func filterAvailableGroupRefs(
+	groups []service.AvailableGroupRef,
+	allowed map[int64]struct{},
+) []service.AvailableGroupRef {
+	visible := make([]service.AvailableGroupRef, 0, len(groups))
+	for _, group := range groups {
+		if _, ok := allowed[group.ID]; !ok {
+			continue
+		}
+		visible = append(visible, group)
 	}
 	return visible
 }

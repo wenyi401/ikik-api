@@ -131,7 +131,7 @@
                 v-model="formData.database.dbname"
                 type="text"
                 class="input"
-                placeholder="sub2api"
+                placeholder="ikik_api"
               />
             </div>
             <div>
@@ -492,8 +492,8 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { testDatabase, testRedis, install, type InstallRequest } from '@/api/setup'
 import { buildGatewayUrl } from '@/api/client'
+import { testDatabase, testRedis, install, type InstallRequest } from '@/api/setup'
 import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -536,7 +536,7 @@ const formData = reactive<InstallRequest>({
     port: 5432,
     user: 'postgres',
     password: '',
-    dbname: 'sub2api',
+    dbname: 'ikik_api',
     sslmode: 'disable'
   },
   redis: {

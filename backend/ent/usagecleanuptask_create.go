@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"ikik-api/ent/usagecleanuptask"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/usagecleanuptask"
 )
 
 // UsageCleanupTaskCreate is the builder for creating a UsageCleanupTask entity.
@@ -66,6 +66,28 @@ func (_c *UsageCleanupTaskCreate) SetFilters(v json.RawMessage) *UsageCleanupTas
 // SetCreatedBy sets the "created_by" field.
 func (_c *UsageCleanupTaskCreate) SetCreatedBy(v int64) *UsageCleanupTaskCreate {
 	_c.mutation.SetCreatedBy(v)
+	return _c
+}
+
+// SetNillableCreatedBy sets the "created_by" field if the given value is not nil.
+func (_c *UsageCleanupTaskCreate) SetNillableCreatedBy(v *int64) *UsageCleanupTaskCreate {
+	if v != nil {
+		_c.SetCreatedBy(*v)
+	}
+	return _c
+}
+
+// SetCreatedSource sets the "created_source" field.
+func (_c *UsageCleanupTaskCreate) SetCreatedSource(v string) *UsageCleanupTaskCreate {
+	_c.mutation.SetCreatedSource(v)
+	return _c
+}
+
+// SetNillableCreatedSource sets the "created_source" field if the given value is not nil.
+func (_c *UsageCleanupTaskCreate) SetNillableCreatedSource(v *string) *UsageCleanupTaskCreate {
+	if v != nil {
+		_c.SetCreatedSource(*v)
+	}
 	return _c
 }
 
@@ -196,6 +218,10 @@ func (_c *UsageCleanupTaskCreate) defaults() {
 		v := usagecleanuptask.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.CreatedSource(); !ok {
+		v := usagecleanuptask.DefaultCreatedSource
+		_c.mutation.SetCreatedSource(v)
+	}
 	if _, ok := _c.mutation.DeletedRows(); !ok {
 		v := usagecleanuptask.DefaultDeletedRows
 		_c.mutation.SetDeletedRows(v)
@@ -221,8 +247,13 @@ func (_c *UsageCleanupTaskCreate) check() error {
 	if _, ok := _c.mutation.Filters(); !ok {
 		return &ValidationError{Name: "filters", err: errors.New(`ent: missing required field "UsageCleanupTask.filters"`)}
 	}
-	if _, ok := _c.mutation.CreatedBy(); !ok {
-		return &ValidationError{Name: "created_by", err: errors.New(`ent: missing required field "UsageCleanupTask.created_by"`)}
+	if _, ok := _c.mutation.CreatedSource(); !ok {
+		return &ValidationError{Name: "created_source", err: errors.New(`ent: missing required field "UsageCleanupTask.created_source"`)}
+	}
+	if v, ok := _c.mutation.CreatedSource(); ok {
+		if err := usagecleanuptask.CreatedSourceValidator(v); err != nil {
+			return &ValidationError{Name: "created_source", err: fmt.Errorf(`ent: validator failed for field "UsageCleanupTask.created_source": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.DeletedRows(); !ok {
 		return &ValidationError{Name: "deleted_rows", err: errors.New(`ent: missing required field "UsageCleanupTask.deleted_rows"`)}
@@ -272,7 +303,11 @@ func (_c *UsageCleanupTaskCreate) createSpec() (*UsageCleanupTask, *sqlgraph.Cre
 	}
 	if value, ok := _c.mutation.CreatedBy(); ok {
 		_spec.SetField(usagecleanuptask.FieldCreatedBy, field.TypeInt64, value)
-		_node.CreatedBy = value
+		_node.CreatedBy = &value
+	}
+	if value, ok := _c.mutation.CreatedSource(); ok {
+		_spec.SetField(usagecleanuptask.FieldCreatedSource, field.TypeString, value)
+		_node.CreatedSource = value
 	}
 	if value, ok := _c.mutation.DeletedRows(); ok {
 		_spec.SetField(usagecleanuptask.FieldDeletedRows, field.TypeInt64, value)
@@ -401,6 +436,24 @@ func (u *UsageCleanupTaskUpsert) UpdateCreatedBy() *UsageCleanupTaskUpsert {
 // AddCreatedBy adds v to the "created_by" field.
 func (u *UsageCleanupTaskUpsert) AddCreatedBy(v int64) *UsageCleanupTaskUpsert {
 	u.Add(usagecleanuptask.FieldCreatedBy, v)
+	return u
+}
+
+// ClearCreatedBy clears the value of the "created_by" field.
+func (u *UsageCleanupTaskUpsert) ClearCreatedBy() *UsageCleanupTaskUpsert {
+	u.SetNull(usagecleanuptask.FieldCreatedBy)
+	return u
+}
+
+// SetCreatedSource sets the "created_source" field.
+func (u *UsageCleanupTaskUpsert) SetCreatedSource(v string) *UsageCleanupTaskUpsert {
+	u.Set(usagecleanuptask.FieldCreatedSource, v)
+	return u
+}
+
+// UpdateCreatedSource sets the "created_source" field to the value that was provided on create.
+func (u *UsageCleanupTaskUpsert) UpdateCreatedSource() *UsageCleanupTaskUpsert {
+	u.SetExcluded(usagecleanuptask.FieldCreatedSource)
 	return u
 }
 
@@ -623,6 +676,27 @@ func (u *UsageCleanupTaskUpsertOne) AddCreatedBy(v int64) *UsageCleanupTaskUpser
 func (u *UsageCleanupTaskUpsertOne) UpdateCreatedBy() *UsageCleanupTaskUpsertOne {
 	return u.Update(func(s *UsageCleanupTaskUpsert) {
 		s.UpdateCreatedBy()
+	})
+}
+
+// ClearCreatedBy clears the value of the "created_by" field.
+func (u *UsageCleanupTaskUpsertOne) ClearCreatedBy() *UsageCleanupTaskUpsertOne {
+	return u.Update(func(s *UsageCleanupTaskUpsert) {
+		s.ClearCreatedBy()
+	})
+}
+
+// SetCreatedSource sets the "created_source" field.
+func (u *UsageCleanupTaskUpsertOne) SetCreatedSource(v string) *UsageCleanupTaskUpsertOne {
+	return u.Update(func(s *UsageCleanupTaskUpsert) {
+		s.SetCreatedSource(v)
+	})
+}
+
+// UpdateCreatedSource sets the "created_source" field to the value that was provided on create.
+func (u *UsageCleanupTaskUpsertOne) UpdateCreatedSource() *UsageCleanupTaskUpsertOne {
+	return u.Update(func(s *UsageCleanupTaskUpsert) {
+		s.UpdateCreatedSource()
 	})
 }
 
@@ -1030,6 +1104,27 @@ func (u *UsageCleanupTaskUpsertBulk) AddCreatedBy(v int64) *UsageCleanupTaskUpse
 func (u *UsageCleanupTaskUpsertBulk) UpdateCreatedBy() *UsageCleanupTaskUpsertBulk {
 	return u.Update(func(s *UsageCleanupTaskUpsert) {
 		s.UpdateCreatedBy()
+	})
+}
+
+// ClearCreatedBy clears the value of the "created_by" field.
+func (u *UsageCleanupTaskUpsertBulk) ClearCreatedBy() *UsageCleanupTaskUpsertBulk {
+	return u.Update(func(s *UsageCleanupTaskUpsert) {
+		s.ClearCreatedBy()
+	})
+}
+
+// SetCreatedSource sets the "created_source" field.
+func (u *UsageCleanupTaskUpsertBulk) SetCreatedSource(v string) *UsageCleanupTaskUpsertBulk {
+	return u.Update(func(s *UsageCleanupTaskUpsert) {
+		s.SetCreatedSource(v)
+	})
+}
+
+// UpdateCreatedSource sets the "created_source" field to the value that was provided on create.
+func (u *UsageCleanupTaskUpsertBulk) UpdateCreatedSource() *UsageCleanupTaskUpsertBulk {
+	return u.Update(func(s *UsageCleanupTaskUpsert) {
+		s.UpdateCreatedSource()
 	})
 }
 

@@ -13,8 +13,9 @@ import (
 )
 
 type bmRepoStub struct {
-	getValueFn func(ctx context.Context, key string) (string, error)
-	calls      int
+	getValueFn    func(ctx context.Context, key string) (string, error)
+	getMultipleFn func(ctx context.Context, keys []string) (map[string]string, error)
+	calls         int
 }
 
 func (s *bmRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
@@ -34,7 +35,11 @@ func (s *bmRepoStub) Set(ctx context.Context, key, value string) error {
 }
 
 func (s *bmRepoStub) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
-	panic("unexpected GetMultiple call")
+	s.calls++
+	if s.getMultipleFn == nil {
+		panic("unexpected GetMultiple call")
+	}
+	return s.getMultipleFn(ctx, keys)
 }
 
 func (s *bmRepoStub) SetMultiple(ctx context.Context, settings map[string]string) error {

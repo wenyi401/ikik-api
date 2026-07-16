@@ -31,7 +31,7 @@ describe('TokenUsageTrend', () => {
       props: {
         trendData: [
           {
-            date: '2026-05-08',
+            date: '2026-06-08',
             requests: 1,
             input_tokens: 500,
             output_tokens: 100,
@@ -50,49 +50,16 @@ describe('TokenUsageTrend', () => {
     })
 
     const chartData = JSON.parse(wrapper.find('.chart-data').text())
-    const hitRateDataset = chartData.datasets.find(
-      (ds: any) => ds.label === 'Cache Hit Rate'
-    )
-    // Hit rate = 1500 / (500 + 1500 + 0) * 100 = 75%
+    const hitRateDataset = chartData.datasets.find((ds: any) => ds.yAxisID === 'yPercent')
     expect(hitRateDataset.data[0]).toBe(75)
   })
 
-  it('returns 0 hit rate when all prompt tokens are zero', () => {
+  it('includes cache creation tokens in the denominator', () => {
     const wrapper = mount(TokenUsageTrend, {
       props: {
         trendData: [
           {
-            date: '2026-05-08',
-            requests: 0,
-            input_tokens: 0,
-            output_tokens: 0,
-            cache_creation_tokens: 0,
-            cache_read_tokens: 0,
-            cost: 0,
-            actual_cost: 0,
-          },
-        ],
-      },
-      global: {
-        stubs: {
-          LoadingSpinner: true,
-        },
-      },
-    })
-
-    const chartData = JSON.parse(wrapper.find('.chart-data').text())
-    const hitRateDataset = chartData.datasets.find(
-      (ds: any) => ds.label === 'Cache Hit Rate'
-    )
-    expect(hitRateDataset.data[0]).toBe(0)
-  })
-
-  it('includes cache_creation_tokens in denominator for Anthropic models', () => {
-    const wrapper = mount(TokenUsageTrend, {
-      props: {
-        trendData: [
-          {
-            date: '2026-05-08',
+            date: '2026-06-08',
             requests: 1,
             input_tokens: 200,
             output_tokens: 50,
@@ -111,10 +78,7 @@ describe('TokenUsageTrend', () => {
     })
 
     const chartData = JSON.parse(wrapper.find('.chart-data').text())
-    const hitRateDataset = chartData.datasets.find(
-      (ds: any) => ds.label === 'Cache Hit Rate'
-    )
-    // Hit rate = 500 / (200 + 500 + 300) * 100 = 50%
+    const hitRateDataset = chartData.datasets.find((ds: any) => ds.yAxisID === 'yPercent')
     expect(hitRateDataset.data[0]).toBe(50)
   })
 })

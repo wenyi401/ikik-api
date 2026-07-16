@@ -6,14 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/errorpassthroughrule"
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/errorpassthroughrule"
-	"ikik-api/ent/predicate"
 )
 
 // ErrorPassthroughRuleUpdate is the builder for updating ErrorPassthroughRule entities.

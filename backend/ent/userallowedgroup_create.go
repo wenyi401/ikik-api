@@ -6,14 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/group"
+	"ikik-api/ent/user"
+	"ikik-api/ent/userallowedgroup"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/group"
-	"ikik-api/ent/user"
-	"ikik-api/ent/userallowedgroup"
 )
 
 // UserAllowedGroupCreate is the builder for creating a UserAllowedGroup entity.

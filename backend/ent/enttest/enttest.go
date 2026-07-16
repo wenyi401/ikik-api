@@ -9,8 +9,9 @@ import (
 	// required by schema hooks.
 	_ "ikik-api/ent/runtime"
 
-	"entgo.io/ent/dialect/sql/schema"
 	"ikik-api/ent/migrate"
+
+	"entgo.io/ent/dialect/sql/schema"
 )
 
 type (

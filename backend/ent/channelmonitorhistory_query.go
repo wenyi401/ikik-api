@@ -5,6 +5,9 @@ package ent
 import (
 	"context"
 	"fmt"
+	"ikik-api/ent/channelmonitor"
+	"ikik-api/ent/channelmonitorhistory"
+	"ikik-api/ent/predicate"
 	"math"
 
 	"entgo.io/ent"
@@ -12,9 +15,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/channelmonitor"
-	"ikik-api/ent/channelmonitorhistory"
-	"ikik-api/ent/predicate"
 )
 
 // ChannelMonitorHistoryQuery is the builder for querying ChannelMonitorHistory entities.

@@ -1,6 +1,5 @@
-# syntax=docker/dockerfile:1.7
 # =============================================================================
-# Sub2API Multi-Stage Dockerfile
+# ikik-api Multi-Stage Dockerfile
 # =============================================================================
 # Stage 1: Build frontend
 # Stage 2: Build Go backend with embedded frontend
@@ -13,32 +12,24 @@ ARG ALPINE_IMAGE=alpine:3.21
 ARG POSTGRES_IMAGE=postgres:18-alpine
 ARG GOPROXY=https://goproxy.cn,direct
 ARG GOSUMDB=sum.golang.google.cn
-ARG NPM_CONFIG_REGISTRY=
+ARG ALPINE_MIRROR=
 
 # -----------------------------------------------------------------------------
 # Stage 1: Frontend Builder
 # -----------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS frontend-builder
-ARG NPM_CONFIG_REGISTRY
 
 WORKDIR /app/frontend
 
-# Install pnpm (pinned to v9 to match CI and keep builds reproducible)
-RUN corepack enable && corepack prepare pnpm@9 --activate
+# Install pnpm. Pin v9 to avoid pnpm v10 approve-builds breaking reproducible Docker builds.
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 # Install dependencies first (better caching)
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
-RUN --mount=type=cache,id=sub2api-pnpm-store,target=/root/.local/share/pnpm/store \
-    if [ -n "${NPM_CONFIG_REGISTRY}" ]; then pnpm config set registry "${NPM_CONFIG_REGISTRY}"; fi && \
-    pnpm install --frozen-lockfile --prefer-offline
+RUN pnpm install --frozen-lockfile
 
-# Copy frontend source and build.
-# LegalDocumentView.vue (admin-compliance gate) build-time imports
-# ../../../../docs/legal/*.md?raw, so docs/legal/ must sit beside frontend/
-# in the image (WORKDIR /app/frontend -> resolves to /app/docs/legal/*.md).
-# Copy only that subtree to keep the build dependency minimal.
+# Copy frontend source and build
 COPY frontend/ ./
-COPY docs/legal/ /app/docs/legal/
 RUN pnpm run build
 
 # -----------------------------------------------------------------------------
@@ -52,12 +43,16 @@ ARG COMMIT=docker
 ARG DATE
 ARG GOPROXY
 ARG GOSUMDB
+ARG ALPINE_MIRROR
 
 ENV GOPROXY=${GOPROXY}
 ENV GOSUMDB=${GOSUMDB}
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata
+RUN if [ -n "${ALPINE_MIRROR}" ]; then \
+        sed -i "s#https\?://dl-cdn.alpinelinux.org/alpine#${ALPINE_MIRROR}#g" /etc/apk/repositories; \
+    fi && \
+    apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /app/backend
 
@@ -72,15 +67,15 @@ COPY backend/ ./
 COPY --from=frontend-builder /app/backend/internal/web/dist ./internal/web/dist
 
 # Build the binary (BuildType=release for CI builds, embed frontend)
-# Version precedence: build arg VERSION > exact git tag > cmd/server/VERSION
+# Version precedence: build arg VERSION > cmd/server/VERSION
 RUN VERSION_VALUE="${VERSION}" && \
-    if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(./scripts/resolve-version.sh)"; fi && \
+    if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(tr -d '\r\n' < ./cmd/server/VERSION)"; fi && \
     DATE_VALUE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
     CGO_ENABLED=0 GOOS=linux go build \
     -tags embed \
     -ldflags="-s -w -X main.Version=${VERSION_VALUE} -X main.Commit=${COMMIT} -X main.Date=${DATE_VALUE} -X main.BuildType=release" \
     -trimpath \
-    -o /app/sub2api \
+    -o /app/ikik-api \
     ./cmd/server
 
 # -----------------------------------------------------------------------------
@@ -94,9 +89,9 @@ FROM ${POSTGRES_IMAGE} AS pg-client
 FROM ${ALPINE_IMAGE}
 
 # Labels
-LABEL maintainer="Wei-Shaw <github.com/Wei-Shaw>"
-LABEL description="Sub2API - AI API Gateway Platform"
-LABEL org.opencontainers.image.source="https://ikik-api"
+LABEL maintainer="ikik-api maintainers"
+LABEL description="ikik-api - AI API Gateway Platform"
+LABEL org.opencontainers.image.source="https://github.com/wenyi401/ikik-api"
 
 # Install runtime dependencies
 RUN apk add --no-cache \
@@ -118,20 +113,20 @@ COPY --from=pg-client /usr/local/bin/psql /usr/local/bin/psql
 COPY --from=pg-client /usr/local/lib/libpq.so.5* /usr/local/lib/
 
 # Create non-root user
-RUN addgroup -g 1000 sub2api && \
-    adduser -u 1000 -G sub2api -s /bin/sh -D sub2api
+RUN addgroup -g 1000 ikik-api && \
+    adduser -u 1000 -G ikik-api -s /bin/sh -D ikik-api
 
 # Set working directory
 WORKDIR /app
 
 # Copy binary/resources with ownership to avoid extra full-layer chown copy
-COPY --from=backend-builder --chown=sub2api:sub2api /app/sub2api /app/sub2api
-COPY --from=backend-builder --chown=sub2api:sub2api /app/backend/resources /app/resources
+COPY --from=backend-builder --chown=ikik-api:ikik-api /app/ikik-api /app/ikik-api
+COPY --from=backend-builder --chown=ikik-api:ikik-api /app/backend/resources /app/resources
 
 # Create data directory
-RUN mkdir -p /app/data && chown sub2api:sub2api /app/data
+RUN mkdir -p /app/data && chown ikik-api:ikik-api /app/data
 
-# Copy entrypoint script (fixes volume permissions then drops to sub2api)
+# Copy entrypoint script (fixes volume permissions then drops to ikik-api)
 COPY deploy/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
@@ -142,6 +137,6 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD wget -q -T 5 -O /dev/null http://localhost:${SERVER_PORT:-8080}/health || exit 1
 
-# Run the application (entrypoint fixes /app/data ownership then execs as sub2api)
+# Run the application (entrypoint fixes /app/data ownership then execs as ikik-api)
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["/app/sub2api"]
+CMD ["/app/ikik-api"]

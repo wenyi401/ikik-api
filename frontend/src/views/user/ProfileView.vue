@@ -2,48 +2,53 @@
   <AppLayout>
     <div
       data-testid="profile-shell"
-      class="mx-auto max-w-[950px] space-y-6"
+      class="min-w-0 w-full max-w-full overflow-x-hidden space-y-5"
     >
       <ProfileInfoCard
         :user="user"
         :linuxdo-enabled="linuxdoOAuthEnabled"
-        :dingtalk-enabled="dingtalkOAuthEnabled"
         :oidc-enabled="oidcOAuthEnabled"
         :oidc-provider-name="oidcOAuthProviderName"
         :wechat-enabled="wechatOAuthEnabled"
         :wechat-open-enabled="wechatOAuthOpenEnabled"
         :wechat-mp-enabled="wechatOAuthMPEnabled"
-      />
-
-      <div
-        v-if="contactInfo"
-        class="card border-primary-200 bg-primary-50 p-6 dark:bg-primary-900/20"
       >
-        <div class="flex items-center gap-4">
-          <div class="rounded-xl bg-primary-100 p-3 text-primary-600">
-            <Icon name="chat" size="lg" />
+        <template #main-after>
+          <ProfileWithdrawalCard />
+
+          <ProfileBalanceNotifyCard
+            v-if="user && balanceLowNotifyEnabled"
+            :enabled="user.balance_notify_enabled ?? true"
+            :threshold="user.balance_notify_threshold"
+            :extra-emails="user.balance_notify_extra_emails ?? []"
+            :system-default-threshold="systemDefaultThreshold"
+            :user-email="user.email"
+          />
+        </template>
+
+        <template #side-after>
+          <div
+            v-if="contactInfo"
+            class="card min-w-0 overflow-hidden border-primary-100 bg-white/90 p-6 shadow-sm dark:border-primary-900/40 dark:bg-dark-900/50"
+          >
+            <div class="flex items-start gap-4">
+              <div class="rounded-xl bg-primary-50 p-3 text-primary-600 ring-1 ring-primary-100 dark:bg-primary-900/30 dark:ring-primary-900/40">
+                <Icon name="chat" size="lg" />
+              </div>
+              <div class="min-w-0">
+                <h3 class="font-semibold text-gray-900 dark:text-white">
+                  {{ t('common.contactSupport') }}
+                </h3>
+                <p class="mt-1 break-words text-sm font-medium text-gray-600 dark:text-gray-300">{{ contactInfo }}</p>
+              </div>
+            </div>
           </div>
-          <div>
-            <h3 class="font-semibold text-primary-800 dark:text-primary-200">
-              {{ t('common.contactSupport') }}
-            </h3>
-            <p class="text-sm font-medium">{{ contactInfo }}</p>
-          </div>
-        </div>
-      </div>
 
-      <ProfilePasswordForm />
+          <ProfilePasswordForm />
 
-      <ProfileBalanceNotifyCard
-        v-if="user && balanceLowNotifyEnabled"
-        :enabled="user.balance_notify_enabled ?? true"
-        :threshold="user.balance_notify_threshold"
-        :extra-emails="user.balance_notify_extra_emails ?? []"
-        :system-default-threshold="systemDefaultThreshold"
-        :user-email="user.email"
-      />
-
-      <ProfileTotpCard />
+          <ProfileTotpCard />
+        </template>
+      </ProfileInfoCard>
     </div>
   </AppLayout>
 </template>
@@ -57,6 +62,7 @@ import ProfileBalanceNotifyCard from '@/components/user/profile/ProfileBalanceNo
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
 import ProfilePasswordForm from '@/components/user/profile/ProfilePasswordForm.vue'
 import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
+import ProfileWithdrawalCard from '@/components/user/profile/ProfileWithdrawalCard.vue'
 import { isWeChatWebOAuthEnabled } from '@/api/auth'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
@@ -70,7 +76,6 @@ const contactInfo = ref('')
 const balanceLowNotifyEnabled = ref(false)
 const systemDefaultThreshold = ref(0)
 const linuxdoOAuthEnabled = ref(false)
-const dingtalkOAuthEnabled = ref(false)
 const wechatOAuthEnabled = ref(false)
 const wechatOAuthOpenEnabled = ref<boolean | undefined>(undefined)
 const wechatOAuthMPEnabled = ref<boolean | undefined>(undefined)
@@ -91,7 +96,6 @@ onMounted(async () => {
       balanceLowNotifyEnabled.value = settings.balance_low_notify_enabled ?? false
       systemDefaultThreshold.value = settings.balance_low_notify_threshold ?? 0
       linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled ?? false
-      dingtalkOAuthEnabled.value = settings.dingtalk_oauth_enabled ?? false
       wechatOAuthEnabled.value = isWeChatWebOAuthEnabled(settings)
       wechatOAuthOpenEnabled.value = typeof settings.wechat_oauth_open_enabled === 'boolean'
         ? settings.wechat_oauth_open_enabled

@@ -6,6 +6,11 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
+	"ikik-api/ent/channelmonitor"
+	"ikik-api/ent/channelmonitordailyrollup"
+	"ikik-api/ent/channelmonitorhistory"
+	"ikik-api/ent/channelmonitorrequesttemplate"
+	"ikik-api/ent/predicate"
 	"math"
 
 	"entgo.io/ent"
@@ -13,11 +18,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/channelmonitor"
-	"ikik-api/ent/channelmonitordailyrollup"
-	"ikik-api/ent/channelmonitorhistory"
-	"ikik-api/ent/channelmonitorrequesttemplate"
-	"ikik-api/ent/predicate"
 )
 
 // ChannelMonitorQuery is the builder for querying ChannelMonitor entities.

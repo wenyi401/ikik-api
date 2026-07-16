@@ -34,13 +34,15 @@ const (
 	VisibleMethodSourceOfficialWechat = "official_wxpay"
 	VisibleMethodSourceEasyPayWechat  = "easypay_wxpay"
 
-	wechatPaymentResumeTokenType = "wechat_payment_resume"
+	wechatPaymentResumeTokenType       = "wechat_payment_resume"
+	wechatPaymentOAuthContextTokenType = "wechat_payment_oauth_context"
 
 	paymentResumeNotConfiguredCode    = "PAYMENT_RESUME_NOT_CONFIGURED"
 	paymentResumeNotConfiguredMessage = "payment resume tokens require a configured signing key"
 
-	paymentResumeTokenTTL       = 24 * time.Hour
-	wechatPaymentResumeTokenTTL = 15 * time.Minute
+	paymentResumeTokenTTL             = 24 * time.Hour
+	wechatPaymentResumeTokenTTL       = 15 * time.Minute
+	wechatPaymentOAuthContextTokenTTL = 15 * time.Minute
 )
 
 type ResumeTokenClaims struct {
@@ -56,7 +58,21 @@ type ResumeTokenClaims struct {
 
 type WeChatPaymentResumeClaims struct {
 	TokenType   string `json:"tk,omitempty"`
+	UserID      int64  `json:"uid,omitempty"`
 	OpenID      string `json:"openid"`
+	PaymentType string `json:"pt,omitempty"`
+	Amount      string `json:"amt,omitempty"`
+	OrderType   string `json:"ot,omitempty"`
+	PlanID      int64  `json:"pid,omitempty"`
+	RedirectTo  string `json:"rd,omitempty"`
+	Scope       string `json:"scp,omitempty"`
+	IssuedAt    int64  `json:"iat"`
+	ExpiresAt   int64  `json:"exp,omitempty"`
+}
+
+type WeChatPaymentOAuthContextClaims struct {
+	TokenType   string `json:"tk,omitempty"`
+	UserID      int64  `json:"uid,omitempty"`
 	PaymentType string `json:"pt,omitempty"`
 	Amount      string `json:"amt,omitempty"`
 	OrderType   string `json:"ot,omitempty"`
@@ -389,6 +405,32 @@ func (s *PaymentResumeService) CreateWeChatPaymentResumeToken(claims WeChatPayme
 	return s.createSignedToken(claims)
 }
 
+func (s *PaymentResumeService) CreateWeChatPaymentOAuthContextToken(claims WeChatPaymentOAuthContextClaims) (string, error) {
+	if err := s.ensureSigningKey(); err != nil {
+		return "", err
+	}
+	if claims.UserID <= 0 {
+		return "", fmt.Errorf("wechat payment oauth context token requires user id")
+	}
+	if claims.IssuedAt == 0 {
+		claims.IssuedAt = time.Now().Unix()
+	}
+	if claims.ExpiresAt == 0 {
+		claims.ExpiresAt = time.Now().Add(wechatPaymentOAuthContextTokenTTL).Unix()
+	}
+	if normalized := NormalizeVisibleMethod(claims.PaymentType); normalized != "" {
+		claims.PaymentType = normalized
+	}
+	if claims.PaymentType == "" {
+		claims.PaymentType = payment.TypeWxpay
+	}
+	if claims.OrderType == "" {
+		claims.OrderType = payment.OrderTypeBalance
+	}
+	claims.TokenType = wechatPaymentOAuthContextTokenType
+	return s.createSignedToken(claims)
+}
+
 func (s *PaymentResumeService) ParseWeChatPaymentResumeToken(token string) (*WeChatPaymentResumeClaims, error) {
 	if err := s.ensureSigningKey(); err != nil {
 		return nil, err
@@ -405,6 +447,35 @@ func (s *PaymentResumeService) ParseWeChatPaymentResumeToken(token string) (*WeC
 		return nil, infraerrors.BadRequest("INVALID_WECHAT_PAYMENT_RESUME_TOKEN", "wechat payment resume token missing openid")
 	}
 	if err := validatePaymentResumeExpiry(claims.ExpiresAt, "INVALID_WECHAT_PAYMENT_RESUME_TOKEN", "wechat payment resume token has expired"); err != nil {
+		return nil, err
+	}
+	if normalized := NormalizeVisibleMethod(claims.PaymentType); normalized != "" {
+		claims.PaymentType = normalized
+	}
+	if claims.PaymentType == "" {
+		claims.PaymentType = payment.TypeWxpay
+	}
+	if claims.OrderType == "" {
+		claims.OrderType = payment.OrderTypeBalance
+	}
+	return &claims, nil
+}
+
+func (s *PaymentResumeService) ParseWeChatPaymentOAuthContextToken(token string) (*WeChatPaymentOAuthContextClaims, error) {
+	if err := s.ensureSigningKey(); err != nil {
+		return nil, err
+	}
+	var claims WeChatPaymentOAuthContextClaims
+	if err := s.parseSignedToken(token, &claims); err != nil {
+		return nil, infraerrors.BadRequest("INVALID_WECHAT_PAYMENT_CONTEXT_TOKEN", "wechat payment context token payload is invalid")
+	}
+	if claims.TokenType != wechatPaymentOAuthContextTokenType {
+		return nil, infraerrors.BadRequest("INVALID_WECHAT_PAYMENT_CONTEXT_TOKEN", "wechat payment context token type mismatch")
+	}
+	if claims.UserID <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_WECHAT_PAYMENT_CONTEXT_TOKEN", "wechat payment context token missing user id")
+	}
+	if err := validatePaymentResumeExpiry(claims.ExpiresAt, "INVALID_WECHAT_PAYMENT_CONTEXT_TOKEN", "wechat payment context token has expired"); err != nil {
 		return nil, err
 	}
 	if normalized := NormalizeVisibleMethod(claims.PaymentType); normalized != "" {

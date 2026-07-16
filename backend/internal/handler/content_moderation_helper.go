@@ -2,29 +2,19 @@ package handler
 
 import (
 	"context"
-	"net/http"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"ikik-api/internal/pkg/ctxkey"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
-func (h *GatewayHandler) checkContentModeration(c *gin.Context, reqLog *zap.Logger, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol string, model string, body []byte) *service.ContentModerationDecision {
-	if h == nil || h.contentModerationService == nil {
-		return nil
-	}
-	return runContentModeration(c, reqLog, h.contentModerationService, apiKey, subject, protocol, model, body)
-}
-
-func contentModerationStatus(decision *service.ContentModerationDecision) int {
-	if decision == nil || decision.StatusCode < 400 || decision.StatusCode > 599 {
-		return http.StatusForbidden
-	}
-	return decision.StatusCode
-}
+// 本文件保留 WebSocket 调用点（openai_gateway_handler.go ResponsesWebSocket 的
+// turn-1 首帧与 turn≥2 每消息审核）仍在使用的内容审核 helper。
+// HTTP 调用点已迁移至 pre-flight 钩子链（见 gateway_preflight.go，SEAM-DESIGN 裁决 H：
+// WS 两点因每消息语义 + WS 帧错误格式排除在链改造之外，保持现状）。
 
 func contentModerationErrorCode(decision *service.ContentModerationDecision) string {
 	return "content_policy_violation"
@@ -81,13 +71,14 @@ func runContentModeration(c *gin.Context, reqLog *zap.Logger, svc *service.Conte
 
 func buildContentModerationInput(c *gin.Context, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol string, model string, body []byte) service.ContentModerationCheckInput {
 	input := service.ContentModerationCheckInput{
-		RequestID: contentModerationRequestID(c.Request.Context()),
-		UserID:    subject.UserID,
-		Endpoint:  GetInboundEndpoint(c),
-		Provider:  contentModerationProvider(apiKey),
-		Model:     strings.TrimSpace(model),
-		Protocol:  protocol,
-		Body:      body,
+		RequestID:         contentModerationRequestID(c.Request.Context()),
+		UserID:            subject.UserID,
+		Endpoint:          GetInboundEndpoint(c),
+		Provider:          contentModerationProvider(apiKey),
+		Model:             strings.TrimSpace(model),
+		Protocol:          protocol,
+		Body:              body,
+		InternalSignature: strings.TrimSpace(c.GetHeader(service.ContentModerationInternalSignatureHeader)),
 	}
 	if forcedPlatform, ok := middleware2.GetForcePlatformFromContext(c); ok {
 		input.Provider = strings.TrimSpace(forcedPlatform)

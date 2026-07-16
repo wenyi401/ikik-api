@@ -6,15 +6,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/userattributedefinition"
+	"ikik-api/ent/userattributevalue"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/userattributedefinition"
-	"ikik-api/ent/userattributevalue"
 )
 
 // UserAttributeDefinitionUpdate is the builder for updating UserAttributeDefinition entities.

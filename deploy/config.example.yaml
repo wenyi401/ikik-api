@@ -1,10 +1,10 @@
-# Sub2API Configuration File
-# Sub2API 配置文件
+# ikik-api Configuration File
+# ikik-api 配置文件
 #
-# Copy this file to /etc/sub2api/config.yaml and modify as needed
-# 复制此文件到 /etc/sub2api/config.yaml 并根据需要修改
+# Copy this file to /etc/ikik-api/config.yaml and modify as needed
+# 复制此文件到 /etc/ikik-api/config.yaml 并根据需要修改
 #
-# Documentation / 文档: https://ikik-api
+# Documentation / 文档: https://github.com/wenyi401/ikik-api
 
 # =============================================================================
 # Server Configuration
@@ -20,9 +20,6 @@ server:
   # Mode: "debug" for development, "release" for production
   # 运行模式："debug" 用于开发，"release" 用于生产环境
   mode: "release"
-  # Return Server-Timing for authenticated requests made by the Admin web UI
-  # 为管理端 Web 页面发出的已认证请求返回 Server-Timing
-  enable_server_timing: false
   # Frontend base URL used to generate external links in emails (e.g. password reset)
   # 用于生成邮件中的外部链接（例如：重置密码链接）的前端基础地址
   # Example: "https://example.com"
@@ -111,8 +108,8 @@ security:
     # Allow localhost/private IPs for upstream/pricing/CRS (use only in trusted networks)
     # 允许本地/私有 IP 地址用于上游/定价/CRS（仅在可信网络中使用）
     allow_private_hosts: true
-    # Allow http:// URLs when allowlist is disabled (default: true; set to false to require https)
-    # 白名单禁用时是否允许 http:// URL（默认: true，设为 false 则仅允许 https）
+    # Allow http:// URLs when allowlist is disabled (default: false, require https)
+    # 白名单禁用时是否允许 http:// URL（默认: false，要求 https）
     allow_insecure_http: true
   response_headers:
     # Enable configurable response header filtering (default: true)
@@ -132,7 +129,7 @@ security:
     # 默认 CSP 策略（如果静态资源托管在其他域名，请自行覆盖）
     # Note: __CSP_NONCE__ will be replaced with 'nonce-xxx' at request time for inline script security
     # 注意：__CSP_NONCE__ 会在请求时被替换为 'nonce-xxx'，用于内联脚本安全
-    policy: "default-src 'self'; script-src 'self' __CSP_NONCE__ https://challenges.cloudflare.com https://static.cloudflareinsights.com https://*.stripe.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https:; frame-src https://challenges.cloudflare.com https://*.stripe.com https://checkout.airwallex.com https://checkout-demo.airwallex.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    policy: "default-src 'self'; script-src 'self' __CSP_NONCE__ https://challenges.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https:; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
   proxy_probe:
     # Allow skipping TLS verification for proxy probe (debug only)
     # 允许代理探测时跳过 TLS 证书验证（仅用于调试）
@@ -143,6 +140,11 @@ security:
     # 辅助服务（更新检查、定价数据拉取）代理初始化失败时是否允许回退直连。
     # 不影响 AI 账号网关连接。默认 false：fail-fast 防止 IP 泄露。
     allow_direct_on_error: false
+  # Trust reverse-proxy real client IP headers for API Key IP allow/deny lists.
+  # Only enable when the origin is reachable only through Cloudflare/Nginx.
+  # API Key IP 白/黑名单是否信任反代传递的真实客户端 IP。
+  # 仅在源站只能通过 Cloudflare/Nginx 访问时开启，避免用户伪造转发头。
+  trust_forwarded_ip_for_api_key_acl: false
 
 # =============================================================================
 # Gateway Configuration
@@ -152,9 +154,6 @@ gateway:
   # Timeout for waiting upstream response headers (seconds)
   # 等待上游响应头超时时间（秒）
   response_header_timeout: 600
-  # OpenAI/Codex upstream response header timeout (seconds, 0=disabled)
-  # OpenAI/Codex 等待上游响应头超时时间（秒，0=禁用本地响应头超时）
-  openai_response_header_timeout: 0
   # Max request body size in bytes (default: 256MB)
   # 请求体最大字节数（默认 256MB）
   max_body_size: 268435456
@@ -208,14 +207,10 @@ gateway:
   #
   # 注意：开启后会影响所有客户端的行为（不仅限于 VS Code / Codex CLI），请谨慎开启。
   force_codex_cli: false
-  # Enable Codex image-generation bridge injection for /openai/v1/responses.
-  # 是否为 Codex /responses 请求自动注入 image_generation 工具与桥接指令。
-  #
-  # Default false keeps text-only Codex requests text-only. Explicit client-provided
-  # image_generation tools are still forwarded when the group allows image generation.
-  # 默认 false：保持纯文本 Codex 请求不被改写；客户端显式提供 image_generation tool 时，
-  # 仍会在分组允许图片生成的情况下正常转发。
-  codex_image_generation_bridge_enabled: false
+  # Strip ChatGPT connector/app tools (`codex_apps.*`, connector listing tools) from forwarded
+  # Codex OAuth requests. These tools run server-side under the OAuth account owner's identity.
+  # 默认 false 保持兼容；共享 OAuth 账号 / 多租户部署建议开启。
+  codex_block_connector_tools: false
   # Optional: template file used to build the final top-level Codex `instructions`.
   # 可选：用于构建最终 Codex 顶层 `instructions` 的模板文件路径。
   #
@@ -245,22 +240,13 @@ gateway:
   # OpenAI 透传模式是否放行客户端超时头（如 x-stainless-timeout）
   # 默认 false：过滤超时头，降低上游提前断流风险。
   openai_passthrough_allow_timeout_headers: false
-  # Model used for OpenAI /responses/compact upstream requests (default: gpt-5.4).
-  # OpenAI /responses/compact 上游模型（默认 gpt-5.4）。
-  # Use this to avoid compact failures when newer models are not yet supported by the compact endpoint.
-  # 当 compact 端点暂未支持更新模型时，可通过这里降级规避失败。
-  openai_compact_model: "gpt-5.4"
   # OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
   openai_ws:
     # 新版 WS mode 路由（默认关闭）。关闭时保持当前 legacy 实现行为。
     mode_router_v2_enabled: false
-    # ingress 默认模式：off|ctx_pool|passthrough|http_bridge（仅 mode_router_v2_enabled=true 生效）
+    # ingress 默认模式：off|ctx_pool|passthrough（仅 mode_router_v2_enabled=true 生效）
     # 兼容旧值：shared/dedicated 会按 ctx_pool 处理。
     ingress_mode_default: ctx_pool
-    # Close a client WebSocket that stays idle between completed turns (seconds). Set 0 to disable.
-    ingress_inter_turn_idle_timeout_seconds: 300
-    # Limit live client WebSocket ingress sessions per API key across all instances. Set 0 to disable.
-    max_ingress_connections_per_api_key: 64
     # 全局总开关，默认 true；关闭时所有请求保持原有 HTTP/SSE 路由
     enabled: true
     # 按账号类型细分开关
@@ -332,27 +318,10 @@ gateway:
       queue: 0.7
       error_rate: 0.8
       ttft: 0.5
-      # use-it-or-lose-it：倾向「会话窗口最早重置」的账号，剩余重置时间越短得分越高。
-      # 0 表示关闭（默认，不改变原有行为）；调大可让即将重置的账号被优先用尽。
+      # use-it-or-lose-it：倾向会话窗口最早重置的账号，0 表示关闭
       reset: 0.0
-      # 倾向 7d 剩余额度更健康的账号；0 表示关闭（默认，不改变原有行为），小流量灰度可设为 0.3。
+      # 倾向 7d 剩余额度更健康的账号；0 表示关闭（默认不改变调度行为）
       quota_headroom: 0.0
-  # OpenAI 高级调度器补充配置
-  openai_scheduler:
-    # 是否允许 session_hash sticky 在账号健康度恶化时临时逃逸；false 可一键回退旧行为
-    sticky_escape_enabled: true
-    # TTFT EWMA 超过该阈值（毫秒）时跳过 sticky，默认 15s，避免轻微抖动就逃逸
-    sticky_escape_ttft_ms: 15000
-    # 错误率 EWMA 超过该阈值时跳过 sticky，默认 0.5，仅在明显降级时触发
-    sticky_escape_error_rate: 0.5
-  # OpenAI HTTP upstream protocol strategy.
-  # OpenAI HTTP 上游协议策略（默认 HTTP/2；代理明确不兼容时可临时回退 HTTP/1.1）。
-  openai_http2:
-    enabled: true
-    allow_proxy_fallback_to_http1: true
-    fallback_error_threshold: 2
-    fallback_window_seconds: 60
-    fallback_ttl_seconds: 600
   # HTTP upstream connection pool settings (HTTP/2 + multi-proxy scenario defaults)
   # HTTP 上游连接池配置（HTTP/2 + 多代理场景默认值）
   # Max idle connections across all hosts
@@ -384,33 +353,6 @@ gateway:
   # Stream keepalive interval (seconds), 0=disable
   # 流式 keepalive 间隔（秒），0=禁用
   stream_keepalive_interval: 10
-  # Image stream data interval timeout (seconds), 0=disable; independent from ordinary text streams
-  # 图片流数据间隔超时（秒），0=禁用；独立于普通文本流式
-  image_stream_data_interval_timeout: 900
-  # Image stream keepalive interval (seconds), 0=disable; independent from ordinary text streams
-  # 图片流式 keepalive 间隔（秒），0=禁用；独立于普通文本流式
-  image_stream_keepalive_interval: 10
-  # Non-streaming Images JSON keepalive interval (seconds), 0=disable; commits HTTP 200 after the first heartbeat
-  # 图片非流式 JSON keepalive 间隔（秒），0=禁用；首个心跳后 HTTP 状态会固化为 200
-  image_nonstream_keepalive_interval: 0
-  # Image generation independent concurrency limiter (process-local, default disabled)
-  # 图片生成独立并发限制（进程级，默认关闭；多实例总上限约为实例数×该值）
-  image_concurrency:
-    # Enable image-only concurrency protection; false keeps existing behavior unchanged
-    # 是否启用图片独立并发保护；false 保持现有行为不变
-    enabled: false
-    # Max concurrent image generation requests in this process, 0=unlimited
-    # 当前进程允许同时处理的图片生成请求数，0=不限制
-    max_concurrent_requests: 0
-    # Overflow mode when the image concurrency limit is full: reject/wait
-    # 图片并发满时的处理方式：reject=立即拒绝，wait=等待槽位
-    overflow_mode: "reject"
-    # Wait timeout for overflow_mode=wait (seconds), 0=do not wait
-    # wait 模式等待图片并发槽位的超时时间（秒），0=不等待
-    wait_timeout_seconds: 30
-    # Max image requests waiting in this process when overflow_mode=wait, 0=unlimited
-    # wait 模式当前进程允许排队等待的图片请求数，0=不限制
-    max_waiting_requests: 100
   # SSE max line size in bytes (default: 40MB)
   # SSE 单行最大字节数（默认 40MB）
   max_line_size: 41943040
@@ -441,16 +383,11 @@ gateway:
     # Fallback max waiting queue size
     # 兜底最大排队长度
     fallback_max_waiting: 100
-    # Prefer the account whose session window resets soonest (use-it-or-lose-it).
-    # 负载感知选择时优先用尽「会话窗口最早重置」的账号；false 保持
-    # 原有「优先级 → 负载率 → LRU」行为（默认）。
+    # 负载感知选择时优先用尽会话窗口最早重置的账号，默认关闭
     prefer_soonest_reset: false
     # Enable batch load calculation for scheduling
     # 启用调度批量负载计算
     load_batch_enabled: true
-    # Tiny in-process TTL for batch load reads in milliseconds (0 disables)
-    # 调度批量负载读取的进程内短缓存 TTL（毫秒，0 表示禁用）
-    load_batch_cache_ttl_ms: 200
     # Slot cleanup interval (duration)
     # 并发槽位清理周期（时间段）
     slot_cleanup_interval: 30s
@@ -496,7 +433,7 @@ log:
   format: "console"
   # Service name field written into each log line
   # 每条日志都会附带 service 字段
-  service_name: "sub2api"
+  service_name: "ikik-api"
   # Environment field written into each log line
   # 每条日志都会附带 env 字段
   env: "production"
@@ -514,11 +451,11 @@ log:
     # 启用文件输出（默认路径自动推导）
     to_file: true
     # Empty means:
-    # - DATA_DIR set: {{DATA_DIR}}/logs/sub2api.log
-    # - otherwise: /app/data/logs/sub2api.log
+    # - DATA_DIR set: {{DATA_DIR}}/logs/ikik-api.log
+    # - otherwise: /app/data/logs/ikik-api.log
     # 留空时：
-    # - 设置 DATA_DIR：{{DATA_DIR}}/logs/sub2api.log
-    # - 否则：/app/data/logs/sub2api.log
+    # - 设置 DATA_DIR：{{DATA_DIR}}/logs/ikik-api.log
+    # - 否则：/app/data/logs/ikik-api.log
     file_path: ""
   rotation:
     # Max file size before rotation (MB)
@@ -688,7 +625,7 @@ dashboard_cache:
   enabled: true
   # Redis key prefix for multi-environment isolation
   # Redis key 前缀，用于多环境隔离
-  key_prefix: "sub2api:"
+  key_prefix: "ikik-api:"
   # Fresh TTL (seconds); within this window cached stats are considered fresh
   # 新鲜阈值（秒）；命中后处于该窗口视为新鲜数据
   stats_fresh_ttl_seconds: 15
@@ -725,8 +662,10 @@ dashboard_aggregation:
   # Retention windows (days)
   # 保留窗口（天）
   retention:
-    # Raw usage_logs retention
-    # 原始 usage_logs 保留天数
+    # Initial aggregation lookback when no watermark exists.
+    # 无聚合水位时的初始聚合回看天数。
+    # Raw usage_logs cleanup is controlled by usage_cleanup.auto_retention.
+    # 原始 usage_logs 清理由 usage_cleanup.auto_retention 控制。
     usage_logs_days: 90
     # Hourly aggregation retention
     # 小时聚合保留天数
@@ -755,6 +694,27 @@ usage_cleanup:
   # Task execution timeout (seconds)
   # 单次任务最大执行时长（秒）
   task_timeout_seconds: 1800
+  # Automatic raw usage log retention. Disabled by default for data safety.
+  # 原始用量记录自动保留策略。为保证数据安全默认关闭。
+  auto_retention:
+    # Enable automatic cleanup. When enabled, the service backfills aggregation,
+    # archives only the usage_logs rows in the deletion window as gzip-compressed NDJSON,
+    # and only deletes usage_logs after the archive succeeds.
+    # 启用自动清理。启用后会先补齐聚合快照，只将待删窗口内的 usage_logs 归档为 gzip 压缩 NDJSON，
+    # 归档成功后才删除 usage_logs。
+    enabled: false
+    # Keep recent N days of raw usage_logs.
+    # 原始 usage_logs 保留最近 N 天。
+    retain_days: 3
+    # Check interval (hours).
+    # 自动任务检查间隔（小时）。
+    run_interval_hours: 24
+    # Max historical days to clean in one automatic task.
+    # 单次自动清理最多覆盖的历史天数。
+    window_days: 1
+    # Expiration days for usage_logs archives created by auto cleanup. 0 means never expire.
+    # 自动清理前创建的 usage_logs 归档过期天数，0 表示不过期。
+    backup_expire_days: 14
 
 # =============================================================================
 # HTTP 写接口幂等配置
@@ -808,7 +768,7 @@ database:
   password: "your_secure_password_here"
   # Database name
   # 数据库名称
-  dbname: "sub2api"
+  dbname: "ikik-api"
   # SSL mode: disable, prefer, require, verify-ca, verify-full
   # SSL 模式：disable（禁用）, prefer（优先加密，默认）, require（要求）, verify-ca（验证CA）, verify-full（完全验证）
   # 默认值为 "prefer"，数据库支持 SSL 时自动使用加密连接，不支持时回退明文
@@ -901,7 +861,7 @@ totp:
 
 # =============================================================================
 # LinuxDo Connect OAuth Login (SSO)
-# LinuxDo Connect OAuth 登录（用于 Sub2API 用户登录）
+# LinuxDo Connect OAuth 登录（用于 ikik-api 用户登录）
 # =============================================================================
 linuxdo_connect:
   enabled: false
@@ -926,7 +886,7 @@ linuxdo_connect:
 
 # =============================================================================
 # Generic OIDC OAuth Login (SSO)
-# 通用 OIDC OAuth 登录（用于 Sub2API 用户登录）
+# 通用 OIDC OAuth 登录（用于 ikik-api 用户登录）
 # =============================================================================
 oidc_connect:
   enabled: false
@@ -1048,9 +1008,6 @@ billing:
   # Set to 0 to only require balance > 0.
   # 余额计费请求转发前要求的保守最小余额；设为 0 则仅要求余额 > 0。
   minimum_balance_reserve: 0.000001
-  # Cache TTL (seconds) for per-user × per-platform quota records
-  # 用户 × 平台 quota 缓存 TTL（秒），默认 86400=1天，覆盖典型 daily 窗口
-  user_platform_quota_cache_ttl_seconds: 86400
 
 # =============================================================================
 # Turnstile Configuration
@@ -1065,8 +1022,8 @@ turnstile:
 # Gemini OAuth (Required for Gemini accounts)
 # Gemini OAuth 配置（Gemini 账户必需）
 # =============================================================================
-# Sub2API supports TWO Gemini OAuth modes:
-# Sub2API 支持两种 Gemini OAuth 模式：
+# ikik-api supports TWO Gemini OAuth modes:
+# ikik-api 支持两种 Gemini OAuth 模式：
 #
 # 1. Code Assist OAuth (requires GCP project_id)
 # 1. Code Assist OAuth（需要 GCP project_id）

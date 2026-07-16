@@ -3,27 +3,29 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/apikey"
+	"ikik-api/ent/apikeygrouproute"
 	"ikik-api/ent/authidentity"
 	"ikik-api/ent/authidentitychannel"
 	dbgroup "ikik-api/ent/group"
 	"ikik-api/ent/identityadoptiondecision"
 	"ikik-api/ent/predicate"
-	"ikik-api/ent/schema/mixins"
 	dbuser "ikik-api/ent/user"
 	"ikik-api/ent/userallowedgroup"
 	"ikik-api/ent/usersubscription"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/service"
-	"github.com/lib/pq"
 
+	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 )
 
@@ -31,8 +33,6 @@ type userRepository struct {
 	client *dbent.Client
 	sql    sqlExecutor
 }
-
-var _ service.RedeemUserAdjustmentRepository = (*userRepository)(nil)
 
 func NewUserRepository(client *dbent.Client, sqlDB *sql.DB) service.UserRepository {
 	return newUserRepositoryWithSQL(client, sqlDB)
@@ -91,6 +91,8 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		SetPasswordHash(userIn.PasswordHash).
 		SetRole(userIn.Role).
 		SetBalance(userIn.Balance).
+		SetPointsBalance(userIn.PointsBalance).
+		SetPreferPointsBilling(userIn.PreferPointsBilling).
 		SetConcurrency(userIn.Concurrency).
 		SetStatus(userIn.Status).
 		SetSignupSource(userSignupSourceOrDefault(userIn.SignupSource)).
@@ -100,6 +102,25 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		Save(txCtx)
 	if err != nil {
 		return translatePersistenceError(err, nil, service.ErrEmailExists)
+	}
+	if userIn.Balance > 0 {
+		exec := txAwareSQLExecutor(txCtx, r.sql, r.client)
+		if exec == nil {
+			return fmt.Errorf("sql executor is not configured")
+		}
+		updateRechargeBalanceSQL := `
+UPDATE users
+SET recharge_balance = $1::numeric
+WHERE id = $2`
+		if r.client != nil && r.client.Driver().Dialect() != dialect.Postgres {
+			updateRechargeBalanceSQL = `
+UPDATE users
+SET recharge_balance = ?
+WHERE id = ?`
+		}
+		if _, err := exec.ExecContext(txCtx, updateRechargeBalanceSQL, userIn.Balance, created.ID); err != nil {
+			return err
+		}
 	}
 
 	if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, created.ID, userIn.AllowedGroups); err != nil {
@@ -116,6 +137,9 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 	}
 
 	applyUserEntityToService(userIn, created)
+	if userIn.Balance > 0 {
+		userIn.RechargeBalance = userIn.Balance
+	}
 	return nil
 }
 
@@ -133,22 +157,8 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*service.User, 
 	if v, ok := groups[id]; ok {
 		out.AllowedGroups = v
 	}
-	return out, nil
-}
-
-func (r *userRepository) GetByIDIncludeDeleted(ctx context.Context, id int64) (*service.User, error) {
-	ctx = mixins.SkipSoftDelete(ctx)
-	m, err := r.client.User.Query().Where(dbuser.IDEQ(id)).Only(ctx)
-	if err != nil {
-		return nil, translatePersistenceError(err, service.ErrUserNotFound, nil)
-	}
-	out := userEntityToService(m)
-	groups, err := r.loadAllowedGroups(ctx, []int64{id})
-	if err != nil {
+	if err := r.hydrateUserWalletBuckets(ctx, []*service.User{out}); err != nil {
 		return nil, err
-	}
-	if v, ok := groups[id]; ok {
-		out.AllowedGroups = v
 	}
 	return out, nil
 }
@@ -176,6 +186,9 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*service
 	}
 	if v, ok := groups[m.ID]; ok {
 		out.AllowedGroups = v
+	}
+	if err := r.hydrateUserWalletBuckets(ctx, []*service.User{out}); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -234,6 +247,8 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 		SetPasswordHash(userIn.PasswordHash).
 		SetRole(userIn.Role).
 		SetBalance(userIn.Balance).
+		SetPointsBalance(userIn.PointsBalance).
+		SetPreferPointsBilling(userIn.PreferPointsBilling).
 		SetConcurrency(userIn.Concurrency).
 		SetStatus(userIn.Status).
 		SetBalanceNotifyEnabled(userIn.BalanceNotifyEnabled).
@@ -354,33 +369,61 @@ func normalizeEmailAuthIdentitySubject(email string) string {
 	}
 	if strings.HasSuffix(normalized, service.LinuxDoConnectSyntheticEmailDomain) ||
 		strings.HasSuffix(normalized, service.OIDCConnectSyntheticEmailDomain) ||
-		strings.HasSuffix(normalized, service.WeChatConnectSyntheticEmailDomain) ||
-		strings.HasSuffix(normalized, service.DingTalkConnectSyntheticEmailDomain) {
+		strings.HasSuffix(normalized, service.WeChatConnectSyntheticEmailDomain) {
 		return ""
 	}
 	return normalized
 }
 
 func (r *userRepository) Delete(ctx context.Context, id int64) error {
-	// 复用 context 中已存在的事务（如 AdminService.DeleteUser 把删 Key 与删 User 包在同一事务中），
-	// 由调用方负责提交/回滚，保证两者的原子性。
-	if existingTx := dbent.TxFromContext(ctx); existingTx != nil {
-		return r.deleteUser(ctx, existingTx.Client(), id)
-	}
-
 	tx, err := r.client.Tx(ctx)
 	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
 		return translatePersistenceError(err, service.ErrUserNotFound, nil)
 	}
-	exec := r.client
+
+	var txClient *dbent.Client
 	if err == nil {
 		defer func() { _ = tx.Rollback() }()
-		exec = tx.Client()
+		txClient = tx.Client()
+	} else {
+		if existingTx := dbent.TxFromContext(ctx); existingTx != nil {
+			txClient = existingTx.Client()
+		} else {
+			txClient = r.client
+		}
 	}
-	// err == dbent.ErrTxStarted 时复用当前事务（exec = r.client）。
 
-	if err := r.deleteUser(ctx, exec, id); err != nil {
-		return err
+	identityIDs, err := txClient.AuthIdentity.Query().
+		Where(authidentity.UserIDEQ(id)).
+		IDs(ctx)
+	if err != nil {
+		return translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+	if len(identityIDs) > 0 {
+		if _, err := txClient.IdentityAdoptionDecision.Update().
+			Where(identityadoptiondecision.IdentityIDIn(identityIDs...)).
+			ClearIdentityID().
+			Save(ctx); err != nil {
+			return translatePersistenceError(err, service.ErrUserNotFound, nil)
+		}
+		if _, err := txClient.AuthIdentityChannel.Delete().
+			Where(authidentitychannel.IdentityIDIn(identityIDs...)).
+			Exec(ctx); err != nil {
+			return translatePersistenceError(err, service.ErrUserNotFound, nil)
+		}
+		if _, err := txClient.AuthIdentity.Delete().
+			Where(authidentity.UserIDEQ(id)).
+			Exec(ctx); err != nil {
+			return translatePersistenceError(err, service.ErrUserNotFound, nil)
+		}
+	}
+
+	affected, err := txClient.User.Delete().Where(dbuser.IDEQ(id)).Exec(ctx)
+	if err != nil {
+		return translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+	if affected == 0 {
+		return service.ErrUserNotFound
 	}
 
 	if tx != nil {
@@ -391,54 +434,11 @@ func (r *userRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// deleteUser 在给定 client（可能是外部事务 client）上删除用户及其身份关联记录，自身不开启/提交事务。
-func (r *userRepository) deleteUser(ctx context.Context, exec *dbent.Client, id int64) error {
-	identityIDs, err := exec.AuthIdentity.Query().
-		Where(authidentity.UserIDEQ(id)).
-		IDs(ctx)
-	if err != nil {
-		return translatePersistenceError(err, service.ErrUserNotFound, nil)
-	}
-	if len(identityIDs) > 0 {
-		if _, err := exec.IdentityAdoptionDecision.Update().
-			Where(identityadoptiondecision.IdentityIDIn(identityIDs...)).
-			ClearIdentityID().
-			Save(ctx); err != nil {
-			return translatePersistenceError(err, service.ErrUserNotFound, nil)
-		}
-		if _, err := exec.AuthIdentityChannel.Delete().
-			Where(authidentitychannel.IdentityIDIn(identityIDs...)).
-			Exec(ctx); err != nil {
-			return translatePersistenceError(err, service.ErrUserNotFound, nil)
-		}
-		if _, err := exec.AuthIdentity.Delete().
-			Where(authidentity.UserIDEQ(id)).
-			Exec(ctx); err != nil {
-			return translatePersistenceError(err, service.ErrUserNotFound, nil)
-		}
-	}
-
-	affected, err := exec.User.Delete().Where(dbuser.IDEQ(id)).Exec(ctx)
-	if err != nil {
-		return translatePersistenceError(err, service.ErrUserNotFound, nil)
-	}
-	if affected == 0 {
-		return service.ErrUserNotFound
-	}
-	return nil
-}
-
 func (r *userRepository) List(ctx context.Context, params pagination.PaginationParams) ([]service.User, *pagination.PaginationResult, error) {
 	return r.ListWithFilters(ctx, params, service.UserListFilters{})
 }
 
 func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters service.UserListFilters) ([]service.User, *pagination.PaginationResult, error) {
-	// SkipSoftDelete 仅作用于 User 身份解析（下方 Count/All）；订阅、分组等关联实体沿用原始 ctx，避免穿透到这些同样带软删除的实体而带出已删除行。
-	userCtx := ctx
-	if filters.IncludeDeleted {
-		userCtx = mixins.SkipSoftDelete(ctx)
-	}
-
 	q := r.client.User.Query()
 
 	if filters.Status != "" {
@@ -465,13 +465,12 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 	}
 
 	if filters.APIKeyGroupID > 0 {
-		// 按"API Key 实际绑定的分组"过滤：用户只要有任意一个未软删除的 API Key
-		// 绑定到该分组即命中（EXISTS 语义）。
-		// 注意：SoftDeleteMixin 的拦截器不会自动下沉到 HasAPIKeysWith 子查询，
-		// 必须显式加 apikey.DeletedAtIsNil()，否则已软删除的 key 会污染过滤结果。
 		q = q.Where(dbuser.HasAPIKeysWith(
-			apikey.GroupIDEQ(filters.APIKeyGroupID),
 			apikey.DeletedAtIsNil(),
+			apikey.Or(
+				apikey.GroupIDEQ(filters.APIKeyGroupID),
+				apikey.HasGroupRoutesWith(apikeygrouproute.GroupIDEQ(filters.APIKeyGroupID)),
+			),
 		))
 	}
 
@@ -490,7 +489,7 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 		q = q.Where(dbuser.IDIn(allowedUserIDs...))
 	}
 
-	total, err := q.Clone().Count(userCtx)
+	total, err := q.Clone().Count(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -502,7 +501,7 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 		usersQuery = usersQuery.Order(order)
 	}
 
-	users, err := usersQuery.All(userCtx)
+	users, err := usersQuery.All(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -551,6 +550,13 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 			u.AllowedGroups = groups
 		}
 	}
+	walletTargets := make([]*service.User, 0, len(userMap))
+	for _, u := range userMap {
+		walletTargets = append(walletTargets, u)
+	}
+	if err := r.hydrateUserWalletBuckets(ctx, walletTargets); err != nil {
+		return nil, nil, err
+	}
 
 	return outUsers, paginationResultFromTotal(int64(total), params), nil
 }
@@ -578,6 +584,9 @@ func userListOrder(params pagination.PaginationParams) []func(*entsql.Selector) 
 		defaultField = false
 	case "balance":
 		field = dbuser.FieldBalance
+		defaultField = false
+	case "points_balance":
+		field = dbuser.FieldPointsBalance
 		defaultField = false
 	case "concurrency":
 		field = dbuser.FieldConcurrency
@@ -737,70 +746,175 @@ func (r *userRepository) filterUsersByAttributes(ctx context.Context, attrs map[
 }
 
 func (r *userRepository) UpdateBalance(ctx context.Context, id int64, amount float64) error {
-	client := clientFromContext(ctx, r.client)
-	update := client.User.Update().Where(dbuser.IDEQ(id)).AddBalance(amount)
-	// Track cumulative recharge amount for percentage-based notifications
-	if amount > 0 {
-		update = update.AddTotalRecharged(amount)
+	exec := txAwareSQLExecutor(ctx, r.sql, r.client)
+	if exec == nil {
+		return fmt.Errorf("sql executor is not configured")
 	}
-	n, err := update.Save(ctx)
-	if err != nil {
-		return translatePersistenceError(err, service.ErrUserNotFound, nil)
-	}
-	if n == 0 {
-		return service.ErrUserNotFound
-	}
-	return nil
-}
-
-func (r *userRepository) ApplyRedeemBalanceAdjustment(ctx context.Context, id int64, delta float64) error {
-	const updateSQL = `
-		UPDATE users
-		SET balance = GREATEST(balance + $1, 0), updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
-	`
-	client := clientFromContext(ctx, r.client)
-	result, err := client.ExecContext(ctx, updateSQL, delta, id)
-	if err != nil {
-		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return service.ErrUserNotFound
-	}
-	return nil
+	_, err := adjustRechargeWalletBalance(ctx, exec, id, amount)
+	return err
 }
 
 // DeductBalance 扣除用户余额
 // 透支策略：允许余额变为负数，确保当前请求能够完成
 // 中间件会阻止余额 <= 0 的用户发起后续请求
 func (r *userRepository) DeductBalance(ctx context.Context, id int64, amount float64) error {
-	client := clientFromContext(ctx, r.client)
-	n, err := client.User.Update().
-		Where(dbuser.IDEQ(id), dbuser.BalanceGTE(amount)).
-		AddBalance(-amount).
-		Save(ctx)
-	if err != nil {
-		return err
+	return r.UpdateBalance(ctx, id, -amount)
+}
+
+func (r *userRepository) AdjustUsageBillingWallet(ctx context.Context, userID int64, amount float64, preferPoints bool, metadata map[string]any) (*service.UsageBillingApplyResult, error) {
+	if userID <= 0 {
+		return nil, service.ErrUserNotFound
 	}
-	if n > 0 {
-		return nil
+	if amount <= 0 {
+		return &service.UsageBillingApplyResult{Applied: true}, nil
 	}
 
-	n, err = client.User.Update().
-		Where(dbuser.IDEQ(id)).
-		AddBalance(-amount).
-		Save(ctx)
+	var tx *dbent.Tx
+	ownedTx := false
+	if existingTx := dbent.TxFromContext(ctx); existingTx != nil {
+		tx = existingTx
+	} else {
+		createdTx, err := r.client.Tx(ctx)
+		if err != nil {
+			return nil, err
+		}
+		tx = createdTx
+		ownedTx = true
+		defer func() { _ = tx.Rollback() }()
+	}
+
+	exec := sqlExecutorFromEntClient(tx.Client())
+	if exec == nil {
+		return nil, fmt.Errorf("sql executor is not configured")
+	}
+
+	var currentBalance float64
+	var currentPoints float64
+	if err := scanSingleRow(ctx, exec, `
+		SELECT balance, points_balance
+		FROM users
+		WHERE id = $1 AND deleted_at IS NULL
+		FOR UPDATE
+	`, []any{userID}, &currentBalance, &currentPoints); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, service.ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	pointsDeducted := 0.0
+	balanceDeducted := 0.0
+	newPointsBalance := currentPoints
+	newBalance := currentBalance
+	metadataJSON, err := usageBillingWalletMetadataJSON(metadata)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if n == 0 {
-		return service.ErrUserNotFound
+
+	if preferPoints {
+		pointsDeducted = amount
+		if currentPoints < pointsDeducted {
+			pointsDeducted = currentPoints
+		}
+		if pointsDeducted < 0 {
+			pointsDeducted = 0
+		}
+		balanceDeducted = amount - pointsDeducted
+		if balanceDeducted < 0 {
+			balanceDeducted = 0
+		}
+		newPointsBalance = currentPoints - pointsDeducted
+		if _, err := exec.ExecContext(ctx, `
+			UPDATE users
+			SET points_balance = $1::numeric,
+				updated_at = NOW()
+			WHERE id = $2 AND deleted_at IS NULL
+		`, decimalFromFloat(newPointsBalance).StringFixed(10), userID); err != nil {
+			return nil, err
+		}
+		if pointsDeducted > 0 {
+			if _, err := exec.ExecContext(ctx, `
+				INSERT INTO points_ledger (
+					user_id, direction, amount, reason, ref_type, ref_id,
+					balance_before, balance_after, operator_user_id, metadata
+				) VALUES (
+					$1, $2, $3::numeric, $4, $5, $6,
+					$7::numeric, $8::numeric, $9, $10::jsonb
+				)
+				ON CONFLICT DO NOTHING
+			`, userID, "debit", decimalFromFloat(pointsDeducted).StringFixed(10), "usage_charge", "usage_request", nil,
+				decimalFromFloat(currentPoints).StringFixed(10),
+				decimalFromFloat(newPointsBalance).StringFixed(10), nil, metadataJSON); err != nil {
+				return nil, err
+			}
+		}
+		if balanceDeducted > 0 {
+			walletResult, err := debitWalletBuckets(ctx, exec, userID, balanceDeducted)
+			if err != nil {
+				return nil, err
+			}
+			newBalance = walletResult.NewBalance
+			if _, err := exec.ExecContext(ctx, `
+				INSERT INTO user_balance_ledger (
+					user_id, direction, amount, reason, ref_type, ref_id, balance_after, metadata
+				) VALUES (
+					$1, $2, $3::numeric, $4, $5, $6, $7::numeric, $8::jsonb
+				)
+				ON CONFLICT DO NOTHING
+			`, userID, "debit", decimalFromFloat(balanceDeducted).StringFixed(10), "usage_charge", "usage_request", nil,
+				decimalFromSignedFloat(newBalance).StringFixed(10), metadataJSON); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		balanceDeducted = amount
+		walletResult, err := debitWalletBuckets(ctx, exec, userID, amount)
+		if err != nil {
+			return nil, err
+		}
+		newBalance = walletResult.NewBalance
+		if _, err := exec.ExecContext(ctx, `
+			INSERT INTO user_balance_ledger (
+				user_id, direction, amount, reason, ref_type, ref_id, balance_after, metadata
+			) VALUES (
+				$1, $2, $3::numeric, $4, $5, $6, $7::numeric, $8::jsonb
+			)
+			ON CONFLICT DO NOTHING
+		`, userID, "debit", decimalFromFloat(balanceDeducted).StringFixed(10), "usage_charge", "usage_request", nil,
+			decimalFromSignedFloat(newBalance).StringFixed(10), metadataJSON); err != nil {
+			return nil, err
+		}
 	}
-	return nil
+
+	if ownedTx {
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+	}
+
+	var newPointsPtr *float64
+	if preferPoints {
+		newPointsPtr = &newPointsBalance
+	}
+	newBalancePtr := &newBalance
+	return &service.UsageBillingApplyResult{
+		Applied:          true,
+		NewBalance:       newBalancePtr,
+		NewPointsBalance: newPointsPtr,
+		PointsDeducted:   pointsDeducted,
+		BalanceDeducted:  balanceDeducted,
+	}, nil
+}
+
+func usageBillingWalletMetadataJSON(metadata map[string]any) (string, error) {
+	if metadata == nil {
+		return "{}", nil
+	}
+	raw, err := json.Marshal(metadata)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
 }
 
 func (r *userRepository) UpdateConcurrency(ctx context.Context, id int64, amount int) error {
@@ -813,58 +927,6 @@ func (r *userRepository) UpdateConcurrency(ctx context.Context, id int64, amount
 		return service.ErrUserNotFound
 	}
 	return nil
-}
-
-func (r *userRepository) ApplyRedeemConcurrencyAdjustment(ctx context.Context, id int64, delta int) error {
-	const updateSQL = `
-		UPDATE users
-		SET concurrency = GREATEST(concurrency + $1, 0), updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
-	`
-	client := clientFromContext(ctx, r.client)
-	result, err := client.ExecContext(ctx, updateSQL, delta, id)
-	if err != nil {
-		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return service.ErrUserNotFound
-	}
-	return nil
-}
-
-func (r *userRepository) BatchSetConcurrency(ctx context.Context, userIDs []int64, value int) (int, error) {
-	if len(userIDs) == 0 {
-		return 0, nil
-	}
-	if value < 0 {
-		value = 0
-	}
-	res, err := r.sql.ExecContext(ctx,
-		"UPDATE users SET concurrency = $1, updated_at = NOW() WHERE id = ANY($2) AND deleted_at IS NULL",
-		value, pq.Array(userIDs))
-	if err != nil {
-		return 0, fmt.Errorf("batch set concurrency: %w", err)
-	}
-	affected, _ := res.RowsAffected()
-	return int(affected), nil
-}
-
-func (r *userRepository) BatchAddConcurrency(ctx context.Context, userIDs []int64, delta int) (int, error) {
-	if len(userIDs) == 0 {
-		return 0, nil
-	}
-	res, err := r.sql.ExecContext(ctx,
-		"UPDATE users SET concurrency = GREATEST(concurrency + $1, 0), updated_at = NOW() WHERE id = ANY($2) AND deleted_at IS NULL",
-		delta, pq.Array(userIDs))
-	if err != nil {
-		return 0, fmt.Errorf("batch add concurrency: %w", err)
-	}
-	affected, _ := res.RowsAffected()
-	return int(affected), nil
 }
 
 func (r *userRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
@@ -972,7 +1034,88 @@ func (r *userRepository) GetFirstAdmin(ctx context.Context) (*service.User, erro
 	if v, ok := groups[m.ID]; ok {
 		out.AllowedGroups = v
 	}
+	if err := r.hydrateUserWalletBuckets(ctx, []*service.User{out}); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+func (r *userRepository) hydrateUserWalletBuckets(ctx context.Context, users []*service.User) error {
+	ids := make([]int64, 0, len(users))
+	byID := make(map[int64]*service.User, len(users))
+	for _, u := range users {
+		if u == nil || u.ID <= 0 {
+			continue
+		}
+		ids = append(ids, u.ID)
+		byID[u.ID] = u
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	exec := txAwareSQLExecutor(ctx, r.sql, r.client)
+	if exec == nil {
+		return fmt.Errorf("sql executor is not configured")
+	}
+	if r.client != nil && r.client.Driver().Dialect() != dialect.Postgres {
+		placeholders := make([]string, 0, len(ids))
+		args := make([]any, 0, len(ids))
+		for _, id := range ids {
+			placeholders = append(placeholders, "?")
+			args = append(args, id)
+		}
+		rows, err := exec.QueryContext(ctx, fmt.Sprintf(`
+SELECT id,
+	recharge_balance,
+	invite_income_balance,
+	share_income_balance,
+	total_recharged,
+	total_invite_income,
+	total_share_income
+FROM users
+WHERE id IN (%s)`, strings.Join(placeholders, ",")), args...)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		return scanUserWalletBuckets(rows, byID)
+	}
+
+	rows, err := exec.QueryContext(ctx, `
+SELECT id,
+	recharge_balance::double precision,
+	invite_income_balance::double precision,
+	share_income_balance::double precision,
+	total_recharged::double precision,
+	total_invite_income::double precision,
+	total_share_income::double precision
+FROM users
+WHERE id = ANY($1)`, pq.Array(ids))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	return scanUserWalletBuckets(rows, byID)
+}
+
+func scanUserWalletBuckets(rows *sql.Rows, byID map[int64]*service.User) error {
+	for rows.Next() {
+		var id int64
+		var rechargeBalance, inviteBalance, shareBalance float64
+		var totalRecharged, totalInviteIncome, totalShareIncome float64
+		if err := rows.Scan(&id, &rechargeBalance, &inviteBalance, &shareBalance, &totalRecharged, &totalInviteIncome, &totalShareIncome); err != nil {
+			return err
+		}
+		if u := byID[id]; u != nil {
+			u.RechargeBalance = rechargeBalance
+			u.InviteIncomeBalance = inviteBalance
+			u.ShareIncomeBalance = shareBalance
+			u.TotalRecharged = totalRecharged
+			u.TotalInviteIncome = totalInviteIncome
+			u.TotalShareIncome = totalShareIncome
+		}
+	}
+	return rows.Err()
 }
 
 func (r *userRepository) loadAllowedGroups(ctx context.Context, userIDs []int64) (map[int64][]int64, error) {
@@ -1055,7 +1198,7 @@ func userSignupSourceOrDefault(signupSource string) string {
 	switch strings.TrimSpace(strings.ToLower(signupSource)) {
 	case "", "email":
 		return "email"
-	case "linuxdo", "wechat", "oidc", "dingtalk":
+	case "linuxdo", "wechat", "oidc":
 		return strings.TrimSpace(strings.ToLower(signupSource))
 	default:
 		return "email"

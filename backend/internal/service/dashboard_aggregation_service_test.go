@@ -104,7 +104,7 @@ func TestDashboardAggregationService_CleanupRetentionFailure_DoesNotRecord(t *te
 	svc.maybeCleanupRetention(context.Background(), time.Now().UTC())
 
 	require.Nil(t, svc.lastRetentionCleanup.Load())
-	require.Equal(t, 1, repo.cleanupUsageCalls)
+	require.Equal(t, 0, repo.cleanupUsageCalls)
 	require.Equal(t, 1, repo.cleanupDedupCalls)
 }
 

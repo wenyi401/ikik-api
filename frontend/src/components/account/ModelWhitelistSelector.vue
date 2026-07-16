@@ -90,9 +90,24 @@
         type="button"
         @click="syncUpstreamModels"
         :disabled="isSyncingUpstream"
-        class="rounded-lg border border-emerald-200 px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+        class="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-600 dark:text-stone-200 dark:hover:bg-stone-800/60"
       >
-        {{ isSyncingUpstream ? t('admin.accounts.syncUpstreamModelsLoading') : t('admin.accounts.syncUpstreamModels') }}
+        <Icon
+          name="refresh"
+          size="xs"
+          class="h-3.5 w-3.5"
+          :class="{ 'animate-spin': isSyncingUpstream }"
+          :stroke-width="2"
+        />
+        {{ t('admin.accounts.syncUpstreamModels') }}
+      </button>
+      <button
+        type="button"
+        @click="showProbeModal = true"
+        class="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 px-3 py-1.5 text-sm text-stone-700 hover:bg-stone-50 dark:border-stone-600 dark:text-stone-200 dark:hover:bg-stone-800/60"
+      >
+        <Icon name="search" size="xs" class="h-3.5 w-3.5" :stroke-width="2" />
+        {{ t('admin.accounts.modelProbe.openButton') }}
       </button>
       <button
         type="button"
@@ -125,16 +140,24 @@
         </button>
       </div>
     </div>
+
+    <ModelProbeModal
+      :show="showProbeModal"
+      :default-platform="primaryPlatform"
+      @close="showProbeModal = false"
+      @apply="applyProbedModels"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { accountsAPI } from '@/api/admin/accounts'
 import type { SyncUpstreamPreviewParams } from '@/api/admin/accounts'
 import ModelIcon from '@/components/common/ModelIcon.vue'
+import ModelProbeModal from '@/components/account/ModelProbeModal.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { allModels, getModelsByPlatform } from '@/composables/useModelWhitelist'
 
@@ -144,13 +167,7 @@ const props = defineProps<{
   modelValue: string[]
   platform?: string
   platforms?: string[]
-  accountId?: number
-  syncCredentials?: {
-    platform: string
-    type: string
-    base_url?: string
-    api_key: string
-  }
+  syncCredentials?: SyncUpstreamPreviewParams
 }>()
 
 const emit = defineEmits<{
@@ -164,6 +181,9 @@ const searchQuery = ref('')
 const customModel = ref('')
 const isComposing = ref(false)
 const isSyncingUpstream = ref(false)
+const upstreamModels = ref<string[]>([])
+const probedModels = ref<string[]>([])
+const showProbeModal = ref(false)
 const normalizedPlatforms = computed(() => {
   const rawPlatforms =
     props.platforms && props.platforms.length > 0
@@ -181,31 +201,49 @@ const normalizedPlatforms = computed(() => {
   )
 })
 
-const upstreamSyncPlatforms = new Set(['anthropic', 'openai', 'gemini', 'antigravity', 'grok'])
-const canSyncUpstream = computed(() => {
-  if (props.accountId) {
-    if (normalizedPlatforms.value.length === 0) return true
-    return normalizedPlatforms.value.some(platform => upstreamSyncPlatforms.has(platform.toLowerCase()))
-  }
-  if (props.syncCredentials) {
-    return upstreamSyncPlatforms.has(props.syncCredentials.platform.toLowerCase())
-  }
-  return false
+const primaryPlatform = computed(() => normalizedPlatforms.value[0] || 'openai')
+
+const probeScopeKey = computed(() => normalizedPlatforms.value.join('|'))
+
+watch(probeScopeKey, () => {
+  probedModels.value = []
 })
 
 const availableOptions = computed(() => {
-  if (normalizedPlatforms.value.length === 0) {
-    return allModels
-  }
-
-  const allowedModels = new Set<string>()
-  for (const platform of normalizedPlatforms.value) {
-    for (const model of getModelsByPlatform(platform)) {
-      allowedModels.add(model)
+  const optionMap = new Map<string, { value: string; label: string }>()
+  const append = (model: { value: string; label: string }) => {
+    if (!optionMap.has(model.value)) {
+      optionMap.set(model.value, model)
     }
   }
 
-  return allModels.filter(model => allowedModels.has(model.value))
+  if (normalizedPlatforms.value.length === 0) {
+    allModels.forEach(append)
+  } else {
+    const allowedModels = new Set<string>()
+    for (const platform of normalizedPlatforms.value) {
+      for (const model of getModelsByPlatform(platform)) {
+        allowedModels.add(model)
+      }
+    }
+
+    allModels.filter(model => allowedModels.has(model.value)).forEach(append)
+  }
+
+  for (const model of upstreamModels.value) {
+    append({ value: model, label: model })
+  }
+  for (const model of probedModels.value) {
+    append({ value: model, label: model })
+  }
+  return Array.from(optionMap.values())
+})
+
+const upstreamSyncPlatforms = new Set(['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kiro'])
+const canSyncUpstream = computed(() => {
+  const credentials = props.syncCredentials
+  if (!credentials?.api_key) return false
+  return upstreamSyncPlatforms.has(credentials.platform.toLowerCase())
 })
 
 const filteredModels = computed(() => {
@@ -261,47 +299,46 @@ const fillRelated = () => {
 }
 
 const syncUpstreamModels = async () => {
-  if (isSyncingUpstream.value) return
-  if (!props.accountId && !props.syncCredentials) return
+  if (isSyncingUpstream.value || !props.syncCredentials) return
 
   isSyncingUpstream.value = true
   try {
-    let result
-    if (props.accountId) {
-      result = await accountsAPI.syncUpstreamModels(props.accountId)
-    } else if (props.syncCredentials) {
-      result = await accountsAPI.syncUpstreamModelsPreview(props.syncCredentials as SyncUpstreamPreviewParams)
-    } else {
-      return
-    }
-
-    const upstreamModels = result.models.map(model => model.trim()).filter(Boolean)
-    if (upstreamModels.length === 0) {
+    const result = await accountsAPI.syncUpstreamModelsPreview(props.syncCredentials)
+    const models = Array.from(
+      new Set(result.models.map(model => model.trim()).filter(Boolean))
+    )
+    if (models.length === 0) {
       appStore.showInfo(t('admin.accounts.syncUpstreamModelsEmpty'))
       return
     }
-
-    const newModels = [...props.modelValue]
-    let addedCount = 0
-    for (const model of upstreamModels) {
-      if (!newModels.includes(model)) {
-        newModels.push(model)
-        addedCount += 1
-      }
-    }
-
-    emit('update:modelValue', newModels)
-    if (addedCount > 0) {
-      appStore.showSuccess(t('admin.accounts.syncUpstreamModelsSuccess', { count: addedCount, total: upstreamModels.length }))
-    } else {
-      appStore.showInfo(t('admin.accounts.syncUpstreamModelsNoChanges', { count: upstreamModels.length }))
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : t('admin.accounts.syncUpstreamModelsFailed')
-    appStore.showError(t('admin.accounts.syncUpstreamModelsError', { message }))
+    upstreamModels.value = models
+    emit('update:modelValue', models)
+    appStore.showSuccess(t('admin.accounts.syncUpstreamModelsSuccess', { count: models.length }))
+  } catch (error: any) {
+    appStore.showError(
+      error.response?.data?.message ||
+        error.response?.data?.detail ||
+        t('admin.accounts.syncUpstreamModelsFailed')
+    )
   } finally {
     isSyncingUpstream.value = false
   }
+}
+
+const applyProbedModels = (models: string[]) => {
+  const normalized = Array.from(new Set(models.map(model => model.trim()).filter(Boolean)))
+  if (normalized.length === 0) return
+
+  probedModels.value = Array.from(new Set([...probedModels.value, ...normalized]))
+  const existing = new Set(props.modelValue)
+  const additions = normalized.filter(model => !existing.has(model))
+  if (additions.length === 0) {
+    appStore.showInfo(t('admin.accounts.modelExists'))
+    return
+  }
+
+  emit('update:modelValue', [...props.modelValue, ...additions])
+  appStore.showSuccess(t('admin.accounts.modelProbe.addedModels', { count: additions.length }))
 }
 
 const clearAll = () => {

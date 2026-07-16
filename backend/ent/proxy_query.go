@@ -6,6 +6,9 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
+	"ikik-api/ent/account"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/proxy"
 	"math"
 
 	"entgo.io/ent"
@@ -13,9 +16,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/account"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/proxy"
 )
 
 // ProxyQuery is the builder for querying Proxy entities.

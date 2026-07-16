@@ -5,6 +5,10 @@ package ent
 import (
 	"context"
 	"fmt"
+	"ikik-api/ent/announcement"
+	"ikik-api/ent/announcementread"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/user"
 	"math"
 
 	"entgo.io/ent"
@@ -12,10 +16,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/announcement"
-	"ikik-api/ent/announcementread"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/user"
 )
 
 // AnnouncementReadQuery is the builder for querying AnnouncementRead entities.

@@ -2,9 +2,11 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
+import { accountsAPI } from '@/api/accounts'
 import type { AntigravityTokenInfo } from '@/api/admin/antigravity'
+import type { AccountApiScope } from '@/composables/useAccountOAuth'
 
-export function useAntigravityOAuth() {
+export function useAntigravityOAuth(scope: AccountApiScope = 'admin') {
   const appStore = useAppStore()
   const { t } = useI18n()
 
@@ -33,10 +35,13 @@ export function useAntigravityOAuth() {
       const payload: Record<string, unknown> = {}
       if (proxyId) payload.proxy_id = proxyId
 
-      const response = await adminAPI.antigravity.generateAuthUrl(payload as any)
+      const response =
+        scope === 'user'
+          ? await accountsAPI.generateAntigravityOAuthUrl(payload as any)
+          : await adminAPI.antigravity.generateAuthUrl(payload as any)
       authUrl.value = response.auth_url
       sessionId.value = response.session_id
-      state.value = response.state
+      state.value = response.state || ''
       return true
     } catch (err: any) {
       error.value =
@@ -71,7 +76,10 @@ export function useAntigravityOAuth() {
       }
       if (params.proxyId) payload.proxy_id = params.proxyId
 
-      const tokenInfo = await adminAPI.antigravity.exchangeCode(payload as any)
+      const tokenInfo =
+        scope === 'user'
+          ? await accountsAPI.exchangeAntigravityOAuthCode(payload as any)
+          : await adminAPI.antigravity.exchangeCode(payload as any)
       return tokenInfo as AntigravityTokenInfo
     } catch (err: any) {
       error.value =
@@ -96,10 +104,13 @@ export function useAntigravityOAuth() {
     error.value = ''
 
     try {
-      const tokenInfo = await adminAPI.antigravity.refreshAntigravityToken(
-        refreshToken.trim(),
-        proxyId
-      )
+      const tokenInfo =
+        scope === 'user'
+          ? await accountsAPI.refreshAntigravityToken(refreshToken.trim(), proxyId)
+          : await adminAPI.antigravity.refreshAntigravityToken(
+              refreshToken.trim(),
+              proxyId
+            )
       return tokenInfo as AntigravityTokenInfo
     } catch (err: any) {
       error.value =

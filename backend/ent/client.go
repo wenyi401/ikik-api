@@ -11,24 +11,19 @@ import (
 
 	"ikik-api/ent/migrate"
 
-	"entgo.io/ent"
-	"entgo.io/ent/dialect"
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
 	"ikik-api/ent/account"
 	"ikik-api/ent/accountgroup"
 	"ikik-api/ent/announcement"
 	"ikik-api/ent/announcementread"
 	"ikik-api/ent/apikey"
+	"ikik-api/ent/apikeygrouproute"
 	"ikik-api/ent/authidentity"
 	"ikik-api/ent/authidentitychannel"
-	"ikik-api/ent/batchimageevent"
-	"ikik-api/ent/batchimageitem"
-	"ikik-api/ent/batchimagejob"
 	"ikik-api/ent/channelmonitor"
 	"ikik-api/ent/channelmonitordailyrollup"
 	"ikik-api/ent/channelmonitorhistory"
 	"ikik-api/ent/channelmonitorrequesttemplate"
+	"ikik-api/ent/emailbroadcast"
 	"ikik-api/ent/errorpassthroughrule"
 	"ikik-api/ent/group"
 	"ikik-api/ent/idempotencyrecord"
@@ -43,6 +38,12 @@ import (
 	"ikik-api/ent/redeemcode"
 	"ikik-api/ent/securitysecret"
 	"ikik-api/ent/setting"
+	"ikik-api/ent/shopbalanceledger"
+	"ikik-api/ent/shopcardkey"
+	"ikik-api/ent/shopcategory"
+	"ikik-api/ent/shopdrawcycle"
+	"ikik-api/ent/shoporder"
+	"ikik-api/ent/shopproduct"
 	"ikik-api/ent/subscriptionplan"
 	"ikik-api/ent/tlsfingerprintprofile"
 	"ikik-api/ent/usagecleanuptask"
@@ -51,8 +52,12 @@ import (
 	"ikik-api/ent/userallowedgroup"
 	"ikik-api/ent/userattributedefinition"
 	"ikik-api/ent/userattributevalue"
-	"ikik-api/ent/userplatformquota"
 	"ikik-api/ent/usersubscription"
+
+	"entgo.io/ent"
+	"entgo.io/ent/dialect"
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 
 	stdsql "database/sql"
 )
@@ -64,6 +69,8 @@ type Client struct {
 	Schema *migrate.Schema
 	// APIKey is the client for interacting with the APIKey builders.
 	APIKey *APIKeyClient
+	// APIKeyGroupRoute is the client for interacting with the APIKeyGroupRoute builders.
+	APIKeyGroupRoute *APIKeyGroupRouteClient
 	// Account is the client for interacting with the Account builders.
 	Account *AccountClient
 	// AccountGroup is the client for interacting with the AccountGroup builders.
@@ -76,12 +83,6 @@ type Client struct {
 	AuthIdentity *AuthIdentityClient
 	// AuthIdentityChannel is the client for interacting with the AuthIdentityChannel builders.
 	AuthIdentityChannel *AuthIdentityChannelClient
-	// BatchImageEvent is the client for interacting with the BatchImageEvent builders.
-	BatchImageEvent *BatchImageEventClient
-	// BatchImageItem is the client for interacting with the BatchImageItem builders.
-	BatchImageItem *BatchImageItemClient
-	// BatchImageJob is the client for interacting with the BatchImageJob builders.
-	BatchImageJob *BatchImageJobClient
 	// ChannelMonitor is the client for interacting with the ChannelMonitor builders.
 	ChannelMonitor *ChannelMonitorClient
 	// ChannelMonitorDailyRollup is the client for interacting with the ChannelMonitorDailyRollup builders.
@@ -90,6 +91,8 @@ type Client struct {
 	ChannelMonitorHistory *ChannelMonitorHistoryClient
 	// ChannelMonitorRequestTemplate is the client for interacting with the ChannelMonitorRequestTemplate builders.
 	ChannelMonitorRequestTemplate *ChannelMonitorRequestTemplateClient
+	// EmailBroadcast is the client for interacting with the EmailBroadcast builders.
+	EmailBroadcast *EmailBroadcastClient
 	// ErrorPassthroughRule is the client for interacting with the ErrorPassthroughRule builders.
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
 	// Group is the client for interacting with the Group builders.
@@ -118,6 +121,18 @@ type Client struct {
 	SecuritySecret *SecuritySecretClient
 	// Setting is the client for interacting with the Setting builders.
 	Setting *SettingClient
+	// ShopBalanceLedger is the client for interacting with the ShopBalanceLedger builders.
+	ShopBalanceLedger *ShopBalanceLedgerClient
+	// ShopCardKey is the client for interacting with the ShopCardKey builders.
+	ShopCardKey *ShopCardKeyClient
+	// ShopCategory is the client for interacting with the ShopCategory builders.
+	ShopCategory *ShopCategoryClient
+	// ShopDrawCycle is the client for interacting with the ShopDrawCycle builders.
+	ShopDrawCycle *ShopDrawCycleClient
+	// ShopOrder is the client for interacting with the ShopOrder builders.
+	ShopOrder *ShopOrderClient
+	// ShopProduct is the client for interacting with the ShopProduct builders.
+	ShopProduct *ShopProductClient
 	// SubscriptionPlan is the client for interacting with the SubscriptionPlan builders.
 	SubscriptionPlan *SubscriptionPlanClient
 	// TLSFingerprintProfile is the client for interacting with the TLSFingerprintProfile builders.
@@ -134,8 +149,6 @@ type Client struct {
 	UserAttributeDefinition *UserAttributeDefinitionClient
 	// UserAttributeValue is the client for interacting with the UserAttributeValue builders.
 	UserAttributeValue *UserAttributeValueClient
-	// UserPlatformQuota is the client for interacting with the UserPlatformQuota builders.
-	UserPlatformQuota *UserPlatformQuotaClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
 }
@@ -150,19 +163,18 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.APIKey = NewAPIKeyClient(c.config)
+	c.APIKeyGroupRoute = NewAPIKeyGroupRouteClient(c.config)
 	c.Account = NewAccountClient(c.config)
 	c.AccountGroup = NewAccountGroupClient(c.config)
 	c.Announcement = NewAnnouncementClient(c.config)
 	c.AnnouncementRead = NewAnnouncementReadClient(c.config)
 	c.AuthIdentity = NewAuthIdentityClient(c.config)
 	c.AuthIdentityChannel = NewAuthIdentityChannelClient(c.config)
-	c.BatchImageEvent = NewBatchImageEventClient(c.config)
-	c.BatchImageItem = NewBatchImageItemClient(c.config)
-	c.BatchImageJob = NewBatchImageJobClient(c.config)
 	c.ChannelMonitor = NewChannelMonitorClient(c.config)
 	c.ChannelMonitorDailyRollup = NewChannelMonitorDailyRollupClient(c.config)
 	c.ChannelMonitorHistory = NewChannelMonitorHistoryClient(c.config)
 	c.ChannelMonitorRequestTemplate = NewChannelMonitorRequestTemplateClient(c.config)
+	c.EmailBroadcast = NewEmailBroadcastClient(c.config)
 	c.ErrorPassthroughRule = NewErrorPassthroughRuleClient(c.config)
 	c.Group = NewGroupClient(c.config)
 	c.IdempotencyRecord = NewIdempotencyRecordClient(c.config)
@@ -177,6 +189,12 @@ func (c *Client) init() {
 	c.RedeemCode = NewRedeemCodeClient(c.config)
 	c.SecuritySecret = NewSecuritySecretClient(c.config)
 	c.Setting = NewSettingClient(c.config)
+	c.ShopBalanceLedger = NewShopBalanceLedgerClient(c.config)
+	c.ShopCardKey = NewShopCardKeyClient(c.config)
+	c.ShopCategory = NewShopCategoryClient(c.config)
+	c.ShopDrawCycle = NewShopDrawCycleClient(c.config)
+	c.ShopOrder = NewShopOrderClient(c.config)
+	c.ShopProduct = NewShopProductClient(c.config)
 	c.SubscriptionPlan = NewSubscriptionPlanClient(c.config)
 	c.TLSFingerprintProfile = NewTLSFingerprintProfileClient(c.config)
 	c.UsageCleanupTask = NewUsageCleanupTaskClient(c.config)
@@ -185,7 +203,6 @@ func (c *Client) init() {
 	c.UserAllowedGroup = NewUserAllowedGroupClient(c.config)
 	c.UserAttributeDefinition = NewUserAttributeDefinitionClient(c.config)
 	c.UserAttributeValue = NewUserAttributeValueClient(c.config)
-	c.UserPlatformQuota = NewUserPlatformQuotaClient(c.config)
 	c.UserSubscription = NewUserSubscriptionClient(c.config)
 }
 
@@ -280,19 +297,18 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ctx:                           ctx,
 		config:                        cfg,
 		APIKey:                        NewAPIKeyClient(cfg),
+		APIKeyGroupRoute:              NewAPIKeyGroupRouteClient(cfg),
 		Account:                       NewAccountClient(cfg),
 		AccountGroup:                  NewAccountGroupClient(cfg),
 		Announcement:                  NewAnnouncementClient(cfg),
 		AnnouncementRead:              NewAnnouncementReadClient(cfg),
 		AuthIdentity:                  NewAuthIdentityClient(cfg),
 		AuthIdentityChannel:           NewAuthIdentityChannelClient(cfg),
-		BatchImageEvent:               NewBatchImageEventClient(cfg),
-		BatchImageItem:                NewBatchImageItemClient(cfg),
-		BatchImageJob:                 NewBatchImageJobClient(cfg),
 		ChannelMonitor:                NewChannelMonitorClient(cfg),
 		ChannelMonitorDailyRollup:     NewChannelMonitorDailyRollupClient(cfg),
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
+		EmailBroadcast:                NewEmailBroadcastClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
@@ -307,6 +323,12 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		RedeemCode:                    NewRedeemCodeClient(cfg),
 		SecuritySecret:                NewSecuritySecretClient(cfg),
 		Setting:                       NewSettingClient(cfg),
+		ShopBalanceLedger:             NewShopBalanceLedgerClient(cfg),
+		ShopCardKey:                   NewShopCardKeyClient(cfg),
+		ShopCategory:                  NewShopCategoryClient(cfg),
+		ShopDrawCycle:                 NewShopDrawCycleClient(cfg),
+		ShopOrder:                     NewShopOrderClient(cfg),
+		ShopProduct:                   NewShopProductClient(cfg),
 		SubscriptionPlan:              NewSubscriptionPlanClient(cfg),
 		TLSFingerprintProfile:         NewTLSFingerprintProfileClient(cfg),
 		UsageCleanupTask:              NewUsageCleanupTaskClient(cfg),
@@ -315,7 +337,6 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		UserAllowedGroup:              NewUserAllowedGroupClient(cfg),
 		UserAttributeDefinition:       NewUserAttributeDefinitionClient(cfg),
 		UserAttributeValue:            NewUserAttributeValueClient(cfg),
-		UserPlatformQuota:             NewUserPlatformQuotaClient(cfg),
 		UserSubscription:              NewUserSubscriptionClient(cfg),
 	}, nil
 }
@@ -337,19 +358,18 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ctx:                           ctx,
 		config:                        cfg,
 		APIKey:                        NewAPIKeyClient(cfg),
+		APIKeyGroupRoute:              NewAPIKeyGroupRouteClient(cfg),
 		Account:                       NewAccountClient(cfg),
 		AccountGroup:                  NewAccountGroupClient(cfg),
 		Announcement:                  NewAnnouncementClient(cfg),
 		AnnouncementRead:              NewAnnouncementReadClient(cfg),
 		AuthIdentity:                  NewAuthIdentityClient(cfg),
 		AuthIdentityChannel:           NewAuthIdentityChannelClient(cfg),
-		BatchImageEvent:               NewBatchImageEventClient(cfg),
-		BatchImageItem:                NewBatchImageItemClient(cfg),
-		BatchImageJob:                 NewBatchImageJobClient(cfg),
 		ChannelMonitor:                NewChannelMonitorClient(cfg),
 		ChannelMonitorDailyRollup:     NewChannelMonitorDailyRollupClient(cfg),
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
+		EmailBroadcast:                NewEmailBroadcastClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
 		IdempotencyRecord:             NewIdempotencyRecordClient(cfg),
@@ -364,6 +384,12 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		RedeemCode:                    NewRedeemCodeClient(cfg),
 		SecuritySecret:                NewSecuritySecretClient(cfg),
 		Setting:                       NewSettingClient(cfg),
+		ShopBalanceLedger:             NewShopBalanceLedgerClient(cfg),
+		ShopCardKey:                   NewShopCardKeyClient(cfg),
+		ShopCategory:                  NewShopCategoryClient(cfg),
+		ShopDrawCycle:                 NewShopDrawCycleClient(cfg),
+		ShopOrder:                     NewShopOrderClient(cfg),
+		ShopProduct:                   NewShopProductClient(cfg),
 		SubscriptionPlan:              NewSubscriptionPlanClient(cfg),
 		TLSFingerprintProfile:         NewTLSFingerprintProfileClient(cfg),
 		UsageCleanupTask:              NewUsageCleanupTaskClient(cfg),
@@ -372,7 +398,6 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		UserAllowedGroup:              NewUserAllowedGroupClient(cfg),
 		UserAttributeDefinition:       NewUserAttributeDefinitionClient(cfg),
 		UserAttributeValue:            NewUserAttributeValueClient(cfg),
-		UserPlatformQuota:             NewUserPlatformQuotaClient(cfg),
 		UserSubscription:              NewUserSubscriptionClient(cfg),
 	}, nil
 }
@@ -403,17 +428,17 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.APIKey, c.Account, c.AccountGroup, c.Announcement, c.AnnouncementRead,
-		c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent, c.BatchImageItem,
-		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
-		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
-		c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
-		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserPlatformQuota, c.UserSubscription,
+		c.APIKey, c.APIKeyGroupRoute, c.Account, c.AccountGroup, c.Announcement,
+		c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel, c.ChannelMonitor,
+		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
+		c.ChannelMonitorRequestTemplate, c.EmailBroadcast, c.ErrorPassthroughRule,
+		c.Group, c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
+		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
+		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting,
+		c.ShopBalanceLedger, c.ShopCardKey, c.ShopCategory, c.ShopDrawCycle,
+		c.ShopOrder, c.ShopProduct, c.SubscriptionPlan, c.TLSFingerprintProfile,
+		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
+		c.UserAttributeDefinition, c.UserAttributeValue, c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -423,17 +448,17 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.APIKey, c.Account, c.AccountGroup, c.Announcement, c.AnnouncementRead,
-		c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent, c.BatchImageItem,
-		c.BatchImageJob, c.ChannelMonitor, c.ChannelMonitorDailyRollup,
-		c.ChannelMonitorHistory, c.ChannelMonitorRequestTemplate,
-		c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
-		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
-		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
-		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
-		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserPlatformQuota, c.UserSubscription,
+		c.APIKey, c.APIKeyGroupRoute, c.Account, c.AccountGroup, c.Announcement,
+		c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel, c.ChannelMonitor,
+		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
+		c.ChannelMonitorRequestTemplate, c.EmailBroadcast, c.ErrorPassthroughRule,
+		c.Group, c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
+		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
+		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting,
+		c.ShopBalanceLedger, c.ShopCardKey, c.ShopCategory, c.ShopDrawCycle,
+		c.ShopOrder, c.ShopProduct, c.SubscriptionPlan, c.TLSFingerprintProfile,
+		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
+		c.UserAttributeDefinition, c.UserAttributeValue, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -444,6 +469,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *APIKeyMutation:
 		return c.APIKey.mutate(ctx, m)
+	case *APIKeyGroupRouteMutation:
+		return c.APIKeyGroupRoute.mutate(ctx, m)
 	case *AccountMutation:
 		return c.Account.mutate(ctx, m)
 	case *AccountGroupMutation:
@@ -456,12 +483,6 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.AuthIdentity.mutate(ctx, m)
 	case *AuthIdentityChannelMutation:
 		return c.AuthIdentityChannel.mutate(ctx, m)
-	case *BatchImageEventMutation:
-		return c.BatchImageEvent.mutate(ctx, m)
-	case *BatchImageItemMutation:
-		return c.BatchImageItem.mutate(ctx, m)
-	case *BatchImageJobMutation:
-		return c.BatchImageJob.mutate(ctx, m)
 	case *ChannelMonitorMutation:
 		return c.ChannelMonitor.mutate(ctx, m)
 	case *ChannelMonitorDailyRollupMutation:
@@ -470,6 +491,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ChannelMonitorHistory.mutate(ctx, m)
 	case *ChannelMonitorRequestTemplateMutation:
 		return c.ChannelMonitorRequestTemplate.mutate(ctx, m)
+	case *EmailBroadcastMutation:
+		return c.EmailBroadcast.mutate(ctx, m)
 	case *ErrorPassthroughRuleMutation:
 		return c.ErrorPassthroughRule.mutate(ctx, m)
 	case *GroupMutation:
@@ -498,6 +521,18 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.SecuritySecret.mutate(ctx, m)
 	case *SettingMutation:
 		return c.Setting.mutate(ctx, m)
+	case *ShopBalanceLedgerMutation:
+		return c.ShopBalanceLedger.mutate(ctx, m)
+	case *ShopCardKeyMutation:
+		return c.ShopCardKey.mutate(ctx, m)
+	case *ShopCategoryMutation:
+		return c.ShopCategory.mutate(ctx, m)
+	case *ShopDrawCycleMutation:
+		return c.ShopDrawCycle.mutate(ctx, m)
+	case *ShopOrderMutation:
+		return c.ShopOrder.mutate(ctx, m)
+	case *ShopProductMutation:
+		return c.ShopProduct.mutate(ctx, m)
 	case *SubscriptionPlanMutation:
 		return c.SubscriptionPlan.mutate(ctx, m)
 	case *TLSFingerprintProfileMutation:
@@ -514,8 +549,6 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.UserAttributeDefinition.mutate(ctx, m)
 	case *UserAttributeValueMutation:
 		return c.UserAttributeValue.mutate(ctx, m)
-	case *UserPlatformQuotaMutation:
-		return c.UserPlatformQuota.mutate(ctx, m)
 	case *UserSubscriptionMutation:
 		return c.UserSubscription.mutate(ctx, m)
 	default:
@@ -663,6 +696,22 @@ func (c *APIKeyClient) QueryGroup(_m *APIKey) *GroupQuery {
 	return query
 }
 
+// QueryGroupRoutes queries the group_routes edge of a APIKey.
+func (c *APIKeyClient) QueryGroupRoutes(_m *APIKey) *APIKeyGroupRouteQuery {
+	query := (&APIKeyGroupRouteClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(apikey.Table, apikey.FieldID, id),
+			sqlgraph.To(apikeygrouproute.Table, apikeygrouproute.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, apikey.GroupRoutesTable, apikey.GroupRoutesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryUsageLogs queries the usage_logs edge of a APIKey.
 func (c *APIKeyClient) QueryUsageLogs(_m *APIKey) *UsageLogQuery {
 	query := (&UsageLogClient{config: c.config}).Query()
@@ -703,6 +752,171 @@ func (c *APIKeyClient) mutate(ctx context.Context, m *APIKeyMutation) (Value, er
 		return (&APIKeyDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown APIKey mutation op: %q", m.Op())
+	}
+}
+
+// APIKeyGroupRouteClient is a client for the APIKeyGroupRoute schema.
+type APIKeyGroupRouteClient struct {
+	config
+}
+
+// NewAPIKeyGroupRouteClient returns a client for the APIKeyGroupRoute from the given config.
+func NewAPIKeyGroupRouteClient(c config) *APIKeyGroupRouteClient {
+	return &APIKeyGroupRouteClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `apikeygrouproute.Hooks(f(g(h())))`.
+func (c *APIKeyGroupRouteClient) Use(hooks ...Hook) {
+	c.hooks.APIKeyGroupRoute = append(c.hooks.APIKeyGroupRoute, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `apikeygrouproute.Intercept(f(g(h())))`.
+func (c *APIKeyGroupRouteClient) Intercept(interceptors ...Interceptor) {
+	c.inters.APIKeyGroupRoute = append(c.inters.APIKeyGroupRoute, interceptors...)
+}
+
+// Create returns a builder for creating a APIKeyGroupRoute entity.
+func (c *APIKeyGroupRouteClient) Create() *APIKeyGroupRouteCreate {
+	mutation := newAPIKeyGroupRouteMutation(c.config, OpCreate)
+	return &APIKeyGroupRouteCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of APIKeyGroupRoute entities.
+func (c *APIKeyGroupRouteClient) CreateBulk(builders ...*APIKeyGroupRouteCreate) *APIKeyGroupRouteCreateBulk {
+	return &APIKeyGroupRouteCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *APIKeyGroupRouteClient) MapCreateBulk(slice any, setFunc func(*APIKeyGroupRouteCreate, int)) *APIKeyGroupRouteCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &APIKeyGroupRouteCreateBulk{err: fmt.Errorf("calling to APIKeyGroupRouteClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*APIKeyGroupRouteCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &APIKeyGroupRouteCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for APIKeyGroupRoute.
+func (c *APIKeyGroupRouteClient) Update() *APIKeyGroupRouteUpdate {
+	mutation := newAPIKeyGroupRouteMutation(c.config, OpUpdate)
+	return &APIKeyGroupRouteUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *APIKeyGroupRouteClient) UpdateOne(_m *APIKeyGroupRoute) *APIKeyGroupRouteUpdateOne {
+	mutation := newAPIKeyGroupRouteMutation(c.config, OpUpdateOne, withAPIKeyGroupRoute(_m))
+	return &APIKeyGroupRouteUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *APIKeyGroupRouteClient) UpdateOneID(id int64) *APIKeyGroupRouteUpdateOne {
+	mutation := newAPIKeyGroupRouteMutation(c.config, OpUpdateOne, withAPIKeyGroupRouteID(id))
+	return &APIKeyGroupRouteUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for APIKeyGroupRoute.
+func (c *APIKeyGroupRouteClient) Delete() *APIKeyGroupRouteDelete {
+	mutation := newAPIKeyGroupRouteMutation(c.config, OpDelete)
+	return &APIKeyGroupRouteDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *APIKeyGroupRouteClient) DeleteOne(_m *APIKeyGroupRoute) *APIKeyGroupRouteDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *APIKeyGroupRouteClient) DeleteOneID(id int64) *APIKeyGroupRouteDeleteOne {
+	builder := c.Delete().Where(apikeygrouproute.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &APIKeyGroupRouteDeleteOne{builder}
+}
+
+// Query returns a query builder for APIKeyGroupRoute.
+func (c *APIKeyGroupRouteClient) Query() *APIKeyGroupRouteQuery {
+	return &APIKeyGroupRouteQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAPIKeyGroupRoute},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a APIKeyGroupRoute entity by its id.
+func (c *APIKeyGroupRouteClient) Get(ctx context.Context, id int64) (*APIKeyGroupRoute, error) {
+	return c.Query().Where(apikeygrouproute.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *APIKeyGroupRouteClient) GetX(ctx context.Context, id int64) *APIKeyGroupRoute {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryAPIKey queries the api_key edge of a APIKeyGroupRoute.
+func (c *APIKeyGroupRouteClient) QueryAPIKey(_m *APIKeyGroupRoute) *APIKeyQuery {
+	query := (&APIKeyClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(apikeygrouproute.Table, apikeygrouproute.FieldID, id),
+			sqlgraph.To(apikey.Table, apikey.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, apikeygrouproute.APIKeyTable, apikeygrouproute.APIKeyColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryGroup queries the group edge of a APIKeyGroupRoute.
+func (c *APIKeyGroupRouteClient) QueryGroup(_m *APIKeyGroupRoute) *GroupQuery {
+	query := (&GroupClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(apikeygrouproute.Table, apikeygrouproute.FieldID, id),
+			sqlgraph.To(group.Table, group.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, apikeygrouproute.GroupTable, apikeygrouproute.GroupColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *APIKeyGroupRouteClient) Hooks() []Hook {
+	return c.hooks.APIKeyGroupRoute
+}
+
+// Interceptors returns the client interceptors.
+func (c *APIKeyGroupRouteClient) Interceptors() []Interceptor {
+	return c.inters.APIKeyGroupRoute
+}
+
+func (c *APIKeyGroupRouteClient) mutate(ctx context.Context, m *APIKeyGroupRouteMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&APIKeyGroupRouteCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&APIKeyGroupRouteUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&APIKeyGroupRouteUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&APIKeyGroupRouteDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown APIKeyGroupRoute mutation op: %q", m.Op())
 	}
 }
 
@@ -846,31 +1060,15 @@ func (c *AccountClient) QueryProxy(_m *Account) *ProxyQuery {
 	return query
 }
 
-// QueryParent queries the parent edge of a Account.
-func (c *AccountClient) QueryParent(_m *Account) *AccountQuery {
-	query := (&AccountClient{config: c.config}).Query()
+// QueryOwner queries the owner edge of a Account.
+func (c *AccountClient) QueryOwner(_m *Account) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
 	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
 		id := _m.ID
 		step := sqlgraph.NewStep(
 			sqlgraph.From(account.Table, account.FieldID, id),
-			sqlgraph.To(account.Table, account.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, account.ParentTable, account.ParentColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
-// QueryChildren queries the children edge of a Account.
-func (c *AccountClient) QueryChildren(_m *Account) *AccountQuery {
-	query := (&AccountClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(account.Table, account.FieldID, id),
-			sqlgraph.To(account.Table, account.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, account.ChildrenTable, account.ChildrenColumn),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, account.OwnerTable, account.OwnerColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -1697,405 +1895,6 @@ func (c *AuthIdentityChannelClient) mutate(ctx context.Context, m *AuthIdentityC
 	}
 }
 
-// BatchImageEventClient is a client for the BatchImageEvent schema.
-type BatchImageEventClient struct {
-	config
-}
-
-// NewBatchImageEventClient returns a client for the BatchImageEvent from the given config.
-func NewBatchImageEventClient(c config) *BatchImageEventClient {
-	return &BatchImageEventClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `batchimageevent.Hooks(f(g(h())))`.
-func (c *BatchImageEventClient) Use(hooks ...Hook) {
-	c.hooks.BatchImageEvent = append(c.hooks.BatchImageEvent, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `batchimageevent.Intercept(f(g(h())))`.
-func (c *BatchImageEventClient) Intercept(interceptors ...Interceptor) {
-	c.inters.BatchImageEvent = append(c.inters.BatchImageEvent, interceptors...)
-}
-
-// Create returns a builder for creating a BatchImageEvent entity.
-func (c *BatchImageEventClient) Create() *BatchImageEventCreate {
-	mutation := newBatchImageEventMutation(c.config, OpCreate)
-	return &BatchImageEventCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of BatchImageEvent entities.
-func (c *BatchImageEventClient) CreateBulk(builders ...*BatchImageEventCreate) *BatchImageEventCreateBulk {
-	return &BatchImageEventCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *BatchImageEventClient) MapCreateBulk(slice any, setFunc func(*BatchImageEventCreate, int)) *BatchImageEventCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &BatchImageEventCreateBulk{err: fmt.Errorf("calling to BatchImageEventClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*BatchImageEventCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &BatchImageEventCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for BatchImageEvent.
-func (c *BatchImageEventClient) Update() *BatchImageEventUpdate {
-	mutation := newBatchImageEventMutation(c.config, OpUpdate)
-	return &BatchImageEventUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *BatchImageEventClient) UpdateOne(_m *BatchImageEvent) *BatchImageEventUpdateOne {
-	mutation := newBatchImageEventMutation(c.config, OpUpdateOne, withBatchImageEvent(_m))
-	return &BatchImageEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *BatchImageEventClient) UpdateOneID(id int64) *BatchImageEventUpdateOne {
-	mutation := newBatchImageEventMutation(c.config, OpUpdateOne, withBatchImageEventID(id))
-	return &BatchImageEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for BatchImageEvent.
-func (c *BatchImageEventClient) Delete() *BatchImageEventDelete {
-	mutation := newBatchImageEventMutation(c.config, OpDelete)
-	return &BatchImageEventDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *BatchImageEventClient) DeleteOne(_m *BatchImageEvent) *BatchImageEventDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *BatchImageEventClient) DeleteOneID(id int64) *BatchImageEventDeleteOne {
-	builder := c.Delete().Where(batchimageevent.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &BatchImageEventDeleteOne{builder}
-}
-
-// Query returns a query builder for BatchImageEvent.
-func (c *BatchImageEventClient) Query() *BatchImageEventQuery {
-	return &BatchImageEventQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeBatchImageEvent},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a BatchImageEvent entity by its id.
-func (c *BatchImageEventClient) Get(ctx context.Context, id int64) (*BatchImageEvent, error) {
-	return c.Query().Where(batchimageevent.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *BatchImageEventClient) GetX(ctx context.Context, id int64) *BatchImageEvent {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *BatchImageEventClient) Hooks() []Hook {
-	return c.hooks.BatchImageEvent
-}
-
-// Interceptors returns the client interceptors.
-func (c *BatchImageEventClient) Interceptors() []Interceptor {
-	return c.inters.BatchImageEvent
-}
-
-func (c *BatchImageEventClient) mutate(ctx context.Context, m *BatchImageEventMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&BatchImageEventCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&BatchImageEventUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&BatchImageEventUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&BatchImageEventDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown BatchImageEvent mutation op: %q", m.Op())
-	}
-}
-
-// BatchImageItemClient is a client for the BatchImageItem schema.
-type BatchImageItemClient struct {
-	config
-}
-
-// NewBatchImageItemClient returns a client for the BatchImageItem from the given config.
-func NewBatchImageItemClient(c config) *BatchImageItemClient {
-	return &BatchImageItemClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `batchimageitem.Hooks(f(g(h())))`.
-func (c *BatchImageItemClient) Use(hooks ...Hook) {
-	c.hooks.BatchImageItem = append(c.hooks.BatchImageItem, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `batchimageitem.Intercept(f(g(h())))`.
-func (c *BatchImageItemClient) Intercept(interceptors ...Interceptor) {
-	c.inters.BatchImageItem = append(c.inters.BatchImageItem, interceptors...)
-}
-
-// Create returns a builder for creating a BatchImageItem entity.
-func (c *BatchImageItemClient) Create() *BatchImageItemCreate {
-	mutation := newBatchImageItemMutation(c.config, OpCreate)
-	return &BatchImageItemCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of BatchImageItem entities.
-func (c *BatchImageItemClient) CreateBulk(builders ...*BatchImageItemCreate) *BatchImageItemCreateBulk {
-	return &BatchImageItemCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *BatchImageItemClient) MapCreateBulk(slice any, setFunc func(*BatchImageItemCreate, int)) *BatchImageItemCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &BatchImageItemCreateBulk{err: fmt.Errorf("calling to BatchImageItemClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*BatchImageItemCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &BatchImageItemCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for BatchImageItem.
-func (c *BatchImageItemClient) Update() *BatchImageItemUpdate {
-	mutation := newBatchImageItemMutation(c.config, OpUpdate)
-	return &BatchImageItemUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *BatchImageItemClient) UpdateOne(_m *BatchImageItem) *BatchImageItemUpdateOne {
-	mutation := newBatchImageItemMutation(c.config, OpUpdateOne, withBatchImageItem(_m))
-	return &BatchImageItemUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *BatchImageItemClient) UpdateOneID(id int64) *BatchImageItemUpdateOne {
-	mutation := newBatchImageItemMutation(c.config, OpUpdateOne, withBatchImageItemID(id))
-	return &BatchImageItemUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for BatchImageItem.
-func (c *BatchImageItemClient) Delete() *BatchImageItemDelete {
-	mutation := newBatchImageItemMutation(c.config, OpDelete)
-	return &BatchImageItemDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *BatchImageItemClient) DeleteOne(_m *BatchImageItem) *BatchImageItemDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *BatchImageItemClient) DeleteOneID(id int64) *BatchImageItemDeleteOne {
-	builder := c.Delete().Where(batchimageitem.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &BatchImageItemDeleteOne{builder}
-}
-
-// Query returns a query builder for BatchImageItem.
-func (c *BatchImageItemClient) Query() *BatchImageItemQuery {
-	return &BatchImageItemQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeBatchImageItem},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a BatchImageItem entity by its id.
-func (c *BatchImageItemClient) Get(ctx context.Context, id int64) (*BatchImageItem, error) {
-	return c.Query().Where(batchimageitem.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *BatchImageItemClient) GetX(ctx context.Context, id int64) *BatchImageItem {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *BatchImageItemClient) Hooks() []Hook {
-	return c.hooks.BatchImageItem
-}
-
-// Interceptors returns the client interceptors.
-func (c *BatchImageItemClient) Interceptors() []Interceptor {
-	return c.inters.BatchImageItem
-}
-
-func (c *BatchImageItemClient) mutate(ctx context.Context, m *BatchImageItemMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&BatchImageItemCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&BatchImageItemUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&BatchImageItemUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&BatchImageItemDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown BatchImageItem mutation op: %q", m.Op())
-	}
-}
-
-// BatchImageJobClient is a client for the BatchImageJob schema.
-type BatchImageJobClient struct {
-	config
-}
-
-// NewBatchImageJobClient returns a client for the BatchImageJob from the given config.
-func NewBatchImageJobClient(c config) *BatchImageJobClient {
-	return &BatchImageJobClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `batchimagejob.Hooks(f(g(h())))`.
-func (c *BatchImageJobClient) Use(hooks ...Hook) {
-	c.hooks.BatchImageJob = append(c.hooks.BatchImageJob, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `batchimagejob.Intercept(f(g(h())))`.
-func (c *BatchImageJobClient) Intercept(interceptors ...Interceptor) {
-	c.inters.BatchImageJob = append(c.inters.BatchImageJob, interceptors...)
-}
-
-// Create returns a builder for creating a BatchImageJob entity.
-func (c *BatchImageJobClient) Create() *BatchImageJobCreate {
-	mutation := newBatchImageJobMutation(c.config, OpCreate)
-	return &BatchImageJobCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of BatchImageJob entities.
-func (c *BatchImageJobClient) CreateBulk(builders ...*BatchImageJobCreate) *BatchImageJobCreateBulk {
-	return &BatchImageJobCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *BatchImageJobClient) MapCreateBulk(slice any, setFunc func(*BatchImageJobCreate, int)) *BatchImageJobCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &BatchImageJobCreateBulk{err: fmt.Errorf("calling to BatchImageJobClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*BatchImageJobCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &BatchImageJobCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for BatchImageJob.
-func (c *BatchImageJobClient) Update() *BatchImageJobUpdate {
-	mutation := newBatchImageJobMutation(c.config, OpUpdate)
-	return &BatchImageJobUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *BatchImageJobClient) UpdateOne(_m *BatchImageJob) *BatchImageJobUpdateOne {
-	mutation := newBatchImageJobMutation(c.config, OpUpdateOne, withBatchImageJob(_m))
-	return &BatchImageJobUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *BatchImageJobClient) UpdateOneID(id int64) *BatchImageJobUpdateOne {
-	mutation := newBatchImageJobMutation(c.config, OpUpdateOne, withBatchImageJobID(id))
-	return &BatchImageJobUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for BatchImageJob.
-func (c *BatchImageJobClient) Delete() *BatchImageJobDelete {
-	mutation := newBatchImageJobMutation(c.config, OpDelete)
-	return &BatchImageJobDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *BatchImageJobClient) DeleteOne(_m *BatchImageJob) *BatchImageJobDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *BatchImageJobClient) DeleteOneID(id int64) *BatchImageJobDeleteOne {
-	builder := c.Delete().Where(batchimagejob.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &BatchImageJobDeleteOne{builder}
-}
-
-// Query returns a query builder for BatchImageJob.
-func (c *BatchImageJobClient) Query() *BatchImageJobQuery {
-	return &BatchImageJobQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeBatchImageJob},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a BatchImageJob entity by its id.
-func (c *BatchImageJobClient) Get(ctx context.Context, id int64) (*BatchImageJob, error) {
-	return c.Query().Where(batchimagejob.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *BatchImageJobClient) GetX(ctx context.Context, id int64) *BatchImageJob {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *BatchImageJobClient) Hooks() []Hook {
-	return c.hooks.BatchImageJob
-}
-
-// Interceptors returns the client interceptors.
-func (c *BatchImageJobClient) Interceptors() []Interceptor {
-	return c.inters.BatchImageJob
-}
-
-func (c *BatchImageJobClient) mutate(ctx context.Context, m *BatchImageJobMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&BatchImageJobCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&BatchImageJobUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&BatchImageJobUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&BatchImageJobDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown BatchImageJob mutation op: %q", m.Op())
-	}
-}
-
 // ChannelMonitorClient is a client for the ChannelMonitor schema.
 type ChannelMonitorClient struct {
 	config
@@ -2724,6 +2523,139 @@ func (c *ChannelMonitorRequestTemplateClient) mutate(ctx context.Context, m *Cha
 	}
 }
 
+// EmailBroadcastClient is a client for the EmailBroadcast schema.
+type EmailBroadcastClient struct {
+	config
+}
+
+// NewEmailBroadcastClient returns a client for the EmailBroadcast from the given config.
+func NewEmailBroadcastClient(c config) *EmailBroadcastClient {
+	return &EmailBroadcastClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `emailbroadcast.Hooks(f(g(h())))`.
+func (c *EmailBroadcastClient) Use(hooks ...Hook) {
+	c.hooks.EmailBroadcast = append(c.hooks.EmailBroadcast, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `emailbroadcast.Intercept(f(g(h())))`.
+func (c *EmailBroadcastClient) Intercept(interceptors ...Interceptor) {
+	c.inters.EmailBroadcast = append(c.inters.EmailBroadcast, interceptors...)
+}
+
+// Create returns a builder for creating a EmailBroadcast entity.
+func (c *EmailBroadcastClient) Create() *EmailBroadcastCreate {
+	mutation := newEmailBroadcastMutation(c.config, OpCreate)
+	return &EmailBroadcastCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of EmailBroadcast entities.
+func (c *EmailBroadcastClient) CreateBulk(builders ...*EmailBroadcastCreate) *EmailBroadcastCreateBulk {
+	return &EmailBroadcastCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *EmailBroadcastClient) MapCreateBulk(slice any, setFunc func(*EmailBroadcastCreate, int)) *EmailBroadcastCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &EmailBroadcastCreateBulk{err: fmt.Errorf("calling to EmailBroadcastClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*EmailBroadcastCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &EmailBroadcastCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for EmailBroadcast.
+func (c *EmailBroadcastClient) Update() *EmailBroadcastUpdate {
+	mutation := newEmailBroadcastMutation(c.config, OpUpdate)
+	return &EmailBroadcastUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *EmailBroadcastClient) UpdateOne(_m *EmailBroadcast) *EmailBroadcastUpdateOne {
+	mutation := newEmailBroadcastMutation(c.config, OpUpdateOne, withEmailBroadcast(_m))
+	return &EmailBroadcastUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *EmailBroadcastClient) UpdateOneID(id int64) *EmailBroadcastUpdateOne {
+	mutation := newEmailBroadcastMutation(c.config, OpUpdateOne, withEmailBroadcastID(id))
+	return &EmailBroadcastUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for EmailBroadcast.
+func (c *EmailBroadcastClient) Delete() *EmailBroadcastDelete {
+	mutation := newEmailBroadcastMutation(c.config, OpDelete)
+	return &EmailBroadcastDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *EmailBroadcastClient) DeleteOne(_m *EmailBroadcast) *EmailBroadcastDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *EmailBroadcastClient) DeleteOneID(id int64) *EmailBroadcastDeleteOne {
+	builder := c.Delete().Where(emailbroadcast.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &EmailBroadcastDeleteOne{builder}
+}
+
+// Query returns a query builder for EmailBroadcast.
+func (c *EmailBroadcastClient) Query() *EmailBroadcastQuery {
+	return &EmailBroadcastQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeEmailBroadcast},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a EmailBroadcast entity by its id.
+func (c *EmailBroadcastClient) Get(ctx context.Context, id int64) (*EmailBroadcast, error) {
+	return c.Query().Where(emailbroadcast.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *EmailBroadcastClient) GetX(ctx context.Context, id int64) *EmailBroadcast {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *EmailBroadcastClient) Hooks() []Hook {
+	return c.hooks.EmailBroadcast
+}
+
+// Interceptors returns the client interceptors.
+func (c *EmailBroadcastClient) Interceptors() []Interceptor {
+	return c.inters.EmailBroadcast
+}
+
+func (c *EmailBroadcastClient) mutate(ctx context.Context, m *EmailBroadcastMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&EmailBroadcastCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&EmailBroadcastUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&EmailBroadcastUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&EmailBroadcastDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown EmailBroadcast mutation op: %q", m.Op())
+	}
+}
+
 // ErrorPassthroughRuleClient is a client for the ErrorPassthroughRule schema.
 type ErrorPassthroughRuleClient struct {
 	config
@@ -2974,6 +2906,22 @@ func (c *GroupClient) QueryAPIKeys(_m *Group) *APIKeyQuery {
 			sqlgraph.From(group.Table, group.FieldID, id),
 			sqlgraph.To(apikey.Table, apikey.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, group.APIKeysTable, group.APIKeysColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAPIKeyGroupRoutes queries the api_key_group_routes edge of a Group.
+func (c *GroupClient) QueryAPIKeyGroupRoutes(_m *Group) *APIKeyGroupRouteQuery {
+	query := (&APIKeyGroupRouteClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(group.Table, group.FieldID, id),
+			sqlgraph.To(apikeygrouproute.Table, apikeygrouproute.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, group.APIKeyGroupRoutesTable, group.APIKeyGroupRoutesColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -4910,6 +4858,1108 @@ func (c *SettingClient) mutate(ctx context.Context, m *SettingMutation) (Value, 
 	}
 }
 
+// ShopBalanceLedgerClient is a client for the ShopBalanceLedger schema.
+type ShopBalanceLedgerClient struct {
+	config
+}
+
+// NewShopBalanceLedgerClient returns a client for the ShopBalanceLedger from the given config.
+func NewShopBalanceLedgerClient(c config) *ShopBalanceLedgerClient {
+	return &ShopBalanceLedgerClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `shopbalanceledger.Hooks(f(g(h())))`.
+func (c *ShopBalanceLedgerClient) Use(hooks ...Hook) {
+	c.hooks.ShopBalanceLedger = append(c.hooks.ShopBalanceLedger, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `shopbalanceledger.Intercept(f(g(h())))`.
+func (c *ShopBalanceLedgerClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ShopBalanceLedger = append(c.inters.ShopBalanceLedger, interceptors...)
+}
+
+// Create returns a builder for creating a ShopBalanceLedger entity.
+func (c *ShopBalanceLedgerClient) Create() *ShopBalanceLedgerCreate {
+	mutation := newShopBalanceLedgerMutation(c.config, OpCreate)
+	return &ShopBalanceLedgerCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ShopBalanceLedger entities.
+func (c *ShopBalanceLedgerClient) CreateBulk(builders ...*ShopBalanceLedgerCreate) *ShopBalanceLedgerCreateBulk {
+	return &ShopBalanceLedgerCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ShopBalanceLedgerClient) MapCreateBulk(slice any, setFunc func(*ShopBalanceLedgerCreate, int)) *ShopBalanceLedgerCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ShopBalanceLedgerCreateBulk{err: fmt.Errorf("calling to ShopBalanceLedgerClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ShopBalanceLedgerCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ShopBalanceLedgerCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ShopBalanceLedger.
+func (c *ShopBalanceLedgerClient) Update() *ShopBalanceLedgerUpdate {
+	mutation := newShopBalanceLedgerMutation(c.config, OpUpdate)
+	return &ShopBalanceLedgerUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ShopBalanceLedgerClient) UpdateOne(_m *ShopBalanceLedger) *ShopBalanceLedgerUpdateOne {
+	mutation := newShopBalanceLedgerMutation(c.config, OpUpdateOne, withShopBalanceLedger(_m))
+	return &ShopBalanceLedgerUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ShopBalanceLedgerClient) UpdateOneID(id int64) *ShopBalanceLedgerUpdateOne {
+	mutation := newShopBalanceLedgerMutation(c.config, OpUpdateOne, withShopBalanceLedgerID(id))
+	return &ShopBalanceLedgerUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ShopBalanceLedger.
+func (c *ShopBalanceLedgerClient) Delete() *ShopBalanceLedgerDelete {
+	mutation := newShopBalanceLedgerMutation(c.config, OpDelete)
+	return &ShopBalanceLedgerDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ShopBalanceLedgerClient) DeleteOne(_m *ShopBalanceLedger) *ShopBalanceLedgerDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ShopBalanceLedgerClient) DeleteOneID(id int64) *ShopBalanceLedgerDeleteOne {
+	builder := c.Delete().Where(shopbalanceledger.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ShopBalanceLedgerDeleteOne{builder}
+}
+
+// Query returns a query builder for ShopBalanceLedger.
+func (c *ShopBalanceLedgerClient) Query() *ShopBalanceLedgerQuery {
+	return &ShopBalanceLedgerQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeShopBalanceLedger},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ShopBalanceLedger entity by its id.
+func (c *ShopBalanceLedgerClient) Get(ctx context.Context, id int64) (*ShopBalanceLedger, error) {
+	return c.Query().Where(shopbalanceledger.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ShopBalanceLedgerClient) GetX(ctx context.Context, id int64) *ShopBalanceLedger {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a ShopBalanceLedger.
+func (c *ShopBalanceLedgerClient) QueryUser(_m *ShopBalanceLedger) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopbalanceledger.Table, shopbalanceledger.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, shopbalanceledger.UserTable, shopbalanceledger.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryShopOrder queries the shop_order edge of a ShopBalanceLedger.
+func (c *ShopBalanceLedgerClient) QueryShopOrder(_m *ShopBalanceLedger) *ShopOrderQuery {
+	query := (&ShopOrderClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopbalanceledger.Table, shopbalanceledger.FieldID, id),
+			sqlgraph.To(shoporder.Table, shoporder.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, shopbalanceledger.ShopOrderTable, shopbalanceledger.ShopOrderColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryDrawCycle queries the draw_cycle edge of a ShopBalanceLedger.
+func (c *ShopBalanceLedgerClient) QueryDrawCycle(_m *ShopBalanceLedger) *ShopDrawCycleQuery {
+	query := (&ShopDrawCycleClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopbalanceledger.Table, shopbalanceledger.FieldID, id),
+			sqlgraph.To(shopdrawcycle.Table, shopdrawcycle.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, shopbalanceledger.DrawCycleTable, shopbalanceledger.DrawCycleColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ShopBalanceLedgerClient) Hooks() []Hook {
+	return c.hooks.ShopBalanceLedger
+}
+
+// Interceptors returns the client interceptors.
+func (c *ShopBalanceLedgerClient) Interceptors() []Interceptor {
+	return c.inters.ShopBalanceLedger
+}
+
+func (c *ShopBalanceLedgerClient) mutate(ctx context.Context, m *ShopBalanceLedgerMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ShopBalanceLedgerCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ShopBalanceLedgerUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ShopBalanceLedgerUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ShopBalanceLedgerDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ShopBalanceLedger mutation op: %q", m.Op())
+	}
+}
+
+// ShopCardKeyClient is a client for the ShopCardKey schema.
+type ShopCardKeyClient struct {
+	config
+}
+
+// NewShopCardKeyClient returns a client for the ShopCardKey from the given config.
+func NewShopCardKeyClient(c config) *ShopCardKeyClient {
+	return &ShopCardKeyClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `shopcardkey.Hooks(f(g(h())))`.
+func (c *ShopCardKeyClient) Use(hooks ...Hook) {
+	c.hooks.ShopCardKey = append(c.hooks.ShopCardKey, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `shopcardkey.Intercept(f(g(h())))`.
+func (c *ShopCardKeyClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ShopCardKey = append(c.inters.ShopCardKey, interceptors...)
+}
+
+// Create returns a builder for creating a ShopCardKey entity.
+func (c *ShopCardKeyClient) Create() *ShopCardKeyCreate {
+	mutation := newShopCardKeyMutation(c.config, OpCreate)
+	return &ShopCardKeyCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ShopCardKey entities.
+func (c *ShopCardKeyClient) CreateBulk(builders ...*ShopCardKeyCreate) *ShopCardKeyCreateBulk {
+	return &ShopCardKeyCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ShopCardKeyClient) MapCreateBulk(slice any, setFunc func(*ShopCardKeyCreate, int)) *ShopCardKeyCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ShopCardKeyCreateBulk{err: fmt.Errorf("calling to ShopCardKeyClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ShopCardKeyCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ShopCardKeyCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ShopCardKey.
+func (c *ShopCardKeyClient) Update() *ShopCardKeyUpdate {
+	mutation := newShopCardKeyMutation(c.config, OpUpdate)
+	return &ShopCardKeyUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ShopCardKeyClient) UpdateOne(_m *ShopCardKey) *ShopCardKeyUpdateOne {
+	mutation := newShopCardKeyMutation(c.config, OpUpdateOne, withShopCardKey(_m))
+	return &ShopCardKeyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ShopCardKeyClient) UpdateOneID(id int64) *ShopCardKeyUpdateOne {
+	mutation := newShopCardKeyMutation(c.config, OpUpdateOne, withShopCardKeyID(id))
+	return &ShopCardKeyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ShopCardKey.
+func (c *ShopCardKeyClient) Delete() *ShopCardKeyDelete {
+	mutation := newShopCardKeyMutation(c.config, OpDelete)
+	return &ShopCardKeyDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ShopCardKeyClient) DeleteOne(_m *ShopCardKey) *ShopCardKeyDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ShopCardKeyClient) DeleteOneID(id int64) *ShopCardKeyDeleteOne {
+	builder := c.Delete().Where(shopcardkey.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ShopCardKeyDeleteOne{builder}
+}
+
+// Query returns a query builder for ShopCardKey.
+func (c *ShopCardKeyClient) Query() *ShopCardKeyQuery {
+	return &ShopCardKeyQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeShopCardKey},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ShopCardKey entity by its id.
+func (c *ShopCardKeyClient) Get(ctx context.Context, id int64) (*ShopCardKey, error) {
+	return c.Query().Where(shopcardkey.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ShopCardKeyClient) GetX(ctx context.Context, id int64) *ShopCardKey {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryProduct queries the product edge of a ShopCardKey.
+func (c *ShopCardKeyClient) QueryProduct(_m *ShopCardKey) *ShopProductQuery {
+	query := (&ShopProductClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopcardkey.Table, shopcardkey.FieldID, id),
+			sqlgraph.To(shopproduct.Table, shopproduct.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, shopcardkey.ProductTable, shopcardkey.ProductColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryOrder queries the order edge of a ShopCardKey.
+func (c *ShopCardKeyClient) QueryOrder(_m *ShopCardKey) *ShopOrderQuery {
+	query := (&ShopOrderClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopcardkey.Table, shopcardkey.FieldID, id),
+			sqlgraph.To(shoporder.Table, shoporder.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, shopcardkey.OrderTable, shopcardkey.OrderColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ShopCardKeyClient) Hooks() []Hook {
+	return c.hooks.ShopCardKey
+}
+
+// Interceptors returns the client interceptors.
+func (c *ShopCardKeyClient) Interceptors() []Interceptor {
+	return c.inters.ShopCardKey
+}
+
+func (c *ShopCardKeyClient) mutate(ctx context.Context, m *ShopCardKeyMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ShopCardKeyCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ShopCardKeyUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ShopCardKeyUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ShopCardKeyDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ShopCardKey mutation op: %q", m.Op())
+	}
+}
+
+// ShopCategoryClient is a client for the ShopCategory schema.
+type ShopCategoryClient struct {
+	config
+}
+
+// NewShopCategoryClient returns a client for the ShopCategory from the given config.
+func NewShopCategoryClient(c config) *ShopCategoryClient {
+	return &ShopCategoryClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `shopcategory.Hooks(f(g(h())))`.
+func (c *ShopCategoryClient) Use(hooks ...Hook) {
+	c.hooks.ShopCategory = append(c.hooks.ShopCategory, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `shopcategory.Intercept(f(g(h())))`.
+func (c *ShopCategoryClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ShopCategory = append(c.inters.ShopCategory, interceptors...)
+}
+
+// Create returns a builder for creating a ShopCategory entity.
+func (c *ShopCategoryClient) Create() *ShopCategoryCreate {
+	mutation := newShopCategoryMutation(c.config, OpCreate)
+	return &ShopCategoryCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ShopCategory entities.
+func (c *ShopCategoryClient) CreateBulk(builders ...*ShopCategoryCreate) *ShopCategoryCreateBulk {
+	return &ShopCategoryCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ShopCategoryClient) MapCreateBulk(slice any, setFunc func(*ShopCategoryCreate, int)) *ShopCategoryCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ShopCategoryCreateBulk{err: fmt.Errorf("calling to ShopCategoryClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ShopCategoryCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ShopCategoryCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ShopCategory.
+func (c *ShopCategoryClient) Update() *ShopCategoryUpdate {
+	mutation := newShopCategoryMutation(c.config, OpUpdate)
+	return &ShopCategoryUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ShopCategoryClient) UpdateOne(_m *ShopCategory) *ShopCategoryUpdateOne {
+	mutation := newShopCategoryMutation(c.config, OpUpdateOne, withShopCategory(_m))
+	return &ShopCategoryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ShopCategoryClient) UpdateOneID(id int64) *ShopCategoryUpdateOne {
+	mutation := newShopCategoryMutation(c.config, OpUpdateOne, withShopCategoryID(id))
+	return &ShopCategoryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ShopCategory.
+func (c *ShopCategoryClient) Delete() *ShopCategoryDelete {
+	mutation := newShopCategoryMutation(c.config, OpDelete)
+	return &ShopCategoryDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ShopCategoryClient) DeleteOne(_m *ShopCategory) *ShopCategoryDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ShopCategoryClient) DeleteOneID(id int64) *ShopCategoryDeleteOne {
+	builder := c.Delete().Where(shopcategory.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ShopCategoryDeleteOne{builder}
+}
+
+// Query returns a query builder for ShopCategory.
+func (c *ShopCategoryClient) Query() *ShopCategoryQuery {
+	return &ShopCategoryQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeShopCategory},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ShopCategory entity by its id.
+func (c *ShopCategoryClient) Get(ctx context.Context, id int64) (*ShopCategory, error) {
+	return c.Query().Where(shopcategory.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ShopCategoryClient) GetX(ctx context.Context, id int64) *ShopCategory {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryProducts queries the products edge of a ShopCategory.
+func (c *ShopCategoryClient) QueryProducts(_m *ShopCategory) *ShopProductQuery {
+	query := (&ShopProductClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopcategory.Table, shopcategory.FieldID, id),
+			sqlgraph.To(shopproduct.Table, shopproduct.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, shopcategory.ProductsTable, shopcategory.ProductsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ShopCategoryClient) Hooks() []Hook {
+	return c.hooks.ShopCategory
+}
+
+// Interceptors returns the client interceptors.
+func (c *ShopCategoryClient) Interceptors() []Interceptor {
+	return c.inters.ShopCategory
+}
+
+func (c *ShopCategoryClient) mutate(ctx context.Context, m *ShopCategoryMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ShopCategoryCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ShopCategoryUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ShopCategoryUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ShopCategoryDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ShopCategory mutation op: %q", m.Op())
+	}
+}
+
+// ShopDrawCycleClient is a client for the ShopDrawCycle schema.
+type ShopDrawCycleClient struct {
+	config
+}
+
+// NewShopDrawCycleClient returns a client for the ShopDrawCycle from the given config.
+func NewShopDrawCycleClient(c config) *ShopDrawCycleClient {
+	return &ShopDrawCycleClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `shopdrawcycle.Hooks(f(g(h())))`.
+func (c *ShopDrawCycleClient) Use(hooks ...Hook) {
+	c.hooks.ShopDrawCycle = append(c.hooks.ShopDrawCycle, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `shopdrawcycle.Intercept(f(g(h())))`.
+func (c *ShopDrawCycleClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ShopDrawCycle = append(c.inters.ShopDrawCycle, interceptors...)
+}
+
+// Create returns a builder for creating a ShopDrawCycle entity.
+func (c *ShopDrawCycleClient) Create() *ShopDrawCycleCreate {
+	mutation := newShopDrawCycleMutation(c.config, OpCreate)
+	return &ShopDrawCycleCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ShopDrawCycle entities.
+func (c *ShopDrawCycleClient) CreateBulk(builders ...*ShopDrawCycleCreate) *ShopDrawCycleCreateBulk {
+	return &ShopDrawCycleCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ShopDrawCycleClient) MapCreateBulk(slice any, setFunc func(*ShopDrawCycleCreate, int)) *ShopDrawCycleCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ShopDrawCycleCreateBulk{err: fmt.Errorf("calling to ShopDrawCycleClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ShopDrawCycleCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ShopDrawCycleCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ShopDrawCycle.
+func (c *ShopDrawCycleClient) Update() *ShopDrawCycleUpdate {
+	mutation := newShopDrawCycleMutation(c.config, OpUpdate)
+	return &ShopDrawCycleUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ShopDrawCycleClient) UpdateOne(_m *ShopDrawCycle) *ShopDrawCycleUpdateOne {
+	mutation := newShopDrawCycleMutation(c.config, OpUpdateOne, withShopDrawCycle(_m))
+	return &ShopDrawCycleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ShopDrawCycleClient) UpdateOneID(id int64) *ShopDrawCycleUpdateOne {
+	mutation := newShopDrawCycleMutation(c.config, OpUpdateOne, withShopDrawCycleID(id))
+	return &ShopDrawCycleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ShopDrawCycle.
+func (c *ShopDrawCycleClient) Delete() *ShopDrawCycleDelete {
+	mutation := newShopDrawCycleMutation(c.config, OpDelete)
+	return &ShopDrawCycleDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ShopDrawCycleClient) DeleteOne(_m *ShopDrawCycle) *ShopDrawCycleDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ShopDrawCycleClient) DeleteOneID(id int64) *ShopDrawCycleDeleteOne {
+	builder := c.Delete().Where(shopdrawcycle.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ShopDrawCycleDeleteOne{builder}
+}
+
+// Query returns a query builder for ShopDrawCycle.
+func (c *ShopDrawCycleClient) Query() *ShopDrawCycleQuery {
+	return &ShopDrawCycleQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeShopDrawCycle},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ShopDrawCycle entity by its id.
+func (c *ShopDrawCycleClient) Get(ctx context.Context, id int64) (*ShopDrawCycle, error) {
+	return c.Query().Where(shopdrawcycle.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ShopDrawCycleClient) GetX(ctx context.Context, id int64) *ShopDrawCycle {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a ShopDrawCycle.
+func (c *ShopDrawCycleClient) QueryUser(_m *ShopDrawCycle) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopdrawcycle.Table, shopdrawcycle.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, shopdrawcycle.UserTable, shopdrawcycle.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryProduct queries the product edge of a ShopDrawCycle.
+func (c *ShopDrawCycleClient) QueryProduct(_m *ShopDrawCycle) *ShopProductQuery {
+	query := (&ShopProductClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopdrawcycle.Table, shopdrawcycle.FieldID, id),
+			sqlgraph.To(shopproduct.Table, shopproduct.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, shopdrawcycle.ProductTable, shopdrawcycle.ProductColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryOrders queries the orders edge of a ShopDrawCycle.
+func (c *ShopDrawCycleClient) QueryOrders(_m *ShopDrawCycle) *ShopOrderQuery {
+	query := (&ShopOrderClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopdrawcycle.Table, shopdrawcycle.FieldID, id),
+			sqlgraph.To(shoporder.Table, shoporder.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, shopdrawcycle.OrdersTable, shopdrawcycle.OrdersColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryBalanceLedger queries the balance_ledger edge of a ShopDrawCycle.
+func (c *ShopDrawCycleClient) QueryBalanceLedger(_m *ShopDrawCycle) *ShopBalanceLedgerQuery {
+	query := (&ShopBalanceLedgerClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopdrawcycle.Table, shopdrawcycle.FieldID, id),
+			sqlgraph.To(shopbalanceledger.Table, shopbalanceledger.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, shopdrawcycle.BalanceLedgerTable, shopdrawcycle.BalanceLedgerColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ShopDrawCycleClient) Hooks() []Hook {
+	return c.hooks.ShopDrawCycle
+}
+
+// Interceptors returns the client interceptors.
+func (c *ShopDrawCycleClient) Interceptors() []Interceptor {
+	return c.inters.ShopDrawCycle
+}
+
+func (c *ShopDrawCycleClient) mutate(ctx context.Context, m *ShopDrawCycleMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ShopDrawCycleCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ShopDrawCycleUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ShopDrawCycleUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ShopDrawCycleDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ShopDrawCycle mutation op: %q", m.Op())
+	}
+}
+
+// ShopOrderClient is a client for the ShopOrder schema.
+type ShopOrderClient struct {
+	config
+}
+
+// NewShopOrderClient returns a client for the ShopOrder from the given config.
+func NewShopOrderClient(c config) *ShopOrderClient {
+	return &ShopOrderClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `shoporder.Hooks(f(g(h())))`.
+func (c *ShopOrderClient) Use(hooks ...Hook) {
+	c.hooks.ShopOrder = append(c.hooks.ShopOrder, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `shoporder.Intercept(f(g(h())))`.
+func (c *ShopOrderClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ShopOrder = append(c.inters.ShopOrder, interceptors...)
+}
+
+// Create returns a builder for creating a ShopOrder entity.
+func (c *ShopOrderClient) Create() *ShopOrderCreate {
+	mutation := newShopOrderMutation(c.config, OpCreate)
+	return &ShopOrderCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ShopOrder entities.
+func (c *ShopOrderClient) CreateBulk(builders ...*ShopOrderCreate) *ShopOrderCreateBulk {
+	return &ShopOrderCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ShopOrderClient) MapCreateBulk(slice any, setFunc func(*ShopOrderCreate, int)) *ShopOrderCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ShopOrderCreateBulk{err: fmt.Errorf("calling to ShopOrderClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ShopOrderCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ShopOrderCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ShopOrder.
+func (c *ShopOrderClient) Update() *ShopOrderUpdate {
+	mutation := newShopOrderMutation(c.config, OpUpdate)
+	return &ShopOrderUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ShopOrderClient) UpdateOne(_m *ShopOrder) *ShopOrderUpdateOne {
+	mutation := newShopOrderMutation(c.config, OpUpdateOne, withShopOrder(_m))
+	return &ShopOrderUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ShopOrderClient) UpdateOneID(id int64) *ShopOrderUpdateOne {
+	mutation := newShopOrderMutation(c.config, OpUpdateOne, withShopOrderID(id))
+	return &ShopOrderUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ShopOrder.
+func (c *ShopOrderClient) Delete() *ShopOrderDelete {
+	mutation := newShopOrderMutation(c.config, OpDelete)
+	return &ShopOrderDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ShopOrderClient) DeleteOne(_m *ShopOrder) *ShopOrderDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ShopOrderClient) DeleteOneID(id int64) *ShopOrderDeleteOne {
+	builder := c.Delete().Where(shoporder.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ShopOrderDeleteOne{builder}
+}
+
+// Query returns a query builder for ShopOrder.
+func (c *ShopOrderClient) Query() *ShopOrderQuery {
+	return &ShopOrderQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeShopOrder},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ShopOrder entity by its id.
+func (c *ShopOrderClient) Get(ctx context.Context, id int64) (*ShopOrder, error) {
+	return c.Query().Where(shoporder.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ShopOrderClient) GetX(ctx context.Context, id int64) *ShopOrder {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a ShopOrder.
+func (c *ShopOrderClient) QueryUser(_m *ShopOrder) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shoporder.Table, shoporder.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, shoporder.UserTable, shoporder.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryProduct queries the product edge of a ShopOrder.
+func (c *ShopOrderClient) QueryProduct(_m *ShopOrder) *ShopProductQuery {
+	query := (&ShopProductClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shoporder.Table, shoporder.FieldID, id),
+			sqlgraph.To(shopproduct.Table, shopproduct.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, shoporder.ProductTable, shoporder.ProductColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryDrawCycle queries the draw_cycle edge of a ShopOrder.
+func (c *ShopOrderClient) QueryDrawCycle(_m *ShopOrder) *ShopDrawCycleQuery {
+	query := (&ShopDrawCycleClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shoporder.Table, shoporder.FieldID, id),
+			sqlgraph.To(shopdrawcycle.Table, shopdrawcycle.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, shoporder.DrawCycleTable, shoporder.DrawCycleColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryBalanceLedger queries the balance_ledger edge of a ShopOrder.
+func (c *ShopOrderClient) QueryBalanceLedger(_m *ShopOrder) *ShopBalanceLedgerQuery {
+	query := (&ShopBalanceLedgerClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shoporder.Table, shoporder.FieldID, id),
+			sqlgraph.To(shopbalanceledger.Table, shopbalanceledger.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, shoporder.BalanceLedgerTable, shoporder.BalanceLedgerColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryCardKeys queries the card_keys edge of a ShopOrder.
+func (c *ShopOrderClient) QueryCardKeys(_m *ShopOrder) *ShopCardKeyQuery {
+	query := (&ShopCardKeyClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shoporder.Table, shoporder.FieldID, id),
+			sqlgraph.To(shopcardkey.Table, shopcardkey.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, shoporder.CardKeysTable, shoporder.CardKeysColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ShopOrderClient) Hooks() []Hook {
+	return c.hooks.ShopOrder
+}
+
+// Interceptors returns the client interceptors.
+func (c *ShopOrderClient) Interceptors() []Interceptor {
+	return c.inters.ShopOrder
+}
+
+func (c *ShopOrderClient) mutate(ctx context.Context, m *ShopOrderMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ShopOrderCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ShopOrderUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ShopOrderUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ShopOrderDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ShopOrder mutation op: %q", m.Op())
+	}
+}
+
+// ShopProductClient is a client for the ShopProduct schema.
+type ShopProductClient struct {
+	config
+}
+
+// NewShopProductClient returns a client for the ShopProduct from the given config.
+func NewShopProductClient(c config) *ShopProductClient {
+	return &ShopProductClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `shopproduct.Hooks(f(g(h())))`.
+func (c *ShopProductClient) Use(hooks ...Hook) {
+	c.hooks.ShopProduct = append(c.hooks.ShopProduct, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `shopproduct.Intercept(f(g(h())))`.
+func (c *ShopProductClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ShopProduct = append(c.inters.ShopProduct, interceptors...)
+}
+
+// Create returns a builder for creating a ShopProduct entity.
+func (c *ShopProductClient) Create() *ShopProductCreate {
+	mutation := newShopProductMutation(c.config, OpCreate)
+	return &ShopProductCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ShopProduct entities.
+func (c *ShopProductClient) CreateBulk(builders ...*ShopProductCreate) *ShopProductCreateBulk {
+	return &ShopProductCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ShopProductClient) MapCreateBulk(slice any, setFunc func(*ShopProductCreate, int)) *ShopProductCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ShopProductCreateBulk{err: fmt.Errorf("calling to ShopProductClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ShopProductCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ShopProductCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ShopProduct.
+func (c *ShopProductClient) Update() *ShopProductUpdate {
+	mutation := newShopProductMutation(c.config, OpUpdate)
+	return &ShopProductUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ShopProductClient) UpdateOne(_m *ShopProduct) *ShopProductUpdateOne {
+	mutation := newShopProductMutation(c.config, OpUpdateOne, withShopProduct(_m))
+	return &ShopProductUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ShopProductClient) UpdateOneID(id int64) *ShopProductUpdateOne {
+	mutation := newShopProductMutation(c.config, OpUpdateOne, withShopProductID(id))
+	return &ShopProductUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ShopProduct.
+func (c *ShopProductClient) Delete() *ShopProductDelete {
+	mutation := newShopProductMutation(c.config, OpDelete)
+	return &ShopProductDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ShopProductClient) DeleteOne(_m *ShopProduct) *ShopProductDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ShopProductClient) DeleteOneID(id int64) *ShopProductDeleteOne {
+	builder := c.Delete().Where(shopproduct.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ShopProductDeleteOne{builder}
+}
+
+// Query returns a query builder for ShopProduct.
+func (c *ShopProductClient) Query() *ShopProductQuery {
+	return &ShopProductQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeShopProduct},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ShopProduct entity by its id.
+func (c *ShopProductClient) Get(ctx context.Context, id int64) (*ShopProduct, error) {
+	return c.Query().Where(shopproduct.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ShopProductClient) GetX(ctx context.Context, id int64) *ShopProduct {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCategory queries the category edge of a ShopProduct.
+func (c *ShopProductClient) QueryCategory(_m *ShopProduct) *ShopCategoryQuery {
+	query := (&ShopCategoryClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopproduct.Table, shopproduct.FieldID, id),
+			sqlgraph.To(shopcategory.Table, shopcategory.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, shopproduct.CategoryTable, shopproduct.CategoryColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryCardKeys queries the card_keys edge of a ShopProduct.
+func (c *ShopProductClient) QueryCardKeys(_m *ShopProduct) *ShopCardKeyQuery {
+	query := (&ShopCardKeyClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopproduct.Table, shopproduct.FieldID, id),
+			sqlgraph.To(shopcardkey.Table, shopcardkey.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, shopproduct.CardKeysTable, shopproduct.CardKeysColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryOrders queries the orders edge of a ShopProduct.
+func (c *ShopProductClient) QueryOrders(_m *ShopProduct) *ShopOrderQuery {
+	query := (&ShopOrderClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopproduct.Table, shopproduct.FieldID, id),
+			sqlgraph.To(shoporder.Table, shoporder.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, shopproduct.OrdersTable, shopproduct.OrdersColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryDrawCycles queries the draw_cycles edge of a ShopProduct.
+func (c *ShopProductClient) QueryDrawCycles(_m *ShopProduct) *ShopDrawCycleQuery {
+	query := (&ShopDrawCycleClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(shopproduct.Table, shopproduct.FieldID, id),
+			sqlgraph.To(shopdrawcycle.Table, shopdrawcycle.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, shopproduct.DrawCyclesTable, shopproduct.DrawCyclesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ShopProductClient) Hooks() []Hook {
+	return c.hooks.ShopProduct
+}
+
+// Interceptors returns the client interceptors.
+func (c *ShopProductClient) Interceptors() []Interceptor {
+	return c.inters.ShopProduct
+}
+
+func (c *ShopProductClient) mutate(ctx context.Context, m *ShopProductMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ShopProductCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ShopProductUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ShopProductUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ShopProductDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ShopProduct mutation op: %q", m.Op())
+	}
+}
+
 // SubscriptionPlanClient is a client for the SubscriptionPlan schema.
 type SubscriptionPlanClient struct {
 	config
@@ -5790,6 +6840,70 @@ func (c *UserClient) QueryPaymentOrders(_m *User) *PaymentOrderQuery {
 	return query
 }
 
+// QueryShopOrders queries the shop_orders edge of a User.
+func (c *UserClient) QueryShopOrders(_m *User) *ShopOrderQuery {
+	query := (&ShopOrderClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(shoporder.Table, shoporder.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ShopOrdersTable, user.ShopOrdersColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryShopDrawCycles queries the shop_draw_cycles edge of a User.
+func (c *UserClient) QueryShopDrawCycles(_m *User) *ShopDrawCycleQuery {
+	query := (&ShopDrawCycleClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(shopdrawcycle.Table, shopdrawcycle.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ShopDrawCyclesTable, user.ShopDrawCyclesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryShopBalanceLedger queries the shop_balance_ledger edge of a User.
+func (c *UserClient) QueryShopBalanceLedger(_m *User) *ShopBalanceLedgerQuery {
+	query := (&ShopBalanceLedgerClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(shopbalanceledger.Table, shopbalanceledger.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ShopBalanceLedgerTable, user.ShopBalanceLedgerColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryOwnedAccounts queries the owned_accounts edge of a User.
+func (c *UserClient) QueryOwnedAccounts(_m *User) *AccountQuery {
+	query := (&AccountClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(account.Table, account.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.OwnedAccountsTable, user.OwnedAccountsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryAuthIdentities queries the auth_identities edge of a User.
 func (c *UserClient) QueryAuthIdentities(_m *User) *AuthIdentityQuery {
 	query := (&AuthIdentityClient{config: c.config}).Query()
@@ -5815,22 +6929,6 @@ func (c *UserClient) QueryPendingAuthSessions(_m *User) *PendingAuthSessionQuery
 			sqlgraph.From(user.Table, user.FieldID, id),
 			sqlgraph.To(pendingauthsession.Table, pendingauthsession.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.PendingAuthSessionsTable, user.PendingAuthSessionsColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
-// QueryPlatformQuotas queries the platform_quotas edge of a User.
-func (c *UserClient) QueryPlatformQuotas(_m *User) *UserPlatformQuotaQuery {
-	query := (&UserPlatformQuotaClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(user.Table, user.FieldID, id),
-			sqlgraph.To(userplatformquota.Table, userplatformquota.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, user.PlatformQuotasTable, user.PlatformQuotasColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -6313,157 +7411,6 @@ func (c *UserAttributeValueClient) mutate(ctx context.Context, m *UserAttributeV
 	}
 }
 
-// UserPlatformQuotaClient is a client for the UserPlatformQuota schema.
-type UserPlatformQuotaClient struct {
-	config
-}
-
-// NewUserPlatformQuotaClient returns a client for the UserPlatformQuota from the given config.
-func NewUserPlatformQuotaClient(c config) *UserPlatformQuotaClient {
-	return &UserPlatformQuotaClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `userplatformquota.Hooks(f(g(h())))`.
-func (c *UserPlatformQuotaClient) Use(hooks ...Hook) {
-	c.hooks.UserPlatformQuota = append(c.hooks.UserPlatformQuota, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `userplatformquota.Intercept(f(g(h())))`.
-func (c *UserPlatformQuotaClient) Intercept(interceptors ...Interceptor) {
-	c.inters.UserPlatformQuota = append(c.inters.UserPlatformQuota, interceptors...)
-}
-
-// Create returns a builder for creating a UserPlatformQuota entity.
-func (c *UserPlatformQuotaClient) Create() *UserPlatformQuotaCreate {
-	mutation := newUserPlatformQuotaMutation(c.config, OpCreate)
-	return &UserPlatformQuotaCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of UserPlatformQuota entities.
-func (c *UserPlatformQuotaClient) CreateBulk(builders ...*UserPlatformQuotaCreate) *UserPlatformQuotaCreateBulk {
-	return &UserPlatformQuotaCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *UserPlatformQuotaClient) MapCreateBulk(slice any, setFunc func(*UserPlatformQuotaCreate, int)) *UserPlatformQuotaCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &UserPlatformQuotaCreateBulk{err: fmt.Errorf("calling to UserPlatformQuotaClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*UserPlatformQuotaCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &UserPlatformQuotaCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for UserPlatformQuota.
-func (c *UserPlatformQuotaClient) Update() *UserPlatformQuotaUpdate {
-	mutation := newUserPlatformQuotaMutation(c.config, OpUpdate)
-	return &UserPlatformQuotaUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *UserPlatformQuotaClient) UpdateOne(_m *UserPlatformQuota) *UserPlatformQuotaUpdateOne {
-	mutation := newUserPlatformQuotaMutation(c.config, OpUpdateOne, withUserPlatformQuota(_m))
-	return &UserPlatformQuotaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *UserPlatformQuotaClient) UpdateOneID(id int64) *UserPlatformQuotaUpdateOne {
-	mutation := newUserPlatformQuotaMutation(c.config, OpUpdateOne, withUserPlatformQuotaID(id))
-	return &UserPlatformQuotaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for UserPlatformQuota.
-func (c *UserPlatformQuotaClient) Delete() *UserPlatformQuotaDelete {
-	mutation := newUserPlatformQuotaMutation(c.config, OpDelete)
-	return &UserPlatformQuotaDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *UserPlatformQuotaClient) DeleteOne(_m *UserPlatformQuota) *UserPlatformQuotaDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *UserPlatformQuotaClient) DeleteOneID(id int64) *UserPlatformQuotaDeleteOne {
-	builder := c.Delete().Where(userplatformquota.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &UserPlatformQuotaDeleteOne{builder}
-}
-
-// Query returns a query builder for UserPlatformQuota.
-func (c *UserPlatformQuotaClient) Query() *UserPlatformQuotaQuery {
-	return &UserPlatformQuotaQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeUserPlatformQuota},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a UserPlatformQuota entity by its id.
-func (c *UserPlatformQuotaClient) Get(ctx context.Context, id int64) (*UserPlatformQuota, error) {
-	return c.Query().Where(userplatformquota.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *UserPlatformQuotaClient) GetX(ctx context.Context, id int64) *UserPlatformQuota {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// QueryUser queries the user edge of a UserPlatformQuota.
-func (c *UserPlatformQuotaClient) QueryUser(_m *UserPlatformQuota) *UserQuery {
-	query := (&UserClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(userplatformquota.Table, userplatformquota.FieldID, id),
-			sqlgraph.To(user.Table, user.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, userplatformquota.UserTable, userplatformquota.UserColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
-// Hooks returns the client hooks.
-func (c *UserPlatformQuotaClient) Hooks() []Hook {
-	hooks := c.hooks.UserPlatformQuota
-	return append(hooks[:len(hooks):len(hooks)], userplatformquota.Hooks[:]...)
-}
-
-// Interceptors returns the client interceptors.
-func (c *UserPlatformQuotaClient) Interceptors() []Interceptor {
-	inters := c.inters.UserPlatformQuota
-	return append(inters[:len(inters):len(inters)], userplatformquota.Interceptors[:]...)
-}
-
-func (c *UserPlatformQuotaClient) mutate(ctx context.Context, m *UserPlatformQuotaMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&UserPlatformQuotaCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&UserPlatformQuotaUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&UserPlatformQuotaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&UserPlatformQuotaDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown UserPlatformQuota mutation op: %q", m.Op())
-	}
-}
-
 // UserSubscriptionClient is a client for the UserSubscription schema.
 type UserSubscriptionClient struct {
 	config
@@ -6666,26 +7613,28 @@ func (c *UserSubscriptionClient) mutate(ctx context.Context, m *UserSubscription
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
-		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
-		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
-		ChannelMonitorRequestTemplate, ErrorPassthroughRule, Group, IdempotencyRecord,
-		IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
-		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
-		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
-		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserPlatformQuota, UserSubscription []ent.Hook
+		APIKey, APIKeyGroupRoute, Account, AccountGroup, Announcement, AnnouncementRead,
+		AuthIdentity, AuthIdentityChannel, ChannelMonitor, ChannelMonitorDailyRollup,
+		ChannelMonitorHistory, ChannelMonitorRequestTemplate, EmailBroadcast,
+		ErrorPassthroughRule, Group, IdempotencyRecord, IdentityAdoptionDecision,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
+		ShopBalanceLedger, ShopCardKey, ShopCategory, ShopDrawCycle, ShopOrder,
+		ShopProduct, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
+		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserSubscription []ent.Hook
 	}
 	inters struct {
-		APIKey, Account, AccountGroup, Announcement, AnnouncementRead, AuthIdentity,
-		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
-		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
-		ChannelMonitorRequestTemplate, ErrorPassthroughRule, Group, IdempotencyRecord,
-		IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
-		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
-		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
-		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserPlatformQuota, UserSubscription []ent.Interceptor
+		APIKey, APIKeyGroupRoute, Account, AccountGroup, Announcement, AnnouncementRead,
+		AuthIdentity, AuthIdentityChannel, ChannelMonitor, ChannelMonitorDailyRollup,
+		ChannelMonitorHistory, ChannelMonitorRequestTemplate, EmailBroadcast,
+		ErrorPassthroughRule, Group, IdempotencyRecord, IdentityAdoptionDecision,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
+		ShopBalanceLedger, ShopCardKey, ShopCategory, ShopDrawCycle, ShopOrder,
+		ShopProduct, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
+		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserSubscription []ent.Interceptor
 	}
 )
 

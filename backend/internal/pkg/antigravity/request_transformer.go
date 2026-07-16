@@ -107,19 +107,13 @@ func TransformClaudeToGeminiWithOptions(claudeReq *ClaudeRequest, projectID, map
 	allowDummyThought := strings.HasPrefix(targetModel, "gemini-")
 
 	// 1. 构建 contents
-	contents, messageSystemParts, strippedThinking, err := buildContents(claudeReq.Messages, toolIDToName, isThinkingEnabled, allowDummyThought)
+	contents, strippedThinking, err := buildContents(claudeReq.Messages, toolIDToName, isThinkingEnabled, allowDummyThought)
 	if err != nil {
 		return nil, fmt.Errorf("build contents: %w", err)
 	}
 
 	// 2. 构建 systemInstruction（使用 targetModel 而非原始请求模型，确保身份注入基于最终模型）
 	systemInstruction := buildSystemInstruction(claudeReq.System, targetModel, opts, claudeReq.Tools)
-	if len(messageSystemParts) > 0 {
-		if systemInstruction == nil {
-			systemInstruction = &GeminiContent{Role: "user"}
-		}
-		systemInstruction.Parts = append(systemInstruction.Parts, messageSystemParts...)
-	}
 
 	// 3. 构建 generationConfig
 	reqForConfig := claudeReq
@@ -147,10 +141,9 @@ func TransformClaudeToGeminiWithOptions(claudeReq *ClaudeRequest, projectID, map
 		SessionID: generateStableSessionID(contents),
 	}
 
-	// 针对 Gemini Reasoning 模型（如 gemini-3.1-pro-high等）过滤强制空 ToolConfig
+	// Gemini 推理模型不接受无工具时强制传入空 ToolConfig。
 	isReasoning := IsGeminiReasoningModel(targetModel)
 	if !isReasoning || len(tools) > 0 {
-		// 总是设置 toolConfig，与官方客户端一致
 		innerRequest.ToolConfig = &GeminiToolConfig{
 			FunctionCallingConfig: &GeminiFunctionCallingConfig{
 				Mode: "VALIDATED",
@@ -215,9 +208,7 @@ type modelInfo struct {
 // 只有在此映射表中的模型才会注入身份提示词
 // 注意：模型映射逻辑在网关层完成；这里仅用于按模型前缀判断是否注入身份提示词。
 var modelInfoMap = map[string]modelInfo{
-	"claude-fable-5":    {DisplayName: "Claude Fable 5", CanonicalID: "claude-fable-5"},
 	"claude-opus-4-8":   {DisplayName: "Claude Opus 4.8", CanonicalID: "claude-opus-4-8"},
-	"claude-opus-4-7":   {DisplayName: "Claude Opus 4.7", CanonicalID: "claude-opus-4-7"},
 	"claude-opus-4-5":   {DisplayName: "Claude Opus 4.5", CanonicalID: "claude-opus-4-5-20250929"},
 	"claude-opus-4-6":   {DisplayName: "Claude Opus 4.6", CanonicalID: "claude-opus-4-6"},
 	"claude-sonnet-4-6": {DisplayName: "Claude Sonnet 4.6", CanonicalID: "claude-sonnet-4-6"},
@@ -368,9 +359,8 @@ func buildSystemInstruction(system json.RawMessage, modelName string, opts Trans
 }
 
 // buildContents 构建 contents
-func buildContents(messages []ClaudeMessage, toolIDToName map[string]string, isThinkingEnabled, allowDummyThought bool) ([]GeminiContent, []GeminiPart, bool, error) {
+func buildContents(messages []ClaudeMessage, toolIDToName map[string]string, isThinkingEnabled, allowDummyThought bool) ([]GeminiContent, bool, error) {
 	var contents []GeminiContent
-	var systemParts []GeminiPart
 	strippedThinking := false
 
 	for i, msg := range messages {
@@ -381,15 +371,10 @@ func buildContents(messages []ClaudeMessage, toolIDToName map[string]string, isT
 
 		parts, strippedThisMsg, err := buildParts(msg.Content, toolIDToName, allowDummyThought)
 		if err != nil {
-			return nil, nil, false, fmt.Errorf("build parts for message %d: %w", i, err)
+			return nil, false, fmt.Errorf("build parts for message %d: %w", i, err)
 		}
 		if strippedThisMsg {
 			strippedThinking = true
-		}
-
-		if role == "system" {
-			systemParts = append(systemParts, parts...)
-			continue
 		}
 
 		// 只有 Gemini 模型支持 dummy thinking block workaround
@@ -423,7 +408,7 @@ func buildContents(messages []ClaudeMessage, toolIDToName map[string]string, isT
 		})
 	}
 
-	return contents, systemParts, strippedThinking, nil
+	return contents, strippedThinking, nil
 }
 
 // DummyThoughtSignature 用于跳过 Gemini 3 thought_signature 验证
@@ -664,7 +649,7 @@ func buildGenerationConfig(req *ClaudeRequest) *GeminiGenerationConfig {
 		config.MaxOutputTokens = maxLimit
 	}
 
-	// 其他参数
+	// Gemini 推理模型不接受采样参数。
 	if !isReasoning {
 		if req.Temperature != nil {
 			config.Temperature = req.Temperature

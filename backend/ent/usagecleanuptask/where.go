@@ -3,10 +3,10 @@
 package usagecleanuptask
 
 import (
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
@@ -72,6 +72,11 @@ func Status(v string) predicate.UsageCleanupTask {
 // CreatedBy applies equality check predicate on the "created_by" field. It's identical to CreatedByEQ.
 func CreatedBy(v int64) predicate.UsageCleanupTask {
 	return predicate.UsageCleanupTask(sql.FieldEQ(FieldCreatedBy, v))
+}
+
+// CreatedSource applies equality check predicate on the "created_source" field. It's identical to CreatedSourceEQ.
+func CreatedSource(v string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldEQ(FieldCreatedSource, v))
 }
 
 // DeletedRows applies equality check predicate on the "deleted_rows" field. It's identical to DeletedRowsEQ.
@@ -287,6 +292,81 @@ func CreatedByLT(v int64) predicate.UsageCleanupTask {
 // CreatedByLTE applies the LTE predicate on the "created_by" field.
 func CreatedByLTE(v int64) predicate.UsageCleanupTask {
 	return predicate.UsageCleanupTask(sql.FieldLTE(FieldCreatedBy, v))
+}
+
+// CreatedByIsNil applies the IsNil predicate on the "created_by" field.
+func CreatedByIsNil() predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldIsNull(FieldCreatedBy))
+}
+
+// CreatedByNotNil applies the NotNil predicate on the "created_by" field.
+func CreatedByNotNil() predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldNotNull(FieldCreatedBy))
+}
+
+// CreatedSourceEQ applies the EQ predicate on the "created_source" field.
+func CreatedSourceEQ(v string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldEQ(FieldCreatedSource, v))
+}
+
+// CreatedSourceNEQ applies the NEQ predicate on the "created_source" field.
+func CreatedSourceNEQ(v string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldNEQ(FieldCreatedSource, v))
+}
+
+// CreatedSourceIn applies the In predicate on the "created_source" field.
+func CreatedSourceIn(vs ...string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldIn(FieldCreatedSource, vs...))
+}
+
+// CreatedSourceNotIn applies the NotIn predicate on the "created_source" field.
+func CreatedSourceNotIn(vs ...string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldNotIn(FieldCreatedSource, vs...))
+}
+
+// CreatedSourceGT applies the GT predicate on the "created_source" field.
+func CreatedSourceGT(v string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldGT(FieldCreatedSource, v))
+}
+
+// CreatedSourceGTE applies the GTE predicate on the "created_source" field.
+func CreatedSourceGTE(v string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldGTE(FieldCreatedSource, v))
+}
+
+// CreatedSourceLT applies the LT predicate on the "created_source" field.
+func CreatedSourceLT(v string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldLT(FieldCreatedSource, v))
+}
+
+// CreatedSourceLTE applies the LTE predicate on the "created_source" field.
+func CreatedSourceLTE(v string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldLTE(FieldCreatedSource, v))
+}
+
+// CreatedSourceContains applies the Contains predicate on the "created_source" field.
+func CreatedSourceContains(v string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldContains(FieldCreatedSource, v))
+}
+
+// CreatedSourceHasPrefix applies the HasPrefix predicate on the "created_source" field.
+func CreatedSourceHasPrefix(v string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldHasPrefix(FieldCreatedSource, v))
+}
+
+// CreatedSourceHasSuffix applies the HasSuffix predicate on the "created_source" field.
+func CreatedSourceHasSuffix(v string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldHasSuffix(FieldCreatedSource, v))
+}
+
+// CreatedSourceEqualFold applies the EqualFold predicate on the "created_source" field.
+func CreatedSourceEqualFold(v string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldEqualFold(FieldCreatedSource, v))
+}
+
+// CreatedSourceContainsFold applies the ContainsFold predicate on the "created_source" field.
+func CreatedSourceContainsFold(v string) predicate.UsageCleanupTask {
+	return predicate.UsageCleanupTask(sql.FieldContainsFold(FieldCreatedSource, v))
 }
 
 // DeletedRowsEQ applies the EQ predicate on the "deleted_rows" field.

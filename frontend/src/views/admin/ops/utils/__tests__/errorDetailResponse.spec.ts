@@ -14,6 +14,8 @@ function makeDetail(overrides: Partial<OpsErrorDetail>): OpsErrorDetail {
     status_code: 502,
     platform: 'openai',
     model: 'gpt-4o-mini',
+    is_retryable: true,
+    retry_count: 0,
     resolved: false,
     client_request_id: 'crid-1',
     request_id: 'rid-1',
@@ -23,6 +25,8 @@ function makeDetail(overrides: Partial<OpsErrorDetail>): OpsErrorDetail {
     group_name: 'group',
     error_body: '',
     user_agent: '',
+    request_body: '',
+    request_body_truncated: false,
     is_business_limited: false,
     ...overrides
   }

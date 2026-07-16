@@ -153,6 +153,51 @@ func TestIsMigrationChecksumCompatible(t *testing.T) {
 		}
 	})
 
+	t.Run("154允许历史BOM版本兼容当前无BOM版本", func(t *testing.T) {
+		ok := isMigrationChecksumCompatible(
+			"154_affiliate_ledger_audit_snapshots.sql",
+			"608193cd329ec0c47025e26569eac5843c2bae836b06fd103fa72bf66ed9d0fd",
+			"80fb2e9033d58cc611412c97301e0c66a86a8bfcd178abfe7877b93519cd2d8a",
+		)
+		require.True(t, ok)
+	})
+
+	t.Run("155允许历史版本兼容当前版本", func(t *testing.T) {
+		ok := isMigrationChecksumCompatible(
+			"155_image_generation_group_controls.sql",
+			"f5afcb0b91287ca1422c2163a39471b4cddc3673d9e7ff71e2402b3088ab5e2e",
+			"8a8bc4ad03b36bf001290c674a790597cf399ff79c7be298d6bb8071a66d8cf8",
+		)
+		require.True(t, ok)
+	})
+
+	t.Run("156允许历史版本兼容当前版本", func(t *testing.T) {
+		ok := isMigrationChecksumCompatible(
+			"156_allow_email_oauth_provider_types.sql",
+			"deb09c00432066d3194255d952e8d1d78483ad885c43777f3b06a1c0369b1a02",
+			"e5e3512fd7ff6e9225414bf79425fd8ddbf6d78a66998142bfb2441f8e7e4708",
+		)
+		require.True(t, ok)
+	})
+
+	t.Run("157允许历史版本兼容当前版本", func(t *testing.T) {
+		ok := isMigrationChecksumCompatible(
+			"157_content_moderation.sql",
+			"ae967e621e3bf66bbce6dd0624ee6c647ac57643dbdb4449a3d7f77f6531937a",
+			"f9545c941580e8cad2b6b5ca4c6522bf1a6335b5a5a04bdc2b143678b289df67",
+		)
+		require.True(t, ok)
+	})
+
+	t.Run("190允许已发布的Kiro配额迁移校验值", func(t *testing.T) {
+		ok := isMigrationChecksumCompatible(
+			"190_allow_kiro_user_platform_quotas.sql",
+			"bc174c2b9dd244f10090a322bb685c8fd6c3e8050777a07b3c92c08b1d8cae94",
+			"84759e7fd445111e8706e2433d1d98a2af39c5072e0ed058018e96ebf91ffec9",
+		)
+		require.True(t, ok)
+	})
+
 	t.Run("119未知checksum不兼容", func(t *testing.T) {
 		ok := isMigrationChecksumCompatible(
 			"119_enforce_payment_orders_out_trade_no_unique.sql",

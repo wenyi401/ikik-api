@@ -5,13 +5,6 @@ package ent
 import (
 	"context"
 	"fmt"
-	"math"
-
-	"entgo.io/ent"
-	"entgo.io/ent/dialect"
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
 	"ikik-api/ent/account"
 	"ikik-api/ent/apikey"
 	"ikik-api/ent/group"
@@ -19,6 +12,13 @@ import (
 	"ikik-api/ent/usagelog"
 	"ikik-api/ent/user"
 	"ikik-api/ent/usersubscription"
+	"math"
+
+	"entgo.io/ent"
+	"entgo.io/ent/dialect"
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 )
 
 // UsageLogQuery is the builder for querying UsageLog entities.

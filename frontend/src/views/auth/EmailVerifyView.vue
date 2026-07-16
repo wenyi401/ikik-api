@@ -164,7 +164,6 @@ import {
 import { apiClient } from '@/api/client'
 import { buildAuthErrorMessage } from '@/utils/authError'
 import {
-  formatRegistrationEmailSuffixWhitelistForMessage,
   isRegistrationEmailSuffixAllowed,
   normalizeRegistrationEmailSuffixWhitelist
 } from '@/utils/registrationEmailPolicy'
@@ -216,6 +215,7 @@ const initialTurnstileToken = ref<string>('')
 const promoCode = ref<string>('')
 const invitationCode = ref<string>('')
 const affCode = ref<string>('')
+const loginAgreementRevision = ref<string>('')
 const pendingAuthToken = ref<string>('')
 const pendingAuthTokenField = ref<PendingAuthTokenField>('pending_auth_token')
 const pendingProvider = ref<string>('')
@@ -229,7 +229,7 @@ const hasRegisterData = ref<boolean>(false)
 // Public settings
 const turnstileEnabled = ref<boolean>(false)
 const turnstileSiteKey = ref<string>('')
-const siteName = ref<string>('Sub2API')
+const siteName = ref<string>('ikik-api')
 const registrationEmailSuffixWhitelist = ref<string[]>([])
 
 // Turnstile for resend
@@ -268,6 +268,7 @@ onMounted(async () => {
       promoCode.value = registerData.promo_code || ''
       invitationCode.value = registerData.invitation_code || ''
       affCode.value = registerData.aff_code || loadAffiliateReferralCode()
+      loginAgreementRevision.value = registerData.login_agreement_revision || ''
       pendingAuthToken.value = registerData.pending_auth_token || activePendingSession?.token || ''
       pendingAuthTokenField.value = registerData.pending_auth_token_field || activePendingSession?.token_field || 'pending_auth_token'
       pendingProvider.value = registerData.pending_provider || activePendingSession?.provider || ''
@@ -294,7 +295,7 @@ onMounted(async () => {
     const settings = await getPublicSettings()
     turnstileEnabled.value = settings.turnstile_enabled
     turnstileSiteKey.value = settings.turnstile_site_key || ''
-    siteName.value = settings.site_name || 'Sub2API'
+    siteName.value = settings.site_name || 'ikik-api'
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
@@ -500,25 +501,23 @@ async function handleVerify(): Promise<void> {
     }
 
     if (isPendingOAuthFlow()) {
-      const payload: Record<string, unknown> = {
+      const pendingCreatePayload: Record<string, unknown> = {
         email: email.value,
         password: password.value,
         verify_code: verifyCode.value.trim(),
-        ...oauthAffiliatePayload(affCode.value || loadAffiliateReferralCode()),
+        login_agreement_revision: loginAgreementRevision.value || undefined,
+        ...oauthAffiliatePayload(affCode.value || loadAffiliateReferralCode())
       }
       if (invitationCode.value) {
-        payload.invitation_code = invitationCode.value
+        pendingCreatePayload.invitation_code = invitationCode.value
       }
-      if (pendingAdoptionDecision.value?.adoptDisplayName !== undefined) {
-        payload.adopt_display_name = pendingAdoptionDecision.value.adoptDisplayName
+      if (pendingAdoptionDecision.value) {
+        pendingCreatePayload.adopt_display_name = pendingAdoptionDecision.value.adoptDisplayName
+        pendingCreatePayload.adopt_avatar = pendingAdoptionDecision.value.adoptAvatar
       }
-      if (pendingAdoptionDecision.value?.adoptAvatar !== undefined) {
-        payload.adopt_avatar = pendingAdoptionDecision.value.adoptAvatar
-      }
-
       const { data } = await apiClient.post<PendingOAuthCreateAccountResponse>(
         '/auth/oauth/pending/create-account',
-        payload
+        pendingCreatePayload
       )
       if (isPendingOAuthSessionResponse(data)) {
         sessionStorage.removeItem('register_data')
@@ -542,6 +541,7 @@ async function handleVerify(): Promise<void> {
         turnstile_token: initialTurnstileToken.value || undefined,
         promo_code: promoCode.value || undefined,
         invitation_code: invitationCode.value || undefined,
+        login_agreement_revision: loginAgreementRevision.value || undefined,
         ...(affCode.value ? { aff_code: affCode.value } : {})
       })
     }
@@ -583,10 +583,7 @@ function buildEmailSuffixNotAllowedMessage(): string {
   }
   const separator = String(locale.value || '').toLowerCase().startsWith('zh') ? '、' : ', '
   return t('auth.emailSuffixNotAllowedWithAllowed', {
-    suffixes: formatRegistrationEmailSuffixWhitelistForMessage(normalizedWhitelist, {
-      separator,
-      more: (count) => t('auth.emailSuffixAllowedMore', { count })
-    })
+    suffixes: normalizedWhitelist.join(separator)
   })
 }
 </script>

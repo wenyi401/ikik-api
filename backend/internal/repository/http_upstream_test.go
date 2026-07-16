@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"errors"
 	"io"
 	"net/http"
 	"sync/atomic"
@@ -9,156 +8,9 @@ import (
 	"time"
 
 	"ikik-api/internal/config"
-	"ikik-api/internal/pkg/tlsfingerprint"
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
-
-func TestHTTPUpstreamDoAppliesGrokCLIIdentityBeforeOAuthRoundTrip(t *testing.T) {
-	t.Setenv("XAI_GROK_CLI_VERSION", "")
-
-	for _, endpoint := range []string{"responses", "chat/completions"} {
-		t.Run(endpoint, func(t *testing.T) {
-			upstream := NewHTTPUpstream(nil)
-			svc, ok := upstream.(*httpUpstreamService)
-			require.True(t, ok)
-
-			const accountID int64 = 4084
-			isolation := svc.getIsolationMode()
-			profile := service.HTTPUpstreamProfileDefault
-			proxyKey := directProxyKey
-			protocolMode := svc.resolveProtocolMode(profile, proxyKey, nil)
-			settings := svc.resolvePoolSettings(isolation, 1)
-			settings = svc.applyProfilePoolSettings(settings, profile)
-			cacheKey := buildCacheKey(isolation, proxyKey, accountID, protocolMode)
-
-			var capturedHeaders http.Header
-			svc.clients[cacheKey] = &upstreamClientEntry{
-				client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-					capturedHeaders = req.Header.Clone()
-					statusCode := http.StatusOK
-					if req.Header.Get("X-XAI-Token-Auth") != "xai-grok-cli" {
-						statusCode = http.StatusForbidden
-					}
-					return &http.Response{
-						StatusCode: statusCode,
-						Header:     make(http.Header),
-						Body:       http.NoBody,
-						Request:    req,
-					}, nil
-				})},
-				proxyKey:     proxyKey,
-				poolKey:      buildPoolKey(settings, protocolMode),
-				protocolMode: protocolMode,
-			}
-
-			req, err := http.NewRequest(http.MethodPost, "https://cli-chat-proxy.grok.com/v1/"+endpoint, nil)
-			require.NoError(t, err)
-			req.Header.Set("User-Agent", "sub2api-grok/1.0")
-
-			resp, err := svc.Do(req, "", accountID, 1)
-			require.NoError(t, err)
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-			require.NoError(t, resp.Body.Close())
-
-			require.Equal(t, "0.2.93", capturedHeaders.Get("x-grok-client-version"))
-			require.Equal(t, "xai-grok-cli", capturedHeaders.Get("X-XAI-Token-Auth"))
-			require.Equal(t, "xai-grok-workspace/0.2.93", capturedHeaders.Get("User-Agent"))
-		})
-	}
-}
-
-func TestApplyGrokCLIProxyHeaders(t *testing.T) {
-	t.Run("uses pinned stable version for the CLI proxy", func(t *testing.T) {
-		t.Setenv("XAI_GROK_CLI_VERSION", "")
-		req, err := http.NewRequest(http.MethodPost, "https://cli-chat-proxy.grok.com/v1/responses", nil)
-		require.NoError(t, err)
-		req.Header.Set("User-Agent", "sub2api-grok/1.0")
-
-		applyGrokCLIProxyHeaders(req)
-
-		require.Equal(t, "0.2.93", req.Header.Get("x-grok-client-version"))
-		require.Equal(t, "xai-grok-cli", req.Header.Get("X-XAI-Token-Auth"))
-		require.Equal(t, "xai-grok-workspace/0.2.93", req.Header.Get("User-Agent"))
-	})
-
-	t.Run("accepts a valid operator override", func(t *testing.T) {
-		t.Setenv("XAI_GROK_CLI_VERSION", "0.2.95-alpha.1")
-		req, err := http.NewRequest(http.MethodPost, "https://cli-chat-proxy.grok.com/v1/chat/completions", nil)
-		require.NoError(t, err)
-
-		applyGrokCLIProxyHeaders(req)
-
-		require.Equal(t, "0.2.95-alpha.1", req.Header.Get("x-grok-client-version"))
-		require.Equal(t, "xai-grok-workspace/0.2.95-alpha.1", req.Header.Get("User-Agent"))
-	})
-
-	t.Run("rejects an unsafe override", func(t *testing.T) {
-		t.Setenv("XAI_GROK_CLI_VERSION", "0.2.95\r\nX-Injected: true")
-		req, err := http.NewRequest(http.MethodPost, "https://cli-chat-proxy.grok.com/v1/responses", nil)
-		require.NoError(t, err)
-
-		applyGrokCLIProxyHeaders(req)
-
-		require.Equal(t, "0.2.93", req.Header.Get("x-grok-client-version"))
-		require.Empty(t, req.Header.Get("X-Injected"))
-	})
-
-	t.Run("rejects an override below the supported minimum", func(t *testing.T) {
-		t.Setenv("XAI_GROK_CLI_VERSION", "0.2.92")
-		req, err := http.NewRequest(http.MethodPost, "https://cli-chat-proxy.grok.com/v1/responses", nil)
-		require.NoError(t, err)
-
-		applyGrokCLIProxyHeaders(req)
-
-		require.Equal(t, "0.2.93", req.Header.Get("x-grok-client-version"))
-		require.Equal(t, "xai-grok-workspace/0.2.93", req.Header.Get("User-Agent"))
-	})
-
-	t.Run("rejects a prerelease override at the minimum version", func(t *testing.T) {
-		t.Setenv("XAI_GROK_CLI_VERSION", "0.2.93-beta.1")
-		req, err := http.NewRequest(http.MethodPost, "https://cli-chat-proxy.grok.com/v1/responses", nil)
-		require.NoError(t, err)
-
-		applyGrokCLIProxyHeaders(req)
-
-		require.Equal(t, "0.2.93", req.Header.Get("x-grok-client-version"))
-		require.Equal(t, "xai-grok-workspace/0.2.93", req.Header.Get("User-Agent"))
-	})
-
-	for _, version := range []string{
-		"0.2.093",
-		"0.2.94-alpha..1",
-		"0.3",
-		"1",
-		"0.2.95+build.1",
-	} {
-		t.Run("rejects invalid semver "+version, func(t *testing.T) {
-			t.Setenv("XAI_GROK_CLI_VERSION", version)
-			req, err := http.NewRequest(http.MethodPost, "https://cli-chat-proxy.grok.com/v1/responses", nil)
-			require.NoError(t, err)
-
-			applyGrokCLIProxyHeaders(req)
-
-			require.Equal(t, "0.2.93", req.Header.Get("x-grok-client-version"))
-			require.Equal(t, "xai-grok-workspace/0.2.93", req.Header.Get("User-Agent"))
-		})
-	}
-
-	t.Run("leaves direct xAI API requests unchanged", func(t *testing.T) {
-		t.Setenv("XAI_GROK_CLI_VERSION", "0.2.95")
-		req, err := http.NewRequest(http.MethodPost, "https://api.x.ai/v1/responses", nil)
-		require.NoError(t, err)
-		req.Header.Set("User-Agent", "sub2api-grok/1.0")
-
-		applyGrokCLIProxyHeaders(req)
-
-		require.Empty(t, req.Header.Get("x-grok-client-version"))
-		require.Empty(t, req.Header.Get("X-XAI-Token-Auth"))
-		require.Equal(t, "sub2api-grok/1.0", req.Header.Get("User-Agent"))
-	})
-}
 
 // HTTPUpstreamSuite HTTP 上游服务测试套件
 // 使用 testify/suite 组织测试，支持 SetupTest 初始化
@@ -189,20 +41,9 @@ func (s *HTTPUpstreamSuite) newService() *httpUpstreamService {
 }
 
 // TestDefaultResponseHeaderTimeout 测试默认响应头超时配置
-// 验证显式 0 会禁用等待响应头超时
+// 验证未配置时使用 300 秒默认值
 func (s *HTTPUpstreamSuite) TestDefaultResponseHeaderTimeout() {
 	svc := s.newService()
-	entry := mustGetOrCreateClient(s.T(), svc, "", 0, 0)
-	transport, ok := entry.client.Transport.(*http.Transport)
-	require.True(s.T(), ok, "expected *http.Transport")
-	require.Equal(s.T(), time.Duration(0), transport.ResponseHeaderTimeout, "ResponseHeaderTimeout mismatch")
-}
-
-// TestNilConfigResponseHeaderTimeoutFallback 验证 nil 配置使用代码级兜底值。
-func (s *HTTPUpstreamSuite) TestNilConfigResponseHeaderTimeoutFallback() {
-	up := NewHTTPUpstream(nil)
-	svc, ok := up.(*httpUpstreamService)
-	require.True(s.T(), ok, "expected *httpUpstreamService")
 	entry := mustGetOrCreateClient(s.T(), svc, "", 0, 0)
 	transport, ok := entry.client.Transport.(*http.Transport)
 	require.True(s.T(), ok, "expected *http.Transport")
@@ -224,128 +65,8 @@ func (s *HTTPUpstreamSuite) TestCustomResponseHeaderTimeout() {
 // 验证解析失败时拒绝回退到直连模式
 func (s *HTTPUpstreamSuite) TestGetOrCreateClient_InvalidURLReturnsError() {
 	svc := s.newService()
-	_, err := svc.getClientEntry("://bad-proxy-url", 1, 1, service.HTTPUpstreamProfileDefault, false, false)
+	_, err := svc.getClientEntry("://bad-proxy-url", 1, 1, false, false)
 	require.Error(s.T(), err, "expected error for invalid proxy URL")
-}
-
-func (s *HTTPUpstreamSuite) TestOpenAIProfileDefaultsToHTTP2AndNoHeaderTimeout() {
-	s.cfg.Gateway = config.GatewayConfig{
-		ResponseHeaderTimeout: 600,
-		OpenAIHTTP2: config.GatewayOpenAIHTTP2Config{
-			Enabled:                   true,
-			AllowProxyFallbackToHTTP1: true,
-		},
-	}
-	svc := s.newService()
-	entry, err := svc.getClientEntry("", 1, 1, service.HTTPUpstreamProfileOpenAI, false, false)
-	require.NoError(s.T(), err)
-	transport, ok := entry.client.Transport.(*http.Transport)
-	require.True(s.T(), ok, "expected *http.Transport")
-	require.Equal(s.T(), time.Duration(0), transport.ResponseHeaderTimeout, "OpenAI profile should not inherit generic header timeout")
-	require.True(s.T(), transport.ForceAttemptHTTP2, "OpenAI profile should prefer HTTP/2")
-	require.Equal(s.T(), upstreamProtocolModeOpenAIH2, entry.protocolMode)
-}
-
-func (s *HTTPUpstreamSuite) TestOpenAIProfileCustomHeaderTimeout() {
-	s.cfg.Gateway = config.GatewayConfig{
-		ResponseHeaderTimeout:       600,
-		OpenAIResponseHeaderTimeout: 1800,
-		OpenAIHTTP2: config.GatewayOpenAIHTTP2Config{
-			Enabled: true,
-		},
-	}
-	svc := s.newService()
-	entry, err := svc.getClientEntry("", 1, 1, service.HTTPUpstreamProfileOpenAI, false, false)
-	require.NoError(s.T(), err)
-	transport, ok := entry.client.Transport.(*http.Transport)
-	require.True(s.T(), ok, "expected *http.Transport")
-	require.Equal(s.T(), 1800*time.Second, transport.ResponseHeaderTimeout)
-}
-
-func (s *HTTPUpstreamSuite) TestOpenAIProfileTLSFingerprintDoesNotInheritGenericHeaderTimeout() {
-	s.cfg.Gateway = config.GatewayConfig{
-		ResponseHeaderTimeout: 600,
-		OpenAIHTTP2: config.GatewayOpenAIHTTP2Config{
-			Enabled: true,
-		},
-	}
-	svc := s.newService()
-	entry, err := svc.getClientEntryWithTLS("", 1, 1, &tlsfingerprint.Profile{Name: "test"}, service.HTTPUpstreamProfileOpenAI, false, false)
-	require.NoError(s.T(), err)
-	transport, ok := entry.client.Transport.(*http.Transport)
-	require.True(s.T(), ok, "expected *http.Transport")
-	require.Equal(s.T(), time.Duration(0), transport.ResponseHeaderTimeout, "OpenAI TLS path should not inherit generic header timeout")
-}
-
-func (s *HTTPUpstreamSuite) TestOpenAIProfileHTTP2DisabledUsesHTTP1Transport() {
-	s.cfg.Gateway = config.GatewayConfig{
-		OpenAIHTTP2: config.GatewayOpenAIHTTP2Config{Enabled: false},
-	}
-	svc := s.newService()
-	entry, err := svc.getClientEntry("", 1, 1, service.HTTPUpstreamProfileOpenAI, false, false)
-	require.NoError(s.T(), err)
-	transport, ok := entry.client.Transport.(*http.Transport)
-	require.True(s.T(), ok, "expected *http.Transport")
-	require.False(s.T(), transport.ForceAttemptHTTP2, "OpenAI HTTP/2 disabled should not force H2")
-	require.NotNil(s.T(), transport.TLSNextProto, "HTTP/1 mode should disable automatic H2 negotiation")
-	require.Equal(s.T(), upstreamProtocolModeOpenAIH1, entry.protocolMode)
-}
-
-func (s *HTTPUpstreamSuite) TestOpenAIHeaderTimeoutChangeRebuildsClient() {
-	s.cfg.Gateway = config.GatewayConfig{
-		OpenAIHTTP2: config.GatewayOpenAIHTTP2Config{Enabled: true},
-	}
-	svc := s.newService()
-	entry1, err := svc.getClientEntry("", 1, 1, service.HTTPUpstreamProfileOpenAI, false, false)
-	require.NoError(s.T(), err)
-
-	s.cfg.Gateway.OpenAIResponseHeaderTimeout = 1800
-	entry2, err := svc.getClientEntry("", 1, 1, service.HTTPUpstreamProfileOpenAI, false, false)
-	require.NoError(s.T(), err)
-	require.NotSame(s.T(), entry1, entry2, "OpenAI header timeout changes must rebuild cached client")
-	transport, ok := entry2.client.Transport.(*http.Transport)
-	require.True(s.T(), ok, "expected *http.Transport")
-	require.Equal(s.T(), 1800*time.Second, transport.ResponseHeaderTimeout)
-}
-
-func (s *HTTPUpstreamSuite) TestOpenAIHTTP2TimeoutDoesNotActivateProxyFallback() {
-	s.cfg.Gateway = config.GatewayConfig{
-		OpenAIHTTP2: config.GatewayOpenAIHTTP2Config{
-			Enabled:                   true,
-			AllowProxyFallbackToHTTP1: true,
-			FallbackErrorThreshold:    1,
-			FallbackWindowSeconds:     60,
-			FallbackTTLSeconds:        600,
-		},
-	}
-	svc := s.newService()
-	proxyURL := "http://proxy.local:8080"
-	svc.recordOpenAIHTTP2Failure(service.HTTPUpstreamProfileOpenAI, upstreamProtocolModeOpenAIH2, proxyURL, errors.New("http2: timeout awaiting response headers"))
-	require.False(s.T(), svc.isOpenAIHTTP2FallbackActive(proxyURL), "header timeout should not be treated as H2 compatibility failure")
-}
-
-func (s *HTTPUpstreamSuite) TestOpenAIHTTP2ProxyCompatibilityErrorActivatesFallback() {
-	s.cfg.Gateway = config.GatewayConfig{
-		OpenAIHTTP2: config.GatewayOpenAIHTTP2Config{
-			Enabled:                   true,
-			AllowProxyFallbackToHTTP1: true,
-			FallbackErrorThreshold:    1,
-			FallbackWindowSeconds:     60,
-			FallbackTTLSeconds:        600,
-		},
-	}
-	svc := s.newService()
-	proxyURL := "http://proxy.local:8080"
-	svc.recordOpenAIHTTP2Failure(service.HTTPUpstreamProfileOpenAI, upstreamProtocolModeOpenAIH2, proxyURL, errors.New("http2: protocol error"))
-	require.True(s.T(), svc.isOpenAIHTTP2FallbackActive(proxyURL))
-
-	entry, err := svc.getClientEntry(proxyURL, 1, 1, service.HTTPUpstreamProfileOpenAI, false, false)
-	require.NoError(s.T(), err)
-	transport, ok := entry.client.Transport.(*http.Transport)
-	require.True(s.T(), ok, "expected *http.Transport")
-	require.False(s.T(), transport.ForceAttemptHTTP2)
-	require.NotNil(s.T(), transport.TLSNextProto)
-	require.Equal(s.T(), upstreamProtocolModeOpenAIH1Fallback, entry.protocolMode)
 }
 
 // TestNormalizeProxyURL_Canonicalizes 测试代理 URL 规范化

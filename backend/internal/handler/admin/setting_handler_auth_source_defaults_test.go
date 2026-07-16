@@ -137,7 +137,7 @@ func TestSettingHandler_GetSettings_InjectsAuthSourceDefaults(t *testing.T) {
 		},
 	}
 	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
-	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -174,7 +174,7 @@ func TestSettingHandler_UpdateSettings_PreservesOmittedAuthSourceDefaults(t *tes
 		},
 	}
 	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
-	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil)
 
 	body := map[string]any{
 		"registration_enabled":              true,
@@ -206,6 +206,84 @@ func TestSettingHandler_UpdateSettings_PreservesOmittedAuthSourceDefaults(t *tes
 	require.Equal(t, true, data["force_email_on_third_party_signup"])
 }
 
+func TestSettingHandler_UpdateSettings_PreservesOmittedSystemSettings(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &settingHandlerRepoStub{
+		values: map[string]string{
+			service.SettingKeyRegistrationEnabled:                  "true",
+			service.SettingKeyEmailVerifyEnabled:                   "true",
+			service.SettingKeyPromoCodeEnabled:                     "false",
+			service.SettingKeyPasswordResetEnabled:                 "true",
+			service.SettingKeyInvitationCodeEnabled:                "true",
+			service.SettingKeySiteName:                             "CustomSite",
+			service.SettingKeySiteSubtitle:                         "Custom subtitle",
+			service.SettingKeyAPIBaseURL:                           "https://api.example.com",
+			service.SettingKeyContactInfo:                          "support@example.com",
+			service.SettingKeyDefaultConcurrency:                   "7",
+			service.SettingKeyDefaultBalance:                       "12.50000000",
+			service.SettingKeyDefaultUserRPMLimit:                  "60",
+			service.SettingKeyUserPrivateGroupRateMultiplier:       "1.50000000",
+			service.SettingKeyUserPrivateGroupRPMLimit:             "120",
+			service.SettingKeyUserPrivateGroupCommissionRate:       "0.00500000",
+			service.SettingKeyDefaultSubscriptions:                 `[{"group_id":31,"validity_days":15}]`,
+			service.SettingKeyFallbackModelAnthropic:               "claude-custom",
+			service.SettingKeyFallbackModelOpenAI:                  "gpt-custom",
+			service.SettingKeyFallbackModelGemini:                  "gemini-custom",
+			service.SettingKeyFallbackModelAntigravity:             "antigravity-custom",
+			service.SettingKeyEnableIdentityPatch:                  "true",
+			service.SettingKeyIdentityPatchPrompt:                  "custom prompt",
+			service.SettingKeyBackendModeEnabled:                   "true",
+			service.SettingKeyOpsMonitoringEnabled:                 "true",
+			service.SettingKeyOpsRealtimeMonitoringEnabled:         "true",
+			service.SettingKeyOpsQueryModeDefault:                  "raw",
+			service.SettingKeyOpsMetricsIntervalSeconds:            "120",
+			service.SettingKeyEnableFingerprintUnification:         "true",
+			service.SettingKeyEnableMetadataPassthrough:            "true",
+			service.SettingKeyEnableCCHSigning:                     "true",
+			service.SettingKeyEnableAnthropicCacheTTL1hInjection:   "true",
+			service.SettingKeyChannelMonitorEnabled:                "true",
+			service.SettingKeyChannelMonitorDefaultIntervalSeconds: "180",
+			service.SettingKeyAvailableChannelsEnabled:             "true",
+			service.SettingKeyAffiliateEnabled:                     "true",
+		},
+	}
+	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil)
+
+	body := map[string]any{
+		"user_private_group_commission_rate": 0.25,
+	}
+	rawBody, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings", bytes.NewReader(rawBody))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.UpdateSettings(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "CustomSite", repo.values[service.SettingKeySiteName])
+	require.Equal(t, "Custom subtitle", repo.values[service.SettingKeySiteSubtitle])
+	require.Equal(t, "https://api.example.com", repo.values[service.SettingKeyAPIBaseURL])
+	require.Equal(t, "support@example.com", repo.values[service.SettingKeyContactInfo])
+	require.Equal(t, "false", repo.values[service.SettingKeyPromoCodeEnabled])
+	require.Equal(t, "7", repo.values[service.SettingKeyDefaultConcurrency])
+	require.Equal(t, "12.50000000", repo.values[service.SettingKeyDefaultBalance])
+	require.Equal(t, "0.25000000", repo.values[service.SettingKeyUserPrivateGroupCommissionRate])
+	require.Equal(t, `[{"group_id":31,"validity_days":15}]`, repo.values[service.SettingKeyDefaultSubscriptions])
+
+	var resp response.Response
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	data, ok := resp.Data.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "CustomSite", data["site_name"])
+	require.Equal(t, "Custom subtitle", data["site_subtitle"])
+	require.Equal(t, "https://api.example.com", data["api_base_url"])
+	require.Equal(t, 0.25, data["user_private_group_commission_rate"])
+}
+
 func TestSettingHandler_UpdateSettings_PersistsPaymentVisibleMethodsAndAdvancedScheduler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := &settingHandlerRepoStub{
@@ -214,16 +292,15 @@ func TestSettingHandler_UpdateSettings_PersistsPaymentVisibleMethodsAndAdvancedS
 		},
 	}
 	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
-	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil)
 
 	body := map[string]any{
-		"promo_code_enabled":                                      true,
-		"payment_visible_method_alipay_source":                    "easypay",
-		"payment_visible_method_wxpay_source":                     "wxpay",
-		"payment_visible_method_alipay_enabled":                   true,
-		"payment_visible_method_wxpay_enabled":                    false,
-		"openai_advanced_scheduler_enabled":                       true,
-		"openai_advanced_scheduler_subscription_priority_enabled": true,
+		"promo_code_enabled":                    true,
+		"payment_visible_method_alipay_source":  "easypay",
+		"payment_visible_method_wxpay_source":   "wxpay",
+		"payment_visible_method_alipay_enabled": true,
+		"payment_visible_method_wxpay_enabled":  false,
+		"openai_advanced_scheduler_enabled":     true,
 	}
 	rawBody, err := json.Marshal(body)
 	require.NoError(t, err)
@@ -241,7 +318,6 @@ func TestSettingHandler_UpdateSettings_PersistsPaymentVisibleMethodsAndAdvancedS
 	require.Equal(t, "true", repo.values[service.SettingPaymentVisibleMethodAlipayEnabled])
 	require.Equal(t, "false", repo.values[service.SettingPaymentVisibleMethodWxpayEnabled])
 	require.Equal(t, "true", repo.values["openai_advanced_scheduler_enabled"])
-	require.Equal(t, "true", repo.values[service.SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled])
 
 	var resp response.Response
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
@@ -252,7 +328,6 @@ func TestSettingHandler_UpdateSettings_PersistsPaymentVisibleMethodsAndAdvancedS
 	require.Equal(t, true, data["payment_visible_method_alipay_enabled"])
 	require.Equal(t, false, data["payment_visible_method_wxpay_enabled"])
 	require.Equal(t, true, data["openai_advanced_scheduler_enabled"])
-	require.Equal(t, true, data["openai_advanced_scheduler_subscription_priority_enabled"])
 }
 
 func TestSettingHandler_UpdateSettings_PreservesLegacyBlankPaymentVisibleMethodSource(t *testing.T) {
@@ -267,7 +342,7 @@ func TestSettingHandler_UpdateSettings_PreservesLegacyBlankPaymentVisibleMethodS
 		},
 	}
 	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
-	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil)
 
 	body := map[string]any{
 		"promo_code_enabled": false,
@@ -312,7 +387,7 @@ func TestSettingHandler_UpdateSettings_PersistsExplicitFalseOIDCCompatibilityFla
 		},
 	}
 	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
-	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil)
 
 	body := map[string]any{
 		"promo_code_enabled":                true,
@@ -391,7 +466,7 @@ func TestSettingHandler_UpdateSettings_DoesNotSolidifyImplicitOIDCSecurityDefaul
 			ClockSkewSeconds:    120,
 		},
 	})
-	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil)
 
 	body := map[string]any{
 		"promo_code_enabled":   true,
@@ -420,7 +495,7 @@ func TestSettingHandler_UpdateSettings_RejectsInvalidPaymentVisibleMethodSource(
 		},
 	}
 	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
-	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil)
 
 	body := map[string]any{
 		"promo_code_enabled":                   true,
@@ -453,7 +528,7 @@ func TestSettingHandler_UpdateSettings_DoesNotPersistPartialSystemSettingsWhenAu
 		err: errors.New("write auth source defaults failed"),
 	}
 	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
-	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+	handler := NewSettingHandler(svc, nil, nil, nil, nil, nil)
 
 	body := map[string]any{
 		"registration_enabled":              true,

@@ -1,6 +1,6 @@
 <template>
   <AuthLayout>
-    <div class="space-y-6">
+    <div class="auth-login-stack">
       <!-- Title -->
       <div class="text-center">
         <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
@@ -11,63 +11,54 @@
         </p>
       </div>
       <!-- Login Form -->
-      <form @submit.prevent="handleLogin" class="space-y-5">
+      <form @submit.prevent="handleLogin" class="auth-login-form">
         <!-- Email Input -->
-        <div>
-          <label for="email" class="input-label">
+        <div class="auth-floating-field">
+          <input
+            id="email"
+            v-model="formData.email"
+            type="email"
+            required
+            autofocus
+            autocomplete="email"
+            :disabled="formControlsDisabled"
+            class="input auth-floating-input"
+            :class="{ 'input-error': errors.email }"
+            placeholder=" "
+          />
+          <label for="email" class="auth-floating-label">
             {{ t('auth.emailLabel') }}
           </label>
-          <div class="relative">
-            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-              <Icon name="mail" size="md" class="text-gray-400 dark:text-dark-500" />
-            </div>
-            <input
-              id="email"
-              v-model="formData.email"
-              type="email"
-              required
-              autofocus
-              autocomplete="email"
-              :disabled="authActionDisabled"
-              class="input pl-11"
-              :class="{ 'input-error': errors.email }"
-              :placeholder="t('auth.emailPlaceholder')"
-            />
-          </div>
         </div>
 
         <!-- Password Input -->
-        <div>
-          <label for="password" class="input-label">
-            {{ t('auth.passwordLabel') }}
-          </label>
-          <div class="relative">
-            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-              <Icon name="lock" size="md" class="text-gray-400 dark:text-dark-500" />
-            </div>
+        <div class="auth-password-group">
+          <div class="auth-floating-field">
             <input
               id="password"
               v-model="formData.password"
               :type="showPassword ? 'text' : 'password'"
               required
               autocomplete="current-password"
-              :disabled="authActionDisabled"
-              class="input pl-11 pr-11"
+              :disabled="formControlsDisabled"
+              class="input auth-floating-input pr-11"
               :class="{ 'input-error': errors.password }"
-              :placeholder="t('auth.passwordPlaceholder')"
+              placeholder=" "
             />
+            <label for="password" class="auth-floating-label">
+              {{ t('auth.passwordLabel') }}
+            </label>
             <button
               type="button"
               @click="showPassword = !showPassword"
-              :disabled="authActionDisabled"
-              class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-dark-300"
+              :disabled="formControlsDisabled"
+              class="auth-password-toggle absolute inset-y-0 right-0 flex items-center pr-3.5 transition-colors"
             >
               <Icon v-if="showPassword" name="eyeOff" size="md" />
               <Icon v-else name="eye" size="md" />
             </button>
           </div>
-          <div class="mt-1 flex items-center justify-between">
-            <span></span>
+          <div class="auth-password-actions">
             <router-link
               v-if="passwordResetEnabled && !backendModeEnabled"
               to="/forgot-password"
@@ -79,10 +70,11 @@
         </div>
 
         <!-- Turnstile Widget -->
-        <div v-if="turnstileEnabled && turnstileSiteKey">
+        <div v-if="turnstileEnabled && turnstileSiteKey" class="auth-verification">
           <TurnstileWidget
             ref="turnstileRef"
             :site-key="turnstileSiteKey"
+            size="normal"
             @verify="onTurnstileVerify"
             @expire="onTurnstileExpire"
             @error="onTurnstileError"
@@ -92,12 +84,12 @@
         <!-- Submit Button -->
         <button
           type="submit"
-          :disabled="authActionDisabled || (turnstileEnabled && !turnstileToken)"
+          :disabled="submitDisabled || (turnstileEnabled && !turnstileToken)"
           class="btn btn-primary w-full"
         >
           <svg
             v-if="isLoading"
-            class="-ml-1 mr-2 h-4 w-4 animate-spin text-white"
+            class="h-4 w-4 animate-spin"
             fill="none"
             viewBox="0 0 24 24"
           >
@@ -115,7 +107,6 @@
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             ></path>
           </svg>
-          <Icon v-else name="login" size="md" class="mr-2" />
           {{ isLoading ? t('auth.signingIn') : t('auth.signIn') }}
         </button>
 
@@ -126,49 +117,12 @@
           :mode="loginAgreementMode"
           :updated-at="loginAgreementUpdatedAt"
           :visible="showAgreementModal"
+          :error-message="agreementError"
+          action-name="登录"
           @accept="acceptLoginAgreement"
           @reject="rejectLoginAgreement"
           @open="showAgreementModal = true"
         />
-
-        <div v-if="showOAuthLogin" class="space-y-3 pt-1">
-          <div class="flex items-center gap-3">
-            <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-            <span class="text-xs text-gray-500 dark:text-dark-400">
-              {{ t('auth.oauthOrContinue') }}
-            </span>
-            <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-          </div>
-
-          <EmailOAuthButtons
-            :disabled="authActionDisabled"
-            :github-enabled="githubOAuthEnabled"
-            :google-enabled="googleOAuthEnabled"
-            :show-divider="false"
-          />
-
-          <LinuxDoOAuthSection
-            v-if="linuxdoOAuthEnabled"
-            :disabled="authActionDisabled"
-            :show-divider="false"
-          />
-          <DingTalkOAuthSection
-            v-if="dingtalkOAuthEnabled"
-            :disabled="authActionDisabled"
-            :show-divider="false"
-          />
-          <WechatOAuthSection
-            v-if="wechatOAuthEnabled"
-            :disabled="authActionDisabled"
-            :show-divider="false"
-          />
-          <OidcOAuthSection
-            v-if="oidcOAuthEnabled"
-            :disabled="authActionDisabled"
-            :provider-name="oidcOAuthProviderName"
-            :show-divider="false"
-          />
-        </div>
       </form>
     </div>
 
@@ -202,23 +156,18 @@ import { computed, ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AuthLayout } from '@/components/layout'
-import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
-import DingTalkOAuthSection from '@/components/auth/DingTalkOAuthSection.vue'
-import OidcOAuthSection from '@/components/auth/OidcOAuthSection.vue'
-import WechatOAuthSection from '@/components/auth/WechatOAuthSection.vue'
-import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
 import LoginAgreementPrompt from '@/components/auth/LoginAgreementPrompt.vue'
 import TotpLoginModal from '@/components/auth/TotpLoginModal.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
-import { getPublicSettings, isTotp2FARequired, isWeChatWebOAuthEnabled } from '@/api/auth'
+import { getPublicSettings, isTotp2FARequired } from '@/api/auth'
 import type { LoginAgreementDocument, TotpLoginResponse } from '@/types'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { clearAllAffiliateReferralCodes } from '@/utils/oauthAffiliate'
 
 const { t } = useI18n()
-const LOGIN_AGREEMENT_STORAGE_KEY = 'sub2api_login_agreement_consent'
+const LOGIN_AGREEMENT_STORAGE_KEY = 'ikik-api_login_agreement_consent'
 
 // ==================== Router & Stores ====================
 
@@ -236,14 +185,7 @@ const publicSettingsLoaded = ref<boolean>(false)
 // Public settings
 const turnstileEnabled = ref<boolean>(false)
 const turnstileSiteKey = ref<string>('')
-const linuxdoOAuthEnabled = ref<boolean>(false)
-const dingtalkOAuthEnabled = ref<boolean>(false)
-const wechatOAuthEnabled = ref<boolean>(false)
 const backendModeEnabled = ref<boolean>(false)
-const oidcOAuthEnabled = ref<boolean>(false)
-const oidcOAuthProviderName = ref<string>('OIDC')
-const githubOAuthEnabled = ref<boolean>(false)
-const googleOAuthEnabled = ref<boolean>(false)
 const passwordResetEnabled = ref<boolean>(false)
 const loginAgreementEnabled = ref<boolean>(false)
 const loginAgreementMode = ref<'modal' | 'checkbox' | string>('modal')
@@ -252,6 +194,7 @@ const loginAgreementRevision = ref<string>('')
 const loginAgreementDocuments = ref<LoginAgreementDocument[]>([])
 const agreementAccepted = ref<boolean>(false)
 const showAgreementModal = ref<boolean>(false)
+const agreementError = ref<string>('')
 
 // Turnstile
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
@@ -282,20 +225,9 @@ const agreementGateActive = computed(
   () => loginAgreementEnabled.value && !agreementAccepted.value
 )
 
-const authActionDisabled = computed(
-  () => isLoading.value || !publicSettingsLoaded.value || agreementGateActive.value
-)
+const formControlsDisabled = computed(() => isLoading.value || !publicSettingsLoaded.value)
 
-const showOAuthLogin = computed(
-  () =>
-    !backendModeEnabled.value &&
-    (linuxdoOAuthEnabled.value ||
-      dingtalkOAuthEnabled.value ||
-      wechatOAuthEnabled.value ||
-      oidcOAuthEnabled.value ||
-      githubOAuthEnabled.value ||
-      googleOAuthEnabled.value)
-)
+const submitDisabled = computed(() => isLoading.value || !publicSettingsLoaded.value)
 
 watch(validationToastMessage, (value, previousValue) => {
   if (value && value !== previousValue) {
@@ -318,14 +250,6 @@ onMounted(async () => {
     const settings = await getPublicSettings()
     turnstileEnabled.value = settings.turnstile_enabled
     turnstileSiteKey.value = settings.turnstile_site_key || ''
-    linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled
-    dingtalkOAuthEnabled.value = settings.dingtalk_oauth_enabled ?? false
-    wechatOAuthEnabled.value = isWeChatWebOAuthEnabled(settings)
-    backendModeEnabled.value = settings.backend_mode_enabled
-    oidcOAuthEnabled.value = settings.oidc_oauth_enabled
-    oidcOAuthProviderName.value = settings.oidc_oauth_provider_name || 'OIDC'
-    githubOAuthEnabled.value = settings.github_oauth_enabled
-    googleOAuthEnabled.value = settings.google_oauth_enabled
     backendModeEnabled.value = settings.backend_mode_enabled
     passwordResetEnabled.value = settings.password_reset_enabled
     applyLoginAgreementSettings(settings)
@@ -359,8 +283,7 @@ function applyLoginAgreementSettings(settings: {
     `${loginAgreementUpdatedAt.value}:${documents.map((doc) => `${doc.id}:${doc.title}`).join('|')}`
 
   agreementAccepted.value = !loginAgreementEnabled.value || hasAcceptedLoginAgreement(loginAgreementRevision.value)
-  showAgreementModal.value =
-    loginAgreementEnabled.value && !agreementAccepted.value && loginAgreementMode.value !== 'checkbox'
+  showAgreementModal.value = false
 }
 
 function hasAcceptedLoginAgreement(revision: string): boolean {
@@ -391,13 +314,29 @@ function acceptLoginAgreement(): void {
   }
   agreementAccepted.value = true
   showAgreementModal.value = false
+  agreementError.value = ''
 }
 
 function rejectLoginAgreement(): void {
   localStorage.removeItem(LOGIN_AGREEMENT_STORAGE_KEY)
   agreementAccepted.value = false
   showAgreementModal.value = false
-  appStore.showWarning(t('legal.loginAgreementPrompt.loginRejectedWarning'))
+  agreementError.value = '请先阅读并同意最新条款后再登录。'
+  appStore.showWarning(agreementError.value)
+}
+
+function validateAgreementBeforeSubmit(): boolean {
+  if (!agreementGateActive.value) {
+    agreementError.value = ''
+    return true
+  }
+
+  agreementError.value = '请先阅读并同意最新条款后再登录。'
+  appStore.showWarning(agreementError.value)
+  if (loginAgreementMode.value !== 'checkbox') {
+    showAgreementModal.value = true
+  }
+  return false
 }
 
 // ==================== Turnstile Handlers ====================
@@ -427,11 +366,7 @@ function validateForm(): boolean {
 
   let isValid = true
 
-  if (agreementGateActive.value) {
-    appStore.showWarning(t('legal.loginAgreementPrompt.loginRequiredWarning'))
-    if (loginAgreementMode.value !== 'checkbox') {
-      showAgreementModal.value = true
-    }
+  if (!validateAgreementBeforeSubmit()) {
     return false
   }
 
@@ -480,7 +415,8 @@ async function handleLogin(): Promise<void> {
     const response = await authStore.login({
       email: formData.email,
       password: formData.password,
-      turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined
+      turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined,
+      login_agreement_revision: loginAgreementEnabled.value ? loginAgreementRevision.value : undefined
     })
 
     // Check if 2FA is required
@@ -524,7 +460,7 @@ async function handle2FAVerify(code: string): Promise<void> {
   }
 
   try {
-    await authStore.login2FA(totpTempToken.value, code)
+    await authStore.login2FA(totpTempToken.value, code, loginAgreementEnabled.value ? loginAgreementRevision.value : undefined)
 
     // Close modal and show success
     show2FAModal.value = false
@@ -551,6 +487,74 @@ function handle2FACancel(): void {
   totpUserEmailMasked.value = ''
 }
 </script>
+
+<style scoped>
+.auth-login-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.auth-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.auth-floating-field {
+  position: relative;
+}
+
+.auth-floating-input {
+  height: 3.25rem;
+  padding: 1.125rem 1rem 0.375rem;
+}
+
+.auth-floating-label {
+  position: absolute;
+  top: 50%;
+  left: 1rem;
+  color: var(--ui-text-tertiary);
+  font-size: 0.9375rem;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transform-origin: left top;
+  transition: top 140ms ease, transform 140ms ease, font-size 140ms ease, color 140ms ease;
+}
+
+.auth-floating-input:focus + .auth-floating-label,
+.auth-floating-input:not(:placeholder-shown) + .auth-floating-label {
+  top: 0.55rem;
+  color: var(--ui-text-secondary);
+  font-size: 0.6875rem;
+  transform: none;
+}
+
+.auth-password-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.auth-password-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.auth-verification {
+  display: flex;
+  max-width: 100%;
+  justify-content: center;
+  overflow: hidden;
+}
+
+@media (max-width: 420px) {
+  .auth-login-stack {
+    gap: 1.5rem;
+  }
+}
+</style>
 
 <style scoped>
 .fade-enter-active,

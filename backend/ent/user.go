@@ -4,12 +4,12 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/user"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/user"
 )
 
 // User is the model entity for the User schema.
@@ -31,8 +31,16 @@ type User struct {
 	Role string `json:"role,omitempty"`
 	// Balance holds the value of the "balance" field.
 	Balance float64 `json:"balance,omitempty"`
-	// FrozenBalance holds the value of the "frozen_balance" field.
-	FrozenBalance float64 `json:"frozen_balance,omitempty"`
+	// RechargeBalance holds the value of the "recharge_balance" field.
+	RechargeBalance float64 `json:"recharge_balance,omitempty"`
+	// InviteIncomeBalance holds the value of the "invite_income_balance" field.
+	InviteIncomeBalance float64 `json:"invite_income_balance,omitempty"`
+	// ShareIncomeBalance holds the value of the "share_income_balance" field.
+	ShareIncomeBalance float64 `json:"share_income_balance,omitempty"`
+	// PointsBalance holds the value of the "points_balance" field.
+	PointsBalance float64 `json:"points_balance,omitempty"`
+	// PreferPointsBilling holds the value of the "prefer_points_billing" field.
+	PreferPointsBilling bool `json:"prefer_points_billing,omitempty"`
 	// Concurrency holds the value of the "concurrency" field.
 	Concurrency int `json:"concurrency,omitempty"`
 	// Status holds the value of the "status" field.
@@ -63,6 +71,10 @@ type User struct {
 	BalanceNotifyExtraEmails string `json:"balance_notify_extra_emails,omitempty"`
 	// TotalRecharged holds the value of the "total_recharged" field.
 	TotalRecharged float64 `json:"total_recharged,omitempty"`
+	// TotalInviteIncome holds the value of the "total_invite_income" field.
+	TotalInviteIncome float64 `json:"total_invite_income,omitempty"`
+	// TotalShareIncome holds the value of the "total_share_income" field.
+	TotalShareIncome float64 `json:"total_share_income,omitempty"`
 	// RpmLimit holds the value of the "rpm_limit" field.
 	RpmLimit int `json:"rpm_limit,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -93,17 +105,23 @@ type UserEdges struct {
 	PromoCodeUsages []*PromoCodeUsage `json:"promo_code_usages,omitempty"`
 	// PaymentOrders holds the value of the payment_orders edge.
 	PaymentOrders []*PaymentOrder `json:"payment_orders,omitempty"`
+	// ShopOrders holds the value of the shop_orders edge.
+	ShopOrders []*ShopOrder `json:"shop_orders,omitempty"`
+	// ShopDrawCycles holds the value of the shop_draw_cycles edge.
+	ShopDrawCycles []*ShopDrawCycle `json:"shop_draw_cycles,omitempty"`
+	// ShopBalanceLedger holds the value of the shop_balance_ledger edge.
+	ShopBalanceLedger []*ShopBalanceLedger `json:"shop_balance_ledger,omitempty"`
+	// OwnedAccounts holds the value of the owned_accounts edge.
+	OwnedAccounts []*Account `json:"owned_accounts,omitempty"`
 	// AuthIdentities holds the value of the auth_identities edge.
 	AuthIdentities []*AuthIdentity `json:"auth_identities,omitempty"`
 	// PendingAuthSessions holds the value of the pending_auth_sessions edge.
 	PendingAuthSessions []*PendingAuthSession `json:"pending_auth_sessions,omitempty"`
-	// PlatformQuotas holds the value of the platform_quotas edge.
-	PlatformQuotas []*UserPlatformQuota `json:"platform_quotas,omitempty"`
 	// UserAllowedGroups holds the value of the user_allowed_groups edge.
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [14]bool
+	loadedTypes [17]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -196,10 +214,46 @@ func (e UserEdges) PaymentOrdersOrErr() ([]*PaymentOrder, error) {
 	return nil, &NotLoadedError{edge: "payment_orders"}
 }
 
+// ShopOrdersOrErr returns the ShopOrders value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ShopOrdersOrErr() ([]*ShopOrder, error) {
+	if e.loadedTypes[10] {
+		return e.ShopOrders, nil
+	}
+	return nil, &NotLoadedError{edge: "shop_orders"}
+}
+
+// ShopDrawCyclesOrErr returns the ShopDrawCycles value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ShopDrawCyclesOrErr() ([]*ShopDrawCycle, error) {
+	if e.loadedTypes[11] {
+		return e.ShopDrawCycles, nil
+	}
+	return nil, &NotLoadedError{edge: "shop_draw_cycles"}
+}
+
+// ShopBalanceLedgerOrErr returns the ShopBalanceLedger value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ShopBalanceLedgerOrErr() ([]*ShopBalanceLedger, error) {
+	if e.loadedTypes[12] {
+		return e.ShopBalanceLedger, nil
+	}
+	return nil, &NotLoadedError{edge: "shop_balance_ledger"}
+}
+
+// OwnedAccountsOrErr returns the OwnedAccounts value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) OwnedAccountsOrErr() ([]*Account, error) {
+	if e.loadedTypes[13] {
+		return e.OwnedAccounts, nil
+	}
+	return nil, &NotLoadedError{edge: "owned_accounts"}
+}
+
 // AuthIdentitiesOrErr returns the AuthIdentities value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) AuthIdentitiesOrErr() ([]*AuthIdentity, error) {
-	if e.loadedTypes[10] {
+	if e.loadedTypes[14] {
 		return e.AuthIdentities, nil
 	}
 	return nil, &NotLoadedError{edge: "auth_identities"}
@@ -208,25 +262,16 @@ func (e UserEdges) AuthIdentitiesOrErr() ([]*AuthIdentity, error) {
 // PendingAuthSessionsOrErr returns the PendingAuthSessions value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) PendingAuthSessionsOrErr() ([]*PendingAuthSession, error) {
-	if e.loadedTypes[11] {
+	if e.loadedTypes[15] {
 		return e.PendingAuthSessions, nil
 	}
 	return nil, &NotLoadedError{edge: "pending_auth_sessions"}
 }
 
-// PlatformQuotasOrErr returns the PlatformQuotas value or an error if the edge
-// was not loaded in eager-loading.
-func (e UserEdges) PlatformQuotasOrErr() ([]*UserPlatformQuota, error) {
-	if e.loadedTypes[12] {
-		return e.PlatformQuotas, nil
-	}
-	return nil, &NotLoadedError{edge: "platform_quotas"}
-}
-
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[13] {
+	if e.loadedTypes[16] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
@@ -237,9 +282,9 @@ func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case user.FieldTotpEnabled, user.FieldBalanceNotifyEnabled:
+		case user.FieldPreferPointsBilling, user.FieldTotpEnabled, user.FieldBalanceNotifyEnabled:
 			values[i] = new(sql.NullBool)
-		case user.FieldBalance, user.FieldFrozenBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged:
+		case user.FieldBalance, user.FieldRechargeBalance, user.FieldInviteIncomeBalance, user.FieldShareIncomeBalance, user.FieldPointsBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged, user.FieldTotalInviteIncome, user.FieldTotalShareIncome:
 			values[i] = new(sql.NullFloat64)
 		case user.FieldID, user.FieldConcurrency, user.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
@@ -311,11 +356,35 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Balance = value.Float64
 			}
-		case user.FieldFrozenBalance:
+		case user.FieldRechargeBalance:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field frozen_balance", values[i])
+				return fmt.Errorf("unexpected type %T for field recharge_balance", values[i])
 			} else if value.Valid {
-				_m.FrozenBalance = value.Float64
+				_m.RechargeBalance = value.Float64
+			}
+		case user.FieldInviteIncomeBalance:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field invite_income_balance", values[i])
+			} else if value.Valid {
+				_m.InviteIncomeBalance = value.Float64
+			}
+		case user.FieldShareIncomeBalance:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field share_income_balance", values[i])
+			} else if value.Valid {
+				_m.ShareIncomeBalance = value.Float64
+			}
+		case user.FieldPointsBalance:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field points_balance", values[i])
+			} else if value.Valid {
+				_m.PointsBalance = value.Float64
+			}
+		case user.FieldPreferPointsBilling:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field prefer_points_billing", values[i])
+			} else if value.Valid {
+				_m.PreferPointsBilling = value.Bool
 			}
 		case user.FieldConcurrency:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -412,6 +481,18 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.TotalRecharged = value.Float64
 			}
+		case user.FieldTotalInviteIncome:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field total_invite_income", values[i])
+			} else if value.Valid {
+				_m.TotalInviteIncome = value.Float64
+			}
+		case user.FieldTotalShareIncome:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field total_share_income", values[i])
+			} else if value.Valid {
+				_m.TotalShareIncome = value.Float64
+			}
 		case user.FieldRpmLimit:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field rpm_limit", values[i])
@@ -481,6 +562,26 @@ func (_m *User) QueryPaymentOrders() *PaymentOrderQuery {
 	return NewUserClient(_m.config).QueryPaymentOrders(_m)
 }
 
+// QueryShopOrders queries the "shop_orders" edge of the User entity.
+func (_m *User) QueryShopOrders() *ShopOrderQuery {
+	return NewUserClient(_m.config).QueryShopOrders(_m)
+}
+
+// QueryShopDrawCycles queries the "shop_draw_cycles" edge of the User entity.
+func (_m *User) QueryShopDrawCycles() *ShopDrawCycleQuery {
+	return NewUserClient(_m.config).QueryShopDrawCycles(_m)
+}
+
+// QueryShopBalanceLedger queries the "shop_balance_ledger" edge of the User entity.
+func (_m *User) QueryShopBalanceLedger() *ShopBalanceLedgerQuery {
+	return NewUserClient(_m.config).QueryShopBalanceLedger(_m)
+}
+
+// QueryOwnedAccounts queries the "owned_accounts" edge of the User entity.
+func (_m *User) QueryOwnedAccounts() *AccountQuery {
+	return NewUserClient(_m.config).QueryOwnedAccounts(_m)
+}
+
 // QueryAuthIdentities queries the "auth_identities" edge of the User entity.
 func (_m *User) QueryAuthIdentities() *AuthIdentityQuery {
 	return NewUserClient(_m.config).QueryAuthIdentities(_m)
@@ -489,11 +590,6 @@ func (_m *User) QueryAuthIdentities() *AuthIdentityQuery {
 // QueryPendingAuthSessions queries the "pending_auth_sessions" edge of the User entity.
 func (_m *User) QueryPendingAuthSessions() *PendingAuthSessionQuery {
 	return NewUserClient(_m.config).QueryPendingAuthSessions(_m)
-}
-
-// QueryPlatformQuotas queries the "platform_quotas" edge of the User entity.
-func (_m *User) QueryPlatformQuotas() *UserPlatformQuotaQuery {
-	return NewUserClient(_m.config).QueryPlatformQuotas(_m)
 }
 
 // QueryUserAllowedGroups queries the "user_allowed_groups" edge of the User entity.
@@ -547,8 +643,20 @@ func (_m *User) String() string {
 	builder.WriteString("balance=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Balance))
 	builder.WriteString(", ")
-	builder.WriteString("frozen_balance=")
-	builder.WriteString(fmt.Sprintf("%v", _m.FrozenBalance))
+	builder.WriteString("recharge_balance=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RechargeBalance))
+	builder.WriteString(", ")
+	builder.WriteString("invite_income_balance=")
+	builder.WriteString(fmt.Sprintf("%v", _m.InviteIncomeBalance))
+	builder.WriteString(", ")
+	builder.WriteString("share_income_balance=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ShareIncomeBalance))
+	builder.WriteString(", ")
+	builder.WriteString("points_balance=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PointsBalance))
+	builder.WriteString(", ")
+	builder.WriteString("prefer_points_billing=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PreferPointsBilling))
 	builder.WriteString(", ")
 	builder.WriteString("concurrency=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Concurrency))
@@ -604,6 +712,12 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("total_recharged=")
 	builder.WriteString(fmt.Sprintf("%v", _m.TotalRecharged))
+	builder.WriteString(", ")
+	builder.WriteString("total_invite_income=")
+	builder.WriteString(fmt.Sprintf("%v", _m.TotalInviteIncome))
+	builder.WriteString(", ")
+	builder.WriteString("total_share_income=")
+	builder.WriteString(fmt.Sprintf("%v", _m.TotalShareIncome))
 	builder.WriteString(", ")
 	builder.WriteString("rpm_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RpmLimit))

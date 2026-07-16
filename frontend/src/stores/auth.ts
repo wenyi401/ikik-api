@@ -117,6 +117,9 @@ export const useAuthStore = defineStore('auth', () => {
         // Immediately refresh user data from backend (async, don't block)
         refreshUser().catch((error) => {
           console.error('Failed to refresh user on init:', error)
+          resumeSessionFromCookie().catch((resumeError) => {
+            console.debug('No resumable web session after refresh failure:', resumeError)
+          })
         })
 
         // Start auto-refresh interval for user data
@@ -130,8 +133,16 @@ export const useAuthStore = defineStore('auth', () => {
       } catch (error) {
         console.error('Failed to parse saved user data:', error)
         clearAuth({ preservePendingAuthSession: true })
+        resumeSessionFromCookie().catch((resumeError) => {
+          console.debug('No resumable web session after stored auth parse failure:', resumeError)
+        })
       }
+      return
     }
+
+    resumeSessionFromCookie().catch((error) => {
+      console.debug('No resumable web session:', error)
+    })
   }
 
   /**
@@ -221,6 +232,11 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function resumeSessionFromCookie(): Promise<void> {
+    const response = await authAPI.resumeSession()
+    setAuthFromResponse(response)
+  }
+
   /**
    * Stop token refresh timeout
    */
@@ -264,9 +280,17 @@ export const useAuthStore = defineStore('auth', () => {
    * @returns Promise resolving to the authenticated user
    * @throws Error if 2FA verification fails
    */
-  async function login2FA(tempToken: string, totpCode: string): Promise<User> {
+  async function login2FA(
+    tempToken: string,
+    totpCode: string,
+    loginAgreementRevision?: string
+  ): Promise<User> {
     try {
-      const response = await authAPI.login2FA({ temp_token: tempToken, totp_code: totpCode })
+      const response = await authAPI.login2FA({
+        temp_token: tempToken,
+        totp_code: totpCode,
+        login_agreement_revision: loginAgreementRevision
+      })
       setAuthFromResponse(response)
       return user.value!
     } catch (error) {
@@ -397,16 +421,11 @@ export const useAuthStore = defineStore('auth', () => {
    * Clears all authentication state and persisted data
    */
   async function logout(): Promise<void> {
-    try {
-      // Call API logout (revokes refresh token on server)
-      await authAPI.logout()
-    } catch (err) {
-      // 服务端吊销失败（网络/5xx/超时）不应阻止本地登出，否则用户点了退出仍处于登录态。
-      console.warn('Logout API call failed, clearing local session anyway', err)
-    } finally {
-      // Always clear local state (tokens, user data, refresh timers)
-      clearAuth()
-    }
+    // Call API logout (revokes refresh token on server)
+    await authAPI.logout()
+
+    // Clear state
+    clearAuth()
   }
 
   /**

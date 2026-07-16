@@ -6,6 +6,9 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/promocode"
+	"ikik-api/ent/promocodeusage"
 	"math"
 
 	"entgo.io/ent"
@@ -13,9 +16,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/promocode"
-	"ikik-api/ent/promocodeusage"
 )
 
 // PromoCodeQuery is the builder for querying PromoCode entities.

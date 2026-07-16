@@ -4,12 +4,12 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/setting"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/setting"
 )
 
 // Setting is the model entity for the Setting schema.

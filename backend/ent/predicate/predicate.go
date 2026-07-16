@@ -9,6 +9,9 @@ import (
 // APIKey is the predicate function for apikey builders.
 type APIKey func(*sql.Selector)
 
+// APIKeyGroupRoute is the predicate function for apikeygrouproute builders.
+type APIKeyGroupRoute func(*sql.Selector)
+
 // Account is the predicate function for account builders.
 type Account func(*sql.Selector)
 
@@ -27,15 +30,6 @@ type AuthIdentity func(*sql.Selector)
 // AuthIdentityChannel is the predicate function for authidentitychannel builders.
 type AuthIdentityChannel func(*sql.Selector)
 
-// BatchImageEvent is the predicate function for batchimageevent builders.
-type BatchImageEvent func(*sql.Selector)
-
-// BatchImageItem is the predicate function for batchimageitem builders.
-type BatchImageItem func(*sql.Selector)
-
-// BatchImageJob is the predicate function for batchimagejob builders.
-type BatchImageJob func(*sql.Selector)
-
 // ChannelMonitor is the predicate function for channelmonitor builders.
 type ChannelMonitor func(*sql.Selector)
 
@@ -47,6 +41,9 @@ type ChannelMonitorHistory func(*sql.Selector)
 
 // ChannelMonitorRequestTemplate is the predicate function for channelmonitorrequesttemplate builders.
 type ChannelMonitorRequestTemplate func(*sql.Selector)
+
+// EmailBroadcast is the predicate function for emailbroadcast builders.
+type EmailBroadcast func(*sql.Selector)
 
 // ErrorPassthroughRule is the predicate function for errorpassthroughrule builders.
 type ErrorPassthroughRule func(*sql.Selector)
@@ -90,6 +87,24 @@ type SecuritySecret func(*sql.Selector)
 // Setting is the predicate function for setting builders.
 type Setting func(*sql.Selector)
 
+// ShopBalanceLedger is the predicate function for shopbalanceledger builders.
+type ShopBalanceLedger func(*sql.Selector)
+
+// ShopCardKey is the predicate function for shopcardkey builders.
+type ShopCardKey func(*sql.Selector)
+
+// ShopCategory is the predicate function for shopcategory builders.
+type ShopCategory func(*sql.Selector)
+
+// ShopDrawCycle is the predicate function for shopdrawcycle builders.
+type ShopDrawCycle func(*sql.Selector)
+
+// ShopOrder is the predicate function for shoporder builders.
+type ShopOrder func(*sql.Selector)
+
+// ShopProduct is the predicate function for shopproduct builders.
+type ShopProduct func(*sql.Selector)
+
 // SubscriptionPlan is the predicate function for subscriptionplan builders.
 type SubscriptionPlan func(*sql.Selector)
 
@@ -113,9 +128,6 @@ type UserAttributeDefinition func(*sql.Selector)
 
 // UserAttributeValue is the predicate function for userattributevalue builders.
 type UserAttributeValue func(*sql.Selector)
-
-// UserPlatformQuota is the predicate function for userplatformquota builders.
-type UserPlatformQuota func(*sql.Selector)
 
 // UserSubscription is the predicate function for usersubscription builders.
 type UserSubscription func(*sql.Selector)

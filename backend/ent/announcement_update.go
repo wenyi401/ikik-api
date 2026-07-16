@@ -6,15 +6,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/announcement"
+	"ikik-api/ent/announcementread"
+	"ikik-api/ent/predicate"
+	"ikik-api/internal/domain"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/announcement"
-	"ikik-api/ent/announcementread"
-	"ikik-api/ent/predicate"
-	"ikik-api/internal/domain"
 )
 
 // AnnouncementUpdate is the builder for updating Announcement entities.

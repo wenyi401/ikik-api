@@ -29,8 +29,16 @@ const (
 	FieldRole = "role"
 	// FieldBalance holds the string denoting the balance field in the database.
 	FieldBalance = "balance"
-	// FieldFrozenBalance holds the string denoting the frozen_balance field in the database.
-	FieldFrozenBalance = "frozen_balance"
+	// FieldRechargeBalance holds the string denoting the recharge_balance field in the database.
+	FieldRechargeBalance = "recharge_balance"
+	// FieldInviteIncomeBalance holds the string denoting the invite_income_balance field in the database.
+	FieldInviteIncomeBalance = "invite_income_balance"
+	// FieldShareIncomeBalance holds the string denoting the share_income_balance field in the database.
+	FieldShareIncomeBalance = "share_income_balance"
+	// FieldPointsBalance holds the string denoting the points_balance field in the database.
+	FieldPointsBalance = "points_balance"
+	// FieldPreferPointsBilling holds the string denoting the prefer_points_billing field in the database.
+	FieldPreferPointsBilling = "prefer_points_billing"
 	// FieldConcurrency holds the string denoting the concurrency field in the database.
 	FieldConcurrency = "concurrency"
 	// FieldStatus holds the string denoting the status field in the database.
@@ -61,6 +69,10 @@ const (
 	FieldBalanceNotifyExtraEmails = "balance_notify_extra_emails"
 	// FieldTotalRecharged holds the string denoting the total_recharged field in the database.
 	FieldTotalRecharged = "total_recharged"
+	// FieldTotalInviteIncome holds the string denoting the total_invite_income field in the database.
+	FieldTotalInviteIncome = "total_invite_income"
+	// FieldTotalShareIncome holds the string denoting the total_share_income field in the database.
+	FieldTotalShareIncome = "total_share_income"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
@@ -83,12 +95,18 @@ const (
 	EdgePromoCodeUsages = "promo_code_usages"
 	// EdgePaymentOrders holds the string denoting the payment_orders edge name in mutations.
 	EdgePaymentOrders = "payment_orders"
+	// EdgeShopOrders holds the string denoting the shop_orders edge name in mutations.
+	EdgeShopOrders = "shop_orders"
+	// EdgeShopDrawCycles holds the string denoting the shop_draw_cycles edge name in mutations.
+	EdgeShopDrawCycles = "shop_draw_cycles"
+	// EdgeShopBalanceLedger holds the string denoting the shop_balance_ledger edge name in mutations.
+	EdgeShopBalanceLedger = "shop_balance_ledger"
+	// EdgeOwnedAccounts holds the string denoting the owned_accounts edge name in mutations.
+	EdgeOwnedAccounts = "owned_accounts"
 	// EdgeAuthIdentities holds the string denoting the auth_identities edge name in mutations.
 	EdgeAuthIdentities = "auth_identities"
 	// EdgePendingAuthSessions holds the string denoting the pending_auth_sessions edge name in mutations.
 	EdgePendingAuthSessions = "pending_auth_sessions"
-	// EdgePlatformQuotas holds the string denoting the platform_quotas edge name in mutations.
-	EdgePlatformQuotas = "platform_quotas"
 	// EdgeUserAllowedGroups holds the string denoting the user_allowed_groups edge name in mutations.
 	EdgeUserAllowedGroups = "user_allowed_groups"
 	// Table holds the table name of the user in the database.
@@ -161,6 +179,34 @@ const (
 	PaymentOrdersInverseTable = "payment_orders"
 	// PaymentOrdersColumn is the table column denoting the payment_orders relation/edge.
 	PaymentOrdersColumn = "user_id"
+	// ShopOrdersTable is the table that holds the shop_orders relation/edge.
+	ShopOrdersTable = "shop_orders"
+	// ShopOrdersInverseTable is the table name for the ShopOrder entity.
+	// It exists in this package in order to avoid circular dependency with the "shoporder" package.
+	ShopOrdersInverseTable = "shop_orders"
+	// ShopOrdersColumn is the table column denoting the shop_orders relation/edge.
+	ShopOrdersColumn = "user_id"
+	// ShopDrawCyclesTable is the table that holds the shop_draw_cycles relation/edge.
+	ShopDrawCyclesTable = "shop_draw_cycles"
+	// ShopDrawCyclesInverseTable is the table name for the ShopDrawCycle entity.
+	// It exists in this package in order to avoid circular dependency with the "shopdrawcycle" package.
+	ShopDrawCyclesInverseTable = "shop_draw_cycles"
+	// ShopDrawCyclesColumn is the table column denoting the shop_draw_cycles relation/edge.
+	ShopDrawCyclesColumn = "user_id"
+	// ShopBalanceLedgerTable is the table that holds the shop_balance_ledger relation/edge.
+	ShopBalanceLedgerTable = "shop_balance_ledger"
+	// ShopBalanceLedgerInverseTable is the table name for the ShopBalanceLedger entity.
+	// It exists in this package in order to avoid circular dependency with the "shopbalanceledger" package.
+	ShopBalanceLedgerInverseTable = "shop_balance_ledger"
+	// ShopBalanceLedgerColumn is the table column denoting the shop_balance_ledger relation/edge.
+	ShopBalanceLedgerColumn = "user_id"
+	// OwnedAccountsTable is the table that holds the owned_accounts relation/edge.
+	OwnedAccountsTable = "accounts"
+	// OwnedAccountsInverseTable is the table name for the Account entity.
+	// It exists in this package in order to avoid circular dependency with the "account" package.
+	OwnedAccountsInverseTable = "accounts"
+	// OwnedAccountsColumn is the table column denoting the owned_accounts relation/edge.
+	OwnedAccountsColumn = "owner_user_id"
 	// AuthIdentitiesTable is the table that holds the auth_identities relation/edge.
 	AuthIdentitiesTable = "auth_identities"
 	// AuthIdentitiesInverseTable is the table name for the AuthIdentity entity.
@@ -175,13 +221,6 @@ const (
 	PendingAuthSessionsInverseTable = "pending_auth_sessions"
 	// PendingAuthSessionsColumn is the table column denoting the pending_auth_sessions relation/edge.
 	PendingAuthSessionsColumn = "target_user_id"
-	// PlatformQuotasTable is the table that holds the platform_quotas relation/edge.
-	PlatformQuotasTable = "user_platform_quotas"
-	// PlatformQuotasInverseTable is the table name for the UserPlatformQuota entity.
-	// It exists in this package in order to avoid circular dependency with the "userplatformquota" package.
-	PlatformQuotasInverseTable = "user_platform_quotas"
-	// PlatformQuotasColumn is the table column denoting the platform_quotas relation/edge.
-	PlatformQuotasColumn = "user_id"
 	// UserAllowedGroupsTable is the table that holds the user_allowed_groups relation/edge.
 	UserAllowedGroupsTable = "user_allowed_groups"
 	// UserAllowedGroupsInverseTable is the table name for the UserAllowedGroup entity.
@@ -201,7 +240,11 @@ var Columns = []string{
 	FieldPasswordHash,
 	FieldRole,
 	FieldBalance,
-	FieldFrozenBalance,
+	FieldRechargeBalance,
+	FieldInviteIncomeBalance,
+	FieldShareIncomeBalance,
+	FieldPointsBalance,
+	FieldPreferPointsBilling,
 	FieldConcurrency,
 	FieldStatus,
 	FieldUsername,
@@ -217,6 +260,8 @@ var Columns = []string{
 	FieldBalanceNotifyThreshold,
 	FieldBalanceNotifyExtraEmails,
 	FieldTotalRecharged,
+	FieldTotalInviteIncome,
+	FieldTotalShareIncome,
 	FieldRpmLimit,
 }
 
@@ -260,8 +305,16 @@ var (
 	RoleValidator func(string) error
 	// DefaultBalance holds the default value on creation for the "balance" field.
 	DefaultBalance float64
-	// DefaultFrozenBalance holds the default value on creation for the "frozen_balance" field.
-	DefaultFrozenBalance float64
+	// DefaultRechargeBalance holds the default value on creation for the "recharge_balance" field.
+	DefaultRechargeBalance float64
+	// DefaultInviteIncomeBalance holds the default value on creation for the "invite_income_balance" field.
+	DefaultInviteIncomeBalance float64
+	// DefaultShareIncomeBalance holds the default value on creation for the "share_income_balance" field.
+	DefaultShareIncomeBalance float64
+	// DefaultPointsBalance holds the default value on creation for the "points_balance" field.
+	DefaultPointsBalance float64
+	// DefaultPreferPointsBilling holds the default value on creation for the "prefer_points_billing" field.
+	DefaultPreferPointsBilling bool
 	// DefaultConcurrency holds the default value on creation for the "concurrency" field.
 	DefaultConcurrency int
 	// DefaultStatus holds the default value on creation for the "status" field.
@@ -288,6 +341,10 @@ var (
 	DefaultBalanceNotifyExtraEmails string
 	// DefaultTotalRecharged holds the default value on creation for the "total_recharged" field.
 	DefaultTotalRecharged float64
+	// DefaultTotalInviteIncome holds the default value on creation for the "total_invite_income" field.
+	DefaultTotalInviteIncome float64
+	// DefaultTotalShareIncome holds the default value on creation for the "total_share_income" field.
+	DefaultTotalShareIncome float64
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 )
@@ -335,9 +392,29 @@ func ByBalance(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBalance, opts...).ToFunc()
 }
 
-// ByFrozenBalance orders the results by the frozen_balance field.
-func ByFrozenBalance(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldFrozenBalance, opts...).ToFunc()
+// ByRechargeBalance orders the results by the recharge_balance field.
+func ByRechargeBalance(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRechargeBalance, opts...).ToFunc()
+}
+
+// ByInviteIncomeBalance orders the results by the invite_income_balance field.
+func ByInviteIncomeBalance(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldInviteIncomeBalance, opts...).ToFunc()
+}
+
+// ByShareIncomeBalance orders the results by the share_income_balance field.
+func ByShareIncomeBalance(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldShareIncomeBalance, opts...).ToFunc()
+}
+
+// ByPointsBalance orders the results by the points_balance field.
+func ByPointsBalance(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPointsBalance, opts...).ToFunc()
+}
+
+// ByPreferPointsBilling orders the results by the prefer_points_billing field.
+func ByPreferPointsBilling(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPreferPointsBilling, opts...).ToFunc()
 }
 
 // ByConcurrency orders the results by the concurrency field.
@@ -413,6 +490,16 @@ func ByBalanceNotifyExtraEmails(opts ...sql.OrderTermOption) OrderOption {
 // ByTotalRecharged orders the results by the total_recharged field.
 func ByTotalRecharged(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTotalRecharged, opts...).ToFunc()
+}
+
+// ByTotalInviteIncome orders the results by the total_invite_income field.
+func ByTotalInviteIncome(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTotalInviteIncome, opts...).ToFunc()
+}
+
+// ByTotalShareIncome orders the results by the total_share_income field.
+func ByTotalShareIncome(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTotalShareIncome, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.
@@ -560,6 +647,62 @@ func ByPaymentOrders(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByShopOrdersCount orders the results by shop_orders count.
+func ByShopOrdersCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newShopOrdersStep(), opts...)
+	}
+}
+
+// ByShopOrders orders the results by shop_orders terms.
+func ByShopOrders(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newShopOrdersStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByShopDrawCyclesCount orders the results by shop_draw_cycles count.
+func ByShopDrawCyclesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newShopDrawCyclesStep(), opts...)
+	}
+}
+
+// ByShopDrawCycles orders the results by shop_draw_cycles terms.
+func ByShopDrawCycles(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newShopDrawCyclesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByShopBalanceLedgerCount orders the results by shop_balance_ledger count.
+func ByShopBalanceLedgerCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newShopBalanceLedgerStep(), opts...)
+	}
+}
+
+// ByShopBalanceLedger orders the results by shop_balance_ledger terms.
+func ByShopBalanceLedger(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newShopBalanceLedgerStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByOwnedAccountsCount orders the results by owned_accounts count.
+func ByOwnedAccountsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newOwnedAccountsStep(), opts...)
+	}
+}
+
+// ByOwnedAccounts orders the results by owned_accounts terms.
+func ByOwnedAccounts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newOwnedAccountsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByAuthIdentitiesCount orders the results by auth_identities count.
 func ByAuthIdentitiesCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -585,20 +728,6 @@ func ByPendingAuthSessionsCount(opts ...sql.OrderTermOption) OrderOption {
 func ByPendingAuthSessions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newPendingAuthSessionsStep(), append([]sql.OrderTerm{term}, terms...)...)
-	}
-}
-
-// ByPlatformQuotasCount orders the results by platform_quotas count.
-func ByPlatformQuotasCount(opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborsCount(s, newPlatformQuotasStep(), opts...)
-	}
-}
-
-// ByPlatformQuotas orders the results by platform_quotas terms.
-func ByPlatformQuotas(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newPlatformQuotasStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
 
@@ -685,6 +814,34 @@ func newPaymentOrdersStep() *sqlgraph.Step {
 		sqlgraph.Edge(sqlgraph.O2M, false, PaymentOrdersTable, PaymentOrdersColumn),
 	)
 }
+func newShopOrdersStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ShopOrdersInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ShopOrdersTable, ShopOrdersColumn),
+	)
+}
+func newShopDrawCyclesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ShopDrawCyclesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ShopDrawCyclesTable, ShopDrawCyclesColumn),
+	)
+}
+func newShopBalanceLedgerStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ShopBalanceLedgerInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ShopBalanceLedgerTable, ShopBalanceLedgerColumn),
+	)
+}
+func newOwnedAccountsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(OwnedAccountsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, OwnedAccountsTable, OwnedAccountsColumn),
+	)
+}
 func newAuthIdentitiesStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -697,13 +854,6 @@ func newPendingAuthSessionsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(PendingAuthSessionsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, PendingAuthSessionsTable, PendingAuthSessionsColumn),
-	)
-}
-func newPlatformQuotasStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(PlatformQuotasInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.O2M, false, PlatformQuotasTable, PlatformQuotasColumn),
 	)
 }
 func newUserAllowedGroupsStep() *sqlgraph.Step {

@@ -152,7 +152,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useClipboard } from '@/composables/useClipboard'
 import { useAppStore, useAuthStore } from '@/stores'
 import { apiClient } from '@/api/client'
-import { buildApiUrl } from '@/api/url'
 import {
   exchangePendingOAuthCompletion,
   persistOAuthTokenContext,
@@ -203,9 +202,7 @@ const fullUrl = computed(() => {
   if (typeof window === 'undefined') return ''
   return window.location.href
 })
-const providerName = computed(() =>
-  pendingProvider.value === 'google' ? 'Google' : 'GitHub'
-)
+const providerName = computed(() => (pendingProvider.value === 'google' ? 'Google' : 'GitHub'))
 const registrationHint = computed(() =>
   invitationRequired.value
     ? t('auth.oidc.invitationRequired', { providerName: providerName.value })
@@ -257,10 +254,12 @@ function readPendingEmailOAuthProvider(): 'github' | 'google' | null {
 
 function redirectProviderCallbackToBackend(provider: 'github' | 'google'): void {
   if (typeof window === 'undefined') return
+  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '/api/v1'
+  const normalized = apiBase.replace(/\/$/, '')
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(route.query)) {
     if (Array.isArray(value)) {
-      value.forEach((item) => {
+      value.forEach(item => {
         if (item != null) params.append(key, String(item))
       })
     } else if (value != null) {
@@ -268,7 +267,7 @@ function redirectProviderCallbackToBackend(provider: 'github' | 'google'): void 
     }
   }
   const suffix = params.toString() ? `?${params.toString()}` : ''
-  window.location.href = buildApiUrl(`/auth/oauth/${provider}/callback${suffix}`)
+  window.location.href = `${normalized}/auth/oauth/${provider}/callback${suffix}`
 }
 
 async function finalizeTokenResponse(tokenResponse: OAuthTokenResponse, redirect: string) {
@@ -289,7 +288,7 @@ function hasOAuthTokenResponse(value: Partial<OAuthTokenResponse>): value is OAu
 async function resumePendingEmailOAuth() {
   isProcessing.value = true
   try {
-    const completion = await exchangePendingOAuthCompletion() as EmailOAuthPendingCompletion
+    const completion = (await exchangePendingOAuthCompletion()) as EmailOAuthPendingCompletion
     const completionRedirect = completion.redirect || '/dashboard'
     if (hasOAuthTokenResponse(completion)) {
       await finalizeTokenResponse(completion, completionRedirect)

@@ -1,19 +1,19 @@
 <template>
-  <div class="card p-4">
-    <div class="mb-4 flex items-center justify-between gap-3">
-      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+  <section class="distribution-chart">
+    <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+      <h3 class="text-sm font-semibold text-[var(--ui-text)]">
         {{ t('admin.dashboard.groupDistribution') }}
       </h3>
       <div
         v-if="showMetricToggle"
-        class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-gray-700 dark:bg-dark-800"
+        class="inline-flex rounded-lg bg-[var(--ui-surface-subtle)] p-0.5"
       >
         <button
           type="button"
           class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
           :class="metric === 'tokens'
-            ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+            ? 'bg-[var(--ui-surface)] text-[var(--ui-text)] shadow-sm'
+            : 'text-[var(--ui-text-secondary)] hover:text-[var(--ui-text)]'"
           @click="emit('update:metric', 'tokens')"
         >
           {{ t('admin.dashboard.metricTokens') }}
@@ -22,8 +22,8 @@
           type="button"
           class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
           :class="metric === 'actual_cost'
-            ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+            ? 'bg-[var(--ui-surface)] text-[var(--ui-text)] shadow-sm'
+            : 'text-[var(--ui-text-secondary)] hover:text-[var(--ui-text)]'"
           @click="emit('update:metric', 'actual_cost')"
         >
           {{ t('admin.dashboard.metricActualCost') }}
@@ -33,11 +33,11 @@
     <div v-if="loading" class="flex h-48 items-center justify-center">
       <LoadingSpinner />
     </div>
-    <div v-else-if="displayGroupStats.length > 0 && chartData" class="flex items-center gap-6">
-      <div class="h-48 w-48">
+    <div v-else-if="displayGroupStats.length > 0 && chartData" class="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+      <div class="h-48 w-48 shrink-0 self-center">
         <Doughnut :data="chartData" :options="doughnutOptions" />
       </div>
-      <div class="max-h-48 flex-1 overflow-y-auto">
+      <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
         <table class="w-full text-xs">
           <thead>
             <tr class="text-gray-500 dark:text-gray-400">
@@ -45,25 +45,25 @@
               <th class="pb-2 text-right">{{ t('admin.dashboard.requests') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.tokens') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.actual') }}</th>
-              <th v-if="showAccountCost" class="pb-2 text-right">{{ t('admin.dashboard.accountCost') }}</th>
+              <th class="pb-2 text-right">{{ t('admin.dashboard.accountCost') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.standard') }}</th>
             </tr>
           </thead>
           <tbody>
             <template v-for="group in displayGroupStats" :key="group.group_id">
               <tr
-                class="border-t border-gray-100 transition-colors dark:border-gray-700"
-                :class="enableBreakdown && group.group_id > 0 ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40' : ''"
-                @click="enableBreakdown && group.group_id > 0 && toggleBreakdown('group', group.group_id)"
+                class="border-t border-[var(--ui-border)] transition-colors"
+                :class="group.group_id > 0 ? 'cursor-pointer hover:bg-[var(--ui-surface-subtle)]' : ''"
+                @click="group.group_id > 0 && toggleBreakdown('group', group.group_id)"
               >
                 <td
                   class="max-w-[100px] truncate py-1.5 font-medium"
-                  :class="enableBreakdown && group.group_id > 0 ? 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300' : 'text-gray-900 dark:text-white'"
+                  :class="group.group_id > 0 ? 'text-[var(--ui-text)]' : 'text-[var(--ui-text)]'"
                   :title="group.group_name || String(group.group_id)"
                 >
                   <span class="inline-flex items-center gap-1">
-                    <svg v-if="enableBreakdown && group.group_id > 0 && expandedKey === `group-${group.group_id}`" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    <svg v-else-if="enableBreakdown && group.group_id > 0" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <svg v-if="group.group_id > 0 && expandedKey === `group-${group.group_id}`" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    <svg v-else-if="group.group_id > 0" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     {{ group.group_name || t('admin.dashboard.noGroup') }}
                   </span>
                 </td>
@@ -73,23 +73,22 @@
                 <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
                   {{ formatTokens(group.total_tokens) }}
                 </td>
-                <td class="py-1.5 text-right text-green-600 dark:text-green-400">
+                <td class="py-1.5 text-right text-[var(--ui-text)]">
                   ${{ formatCost(group.actual_cost) }}
                 </td>
-                <td v-if="showAccountCost" class="py-1.5 text-right text-orange-500 dark:text-orange-400">
+                <td class="py-1.5 text-right text-[var(--ui-text-secondary)]">
                   ${{ formatCost(group.account_cost) }}
                 </td>
-                <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
+                <td class="py-1.5 text-right text-[var(--ui-text-tertiary)]">
                   ${{ formatCost(group.cost) }}
                 </td>
               </tr>
               <!-- User breakdown sub-rows -->
               <tr v-if="expandedKey === `group-${group.group_id}`">
-                <td :colspan="distributionColspan" class="p-0">
+                <td colspan="6" class="p-0">
                   <UserBreakdownSubTable
                     :items="breakdownItems"
                     :loading="breakdownLoading"
-                    :show-account-cost="showAccountCost"
                   />
                 </td>
               </tr>
@@ -104,7 +103,7 @@
     >
       {{ t('admin.dashboard.noDataAvailable') }}
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup lang="ts">
@@ -128,8 +127,6 @@ const props = withDefaults(defineProps<{
   loading?: boolean
   metric?: DistributionMetric
   showMetricToggle?: boolean
-  enableBreakdown?: boolean
-  showAccountCost?: boolean
   startDate?: string
   endDate?: string
   filters?: Record<string, any>
@@ -137,8 +134,6 @@ const props = withDefaults(defineProps<{
   loading: false,
   metric: 'tokens',
   showMetricToggle: false,
-  enableBreakdown: true,
-  showAccountCost: true,
 })
 
 const emit = defineEmits<{
@@ -148,8 +143,6 @@ const emit = defineEmits<{
 const expandedKey = ref<string | null>(null)
 const breakdownItems = ref<UserBreakdownItem[]>([])
 const breakdownLoading = ref(false)
-const showAccountCost = computed(() => props.showAccountCost)
-const distributionColspan = computed(() => showAccountCost.value ? 6 : 5)
 
 const toggleBreakdown = async (type: string, id: number | string) => {
   const key = `${type}-${id}`
@@ -176,23 +169,23 @@ const toggleBreakdown = async (type: string, id: number | string) => {
 }
 
 const chartColors = [
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#ec4899',
-  '#14b8a6',
-  '#f97316',
-  '#6366f1',
-  '#84cc16'
+  '#10a37f',
+  '#6b6b6b',
+  '#a3a3a3',
+  '#4f8f7f',
+  '#8b7d6b',
+  '#4f4f4f',
+  '#76b7a5',
+  '#7f7f7f',
+  '#3f6f64',
+  '#b0b0b0'
 ]
 
 const displayGroupStats = computed(() => {
   if (!props.groupStats?.length) return []
 
   const metricKey = props.metric === 'actual_cost' ? 'actual_cost' : 'total_tokens'
-  return [...props.groupStats].sort((a, b) => toFiniteNumber(b[metricKey]) - toFiniteNumber(a[metricKey]))
+  return [...props.groupStats].sort((a, b) => b[metricKey] - a[metricKey])
 })
 
 const chartData = computed(() => {
@@ -202,7 +195,7 @@ const chartData = computed(() => {
     labels: displayGroupStats.value.map((g) => g.group_name || String(g.group_id)),
     datasets: [
       {
-        data: displayGroupStats.value.map((g) => toFiniteNumber(props.metric === 'actual_cost' ? g.actual_cost : g.total_tokens)),
+        data: displayGroupStats.value.map((g) => props.metric === 'actual_cost' ? g.actual_cost : g.total_tokens),
         backgroundColor: chartColors.slice(0, displayGroupStats.value.length),
         borderWidth: 0
       }
@@ -245,23 +238,19 @@ const formatTokens = (value: number): string => {
 }
 
 const formatNumber = (value: number): string => {
-  return toFiniteNumber(value).toLocaleString()
+  return value.toLocaleString()
 }
 
-const toFiniteNumber = (value: unknown): number => {
-  const numberValue = Number(value)
-  return Number.isFinite(numberValue) ? numberValue : 0
-}
-
-const formatCost = (value: number | null | undefined): string => {
-  const safeValue = toFiniteNumber(value)
-  if (safeValue >= 1000) {
-    return (safeValue / 1000).toFixed(2) + 'K'
-  } else if (safeValue >= 1) {
-    return safeValue.toFixed(2)
-  } else if (safeValue >= 0.01) {
-    return safeValue.toFixed(3)
+const formatCost = (value?: number): string => {
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return '0.0000'
+  if (amount >= 1000) {
+    return (amount / 1000).toFixed(2) + 'K'
+  } else if (amount >= 1) {
+    return amount.toFixed(2)
+  } else if (amount >= 0.01) {
+    return amount.toFixed(3)
   }
-  return safeValue.toFixed(4)
+  return amount.toFixed(4)
 }
 </script>

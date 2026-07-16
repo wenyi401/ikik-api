@@ -22,14 +22,13 @@
 
           <!-- Right: Action buttons -->
           <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
-            <button
+            <UiIconButton
+              :label="t('common.refresh')"
               @click="loadAnnouncements"
               :disabled="loading"
-              class="btn btn-secondary"
-              :title="t('common.refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
+            </UiIconButton>
             <button @click="openCreateDialog" class="btn btn-primary">
               <Icon name="plus" size="md" class="mr-1" />
               {{ t('admin.announcements.createAnnouncement') }}
@@ -142,8 +141,6 @@
             <EmptyState
               :title="t('empty.noData')"
               :description="t('admin.announcements.failedToLoad')"
-              :action-text="t('admin.announcements.createAnnouncement')"
-              @action="openCreateDialog"
             />
           </template>
         </DataTable>
@@ -262,6 +259,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { UiIconButton } from '@/ui'
 
 import AnnouncementTargetingEditor from '@/components/admin/announcements/AnnouncementTargetingEditor.vue'
 import AnnouncementReadStatusDialog from '@/components/admin/announcements/AnnouncementReadStatusDialog.vue'

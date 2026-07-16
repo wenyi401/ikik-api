@@ -276,5 +276,5 @@ func createReqClient(proxyURL string) (*req.Client, error) {
 		client.SetProxyURL(trimmed)
 	}
 
-	return instrumentReqClient(client), nil
+	return client, nil
 }

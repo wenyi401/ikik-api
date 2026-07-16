@@ -6,15 +6,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/group"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/redeemcode"
+	"ikik-api/ent/user"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/group"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/redeemcode"
-	"ikik-api/ent/user"
 )
 
 // RedeemCodeUpdate is the builder for updating RedeemCode entities.
@@ -150,26 +150,6 @@ func (_u *RedeemCodeUpdate) SetNillableNotes(v *string) *RedeemCodeUpdate {
 // ClearNotes clears the value of the "notes" field.
 func (_u *RedeemCodeUpdate) ClearNotes() *RedeemCodeUpdate {
 	_u.mutation.ClearNotes()
-	return _u
-}
-
-// SetExpiresAt sets the "expires_at" field.
-func (_u *RedeemCodeUpdate) SetExpiresAt(v time.Time) *RedeemCodeUpdate {
-	_u.mutation.SetExpiresAt(v)
-	return _u
-}
-
-// SetNillableExpiresAt sets the "expires_at" field if the given value is not nil.
-func (_u *RedeemCodeUpdate) SetNillableExpiresAt(v *time.Time) *RedeemCodeUpdate {
-	if v != nil {
-		_u.SetExpiresAt(*v)
-	}
-	return _u
-}
-
-// ClearExpiresAt clears the value of the "expires_at" field.
-func (_u *RedeemCodeUpdate) ClearExpiresAt() *RedeemCodeUpdate {
-	_u.mutation.ClearExpiresAt()
 	return _u
 }
 
@@ -340,12 +320,6 @@ func (_u *RedeemCodeUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 	}
 	if _u.mutation.NotesCleared() {
 		_spec.ClearField(redeemcode.FieldNotes, field.TypeString)
-	}
-	if value, ok := _u.mutation.ExpiresAt(); ok {
-		_spec.SetField(redeemcode.FieldExpiresAt, field.TypeTime, value)
-	}
-	if _u.mutation.ExpiresAtCleared() {
-		_spec.ClearField(redeemcode.FieldExpiresAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.ValidityDays(); ok {
 		_spec.SetField(redeemcode.FieldValidityDays, field.TypeInt, value)
@@ -554,26 +528,6 @@ func (_u *RedeemCodeUpdateOne) ClearNotes() *RedeemCodeUpdateOne {
 	return _u
 }
 
-// SetExpiresAt sets the "expires_at" field.
-func (_u *RedeemCodeUpdateOne) SetExpiresAt(v time.Time) *RedeemCodeUpdateOne {
-	_u.mutation.SetExpiresAt(v)
-	return _u
-}
-
-// SetNillableExpiresAt sets the "expires_at" field if the given value is not nil.
-func (_u *RedeemCodeUpdateOne) SetNillableExpiresAt(v *time.Time) *RedeemCodeUpdateOne {
-	if v != nil {
-		_u.SetExpiresAt(*v)
-	}
-	return _u
-}
-
-// ClearExpiresAt clears the value of the "expires_at" field.
-func (_u *RedeemCodeUpdateOne) ClearExpiresAt() *RedeemCodeUpdateOne {
-	_u.mutation.ClearExpiresAt()
-	return _u
-}
-
 // SetGroupID sets the "group_id" field.
 func (_u *RedeemCodeUpdateOne) SetGroupID(v int64) *RedeemCodeUpdateOne {
 	_u.mutation.SetGroupID(v)
@@ -771,12 +725,6 @@ func (_u *RedeemCodeUpdateOne) sqlSave(ctx context.Context) (_node *RedeemCode, 
 	}
 	if _u.mutation.NotesCleared() {
 		_spec.ClearField(redeemcode.FieldNotes, field.TypeString)
-	}
-	if value, ok := _u.mutation.ExpiresAt(); ok {
-		_spec.SetField(redeemcode.FieldExpiresAt, field.TypeTime, value)
-	}
-	if _u.mutation.ExpiresAtCleared() {
-		_spec.ClearField(redeemcode.FieldExpiresAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.ValidityDays(); ok {
 		_spec.SetField(redeemcode.FieldValidityDays, field.TypeInt, value)

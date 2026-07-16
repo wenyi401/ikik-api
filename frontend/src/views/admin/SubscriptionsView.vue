@@ -92,27 +92,22 @@
           </div>
 
           <!-- Right: Actions -->
-          <div class="ml-auto flex flex-wrap items-center justify-end gap-3">
-            <button
+          <div class="ml-auto flex flex-wrap items-center justify-end gap-1">
+            <UiIconButton
+              :label="t('common.refresh')"
               @click="loadSubscriptions"
               :disabled="loading"
-              class="btn btn-secondary"
-              :title="t('common.refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
+            </UiIconButton>
             <!-- Column Settings Dropdown -->
             <div class="relative" ref="columnDropdownRef">
-              <button
+              <UiIconButton
+                :label="t('admin.users.columnSettings')"
                 @click="showColumnDropdown = !showColumnDropdown"
-                class="btn btn-secondary px-2 md:px-3"
-                :title="t('admin.users.columnSettings')"
               >
-                <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-                </svg>
-                <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
-              </button>
+                <Icon name="grid" size="md" />
+              </UiIconButton>
               <!-- Dropdown menu -->
               <div
                 v-if="showColumnDropdown"
@@ -152,14 +147,13 @@
                 </div>
               </div>
             </div>
-            <button
+            <UiIconButton
+              :label="t('admin.subscriptions.guide.showGuide')"
               @click="showGuideModal = true"
-              class="btn btn-secondary"
-              :title="t('admin.subscriptions.guide.showGuide')"
             >
               <Icon name="questionCircle" size="md" />
-            </button>
-            <button @click="showAssignModal = true" class="btn btn-primary">
+            </UiIconButton>
+            <button @click="showAssignModal = true" class="btn btn-primary ml-1">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.subscriptions.assignSubscription') }}
             </button>
@@ -246,7 +240,7 @@
                       d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <span>{{ formatDailyUsageWindow(row) }}</span>
+                  <span>{{ formatResetTime(row.daily_window_start, 'daily') }}</span>
                 </div>
               </div>
 
@@ -407,7 +401,7 @@
               <button
                 v-if="row.status === 'revoked'"
                 @click="handleRestore(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-900/20 dark:hover:text-emerald-400"
               >
                 <Icon name="refresh" size="sm" />
                 <span class="text-xs">{{ t('admin.subscriptions.restore') }}</span>
@@ -419,8 +413,6 @@
             <EmptyState
               :title="t('admin.subscriptions.noSubscriptionsYet')"
               :description="t('admin.subscriptions.assignFirstSubscription')"
-              :action-text="t('admin.subscriptions.assignSubscription')"
-              @action="showAssignModal = true"
             />
           </template>
         </DataTable>
@@ -777,7 +769,7 @@ import Select from '@/components/common/Select.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { getRemainingDurationParts, isOneTimeDailyQuota, type RemainingDurationParts } from '@/utils/subscriptionQuota'
+import { UiIconButton } from '@/ui'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -912,7 +904,8 @@ const statusOptions = computed(() => [
   { value: '', label: t('admin.subscriptions.allStatus') },
   { value: 'active', label: t('admin.subscriptions.status.active') },
   { value: 'expired', label: t('admin.subscriptions.status.expired') },
-  { value: 'revoked', label: t('admin.subscriptions.status.revoked') }
+  { value: 'revoked', label: t('admin.subscriptions.status.revoked') },
+  { value: 'suspended', label: t('admin.subscriptions.status.suspended') }
 ])
 
 const subscriptions = ref<UserSubscription[]>([])
@@ -989,7 +982,9 @@ const platformFilterOptions = computed(() => [
   { value: 'anthropic', label: 'Anthropic' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'gemini', label: 'Gemini' },
-  { value: 'antigravity', label: 'Antigravity' }
+  { value: 'antigravity', label: 'Antigravity' },
+  { value: 'grok', label: 'Grok' },
+  { value: 'kiro', label: 'Kiro' }
 ])
 
 // Group options for assign (only subscription type groups)
@@ -1355,41 +1350,8 @@ const getProgressClass = (used: number | null | undefined, limit: number | null)
   return 'bg-green-500'
 }
 
-const formatResetDuration = (parts: RemainingDurationParts): string => {
-  if (parts.days > 0) {
-    return t('admin.subscriptions.resetInDaysHours', { days: parts.days, hours: parts.hours })
-  }
-
-  if (parts.hours > 0) {
-    return t('admin.subscriptions.resetInHoursMinutes', { hours: parts.hours, minutes: parts.minutes })
-  }
-
-  return t('admin.subscriptions.resetInMinutes', { minutes: parts.minutes })
-}
-
-const formatQuotaEndDuration = (parts: RemainingDurationParts): string => {
-  if (parts.days > 0) {
-    return t('admin.subscriptions.quotaEndsInDaysHours', { days: parts.days, hours: parts.hours })
-  }
-
-  if (parts.hours > 0) {
-    return t('admin.subscriptions.quotaEndsInHoursMinutes', { hours: parts.hours, minutes: parts.minutes })
-  }
-
-  return t('admin.subscriptions.quotaEndsInMinutes', { minutes: parts.minutes })
-}
-
-const formatDailyUsageWindow = (subscription: UserSubscription): string => {
-  if (isOneTimeDailyQuota(subscription) && subscription.expires_at) {
-    const parts = getRemainingDurationParts(subscription.expires_at)
-    return parts ? formatQuotaEndDuration(parts) : t('admin.subscriptions.windowNotActive')
-  }
-
-  return formatResetTime(subscription.daily_window_start, 'daily')
-}
-
 // Format reset time based on window start and period type
-const formatResetTime = (windowStart: string | null, period: 'daily' | 'weekly' | 'monthly'): string => {
+const formatResetTime = (windowStart: string, period: 'daily' | 'weekly' | 'monthly'): string => {
   if (!windowStart) return t('admin.subscriptions.windowNotActive')
 
   const start = new Date(windowStart)
@@ -1409,9 +1371,21 @@ const formatResetTime = (windowStart: string | null, period: 'daily' | 'weekly' 
       break
   }
 
-  const parts = getRemainingDurationParts(resetTime, now)
+  const diffMs = resetTime.getTime() - now.getTime()
+  if (diffMs <= 0) return t('admin.subscriptions.windowNotActive')
 
-  return parts ? formatResetDuration(parts) : t('admin.subscriptions.windowNotActive')
+  const diffSeconds = Math.floor(diffMs / 1000)
+  const days = Math.floor(diffSeconds / 86400)
+  const hours = Math.floor((diffSeconds % 86400) / 3600)
+  const minutes = Math.floor((diffSeconds % 3600) / 60)
+
+  if (days > 0) {
+    return t('admin.subscriptions.resetInDaysHours', { days, hours })
+  } else if (hours > 0) {
+    return t('admin.subscriptions.resetInHoursMinutes', { hours, minutes })
+  } else {
+    return t('admin.subscriptions.resetInMinutes', { minutes })
+  }
 }
 
 // Handle click outside to close dropdowns

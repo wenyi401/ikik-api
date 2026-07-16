@@ -1,46 +1,31 @@
 <template>
-  <section class="py-3 md:py-4">
-    <div class="flex items-center justify-end gap-3 flex-wrap">
-      <div
-        role="tablist"
-        class="inline-flex p-0.5 rounded-xl bg-gray-100 dark:bg-dark-800 border border-gray-200/60 dark:border-dark-700/60 text-xs"
-      >
+  <section class="monitor-toolbar">
+    <div role="tablist" class="monitor-windows">
         <button
           v-for="opt in windowOptions"
           :key="opt.value"
           type="button"
           role="tab"
           :aria-selected="window === opt.value"
-          class="px-3 py-1 rounded-lg transition-colors"
-          :class="window === opt.value
-            ? 'bg-white dark:bg-dark-700 shadow-sm text-gray-900 dark:text-white font-semibold'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+          :class="['monitor-window', { 'monitor-window--active': window === opt.value }]"
           @click="emit('update:window', opt.value)"
         >
           {{ opt.label }}
         </button>
-      </div>
+    </div>
 
+    <div class="monitor-actions">
       <span
-        class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold tracking-wider uppercase"
-        :class="overallChipClass"
+        class="monitor-overall"
+        :class="overallToneClass"
       >
-        <span
-          class="w-1.5 h-1.5 rounded-full mr-1.5"
-          :class="overallDotClass"
-        ></span>
+        <span />
         {{ overallLabel }}
       </span>
 
-      <button
-        type="button"
-        class="h-8 w-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-dark-700 transition-colors disabled:opacity-50"
-        :disabled="loading"
-        :title="t('common.refresh')"
-        @click="emit('refresh')"
-      >
+      <UiIconButton :label="t('common.refresh')" :disabled="loading" @click="emit('refresh')">
         <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-      </button>
+      </UiIconButton>
 
       <AutoRefreshButton
         v-if="autoRefresh"
@@ -60,8 +45,9 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import AutoRefreshButton from '@/components/common/AutoRefreshButton.vue'
+import { UiIconButton } from '@/ui'
 export type MonitorWindow = '7d' | '15d' | '30d'
-export type OverallStatus = 'operational' | 'degraded'
+export type OverallStatus = 'operational' | 'degraded' | 'constrained' | 'unavailable'
 
 const props = defineProps<{
   overallStatus: OverallStatus
@@ -93,24 +79,113 @@ const windowOptions = computed<{ value: MonitorWindow; label: string }[]>(() => 
 
 const overallLabel = computed(() => t(`channelStatus.overall.${props.overallStatus}`))
 
-const overallChipClass = computed(() => {
+const overallToneClass = computed(() => {
   switch (props.overallStatus) {
     case 'operational':
-      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+      return 'monitor-overall--success'
     case 'degraded':
+      return 'monitor-overall--warning'
+    case 'constrained':
+      return 'monitor-overall--warning'
+    case 'unavailable':
     default:
-      return 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+      return 'monitor-overall--danger'
   }
 })
-
-const overallDotClass = computed(() => {
-  switch (props.overallStatus) {
-    case 'operational':
-      return 'bg-emerald-500 animate-pulse'
-    case 'degraded':
-    default:
-      return 'bg-amber-500 animate-pulse'
-  }
-})
-
 </script>
+
+<style scoped>
+.monitor-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.monitor-windows,
+.monitor-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.monitor-windows {
+  gap: 1.25rem;
+}
+
+.monitor-window {
+  position: relative;
+  min-height: 2.25rem;
+  color: var(--ui-text-tertiary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.monitor-window::after {
+  position: absolute;
+  right: 0;
+  bottom: -0.8125rem;
+  left: 0;
+  height: 2px;
+  background: transparent;
+  content: '';
+}
+
+.monitor-window:hover,
+.monitor-window--active {
+  color: var(--ui-text);
+}
+
+.monitor-window--active::after {
+  background: var(--ui-text);
+}
+
+.monitor-actions {
+  flex: 0 0 auto;
+  gap: 0.625rem;
+}
+
+.monitor-overall {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.monitor-overall span {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.monitor-overall--success {
+  color: var(--ui-success);
+}
+
+.monitor-overall--warning {
+  color: var(--ui-warning);
+}
+
+.monitor-overall--danger {
+  color: var(--ui-danger);
+}
+
+@media (max-width: 640px) {
+  .monitor-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .monitor-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+</style>

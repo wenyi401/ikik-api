@@ -4,12 +4,12 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/proxy"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/proxy"
 )
 
 // Proxy is the model entity for the Proxy schema.
@@ -37,13 +37,15 @@ type Proxy struct {
 	Password *string `json:"password,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
-	// Proxy expiration time (NULL means never expires).
+	// OwnerUserID holds the value of the "owner_user_id" field.
+	OwnerUserID *int64 `json:"owner_user_id,omitempty"`
+	// ExpiresAt holds the value of the "expires_at" field.
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
-	// Fallback target on expiry: none | proxy | direct.
+	// FallbackMode holds the value of the "fallback_mode" field.
 	FallbackMode string `json:"fallback_mode,omitempty"`
-	// Backup proxy id when fallback_mode=proxy (self-reference).
+	// BackupProxyID holds the value of the "backup_proxy_id" field.
 	BackupProxyID *int64 `json:"backup_proxy_id,omitempty"`
-	// Days before expiry to flag as expiring-soon (per proxy).
+	// ExpiryWarnDays holds the value of the "expiry_warn_days" field.
 	ExpiryWarnDays int `json:"expiry_warn_days,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the ProxyQuery when eager-loading is set.
@@ -87,7 +89,7 @@ func (*Proxy) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case proxy.FieldID, proxy.FieldPort, proxy.FieldBackupProxyID, proxy.FieldExpiryWarnDays:
+		case proxy.FieldID, proxy.FieldPort, proxy.FieldOwnerUserID, proxy.FieldBackupProxyID, proxy.FieldExpiryWarnDays:
 			values[i] = new(sql.NullInt64)
 		case proxy.FieldName, proxy.FieldProtocol, proxy.FieldHost, proxy.FieldUsername, proxy.FieldPassword, proxy.FieldStatus, proxy.FieldFallbackMode:
 			values[i] = new(sql.NullString)
@@ -176,6 +178,13 @@ func (_m *Proxy) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field status", values[i])
 			} else if value.Valid {
 				_m.Status = value.String
+			}
+		case proxy.FieldOwnerUserID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field owner_user_id", values[i])
+			} else if value.Valid {
+				_m.OwnerUserID = new(int64)
+				*_m.OwnerUserID = value.Int64
 			}
 		case proxy.FieldExpiresAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -284,6 +293,11 @@ func (_m *Proxy) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(_m.Status)
+	builder.WriteString(", ")
+	if v := _m.OwnerUserID; v != nil {
+		builder.WriteString("owner_user_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	if v := _m.ExpiresAt; v != nil {
 		builder.WriteString("expires_at=")

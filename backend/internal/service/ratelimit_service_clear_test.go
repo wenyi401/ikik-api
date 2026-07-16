@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/config"
 )
 
 type rateLimitClearRepoStub struct {
@@ -17,6 +17,9 @@ type rateLimitClearRepoStub struct {
 	getByIDAccount            *Account
 	getByIDErr                error
 	getByIDCalls              int
+	updateExtraCalls          int
+	updateExtraAccountID      int64
+	updateExtra               map[string]any
 	clearErrorCalls           int
 	clearRateLimitCalls       int
 	clearAntigravityCalls     int
@@ -27,6 +30,7 @@ type rateLimitClearRepoStub struct {
 	clearAntigravityErr       error
 	clearModelRateLimitErr    error
 	clearTempUnschedulableErr error
+	updateExtraErr            error
 }
 
 func (r *rateLimitClearRepoStub) GetByID(ctx context.Context, id int64) (*Account, error) {
@@ -60,6 +64,13 @@ func (r *rateLimitClearRepoStub) ClearModelRateLimits(ctx context.Context, id in
 func (r *rateLimitClearRepoStub) ClearTempUnschedulable(ctx context.Context, id int64) error {
 	r.clearTempUnschedCalls++
 	return r.clearTempUnschedulableErr
+}
+
+func (r *rateLimitClearRepoStub) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
+	r.updateExtraCalls++
+	r.updateExtraAccountID = id
+	r.updateExtra = updates
+	return r.updateExtraErr
 }
 
 type tempUnschedCacheRecorder struct {
@@ -103,6 +114,54 @@ func TestRateLimitService_ClearRateLimit_AlsoClearsTempUnschedulable(t *testing.
 	require.Equal(t, 1, repo.clearModelRateLimitCalls)
 	require.Equal(t, 1, repo.clearTempUnschedCalls)
 	require.Equal(t, []int64{42}, cache.deletedIDs)
+}
+
+func TestRateLimitService_ClearRateLimit_ResetsOpenAICodexUsageSnapshot(t *testing.T) {
+	repo := &rateLimitClearRepoStub{
+		getByIDAccount: &Account{
+			ID:       42,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+		},
+	}
+	cache := &tempUnschedCacheRecorder{}
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, cache)
+
+	err := svc.ClearRateLimit(context.Background(), 42)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, repo.getByIDCalls)
+	require.Equal(t, 1, repo.updateExtraCalls)
+	require.Equal(t, int64(42), repo.updateExtraAccountID)
+	require.Equal(t, 0.0, repo.updateExtra["codex_5h_used_percent"])
+	require.Equal(t, 0, repo.updateExtra["codex_5h_reset_after_seconds"])
+	require.Equal(t, 0.0, repo.updateExtra["codex_7d_used_percent"])
+	require.Equal(t, 0, repo.updateExtra["codex_7d_reset_after_seconds"])
+	require.Equal(t, 0.0, repo.updateExtra["codex_primary_used_percent"])
+	require.Equal(t, 0.0, repo.updateExtra["codex_secondary_used_percent"])
+	require.Contains(t, repo.updateExtra, "codex_usage_updated_at")
+	require.Contains(t, repo.updateExtra, "codex_5h_reset_at")
+	require.Contains(t, repo.updateExtra, "codex_7d_reset_at")
+	require.Contains(t, repo.updateExtra, "passive_usage_7d_utilization")
+	require.Nil(t, repo.updateExtra["passive_usage_7d_utilization"])
+}
+
+func TestRateLimitService_ClearRateLimit_DoesNotResetCodexSnapshotForNonOpenAIOAuth(t *testing.T) {
+	repo := &rateLimitClearRepoStub{
+		getByIDAccount: &Account{
+			ID:       42,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+		},
+	}
+	cache := &tempUnschedCacheRecorder{}
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, cache)
+
+	err := svc.ClearRateLimit(context.Background(), 42)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, repo.getByIDCalls)
+	require.Equal(t, 0, repo.updateExtraCalls)
 }
 
 func TestRateLimitService_ClearRateLimit_ClearTempUnschedulableFailed(t *testing.T) {
@@ -219,9 +278,7 @@ func TestRateLimitService_RecoverAccountAfterSuccessfulTest_ClearsErrorAndRateLi
 		},
 	}
 	cache := &tempUnschedCacheRecorder{}
-	blocker := &runtimeBlockRecorder{}
 	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, cache)
-	svc.SetAccountRuntimeBlocker(blocker)
 
 	result, err := svc.RecoverAccountAfterSuccessfulTest(context.Background(), 42)
 	require.NoError(t, err)
@@ -229,14 +286,13 @@ func TestRateLimitService_RecoverAccountAfterSuccessfulTest_ClearsErrorAndRateLi
 	require.True(t, result.ClearedError)
 	require.True(t, result.ClearedRateLimit)
 
-	require.Equal(t, 1, repo.getByIDCalls)
+	require.Equal(t, 2, repo.getByIDCalls)
 	require.Equal(t, 1, repo.clearErrorCalls)
 	require.Equal(t, 1, repo.clearRateLimitCalls)
 	require.Equal(t, 1, repo.clearAntigravityCalls)
 	require.Equal(t, 1, repo.clearModelRateLimitCalls)
 	require.Equal(t, 1, repo.clearTempUnschedCalls)
 	require.Equal(t, []int64{42}, cache.deletedIDs)
-	require.Equal(t, []int64{42}, blocker.clearedIDs)
 }
 
 func TestRateLimitService_RecoverAccountAfterSuccessfulTest_NoRecoverableStateIsNoop(t *testing.T) {

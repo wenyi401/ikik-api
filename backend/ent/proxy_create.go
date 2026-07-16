@@ -6,13 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/account"
+	"ikik-api/ent/proxy"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/account"
-	"ikik-api/ent/proxy"
 )
 
 // ProxyCreate is the builder for creating a Proxy entity.
@@ -127,6 +127,20 @@ func (_c *ProxyCreate) SetStatus(v string) *ProxyCreate {
 func (_c *ProxyCreate) SetNillableStatus(v *string) *ProxyCreate {
 	if v != nil {
 		_c.SetStatus(*v)
+	}
+	return _c
+}
+
+// SetOwnerUserID sets the "owner_user_id" field.
+func (_c *ProxyCreate) SetOwnerUserID(v int64) *ProxyCreate {
+	_c.mutation.SetOwnerUserID(v)
+	return _c
+}
+
+// SetNillableOwnerUserID sets the "owner_user_id" field if the given value is not nil.
+func (_c *ProxyCreate) SetNillableOwnerUserID(v *int64) *ProxyCreate {
+	if v != nil {
+		_c.SetOwnerUserID(*v)
 	}
 	return _c
 }
@@ -404,6 +418,10 @@ func (_c *ProxyCreate) createSpec() (*Proxy, *sqlgraph.CreateSpec) {
 		_spec.SetField(proxy.FieldStatus, field.TypeString, value)
 		_node.Status = value
 	}
+	if value, ok := _c.mutation.OwnerUserID(); ok {
+		_spec.SetField(proxy.FieldOwnerUserID, field.TypeInt64, value)
+		_node.OwnerUserID = &value
+	}
 	if value, ok := _c.mutation.ExpiresAt(); ok {
 		_spec.SetField(proxy.FieldExpiresAt, field.TypeTime, value)
 		_node.ExpiresAt = &value
@@ -630,6 +648,30 @@ func (u *ProxyUpsert) SetStatus(v string) *ProxyUpsert {
 // UpdateStatus sets the "status" field to the value that was provided on create.
 func (u *ProxyUpsert) UpdateStatus() *ProxyUpsert {
 	u.SetExcluded(proxy.FieldStatus)
+	return u
+}
+
+// SetOwnerUserID sets the "owner_user_id" field.
+func (u *ProxyUpsert) SetOwnerUserID(v int64) *ProxyUpsert {
+	u.Set(proxy.FieldOwnerUserID, v)
+	return u
+}
+
+// UpdateOwnerUserID sets the "owner_user_id" field to the value that was provided on create.
+func (u *ProxyUpsert) UpdateOwnerUserID() *ProxyUpsert {
+	u.SetExcluded(proxy.FieldOwnerUserID)
+	return u
+}
+
+// AddOwnerUserID adds v to the "owner_user_id" field.
+func (u *ProxyUpsert) AddOwnerUserID(v int64) *ProxyUpsert {
+	u.Add(proxy.FieldOwnerUserID, v)
+	return u
+}
+
+// ClearOwnerUserID clears the value of the "owner_user_id" field.
+func (u *ProxyUpsert) ClearOwnerUserID() *ProxyUpsert {
+	u.SetNull(proxy.FieldOwnerUserID)
 	return u
 }
 
@@ -895,6 +937,34 @@ func (u *ProxyUpsertOne) SetStatus(v string) *ProxyUpsertOne {
 func (u *ProxyUpsertOne) UpdateStatus() *ProxyUpsertOne {
 	return u.Update(func(s *ProxyUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetOwnerUserID sets the "owner_user_id" field.
+func (u *ProxyUpsertOne) SetOwnerUserID(v int64) *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.SetOwnerUserID(v)
+	})
+}
+
+// AddOwnerUserID adds v to the "owner_user_id" field.
+func (u *ProxyUpsertOne) AddOwnerUserID(v int64) *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.AddOwnerUserID(v)
+	})
+}
+
+// UpdateOwnerUserID sets the "owner_user_id" field to the value that was provided on create.
+func (u *ProxyUpsertOne) UpdateOwnerUserID() *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.UpdateOwnerUserID()
+	})
+}
+
+// ClearOwnerUserID clears the value of the "owner_user_id" field.
+func (u *ProxyUpsertOne) ClearOwnerUserID() *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.ClearOwnerUserID()
 	})
 }
 
@@ -1337,6 +1407,34 @@ func (u *ProxyUpsertBulk) SetStatus(v string) *ProxyUpsertBulk {
 func (u *ProxyUpsertBulk) UpdateStatus() *ProxyUpsertBulk {
 	return u.Update(func(s *ProxyUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetOwnerUserID sets the "owner_user_id" field.
+func (u *ProxyUpsertBulk) SetOwnerUserID(v int64) *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.SetOwnerUserID(v)
+	})
+}
+
+// AddOwnerUserID adds v to the "owner_user_id" field.
+func (u *ProxyUpsertBulk) AddOwnerUserID(v int64) *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.AddOwnerUserID(v)
+	})
+}
+
+// UpdateOwnerUserID sets the "owner_user_id" field to the value that was provided on create.
+func (u *ProxyUpsertBulk) UpdateOwnerUserID() *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.UpdateOwnerUserID()
+	})
+}
+
+// ClearOwnerUserID clears the value of the "owner_user_id" field.
+func (u *ProxyUpsertBulk) ClearOwnerUserID() *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.ClearOwnerUserID()
 	})
 }
 

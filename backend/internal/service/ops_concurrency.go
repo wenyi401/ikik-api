@@ -35,7 +35,7 @@ func (s *OpsService) listAllAccountsForOps(ctx context.Context, platformFilter s
 		accounts, pageInfo, err := s.accountRepo.ListWithFilters(ctx, pagination.PaginationParams{
 			Page:     page,
 			PageSize: opsAccountsPageSize,
-		}, platformFilter, "", "", "", groupID, "")
+		}, platformFilter, "", "", "", groupID, 0, "")
 		if err != nil {
 			return nil, err
 		}

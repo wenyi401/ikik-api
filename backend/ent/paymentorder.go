@@ -5,13 +5,13 @@ package ent
 import (
 	"encoding/json"
 	"fmt"
+	"ikik-api/ent/paymentorder"
+	"ikik-api/ent/user"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/paymentorder"
-	"ikik-api/ent/user"
 )
 
 // PaymentOrder is the model entity for the PaymentOrder schema.
@@ -55,6 +55,8 @@ type PaymentOrder struct {
 	SubscriptionGroupID *int64 `json:"subscription_group_id,omitempty"`
 	// SubscriptionDays holds the value of the "subscription_days" field.
 	SubscriptionDays *int `json:"subscription_days,omitempty"`
+	// ShopOrderID holds the value of the "shop_order_id" field.
+	ShopOrderID *int64 `json:"shop_order_id,omitempty"`
 	// ProviderInstanceID holds the value of the "provider_instance_id" field.
 	ProviderInstanceID *string `json:"provider_instance_id,omitempty"`
 	// ProviderKey holds the value of the "provider_key" field.
@@ -134,7 +136,7 @@ func (*PaymentOrder) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case paymentorder.FieldAmount, paymentorder.FieldPayAmount, paymentorder.FieldFeeRate, paymentorder.FieldRefundAmount:
 			values[i] = new(sql.NullFloat64)
-		case paymentorder.FieldID, paymentorder.FieldUserID, paymentorder.FieldPlanID, paymentorder.FieldSubscriptionGroupID, paymentorder.FieldSubscriptionDays:
+		case paymentorder.FieldID, paymentorder.FieldUserID, paymentorder.FieldPlanID, paymentorder.FieldSubscriptionGroupID, paymentorder.FieldSubscriptionDays, paymentorder.FieldShopOrderID:
 			values[i] = new(sql.NullInt64)
 		case paymentorder.FieldUserEmail, paymentorder.FieldUserName, paymentorder.FieldUserNotes, paymentorder.FieldRechargeCode, paymentorder.FieldOutTradeNo, paymentorder.FieldPaymentType, paymentorder.FieldPaymentTradeNo, paymentorder.FieldPayURL, paymentorder.FieldQrCode, paymentorder.FieldQrCodeImg, paymentorder.FieldOrderType, paymentorder.FieldProviderInstanceID, paymentorder.FieldProviderKey, paymentorder.FieldStatus, paymentorder.FieldRefundReason, paymentorder.FieldRefundRequestReason, paymentorder.FieldRefundRequestedBy, paymentorder.FieldFailedReason, paymentorder.FieldClientIP, paymentorder.FieldSrcHost, paymentorder.FieldSrcURL:
 			values[i] = new(sql.NullString)
@@ -275,6 +277,13 @@ func (_m *PaymentOrder) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.SubscriptionDays = new(int)
 				*_m.SubscriptionDays = int(value.Int64)
+			}
+		case paymentorder.FieldShopOrderID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field shop_order_id", values[i])
+			} else if value.Valid {
+				_m.ShopOrderID = new(int64)
+				*_m.ShopOrderID = value.Int64
 			}
 		case paymentorder.FieldProviderInstanceID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -522,6 +531,11 @@ func (_m *PaymentOrder) String() string {
 	builder.WriteString(", ")
 	if v := _m.SubscriptionDays; v != nil {
 		builder.WriteString("subscription_days=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.ShopOrderID; v != nil {
+		builder.WriteString("shop_order_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")

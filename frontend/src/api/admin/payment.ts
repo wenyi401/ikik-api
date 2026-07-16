@@ -5,6 +5,7 @@
 
 import { apiClient } from '../client'
 import type {
+  AdminPaymentOrderDetail,
   DashboardStats,
   PaymentOrder,
   PaymentChannel,
@@ -12,6 +13,7 @@ import type {
   ProviderInstance
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
+import type { ReceiptCodePaymentMethod, WithdrawalRequest } from '@/types'
 
 /** Admin-facing payment config returned by GET /admin/payment/config */
 export interface AdminPaymentConfig {
@@ -24,8 +26,8 @@ export interface AdminPaymentConfig {
   enabled_payment_types: string[]
   balance_disabled: boolean
   balance_recharge_multiplier: number
-  subscription_usd_to_cny_rate: number
-  recharge_fee_rate: number
+  subscription_usd_to_cny_rate?: number
+  recharge_fee_rate?: number
   load_balance_strategy: string
   product_name_prefix: string
   product_name_suffix: string
@@ -51,14 +53,6 @@ export interface UpdatePaymentConfigRequest {
   product_name_suffix?: string
   help_image_url?: string
   help_text?: string
-}
-
-export interface RefundResult {
-  success: boolean
-  warning?: string
-  require_force?: boolean
-  balance_deducted?: number
-  subscription_days_deducted?: number
 }
 
 export const adminPaymentAPI = {
@@ -100,9 +94,36 @@ export const adminPaymentAPI = {
     return apiClient.get<BasePaginationResponse<PaymentOrder>>('/admin/payment/orders', { params })
   },
 
+  /** Get withdrawal requests */
+  getWithdrawals(params?: {
+    page?: number
+    page_size?: number
+    status?: string
+    payment_method?: ReceiptCodePaymentMethod | ''
+    user_id?: number
+    keyword?: string
+  }) {
+    return apiClient.get<BasePaginationResponse<WithdrawalRequest>>('/admin/withdrawals', { params })
+  },
+
+  /** Get a withdrawal request with a fresh receipt-code access URL */
+  getWithdrawal(id: number) {
+    return apiClient.get<WithdrawalRequest>(`/admin/withdrawals/${id}`)
+  },
+
+  /** Mark a pending withdrawal as settled */
+  settleWithdrawal(id: number, data?: { note?: string }) {
+    return apiClient.post<WithdrawalRequest>(`/admin/withdrawals/${id}/settle`, data || {})
+  },
+
+  /** Reject a pending withdrawal and return the frozen balance */
+  rejectWithdrawal(id: number, data?: { note?: string }) {
+    return apiClient.post<WithdrawalRequest>(`/admin/withdrawals/${id}/reject`, data || {})
+  },
+
   /** Get a specific order by ID */
   getOrder(id: number) {
-    return apiClient.get<PaymentOrder>(`/admin/payment/orders/${id}`)
+    return apiClient.get<AdminPaymentOrderDetail>(`/admin/payment/orders/${id}`)
   },
 
   /** Cancel an order (admin) */
@@ -115,14 +136,19 @@ export const adminPaymentAPI = {
     return apiClient.post(`/admin/payment/orders/${id}/retry`)
   },
 
+  /** Manually mark an externally verified order as paid and fulfill it */
+  manualFulfillOrder(id: number, data: { reason: string; paid_amount?: number; trade_no?: string }) {
+    return apiClient.post(`/admin/payment/orders/${id}/manual-fulfill`, data)
+  },
+
   /** Process a refund */
   refundOrder(id: number, data: { amount: number; reason: string; deduct_balance?: boolean; force?: boolean }) {
-    return apiClient.post<RefundResult>(`/admin/payment/orders/${id}/refund`, data)
+    return apiClient.post(`/admin/payment/orders/${id}/refund`, data)
   },
 
   /** Query and finalize a pending refund */
   queryRefund(id: number) {
-    return apiClient.post<RefundResult>(`/admin/payment/orders/${id}/refund/query`)
+    return apiClient.post(`/admin/payment/orders/${id}/refund/query`)
   },
 
   // ==================== Channels ====================

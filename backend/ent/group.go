@@ -5,13 +5,13 @@ package ent
 import (
 	"encoding/json"
 	"fmt"
+	"ikik-api/ent/group"
+	"ikik-api/internal/domain"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/group"
-	"ikik-api/internal/domain"
 )
 
 // Group is the model entity for the Group schema.
@@ -31,20 +31,18 @@ type Group struct {
 	Description *string `json:"description,omitempty"`
 	// RateMultiplier holds the value of the "rate_multiplier" field.
 	RateMultiplier float64 `json:"rate_multiplier,omitempty"`
-	// 是否启用高峰时段倍率
-	PeakRateEnabled bool `json:"peak_rate_enabled,omitempty"`
-	// 高峰开始时间 HH:MM（含），如 14:00；空表示未配置；不支持跨天
-	PeakStart string `json:"peak_start,omitempty"`
-	// 高峰结束时间 HH:MM（不含），必须大于 peak_start；不支持跨天，如 22:00-02:00
-	PeakEnd string `json:"peak_end,omitempty"`
-	// 高峰时段叠加倍率，仅在 peak_rate_enabled 且处于 [peak_start, peak_end) 时乘入文本倍率
-	PeakRateMultiplier float64 `json:"peak_rate_multiplier,omitempty"`
 	// IsExclusive holds the value of the "is_exclusive" field.
 	IsExclusive bool `json:"is_exclusive,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
+	// Owner user for user-private groups
+	OwnerUserID *int64 `json:"owner_user_id,omitempty"`
+	// Group visibility scope: public or user_private
+	Scope string `json:"scope,omitempty"`
 	// Platform holds the value of the "platform" field.
 	Platform string `json:"platform,omitempty"`
+	// Required account capability level for this group: empty/free/plus/pro/team/k12.
+	RequiredAccountLevel string `json:"required_account_level,omitempty"`
 	// SubscriptionType holds the value of the "subscription_type" field.
 	SubscriptionType string `json:"subscription_type,omitempty"`
 	// DailyLimitUsd holds the value of the "daily_limit_usd" field.
@@ -57,8 +55,6 @@ type Group struct {
 	DefaultValidityDays int `json:"default_validity_days,omitempty"`
 	// 是否允许该分组使用图片生成能力
 	AllowImageGeneration bool `json:"allow_image_generation,omitempty"`
-	// 是否允许该分组使用批量图片生成能力
-	AllowBatchImageGeneration bool `json:"allow_batch_image_generation,omitempty"`
 	// 图片生成是否使用独立倍率；false 表示共享分组有效倍率
 	ImageRateIndependent bool `json:"image_rate_independent,omitempty"`
 	// 图片生成独立倍率，仅 image_rate_independent=true 时生效
@@ -69,22 +65,6 @@ type Group struct {
 	ImagePrice2k *float64 `json:"image_price_2k,omitempty"`
 	// ImagePrice4k holds the value of the "image_price_4k" field.
 	ImagePrice4k *float64 `json:"image_price_4k,omitempty"`
-	// 批量图片生成折扣倍率，最终单价会乘以该值；0 表示免费
-	BatchImageDiscountMultiplier float64 `json:"batch_image_discount_multiplier,omitempty"`
-	// 批量图片生成冻结价格比例，按普通生图原价乘以该比例冻结，结算后释放差额
-	BatchImageHoldMultiplier float64 `json:"batch_image_hold_multiplier,omitempty"`
-	// 视频生成是否使用独立倍率；false 表示共享分组有效倍率
-	VideoRateIndependent bool `json:"video_rate_independent,omitempty"`
-	// 视频生成独立倍率，仅 video_rate_independent=true 时生效
-	VideoRateMultiplier float64 `json:"video_rate_multiplier,omitempty"`
-	// VideoPrice480p holds the value of the "video_price_480p" field.
-	VideoPrice480p *float64 `json:"video_price_480p,omitempty"`
-	// VideoPrice720p holds the value of the "video_price_720p" field.
-	VideoPrice720p *float64 `json:"video_price_720p,omitempty"`
-	// VideoPrice1080p holds the value of the "video_price_1080p" field.
-	VideoPrice1080p *float64 `json:"video_price_1080p,omitempty"`
-	// Codex alpha/search 网页搜索单次价格（USD/次）；nil 表示使用默认价 0.01（官方 $10/1000 次）
-	WebSearchPricePerCall *float64 `json:"web_search_price_per_call,omitempty"`
 	// 是否仅允许 Claude Code 客户端
 	ClaudeCodeOnly bool `json:"claude_code_only,omitempty"`
 	// 非 Claude Code 请求降级使用的分组 ID
@@ -111,10 +91,20 @@ type Group struct {
 	DefaultMappedModel string `json:"default_mapped_model,omitempty"`
 	// OpenAI Messages 调度模型配置：按 Claude 系列/精确模型映射到目标 GPT 模型
 	MessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
-	// 自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度
+	// 自定义 /v1/models 展示列表配置；仅用于控制模型列表响应
 	ModelsListConfig domain.GroupModelsListConfig `json:"models_list_config,omitempty"`
 	// 分组 RPM 上限，0 表示不限制；设置后接管该分组用户的限流
 	RpmLimit int `json:"rpm_limit,omitempty"`
+	// 是否启用 Kiro 模拟缓存（仅 kiro 分组生效）
+	KiroCacheEmulationEnabled bool `json:"kiro_cache_emulation_enabled,omitempty"`
+	// 是否启用 Kiro 自动会话粘性路由（仅 kiro 分组生效）
+	KiroAutoStickyEnabled bool `json:"kiro_auto_sticky_enabled,omitempty"`
+	// Kiro 自动会话粘性绑定 TTL（秒，仅 kiro 分组生效）
+	KiroStickySessionTTLSeconds int `json:"kiro_sticky_session_ttl_seconds,omitempty"`
+	// Kiro 模拟缓存生效比例，范围 0-1（仅 kiro 分组生效）
+	KiroCacheEmulationRatio float64 `json:"kiro_cache_emulation_ratio,omitempty"`
+	// Kiro 推理 endpoint：q=AWS Q (q.{region}.amazonaws.com), krs=Kiro Runtime Service (runtime.us-east-1.kiro.dev)
+	KiroEndpointMode string `json:"kiro_endpoint_mode,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the GroupQuery when eager-loading is set.
 	Edges        GroupEdges `json:"edges"`
@@ -125,6 +115,8 @@ type Group struct {
 type GroupEdges struct {
 	// APIKeys holds the value of the api_keys edge.
 	APIKeys []*APIKey `json:"api_keys,omitempty"`
+	// APIKeyGroupRoutes holds the value of the api_key_group_routes edge.
+	APIKeyGroupRoutes []*APIKeyGroupRoute `json:"api_key_group_routes,omitempty"`
 	// RedeemCodes holds the value of the redeem_codes edge.
 	RedeemCodes []*RedeemCode `json:"redeem_codes,omitempty"`
 	// Subscriptions holds the value of the subscriptions edge.
@@ -141,7 +133,7 @@ type GroupEdges struct {
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [8]bool
+	loadedTypes [9]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -153,10 +145,19 @@ func (e GroupEdges) APIKeysOrErr() ([]*APIKey, error) {
 	return nil, &NotLoadedError{edge: "api_keys"}
 }
 
+// APIKeyGroupRoutesOrErr returns the APIKeyGroupRoutes value or an error if the edge
+// was not loaded in eager-loading.
+func (e GroupEdges) APIKeyGroupRoutesOrErr() ([]*APIKeyGroupRoute, error) {
+	if e.loadedTypes[1] {
+		return e.APIKeyGroupRoutes, nil
+	}
+	return nil, &NotLoadedError{edge: "api_key_group_routes"}
+}
+
 // RedeemCodesOrErr returns the RedeemCodes value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) RedeemCodesOrErr() ([]*RedeemCode, error) {
-	if e.loadedTypes[1] {
+	if e.loadedTypes[2] {
 		return e.RedeemCodes, nil
 	}
 	return nil, &NotLoadedError{edge: "redeem_codes"}
@@ -165,7 +166,7 @@ func (e GroupEdges) RedeemCodesOrErr() ([]*RedeemCode, error) {
 // SubscriptionsOrErr returns the Subscriptions value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) SubscriptionsOrErr() ([]*UserSubscription, error) {
-	if e.loadedTypes[2] {
+	if e.loadedTypes[3] {
 		return e.Subscriptions, nil
 	}
 	return nil, &NotLoadedError{edge: "subscriptions"}
@@ -174,7 +175,7 @@ func (e GroupEdges) SubscriptionsOrErr() ([]*UserSubscription, error) {
 // UsageLogsOrErr returns the UsageLogs value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) UsageLogsOrErr() ([]*UsageLog, error) {
-	if e.loadedTypes[3] {
+	if e.loadedTypes[4] {
 		return e.UsageLogs, nil
 	}
 	return nil, &NotLoadedError{edge: "usage_logs"}
@@ -183,7 +184,7 @@ func (e GroupEdges) UsageLogsOrErr() ([]*UsageLog, error) {
 // AccountsOrErr returns the Accounts value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) AccountsOrErr() ([]*Account, error) {
-	if e.loadedTypes[4] {
+	if e.loadedTypes[5] {
 		return e.Accounts, nil
 	}
 	return nil, &NotLoadedError{edge: "accounts"}
@@ -192,7 +193,7 @@ func (e GroupEdges) AccountsOrErr() ([]*Account, error) {
 // AllowedUsersOrErr returns the AllowedUsers value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) AllowedUsersOrErr() ([]*User, error) {
-	if e.loadedTypes[5] {
+	if e.loadedTypes[6] {
 		return e.AllowedUsers, nil
 	}
 	return nil, &NotLoadedError{edge: "allowed_users"}
@@ -201,7 +202,7 @@ func (e GroupEdges) AllowedUsersOrErr() ([]*User, error) {
 // AccountGroupsOrErr returns the AccountGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
-	if e.loadedTypes[6] {
+	if e.loadedTypes[7] {
 		return e.AccountGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "account_groups"}
@@ -210,7 +211,7 @@ func (e GroupEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[7] {
+	if e.loadedTypes[8] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
@@ -223,13 +224,13 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig:
 			values[i] = new([]byte)
-		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet:
+		case group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldImageRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldKiroCacheEmulationEnabled, group.FieldKiroAutoStickyEnabled:
 			values[i] = new(sql.NullBool)
-		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p, group.FieldWebSearchPricePerCall:
+		case group.FieldRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldKiroCacheEmulationRatio:
 			values[i] = new(sql.NullFloat64)
-		case group.FieldID, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldSortOrder, group.FieldRpmLimit:
+		case group.FieldID, group.FieldOwnerUserID, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldSortOrder, group.FieldRpmLimit, group.FieldKiroStickySessionTTLSeconds:
 			values[i] = new(sql.NullInt64)
-		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldPlatform, group.FieldSubscriptionType, group.FieldDefaultMappedModel:
+		case group.FieldName, group.FieldDescription, group.FieldStatus, group.FieldScope, group.FieldPlatform, group.FieldRequiredAccountLevel, group.FieldSubscriptionType, group.FieldDefaultMappedModel, group.FieldKiroEndpointMode:
 			values[i] = new(sql.NullString)
 		case group.FieldCreatedAt, group.FieldUpdatedAt, group.FieldDeletedAt:
 			values[i] = new(sql.NullTime)
@@ -292,30 +293,6 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.RateMultiplier = value.Float64
 			}
-		case group.FieldPeakRateEnabled:
-			if value, ok := values[i].(*sql.NullBool); !ok {
-				return fmt.Errorf("unexpected type %T for field peak_rate_enabled", values[i])
-			} else if value.Valid {
-				_m.PeakRateEnabled = value.Bool
-			}
-		case group.FieldPeakStart:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field peak_start", values[i])
-			} else if value.Valid {
-				_m.PeakStart = value.String
-			}
-		case group.FieldPeakEnd:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field peak_end", values[i])
-			} else if value.Valid {
-				_m.PeakEnd = value.String
-			}
-		case group.FieldPeakRateMultiplier:
-			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field peak_rate_multiplier", values[i])
-			} else if value.Valid {
-				_m.PeakRateMultiplier = value.Float64
-			}
 		case group.FieldIsExclusive:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field is_exclusive", values[i])
@@ -328,11 +305,30 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Status = value.String
 			}
+		case group.FieldOwnerUserID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field owner_user_id", values[i])
+			} else if value.Valid {
+				_m.OwnerUserID = new(int64)
+				*_m.OwnerUserID = value.Int64
+			}
+		case group.FieldScope:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field scope", values[i])
+			} else if value.Valid {
+				_m.Scope = value.String
+			}
 		case group.FieldPlatform:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field platform", values[i])
 			} else if value.Valid {
 				_m.Platform = value.String
+			}
+		case group.FieldRequiredAccountLevel:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field required_account_level", values[i])
+			} else if value.Valid {
+				_m.RequiredAccountLevel = value.String
 			}
 		case group.FieldSubscriptionType:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -373,12 +369,6 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.AllowImageGeneration = value.Bool
 			}
-		case group.FieldAllowBatchImageGeneration:
-			if value, ok := values[i].(*sql.NullBool); !ok {
-				return fmt.Errorf("unexpected type %T for field allow_batch_image_generation", values[i])
-			} else if value.Valid {
-				_m.AllowBatchImageGeneration = value.Bool
-			}
 		case group.FieldImageRateIndependent:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field image_rate_independent", values[i])
@@ -411,58 +401,6 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ImagePrice4k = new(float64)
 				*_m.ImagePrice4k = value.Float64
-			}
-		case group.FieldBatchImageDiscountMultiplier:
-			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field batch_image_discount_multiplier", values[i])
-			} else if value.Valid {
-				_m.BatchImageDiscountMultiplier = value.Float64
-			}
-		case group.FieldBatchImageHoldMultiplier:
-			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field batch_image_hold_multiplier", values[i])
-			} else if value.Valid {
-				_m.BatchImageHoldMultiplier = value.Float64
-			}
-		case group.FieldVideoRateIndependent:
-			if value, ok := values[i].(*sql.NullBool); !ok {
-				return fmt.Errorf("unexpected type %T for field video_rate_independent", values[i])
-			} else if value.Valid {
-				_m.VideoRateIndependent = value.Bool
-			}
-		case group.FieldVideoRateMultiplier:
-			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field video_rate_multiplier", values[i])
-			} else if value.Valid {
-				_m.VideoRateMultiplier = value.Float64
-			}
-		case group.FieldVideoPrice480p:
-			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field video_price_480p", values[i])
-			} else if value.Valid {
-				_m.VideoPrice480p = new(float64)
-				*_m.VideoPrice480p = value.Float64
-			}
-		case group.FieldVideoPrice720p:
-			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field video_price_720p", values[i])
-			} else if value.Valid {
-				_m.VideoPrice720p = new(float64)
-				*_m.VideoPrice720p = value.Float64
-			}
-		case group.FieldVideoPrice1080p:
-			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field video_price_1080p", values[i])
-			} else if value.Valid {
-				_m.VideoPrice1080p = new(float64)
-				*_m.VideoPrice1080p = value.Float64
-			}
-		case group.FieldWebSearchPricePerCall:
-			if value, ok := values[i].(*sql.NullFloat64); !ok {
-				return fmt.Errorf("unexpected type %T for field web_search_price_per_call", values[i])
-			} else if value.Valid {
-				_m.WebSearchPricePerCall = new(float64)
-				*_m.WebSearchPricePerCall = value.Float64
 			}
 		case group.FieldClaudeCodeOnly:
 			if value, ok := values[i].(*sql.NullBool); !ok {
@@ -564,6 +502,36 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.RpmLimit = int(value.Int64)
 			}
+		case group.FieldKiroCacheEmulationEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field kiro_cache_emulation_enabled", values[i])
+			} else if value.Valid {
+				_m.KiroCacheEmulationEnabled = value.Bool
+			}
+		case group.FieldKiroAutoStickyEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field kiro_auto_sticky_enabled", values[i])
+			} else if value.Valid {
+				_m.KiroAutoStickyEnabled = value.Bool
+			}
+		case group.FieldKiroStickySessionTTLSeconds:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field kiro_sticky_session_ttl_seconds", values[i])
+			} else if value.Valid {
+				_m.KiroStickySessionTTLSeconds = int(value.Int64)
+			}
+		case group.FieldKiroCacheEmulationRatio:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field kiro_cache_emulation_ratio", values[i])
+			} else if value.Valid {
+				_m.KiroCacheEmulationRatio = value.Float64
+			}
+		case group.FieldKiroEndpointMode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field kiro_endpoint_mode", values[i])
+			} else if value.Valid {
+				_m.KiroEndpointMode = value.String
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -580,6 +548,11 @@ func (_m *Group) Value(name string) (ent.Value, error) {
 // QueryAPIKeys queries the "api_keys" edge of the Group entity.
 func (_m *Group) QueryAPIKeys() *APIKeyQuery {
 	return NewGroupClient(_m.config).QueryAPIKeys(_m)
+}
+
+// QueryAPIKeyGroupRoutes queries the "api_key_group_routes" edge of the Group entity.
+func (_m *Group) QueryAPIKeyGroupRoutes() *APIKeyGroupRouteQuery {
+	return NewGroupClient(_m.config).QueryAPIKeyGroupRoutes(_m)
 }
 
 // QueryRedeemCodes queries the "redeem_codes" edge of the Group entity.
@@ -662,26 +635,25 @@ func (_m *Group) String() string {
 	builder.WriteString("rate_multiplier=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RateMultiplier))
 	builder.WriteString(", ")
-	builder.WriteString("peak_rate_enabled=")
-	builder.WriteString(fmt.Sprintf("%v", _m.PeakRateEnabled))
-	builder.WriteString(", ")
-	builder.WriteString("peak_start=")
-	builder.WriteString(_m.PeakStart)
-	builder.WriteString(", ")
-	builder.WriteString("peak_end=")
-	builder.WriteString(_m.PeakEnd)
-	builder.WriteString(", ")
-	builder.WriteString("peak_rate_multiplier=")
-	builder.WriteString(fmt.Sprintf("%v", _m.PeakRateMultiplier))
-	builder.WriteString(", ")
 	builder.WriteString("is_exclusive=")
 	builder.WriteString(fmt.Sprintf("%v", _m.IsExclusive))
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(_m.Status)
 	builder.WriteString(", ")
+	if v := _m.OwnerUserID; v != nil {
+		builder.WriteString("owner_user_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("scope=")
+	builder.WriteString(_m.Scope)
+	builder.WriteString(", ")
 	builder.WriteString("platform=")
 	builder.WriteString(_m.Platform)
+	builder.WriteString(", ")
+	builder.WriteString("required_account_level=")
+	builder.WriteString(_m.RequiredAccountLevel)
 	builder.WriteString(", ")
 	builder.WriteString("subscription_type=")
 	builder.WriteString(_m.SubscriptionType)
@@ -707,9 +679,6 @@ func (_m *Group) String() string {
 	builder.WriteString("allow_image_generation=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AllowImageGeneration))
 	builder.WriteString(", ")
-	builder.WriteString("allow_batch_image_generation=")
-	builder.WriteString(fmt.Sprintf("%v", _m.AllowBatchImageGeneration))
-	builder.WriteString(", ")
 	builder.WriteString("image_rate_independent=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ImageRateIndependent))
 	builder.WriteString(", ")
@@ -728,38 +697,6 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	if v := _m.ImagePrice4k; v != nil {
 		builder.WriteString("image_price_4k=")
-		builder.WriteString(fmt.Sprintf("%v", *v))
-	}
-	builder.WriteString(", ")
-	builder.WriteString("batch_image_discount_multiplier=")
-	builder.WriteString(fmt.Sprintf("%v", _m.BatchImageDiscountMultiplier))
-	builder.WriteString(", ")
-	builder.WriteString("batch_image_hold_multiplier=")
-	builder.WriteString(fmt.Sprintf("%v", _m.BatchImageHoldMultiplier))
-	builder.WriteString(", ")
-	builder.WriteString("video_rate_independent=")
-	builder.WriteString(fmt.Sprintf("%v", _m.VideoRateIndependent))
-	builder.WriteString(", ")
-	builder.WriteString("video_rate_multiplier=")
-	builder.WriteString(fmt.Sprintf("%v", _m.VideoRateMultiplier))
-	builder.WriteString(", ")
-	if v := _m.VideoPrice480p; v != nil {
-		builder.WriteString("video_price_480p=")
-		builder.WriteString(fmt.Sprintf("%v", *v))
-	}
-	builder.WriteString(", ")
-	if v := _m.VideoPrice720p; v != nil {
-		builder.WriteString("video_price_720p=")
-		builder.WriteString(fmt.Sprintf("%v", *v))
-	}
-	builder.WriteString(", ")
-	if v := _m.VideoPrice1080p; v != nil {
-		builder.WriteString("video_price_1080p=")
-		builder.WriteString(fmt.Sprintf("%v", *v))
-	}
-	builder.WriteString(", ")
-	if v := _m.WebSearchPricePerCall; v != nil {
-		builder.WriteString("web_search_price_per_call=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
@@ -811,6 +748,21 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("rpm_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RpmLimit))
+	builder.WriteString(", ")
+	builder.WriteString("kiro_cache_emulation_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.KiroCacheEmulationEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("kiro_auto_sticky_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.KiroAutoStickyEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("kiro_sticky_session_ttl_seconds=")
+	builder.WriteString(fmt.Sprintf("%v", _m.KiroStickySessionTTLSeconds))
+	builder.WriteString(", ")
+	builder.WriteString("kiro_cache_emulation_ratio=")
+	builder.WriteString(fmt.Sprintf("%v", _m.KiroCacheEmulationRatio))
+	builder.WriteString(", ")
+	builder.WriteString("kiro_endpoint_mode=")
+	builder.WriteString(_m.KiroEndpointMode)
 	builder.WriteByte(')')
 	return builder.String()
 }

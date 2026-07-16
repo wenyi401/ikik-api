@@ -1,5 +1,13 @@
 import { DriveStep } from 'driver.js'
 
+function cleanTourText(value: string): string {
+  return value
+    .replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '')
+    .replace(/\s+([，。！？；：,.!?;:])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 /**
  * 管理员完整引导流程
  * 交互式引导：指引用户实际操作
@@ -7,15 +15,16 @@ import { DriveStep } from 'driver.js'
  * @param isSimpleMode 是否为简易模式（简易模式下会过滤分组相关步骤）
  */
 export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false): DriveStep[] => {
+  const tr = (key: string) => cleanTourText(t(key))
   const allSteps: DriveStep[] = [
   // ========== 欢迎介绍 ==========
   {
     popover: {
-      title: t('onboarding.admin.welcome.title'),
-      description: t('onboarding.admin.welcome.description'),
+      title: tr('onboarding.admin.welcome.title'),
+      description: tr('onboarding.admin.welcome.description'),
       align: 'center',
-      nextBtnText: t('onboarding.admin.welcome.nextBtn'),
-      prevBtnText: t('onboarding.admin.welcome.prevBtn')
+      nextBtnText: tr('onboarding.admin.welcome.nextBtn'),
+      prevBtnText: tr('onboarding.admin.welcome.prevBtn')
     }
   },
 
@@ -23,8 +32,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '#sidebar-group-manage',
     popover: {
-      title: t('onboarding.admin.groupManage.title'),
-      description: t('onboarding.admin.groupManage.description'),
+      title: tr('onboarding.admin.groupManage.title'),
+      description: tr('onboarding.admin.groupManage.description'),
       side: 'right',
       align: 'center',
       showButtons: ['close'],
@@ -33,8 +42,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="groups-create-btn"]',
     popover: {
-      title: t('onboarding.admin.createGroup.title'),
-      description: t('onboarding.admin.createGroup.description'),
+      title: tr('onboarding.admin.createGroup.title'),
+      description: tr('onboarding.admin.createGroup.description'),
       side: 'bottom',
       align: 'end',
       showButtons: ['close']
@@ -43,8 +52,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="group-form-name"]',
     popover: {
-      title: t('onboarding.admin.groupName.title'),
-      description: t('onboarding.admin.groupName.description'),
+      title: tr('onboarding.admin.groupName.title'),
+      description: tr('onboarding.admin.groupName.description'),
       side: 'right',
       align: 'start',
       showButtons: ['next', 'previous']
@@ -53,8 +62,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="group-form-platform"]',
     popover: {
-      title: t('onboarding.admin.groupPlatform.title'),
-      description: t('onboarding.admin.groupPlatform.description'),
+      title: tr('onboarding.admin.groupPlatform.title'),
+      description: tr('onboarding.admin.groupPlatform.description'),
       side: 'right',
       align: 'start',
       showButtons: ['next', 'previous']
@@ -63,8 +72,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="group-form-multiplier"]',
     popover: {
-      title: t('onboarding.admin.groupMultiplier.title'),
-      description: t('onboarding.admin.groupMultiplier.description'),
+      title: tr('onboarding.admin.groupMultiplier.title'),
+      description: tr('onboarding.admin.groupMultiplier.description'),
       side: 'right',
       align: 'start',
       showButtons: ['next', 'previous']
@@ -73,8 +82,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="group-form-exclusive"]',
     popover: {
-      title: t('onboarding.admin.groupExclusive.title'),
-      description: t('onboarding.admin.groupExclusive.description'),
+      title: tr('onboarding.admin.groupExclusive.title'),
+      description: tr('onboarding.admin.groupExclusive.description'),
       side: 'top',
       align: 'start',
       showButtons: ['next', 'previous']
@@ -83,8 +92,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="group-form-submit"]',
     popover: {
-      title: t('onboarding.admin.groupSubmit.title'),
-      description: t('onboarding.admin.groupSubmit.description'),
+      title: tr('onboarding.admin.groupSubmit.title'),
+      description: tr('onboarding.admin.groupSubmit.description'),
       side: 'left',
       align: 'center',
       showButtons: ['close']
@@ -95,8 +104,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '#sidebar-channel-manage',
     popover: {
-      title: t('onboarding.admin.accountManage.title'),
-      description: t('onboarding.admin.accountManage.description'),
+      title: tr('onboarding.admin.accountManage.title'),
+      description: tr('onboarding.admin.accountManage.description'),
       side: 'right',
       align: 'center',
       showButtons: ['close']
@@ -105,8 +114,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="accounts-create-btn"]',
     popover: {
-      title: t('onboarding.admin.createAccount.title'),
-      description: t('onboarding.admin.createAccount.description'),
+      title: tr('onboarding.admin.createAccount.title'),
+      description: tr('onboarding.admin.createAccount.description'),
       side: 'bottom',
       align: 'end',
       showButtons: ['close']
@@ -115,8 +124,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="account-form-name"]',
     popover: {
-      title: t('onboarding.admin.accountName.title'),
-      description: t('onboarding.admin.accountName.description'),
+      title: tr('onboarding.admin.accountName.title'),
+      description: tr('onboarding.admin.accountName.description'),
       side: 'right',
       align: 'start',
       showButtons: ['next', 'previous']
@@ -125,8 +134,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="account-form-platform"]',
     popover: {
-      title: t('onboarding.admin.accountPlatform.title'),
-      description: t('onboarding.admin.accountPlatform.description'),
+      title: tr('onboarding.admin.accountPlatform.title'),
+      description: tr('onboarding.admin.accountPlatform.description'),
       side: 'right',
       align: 'start',
       showButtons: ['next', 'previous']
@@ -135,8 +144,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="account-form-type"]',
     popover: {
-      title: t('onboarding.admin.accountType.title'),
-      description: t('onboarding.admin.accountType.description'),
+      title: tr('onboarding.admin.accountType.title'),
+      description: tr('onboarding.admin.accountType.description'),
       side: 'right',
       align: 'start',
       showButtons: ['next', 'previous']
@@ -145,8 +154,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="account-form-priority"]',
     popover: {
-      title: t('onboarding.admin.accountPriority.title'),
-      description: t('onboarding.admin.accountPriority.description'),
+      title: tr('onboarding.admin.accountPriority.title'),
+      description: tr('onboarding.admin.accountPriority.description'),
       side: 'top',
       align: 'start',
       showButtons: ['next', 'previous']
@@ -155,8 +164,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="account-form-groups"]',
     popover: {
-      title: t('onboarding.admin.accountGroups.title'),
-      description: t('onboarding.admin.accountGroups.description'),
+      title: tr('onboarding.admin.accountGroups.title'),
+      description: tr('onboarding.admin.accountGroups.description'),
       side: 'top',
       align: 'center',
       showButtons: ['next', 'previous']
@@ -165,8 +174,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="account-form-submit"]',
     popover: {
-      title: t('onboarding.admin.accountSubmit.title'),
-      description: t('onboarding.admin.accountSubmit.description'),
+      title: tr('onboarding.admin.accountSubmit.title'),
+      description: tr('onboarding.admin.accountSubmit.description'),
       side: 'left',
       align: 'center',
       showButtons: ['close']
@@ -177,8 +186,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="sidebar-my-keys"]',
     popover: {
-      title: t('onboarding.admin.keyManage.title'),
-      description: t('onboarding.admin.keyManage.description'),
+      title: tr('onboarding.admin.keyManage.title'),
+      description: tr('onboarding.admin.keyManage.description'),
       side: 'right',
       align: 'center',
       showButtons: ['close']
@@ -187,8 +196,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="keys-create-btn"]',
     popover: {
-      title: t('onboarding.admin.createKey.title'),
-      description: t('onboarding.admin.createKey.description'),
+      title: tr('onboarding.admin.createKey.title'),
+      description: tr('onboarding.admin.createKey.description'),
       side: 'bottom',
       align: 'end',
       showButtons: ['close']
@@ -197,8 +206,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="key-form-name"]',
     popover: {
-      title: t('onboarding.admin.keyName.title'),
-      description: t('onboarding.admin.keyName.description'),
+      title: tr('onboarding.admin.keyName.title'),
+      description: tr('onboarding.admin.keyName.description'),
       side: 'right',
       align: 'start',
       showButtons: ['next', 'previous']
@@ -207,8 +216,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="key-form-group"]',
     popover: {
-      title: t('onboarding.admin.keyGroup.title'),
-      description: t('onboarding.admin.keyGroup.description'),
+      title: tr('onboarding.admin.keyGroup.title'),
+      description: tr('onboarding.admin.keyGroup.description'),
       side: 'right',
       align: 'start',
       showButtons: ['next', 'previous']
@@ -217,8 +226,8 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
   {
     element: '[data-tour="key-form-submit"]',
     popover: {
-      title: t('onboarding.admin.keySubmit.title'),
-      description: t('onboarding.admin.keySubmit.description'),
+      title: tr('onboarding.admin.keySubmit.title'),
+      description: tr('onboarding.admin.keySubmit.description'),
       side: 'left',
       align: 'center',
       showButtons: ['close']
@@ -246,64 +255,67 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
 /**
  * 普通用户引导流程
  */
-export const getUserSteps = (t: (key: string) => string): DriveStep[] => [
-  {
-    popover: {
-      title: t('onboarding.user.welcome.title'),
-      description: t('onboarding.user.welcome.description'),
-      align: 'center',
-      nextBtnText: t('onboarding.user.welcome.nextBtn'),
-      prevBtnText: t('onboarding.user.welcome.prevBtn')
+export const getUserSteps = (t: (key: string) => string): DriveStep[] => {
+  const tr = (key: string) => cleanTourText(t(key))
+  return [
+    {
+      popover: {
+        title: tr('onboarding.user.welcome.title'),
+        description: tr('onboarding.user.welcome.description'),
+        align: 'center',
+        nextBtnText: tr('onboarding.user.welcome.nextBtn'),
+        prevBtnText: tr('onboarding.user.welcome.prevBtn')
+      }
+    },
+    {
+      element: '[data-tour="sidebar-my-keys"]',
+      popover: {
+        title: tr('onboarding.user.keyManage.title'),
+        description: tr('onboarding.user.keyManage.description'),
+        side: 'right',
+        align: 'center',
+        showButtons: ['close']
+      }
+    },
+    {
+      element: '[data-tour="keys-create-btn"]',
+      popover: {
+        title: tr('onboarding.user.createKey.title'),
+        description: tr('onboarding.user.createKey.description'),
+        side: 'bottom',
+        align: 'end',
+        showButtons: ['close']
+      }
+    },
+    {
+      element: '[data-tour="key-form-name"]',
+      popover: {
+        title: tr('onboarding.user.keyName.title'),
+        description: tr('onboarding.user.keyName.description'),
+        side: 'right',
+        align: 'start',
+        showButtons: ['next', 'previous']
+      }
+    },
+    {
+      element: '[data-tour="key-form-group"]',
+      popover: {
+        title: tr('onboarding.user.keyGroup.title'),
+        description: tr('onboarding.user.keyGroup.description'),
+        side: 'right',
+        align: 'start',
+        showButtons: ['next', 'previous']
+      }
+    },
+    {
+      element: '[data-tour="key-form-submit"]',
+      popover: {
+        title: tr('onboarding.user.keySubmit.title'),
+        description: tr('onboarding.user.keySubmit.description'),
+        side: 'left',
+        align: 'center',
+        showButtons: ['close']
+      }
     }
-  },
-  {
-    element: '[data-tour="sidebar-my-keys"]',
-    popover: {
-      title: t('onboarding.user.keyManage.title'),
-      description: t('onboarding.user.keyManage.description'),
-      side: 'right',
-      align: 'center',
-      showButtons: ['close']
-    }
-  },
-  {
-    element: '[data-tour="keys-create-btn"]',
-    popover: {
-      title: t('onboarding.user.createKey.title'),
-      description: t('onboarding.user.createKey.description'),
-      side: 'bottom',
-      align: 'end',
-      showButtons: ['close']
-    }
-  },
-  {
-    element: '[data-tour="key-form-name"]',
-    popover: {
-      title: t('onboarding.user.keyName.title'),
-      description: t('onboarding.user.keyName.description'),
-      side: 'right',
-      align: 'start',
-      showButtons: ['next', 'previous']
-    }
-  },
-  {
-    element: '[data-tour="key-form-group"]',
-    popover: {
-      title: t('onboarding.user.keyGroup.title'),
-      description: t('onboarding.user.keyGroup.description'),
-      side: 'right',
-      align: 'start',
-      showButtons: ['next', 'previous']
-    }
-  },
-  {
-    element: '[data-tour="key-form-submit"]',
-    popover: {
-      title: t('onboarding.user.keySubmit.title'),
-      description: t('onboarding.user.keySubmit.description'),
-      side: 'left',
-      align: 'center',
-      showButtons: ['close']
-    }
-  }
-]
+  ]
+}

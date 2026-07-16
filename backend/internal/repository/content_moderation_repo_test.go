@@ -29,30 +29,12 @@ func TestContentModerationRepositoryCountFlaggedByUserSince_ExcludesHashBlock(t 
 	repo := NewContentModerationRepository(db)
 	since := time.Now().Add(-time.Hour)
 	mock.ExpectQuery(regexp.QuoteMeta("AND action <> 'hash_block'")).
-		WithArgs(int64(1001), since, false).
+		WithArgs(int64(1001), since).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 
-	count, err := repo.CountFlaggedByUserSince(context.Background(), 1001, since, false)
+	count, err := repo.CountFlaggedByUserSince(context.Background(), 1001, since)
 
 	require.NoError(t, err)
 	require.Equal(t, 2, count)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestContentModerationRepositoryCountFlaggedByUserSince_ExcludesCyberPolicyWhenRequested(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
-
-	repo := NewContentModerationRepository(db)
-	since := time.Now().Add(-time.Hour)
-	mock.ExpectQuery(regexp.QuoteMeta("AND ($3::bool IS FALSE OR action <> 'cyber_policy')")).
-		WithArgs(int64(1001), since, true).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
-
-	count, err := repo.CountFlaggedByUserSince(context.Background(), 1001, since, true)
-
-	require.NoError(t, err)
-	require.Equal(t, 3, count)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

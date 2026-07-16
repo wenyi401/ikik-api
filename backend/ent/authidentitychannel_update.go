@@ -6,14 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/authidentity"
+	"ikik-api/ent/authidentitychannel"
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/authidentity"
-	"ikik-api/ent/authidentitychannel"
-	"ikik-api/ent/predicate"
 )
 
 // AuthIdentityChannelUpdate is the builder for updating AuthIdentityChannel entities.

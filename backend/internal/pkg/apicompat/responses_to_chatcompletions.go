@@ -81,7 +81,9 @@ func ResponsesToChatCompletions(resp *ResponsesResponse, model string) *ChatComp
 		FinishReason: finishReason,
 	}}
 
-	out.Usage = chatUsageFromResponsesUsage(resp.Usage)
+	if resp.Usage != nil {
+		out.Usage = chatUsageFromResponsesUsage(resp.Usage)
+	}
 
 	return out
 }
@@ -89,13 +91,8 @@ func ResponsesToChatCompletions(resp *ResponsesResponse, model string) *ChatComp
 func responsesStatusToChatFinishReason(status string, details *ResponsesIncompleteDetails, toolCalls []ChatToolCall) string {
 	switch status {
 	case "incomplete":
-		if details != nil {
-			switch details.Reason {
-			case "max_output_tokens":
-				return "length"
-			case "content_filter":
-				return "content_filter"
-			}
+		if details != nil && details.Reason == "max_output_tokens" {
+			return "length"
 		}
 		return "stop"
 	case "completed":
@@ -159,9 +156,7 @@ func ResponsesEventToChatChunks(evt *ResponsesStreamEvent, state *ResponsesEvent
 		return resToChatHandleReasoningDelta(evt, state)
 	case "response.reasoning_summary_text.done":
 		return nil
-	// response.done 是 Realtime/WS 与项目透传路径使用的终止别名；
-	// 普通 Responses HTTP SSE 的公开终止事件仍以 response.completed 为主。
-	case "response.completed", "response.done", "response.incomplete", "response.failed":
+	case "response.completed", "response.incomplete", "response.failed":
 		return resToChatHandleCompleted(evt, state)
 	default:
 		return nil
@@ -304,13 +299,8 @@ func resToChatHandleCompleted(evt *ResponsesStreamEvent, state *ResponsesEventTo
 
 		switch evt.Response.Status {
 		case "incomplete":
-			if evt.Response.IncompleteDetails != nil {
-				switch evt.Response.IncompleteDetails.Reason {
-				case "max_output_tokens":
-					finishReason = "length"
-				case "content_filter":
-					finishReason = "content_filter"
-				}
+			if evt.Response.IncompleteDetails != nil && evt.Response.IncompleteDetails.Reason == "max_output_tokens" {
+				finishReason = "length"
 			}
 		case "completed":
 			if state.SawToolCall {
@@ -360,14 +350,8 @@ func chatUsageFromResponsesUsage(u *ResponsesUsage) *ChatUsage {
 	return usage
 }
 
-// promptDetailsFromResponses maps Responses-API input_tokens_details into a
-// Chat-Completions prompt_tokens_details. Returns nil when nothing would be
-// emitted, so upstreams that do not break down prompt usage stay clean.
 func promptDetailsFromResponses(src *ResponsesInputTokensDetails) *ChatTokenDetails {
-	if src == nil {
-		return nil
-	}
-	if src.CachedTokens == 0 && src.AudioTokens == 0 && src.CacheCreationTokens == 0 && src.CacheWriteTokens == 0 {
+	if src == nil || (src.CachedTokens == 0 && src.AudioTokens == 0 && src.CacheCreationTokens == 0 && src.CacheWriteTokens == 0) {
 		return nil
 	}
 	return &ChatTokenDetails{
@@ -378,17 +362,9 @@ func promptDetailsFromResponses(src *ResponsesInputTokensDetails) *ChatTokenDeta
 	}
 }
 
-// completionDetailsFromResponses maps Responses-API output_tokens_details
-// into a Chat-Completions completion_tokens_details. Mirrors the OpenAI
-// official CompletionUsage schema: reasoning_tokens, audio_tokens, and
-// the predicted-outputs accepted/rejected counts. Returns nil when nothing
-// would be emitted so non-reasoning, non-audio responses stay clean.
 func completionDetailsFromResponses(src *ResponsesOutputTokensDetails) *ChatTokenDetails {
-	if src == nil {
-		return nil
-	}
-	if src.ReasoningTokens == 0 && src.AudioTokens == 0 &&
-		src.AcceptedPredictionTokens == 0 && src.RejectedPredictionTokens == 0 {
+	if src == nil || (src.ReasoningTokens == 0 && src.AudioTokens == 0 &&
+		src.AcceptedPredictionTokens == 0 && src.RejectedPredictionTokens == 0) {
 		return nil
 	}
 	return &ChatTokenDetails{

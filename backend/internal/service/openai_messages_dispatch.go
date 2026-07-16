@@ -1,10 +1,6 @@
 package service
 
-import (
-	"strings"
-
-	"ikik-api/internal/pkg/xai"
-)
+import "strings"
 
 const (
 	defaultOpenAIMessagesDispatchOpusMappedModel   = "gpt-5.4"
@@ -65,13 +61,6 @@ func (g *Group) ResolveMessagesDispatchModel(requestedModel string) string {
 	}
 	requestedModel = strings.TrimSpace(requestedModel)
 	if requestedModel == "" {
-		return ""
-	}
-
-	if g.Platform == PlatformGrok {
-		if claudeMessagesDispatchFamily(requestedModel) != "" {
-			return xai.DefaultModelMapping()["grok"]
-		}
 		return ""
 	}
 

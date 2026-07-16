@@ -23,6 +23,8 @@ const (
 	FieldFilters = "filters"
 	// FieldCreatedBy holds the string denoting the created_by field in the database.
 	FieldCreatedBy = "created_by"
+	// FieldCreatedSource holds the string denoting the created_source field in the database.
+	FieldCreatedSource = "created_source"
 	// FieldDeletedRows holds the string denoting the deleted_rows field in the database.
 	FieldDeletedRows = "deleted_rows"
 	// FieldErrorMessage holds the string denoting the error_message field in the database.
@@ -47,6 +49,7 @@ var Columns = []string{
 	FieldStatus,
 	FieldFilters,
 	FieldCreatedBy,
+	FieldCreatedSource,
 	FieldDeletedRows,
 	FieldErrorMessage,
 	FieldCanceledBy,
@@ -74,6 +77,10 @@ var (
 	UpdateDefaultUpdatedAt func() time.Time
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	StatusValidator func(string) error
+	// DefaultCreatedSource holds the default value on creation for the "created_source" field.
+	DefaultCreatedSource string
+	// CreatedSourceValidator is a validator for the "created_source" field. It is called by the builders before save.
+	CreatedSourceValidator func(string) error
 	// DefaultDeletedRows holds the default value on creation for the "deleted_rows" field.
 	DefaultDeletedRows int64
 )
@@ -104,6 +111,11 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 // ByCreatedBy orders the results by the created_by field.
 func ByCreatedBy(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedBy, opts...).ToFunc()
+}
+
+// ByCreatedSource orders the results by the created_source field.
+func ByCreatedSource(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCreatedSource, opts...).ToFunc()
 }
 
 // ByDeletedRows orders the results by the deleted_rows field.

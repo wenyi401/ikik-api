@@ -1,5 +1,5 @@
 /**
- * API Client for Sub2API Backend
+ * API Client for ikik-api Backend
  * Central export point for all API modules
  */
 
@@ -11,13 +11,14 @@ export { authAPI, isTotp2FARequired, type LoginResponse } from './auth'
 
 // User APIs
 export { keysAPI } from './keys'
+export { accountsAPI } from './accounts'
+export { carpoolsAPI } from './carpools'
 export { usageAPI } from './usage'
 export { userAPI } from './user'
 export { redeemAPI, type RedeemHistoryItem } from './redeem'
 export { paymentAPI } from './payment'
 export { userGroupsAPI } from './groups'
 export { userChannelsAPI } from './channels'
-export * as batchImageAPI from './batchImage'
 export { totpAPI } from './totp'
 export { default as announcementsAPI } from './announcements'
 export { channelMonitorUserAPI } from './channelMonitor'

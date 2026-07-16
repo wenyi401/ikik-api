@@ -4,6 +4,7 @@ package service
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"ikik-api/internal/config"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 // ─── Mocks ───
@@ -351,6 +353,56 @@ func TestBackupService_CreateBackup_Streaming(t *testing.T) {
 	store.mu.Lock()
 	require.Len(t, store.objects, 1)
 	store.mu.Unlock()
+}
+
+func TestBackupServiceCreateUsageLogsArchive(t *testing.T) {
+	repo := newMockSettingRepo()
+	seedS3Config(t, repo)
+	store := newMockObjectStore()
+	svc := newTestBackupService(repo, &mockDumper{}, store)
+
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	record, err := svc.CreateUsageLogsArchive(context.Background(), UsageLogsArchiveInput{
+		Stream:     io.NopCloser(strings.NewReader("{\"id\":1}\n")),
+		StartTime:  start,
+		EndTime:    end,
+		ExpireDays: 7,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	require.Equal(t, "completed", record.Status)
+	require.Equal(t, "usage_logs_archive", record.BackupType)
+	require.Contains(t, record.FileName, "usage_logs_")
+	require.Contains(t, record.FileName, ".ndjson.gz")
+	require.NotEmpty(t, record.ExpiresAt)
+
+	store.mu.Lock()
+	uploaded := append([]byte(nil), store.objects[record.S3Key]...)
+	store.mu.Unlock()
+	gz, err := gzip.NewReader(bytes.NewReader(uploaded))
+	require.NoError(t, err)
+	defer func() { _ = gz.Close() }()
+	plain, err := io.ReadAll(gz)
+	require.NoError(t, err)
+	require.Equal(t, "{\"id\":1}\n", string(plain))
+}
+
+func TestBackupServiceRestoreRejectsUsageLogsArchive(t *testing.T) {
+	repo := newMockSettingRepo()
+	seedS3Config(t, repo)
+	svc := newTestBackupService(repo, &mockDumper{}, newMockObjectStore())
+	require.NoError(t, svc.saveRecord(context.Background(), &BackupRecord{
+		ID:         "archive1",
+		Status:     "completed",
+		BackupType: "usage_logs_archive",
+		S3Key:      "backups/archive.ndjson.gz",
+		StartedAt:  time.Now().Format(time.RFC3339),
+	}))
+
+	err := svc.RestoreBackup(context.Background(), "archive1")
+	require.Error(t, err)
+	require.Equal(t, "BACKUP_TYPE_NOT_RESTORABLE", infraerrors.Reason(err))
 }
 
 func TestBackupService_CreateBackup_DumpFailure(t *testing.T) {

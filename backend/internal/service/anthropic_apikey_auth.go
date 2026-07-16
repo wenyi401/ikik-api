@@ -29,7 +29,7 @@ func (a *Account) GetAnthropicAPIKeyAuthScheme() string {
 }
 
 func setAnthropicAPIKeyAuthHeader(header http.Header, account *Account, token string) {
-	if account.GetAnthropicAPIKeyAuthScheme() == AnthropicAPIKeyAuthSchemeAuthorizationBearer {
+	if account != nil && account.GetAnthropicAPIKeyAuthScheme() == AnthropicAPIKeyAuthSchemeAuthorizationBearer {
 		header.Set("Authorization", "Bearer "+token)
 		return
 	}

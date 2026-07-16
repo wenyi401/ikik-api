@@ -14,6 +14,7 @@ import (
 	"ikik-api/internal/config"
 	"ikik-api/internal/handler"
 	"ikik-api/internal/payment"
+	"ikik-api/internal/plugin"
 	"ikik-api/internal/repository"
 	"ikik-api/internal/server"
 	"ikik-api/internal/server/middleware"
@@ -24,7 +25,10 @@ import (
 )
 
 type Application struct {
-	Server  *http.Server
+	Server *http.Server
+	// Runtime 是插件模块生命周期驱动器：main 在 HTTP server 启动前
+	// 调用 Build + Start，关闭时由 Cleanup 序列执行 Stop。
+	Runtime *plugin.Runtime
 	Cleanup func()
 }
 
@@ -43,6 +47,9 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 		// Server layer ProviderSet
 		server.ProviderSet,
 
+		// Plugin kernel ProviderSet (Host + module Runtime)
+		plugin.ProviderSet,
+
 		// Privacy client factory for OpenAI training opt-out
 		providePrivacyClientFactory,
 
@@ -53,7 +60,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 		provideCleanup,
 
 		// Application struct
-		wire.Struct(new(Application), "Server", "Cleanup"),
+		wire.Struct(new(Application), "Server", "Runtime", "Cleanup"),
 	)
 	return nil, nil
 }
@@ -79,14 +86,12 @@ func provideCleanup(
 	opsScheduledReport *service.OpsScheduledReportService,
 	opsSystemLogSink *service.OpsSystemLogSink,
 	schedulerSnapshot *service.SchedulerSnapshotService,
+	groupRateSchedule *service.GroupRateScheduleService,
 	tokenRefresh *service.TokenRefreshService,
 	accountExpiry *service.AccountExpiryService,
-	proxyExpiry *service.ProxyExpiryService,
 	subscriptionExpiry *service.SubscriptionExpiryService,
 	usageCleanup *service.UsageCleanupService,
 	idempotencyCleanup *service.IdempotencyCleanupService,
-	batchImageCleanup *service.BatchImageCleanupService,
-	batchImageWorker *service.BatchImageWorkerRuntime,
 	pricing *service.PricingService,
 	emailQueue *service.EmailQueueService,
 	billingCache *service.BillingCacheService,
@@ -97,12 +102,13 @@ func provideCleanup(
 	geminiOAuth *service.GeminiOAuthService,
 	antigravityOAuth *service.AntigravityOAuthService,
 	grokOAuth *service.GrokOAuthService,
+	kiroOAuth *service.KiroOAuthService,
 	openAIGateway *service.OpenAIGatewayService,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
 	channelMonitorRunner *service.ChannelMonitorRunner,
-	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
+	moduleRuntime *plugin.Runtime,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -115,6 +121,14 @@ func provideCleanup(
 
 		// 应用层清理步骤可并行执行，基础设施资源（Redis/Ent）最后按顺序关闭。
 		parallelSteps := []cleanupStep{
+			// 插件模块 Stop 属于业务服务关闭组：模块停止时可能仍需写 DB/Redis，
+			// 必须先于基础设施（Redis/Ent）关闭执行。
+			{"PluginModuleRuntime", func() error {
+				if moduleRuntime == nil {
+					return nil
+				}
+				return moduleRuntime.Stop(ctx)
+			}},
 			{"OpsScheduledReportService", func() error {
 				if opsScheduledReport != nil {
 					opsScheduledReport.Stop()
@@ -157,6 +171,12 @@ func provideCleanup(
 				}
 				return nil
 			}},
+			{"GroupRateScheduleService", func() error {
+				if groupRateSchedule != nil {
+					groupRateSchedule.Stop()
+				}
+				return nil
+			}},
 			{"UsageCleanupService", func() error {
 				if usageCleanup != nil {
 					usageCleanup.Stop()
@@ -169,28 +189,12 @@ func provideCleanup(
 				}
 				return nil
 			}},
-			{"BatchImageCleanupService", func() error {
-				if batchImageCleanup != nil {
-					batchImageCleanup.Stop()
-				}
-				return nil
-			}},
-			{"BatchImageWorkerRuntime", func() error {
-				if batchImageWorker != nil {
-					batchImageWorker.Stop()
-				}
-				return nil
-			}},
 			{"TokenRefreshService", func() error {
 				tokenRefresh.Stop()
 				return nil
 			}},
 			{"AccountExpiryService", func() error {
 				accountExpiry.Stop()
-				return nil
-			}},
-			{"ProxyExpiryService", func() error {
-				proxyExpiry.Stop()
 				return nil
 			}},
 			{"SubscriptionExpiryService", func() error {
@@ -243,6 +247,12 @@ func provideCleanup(
 				}
 				return nil
 			}},
+			{"KiroOAuthService", func() error {
+				if kiroOAuth != nil {
+					kiroOAuth.Stop()
+				}
+				return nil
+			}},
 			{"OpenAIWSPool", func() error {
 				if openAIGateway != nil {
 					openAIGateway.CloseOpenAIWSPool()
@@ -270,12 +280,6 @@ func provideCleanup(
 			{"ChannelMonitorRunner", func() error {
 				if channelMonitorRunner != nil {
 					channelMonitorRunner.Stop()
-				}
-				return nil
-			}},
-			{"UserPlatformQuotaUsageFlusher", func() error {
-				if quotaFlusher != nil {
-					quotaFlusher.Stop()
 				}
 				return nil
 			}},

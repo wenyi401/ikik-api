@@ -5,16 +5,16 @@ package ent
 import (
 	"context"
 	"fmt"
+	"ikik-api/ent/account"
+	"ikik-api/ent/accountgroup"
+	"ikik-api/ent/group"
+	"ikik-api/ent/predicate"
 	"math"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"ikik-api/ent/account"
-	"ikik-api/ent/accountgroup"
-	"ikik-api/ent/group"
-	"ikik-api/ent/predicate"
 )
 
 // AccountGroupQuery is the builder for querying AccountGroup entities.

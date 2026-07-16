@@ -49,9 +49,20 @@ func (User) Fields() []ent.Field {
 		field.Float("balance").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0),
-		field.Float("frozen_balance").
+		field.Float("recharge_balance").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0),
+		field.Float("invite_income_balance").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
+			Default(0),
+		field.Float("share_income_balance").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
+			Default(0),
+		field.Float("points_balance").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}).
+			Default(0),
+		field.Bool("prefer_points_billing").
+			Default(false),
 		field.Int("concurrency").
 			Default(5),
 		field.String("status").
@@ -80,10 +91,10 @@ func (User) Fields() []ent.Field {
 		field.String("signup_source").
 			Validate(func(value string) error {
 				switch value {
-				case "email", "linuxdo", "wechat", "oidc", "github", "google", "dingtalk":
+				case "email", "linuxdo", "wechat", "oidc":
 					return nil
 				default:
-					return fmt.Errorf("must be one of email, linuxdo, wechat, oidc, github, google, dingtalk")
+					return fmt.Errorf("must be one of email, linuxdo, wechat, oidc")
 				}
 			}).
 			Default("email"),
@@ -111,6 +122,12 @@ func (User) Fields() []ent.Field {
 		field.Float("total_recharged").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0),
+		field.Float("total_invite_income").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
+			Default(0),
+		field.Float("total_share_income").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
+			Default(0),
 
 		// 用户级每分钟请求数上限（0 = 不限制）。仅当所在分组未设置 rpm_limit 时作为兜底生效。
 		field.Int("rpm_limit").
@@ -131,10 +148,13 @@ func (User) Edges() []ent.Edge {
 		edge.To("attribute_values", UserAttributeValue.Type),
 		edge.To("promo_code_usages", PromoCodeUsage.Type),
 		edge.To("payment_orders", PaymentOrder.Type),
+		edge.To("shop_orders", ShopOrder.Type),
+		edge.To("shop_draw_cycles", ShopDrawCycle.Type),
+		edge.To("shop_balance_ledger", ShopBalanceLedger.Type),
+		edge.To("owned_accounts", Account.Type),
 		edge.To("auth_identities", AuthIdentity.Type).
 			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("pending_auth_sessions", PendingAuthSession.Type),
-		edge.To("platform_quotas", UserPlatformQuota.Type),
 	}
 }
 

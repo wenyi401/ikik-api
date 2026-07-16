@@ -5,12 +5,12 @@ package ent
 import (
 	"encoding/json"
 	"fmt"
+	"ikik-api/ent/errorpassthroughrule"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/errorpassthroughrule"
 )
 
 // ErrorPassthroughRule is the model entity for the ErrorPassthroughRule schema.

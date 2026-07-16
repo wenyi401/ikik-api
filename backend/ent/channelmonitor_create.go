@@ -6,15 +6,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/channelmonitor"
+	"ikik-api/ent/channelmonitordailyrollup"
+	"ikik-api/ent/channelmonitorhistory"
+	"ikik-api/ent/channelmonitorrequesttemplate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/channelmonitor"
-	"ikik-api/ent/channelmonitordailyrollup"
-	"ikik-api/ent/channelmonitorhistory"
-	"ikik-api/ent/channelmonitorrequesttemplate"
 )
 
 // ChannelMonitorCreate is the builder for creating a ChannelMonitor entity.
@@ -62,20 +62,6 @@ func (_c *ChannelMonitorCreate) SetName(v string) *ChannelMonitorCreate {
 // SetProvider sets the "provider" field.
 func (_c *ChannelMonitorCreate) SetProvider(v channelmonitor.Provider) *ChannelMonitorCreate {
 	_c.mutation.SetProvider(v)
-	return _c
-}
-
-// SetAPIMode sets the "api_mode" field.
-func (_c *ChannelMonitorCreate) SetAPIMode(v string) *ChannelMonitorCreate {
-	_c.mutation.SetAPIMode(v)
-	return _c
-}
-
-// SetNillableAPIMode sets the "api_mode" field if the given value is not nil.
-func (_c *ChannelMonitorCreate) SetNillableAPIMode(v *string) *ChannelMonitorCreate {
-	if v != nil {
-		_c.SetAPIMode(*v)
-	}
 	return _c
 }
 
@@ -303,10 +289,6 @@ func (_c *ChannelMonitorCreate) defaults() {
 		v := channelmonitor.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
-	if _, ok := _c.mutation.APIMode(); !ok {
-		v := channelmonitor.DefaultAPIMode
-		_c.mutation.SetAPIMode(v)
-	}
 	if _, ok := _c.mutation.ExtraModels(); !ok {
 		v := channelmonitor.DefaultExtraModels
 		_c.mutation.SetExtraModels(v)
@@ -355,14 +337,6 @@ func (_c *ChannelMonitorCreate) check() error {
 	if v, ok := _c.mutation.Provider(); ok {
 		if err := channelmonitor.ProviderValidator(v); err != nil {
 			return &ValidationError{Name: "provider", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.provider": %w`, err)}
-		}
-	}
-	if _, ok := _c.mutation.APIMode(); !ok {
-		return &ValidationError{Name: "api_mode", err: errors.New(`ent: missing required field "ChannelMonitor.api_mode"`)}
-	}
-	if v, ok := _c.mutation.APIMode(); ok {
-		if err := channelmonitor.APIModeValidator(v); err != nil {
-			return &ValidationError{Name: "api_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.api_mode": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.Endpoint(); !ok {
@@ -472,10 +446,6 @@ func (_c *ChannelMonitorCreate) createSpec() (*ChannelMonitor, *sqlgraph.CreateS
 	if value, ok := _c.mutation.Provider(); ok {
 		_spec.SetField(channelmonitor.FieldProvider, field.TypeEnum, value)
 		_node.Provider = value
-	}
-	if value, ok := _c.mutation.APIMode(); ok {
-		_spec.SetField(channelmonitor.FieldAPIMode, field.TypeString, value)
-		_node.APIMode = value
 	}
 	if value, ok := _c.mutation.Endpoint(); ok {
 		_spec.SetField(channelmonitor.FieldEndpoint, field.TypeString, value)
@@ -663,18 +633,6 @@ func (u *ChannelMonitorUpsert) SetProvider(v channelmonitor.Provider) *ChannelMo
 // UpdateProvider sets the "provider" field to the value that was provided on create.
 func (u *ChannelMonitorUpsert) UpdateProvider() *ChannelMonitorUpsert {
 	u.SetExcluded(channelmonitor.FieldProvider)
-	return u
-}
-
-// SetAPIMode sets the "api_mode" field.
-func (u *ChannelMonitorUpsert) SetAPIMode(v string) *ChannelMonitorUpsert {
-	u.Set(channelmonitor.FieldAPIMode, v)
-	return u
-}
-
-// UpdateAPIMode sets the "api_mode" field to the value that was provided on create.
-func (u *ChannelMonitorUpsert) UpdateAPIMode() *ChannelMonitorUpsert {
-	u.SetExcluded(channelmonitor.FieldAPIMode)
 	return u
 }
 
@@ -972,20 +930,6 @@ func (u *ChannelMonitorUpsertOne) SetProvider(v channelmonitor.Provider) *Channe
 func (u *ChannelMonitorUpsertOne) UpdateProvider() *ChannelMonitorUpsertOne {
 	return u.Update(func(s *ChannelMonitorUpsert) {
 		s.UpdateProvider()
-	})
-}
-
-// SetAPIMode sets the "api_mode" field.
-func (u *ChannelMonitorUpsertOne) SetAPIMode(v string) *ChannelMonitorUpsertOne {
-	return u.Update(func(s *ChannelMonitorUpsert) {
-		s.SetAPIMode(v)
-	})
-}
-
-// UpdateAPIMode sets the "api_mode" field to the value that was provided on create.
-func (u *ChannelMonitorUpsertOne) UpdateAPIMode() *ChannelMonitorUpsertOne {
-	return u.Update(func(s *ChannelMonitorUpsert) {
-		s.UpdateAPIMode()
 	})
 }
 
@@ -1484,20 +1428,6 @@ func (u *ChannelMonitorUpsertBulk) SetProvider(v channelmonitor.Provider) *Chann
 func (u *ChannelMonitorUpsertBulk) UpdateProvider() *ChannelMonitorUpsertBulk {
 	return u.Update(func(s *ChannelMonitorUpsert) {
 		s.UpdateProvider()
-	})
-}
-
-// SetAPIMode sets the "api_mode" field.
-func (u *ChannelMonitorUpsertBulk) SetAPIMode(v string) *ChannelMonitorUpsertBulk {
-	return u.Update(func(s *ChannelMonitorUpsert) {
-		s.SetAPIMode(v)
-	})
-}
-
-// UpdateAPIMode sets the "api_mode" field to the value that was provided on create.
-func (u *ChannelMonitorUpsertBulk) UpdateAPIMode() *ChannelMonitorUpsertBulk {
-	return u.Update(func(s *ChannelMonitorUpsert) {
-		s.UpdateAPIMode()
 	})
 }
 

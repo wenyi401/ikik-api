@@ -1,50 +1,46 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
-        <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-          <div class="flex flex-1 flex-wrap items-center gap-3">
-            <div class="relative w-full sm:w-80">
-              <Icon
-                name="search"
-                size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-              />
-              <input
-                v-model="searchQuery"
-                type="text"
-                :placeholder="t('availableChannels.searchPlaceholder')"
-                class="input pl-10"
-              />
-            </div>
-          </div>
-
-          <div class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
-            <button
-              @click="loadChannels"
-              :disabled="loading"
-              class="btn btn-secondary"
-              :title="t('common.refresh', 'Refresh')"
-            >
-              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
-          </div>
+    <UiPage width="wide" density="compact">
+      <div class="available-toolbar">
+        <div class="available-search">
+          <Icon name="search" size="md" />
+          <input
+            v-model="searchQuery"
+            type="search"
+            :placeholder="t('availableChannels.searchPlaceholder')"
+          />
         </div>
-      </template>
+        <UiIconButton :label="t('common.refresh')" :disabled="loading" @click="loadChannels">
+          <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+        </UiIconButton>
+      </div>
 
-      <template #table>
-        <AvailableChannelsTable
-          :columns="columnLabels"
-          :rows="filteredChannels"
-          :loading="loading"
-          :user-group-rates="userGroupRates"
-          pricing-key-prefix="availableChannels.pricing"
-          :no-pricing-label="t('availableChannels.noPricing')"
-          :no-models-label="t('availableChannels.noModels')"
-          :empty-label="t('availableChannels.empty')"
-        />
-      </template>
-    </TablePageLayout>
+      <div class="available-summary">
+        <span>{{ t('availableChannels.summary.channels', { count: filteredChannels.length }) }}</span>
+        <span aria-hidden="true">·</span>
+        <span>{{ t('availableChannels.summary.models', { count: visibleModelCount }) }}</span>
+        <span aria-hidden="true">·</span>
+        <span>{{ t('availableChannels.summary.groups', { count: visibleGroupCount }) }}</span>
+      </div>
+
+      <AvailableChannelsTable
+        :columns="columnLabels"
+        :rows="filteredChannels"
+        :loading="loading"
+        :user-group-rates="userGroupRates"
+        pricing-key-prefix="availableChannels.pricing"
+        :no-pricing-label="t('availableChannels.noPricing')"
+        :no-models-label="t('availableChannels.noModels')"
+        :empty-label="t('availableChannels.empty')"
+        @select-model="openModelDetail"
+      />
+    </UiPage>
+
+    <ModelMarketDetailDialog
+      :item="selectedItem"
+      :user-group-rates="userGroupRates"
+      @close="selectedItem = null"
+    />
   </AppLayout>
 </template>
 
@@ -52,13 +48,15 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import AvailableChannelsTable from '@/components/channels/AvailableChannelsTable.vue'
-import userChannelsAPI, { type UserAvailableChannel } from '@/api/channels'
+import ModelMarketDetailDialog from '@/components/channels/model-market/ModelMarketDetailDialog.vue'
+import userChannelsAPI, { type UserAvailableChannel, type UserSupportedModel } from '@/api/channels'
 import userGroupsAPI from '@/api/groups'
 import { useAppStore } from '@/stores/app'
+import { UiIconButton, UiPage } from '@/ui'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { buildModelCatalogItems, type ModelMarketCatalogItem } from '@/utils/modelMarket'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -67,6 +65,7 @@ const channels = ref<UserAvailableChannel[]>([])
 const userGroupRates = ref<Record<number, number>>({})
 const loading = ref(false)
 const searchQuery = ref('')
+const selectedItem = ref<ModelMarketCatalogItem | null>(null)
 
 const columnLabels = computed(() => ({
   name: t('availableChannels.columns.name'),
@@ -76,37 +75,55 @@ const columnLabels = computed(() => ({
   supportedModels: t('availableChannels.columns.supportedModels'),
 }))
 
-/**
- * 搜索过滤：
- * - 命中渠道名/描述 → 整个渠道（所有 platforms）都保留
- * - 否则按 platform/group/model 维度在 sections 里过滤，保留有匹配的 section
- * - 所有 sections 都不匹配时，渠道本身被过滤掉
- */
+const catalogItems = computed(() => buildModelCatalogItems(channels.value))
 const filteredChannels = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return channels.value
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) return channels.value
+
   return channels.value
-    .map((ch) => {
-      const nameHit = ch.name.toLowerCase().includes(q)
-      const descHit = (ch.description || '').toLowerCase().includes(q)
-      if (nameHit || descHit) return ch
-      const matchingSections = ch.platforms.filter(
-        (p) =>
-          p.platform.toLowerCase().includes(q) ||
-          p.groups.some((g) => g.name.toLowerCase().includes(q)) ||
-          p.supported_models.some((m) => m.name.toLowerCase().includes(q)),
-      )
-      if (matchingSections.length === 0) return null
-      return { ...ch, platforms: matchingSections }
+    .map((channel) => {
+      if (
+        channel.name.toLowerCase().includes(query) ||
+        (channel.description || '').toLowerCase().includes(query)
+      ) {
+        return channel
+      }
+
+      const platforms = channel.platforms.filter((section) => (
+        section.platform.toLowerCase().includes(query) ||
+        section.groups.some((group) => group.name.toLowerCase().includes(query)) ||
+        section.supported_models.some((model) => model.name.toLowerCase().includes(query))
+      ))
+      return platforms.length ? { ...channel, platforms } : null
     })
-    .filter((ch): ch is UserAvailableChannel => ch !== null)
+    .filter((channel): channel is UserAvailableChannel => channel != null)
 })
+
+const visibleModelCount = computed(() => filteredChannels.value.reduce(
+  (total, channel) => total + channel.platforms.reduce(
+    (platformTotal, section) => platformTotal + section.supported_models.length,
+    0,
+  ),
+  0,
+))
+const visibleGroupCount = computed(() => filteredChannels.value.reduce(
+  (total, channel) => total + channel.platforms.reduce(
+    (platformTotal, section) => platformTotal + section.groups.length,
+    0,
+  ),
+  0,
+))
+
+function openModelDetail(payload: { model: UserSupportedModel; platform: string }) {
+  const platform = payload.model.platform || payload.platform
+  selectedItem.value = catalogItems.value.find((item) => (
+    item.name === payload.model.name && item.platform === platform
+  )) ?? null
+}
 
 async function loadChannels() {
   loading.value = true
   try {
-    // 渠道列表和用户专属倍率并发拉取。专属倍率失败不阻塞渠道展示——
-    // 失败时只是无法渲染专属倍率角标，降级为仅显示默认倍率。
     const [list, rates] = await Promise.all([
       userChannelsAPI.getAvailable(),
       userGroupsAPI.getUserGroupRates().catch((err: unknown) => {
@@ -125,3 +142,59 @@ async function loadChannels() {
 
 onMounted(loadChannels)
 </script>
+
+<style scoped>
+.available-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.available-search {
+  display: flex;
+  width: min(34rem, 100%);
+  min-width: 0;
+  height: 2.625rem;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  color: var(--ui-text-tertiary);
+}
+
+.available-search:focus-within {
+  border-color: var(--ui-border-strong);
+  box-shadow: 0 0 0 3px var(--ui-focus);
+}
+
+.available-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ui-text);
+  font-size: 0.875rem;
+}
+
+.available-search input::placeholder {
+  color: var(--ui-text-tertiary);
+}
+
+.available-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  color: var(--ui-text-tertiary);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .available-search {
+    flex: 1 1 auto;
+  }
+}
+</style>

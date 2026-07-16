@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
 
 import type { DashboardStats } from '@/types'
 import DashboardView from '../DashboardView.vue'
@@ -88,8 +87,6 @@ const createDashboardStats = (): DashboardStats => ({
 
 describe('admin DashboardView', () => {
   beforeEach(() => {
-    setActivePinia(createPinia())
-
     getSnapshotV2.mockReset()
     getUserUsageTrend.mockReset()
     getUserSpendingRanking.mockReset()
@@ -141,6 +138,51 @@ describe('admin DashboardView', () => {
       start_date: formatLocalDate(yesterday),
       end_date: formatLocalDate(now),
       granularity: 'hour'
+    }))
+  })
+
+  it('refreshes summary stats when date range changes', async () => {
+    const wrapper = mount(DashboardView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          LoadingSpinner: true,
+          Icon: true,
+          DateRangePicker: {
+            template: '<button data-test="date-range" @click="emitChange">change</button>',
+            emits: ['update:startDate', 'update:endDate', 'change'],
+            methods: {
+              emitChange() {
+                this.$emit('update:startDate', '2026-05-01')
+                this.$emit('update:endDate', '2026-05-07')
+                this.$emit('change', {
+                  startDate: '2026-05-01',
+                  endDate: '2026-05-07',
+                  preset: null
+                })
+              }
+            }
+          },
+          Select: true,
+          ModelDistributionChart: true,
+          TokenUsageTrend: true,
+          Line: true
+        }
+      }
+    })
+
+    await flushPromises()
+    getSnapshotV2.mockClear()
+
+    await wrapper.get('[data-test="date-range"]').trigger('click')
+    await flushPromises()
+
+    expect(getSnapshotV2).toHaveBeenCalledTimes(1)
+    expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({
+      start_date: '2026-05-01',
+      end_date: '2026-05-07',
+      granularity: 'day',
+      include_stats: true
     }))
   })
 })

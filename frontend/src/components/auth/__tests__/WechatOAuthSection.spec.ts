@@ -66,7 +66,7 @@ function buildPublicSettings(overrides: Partial<WeChatPublicSettings> = {}): WeC
     invitation_code_enabled: false,
     turnstile_enabled: false,
     turnstile_site_key: '',
-    site_name: 'Sub2API',
+    site_name: 'ikik-api',
     site_logo: '',
     site_subtitle: '',
     api_base_url: '/api/v1',
@@ -76,7 +76,7 @@ function buildPublicSettings(overrides: Partial<WeChatPublicSettings> = {}): WeC
     hide_ccs_import_button: false,
     payment_enabled: false,
     table_default_page_size: 20,
-    table_page_size_options: [10, 20, 50, 100],
+    table_page_size_options: [10, 20, 50, 100, 1000],
     custom_menu_items: [],
     custom_endpoints: [],
     linuxdo_oauth_enabled: false,
@@ -85,11 +85,20 @@ function buildPublicSettings(overrides: Partial<WeChatPublicSettings> = {}): WeC
     oidc_oauth_provider_name: 'OIDC',
     backend_mode_enabled: false,
     version: 'test',
-    balance_low_notify_enabled: false,
-    account_quota_notify_enabled: false,
-    balance_low_notify_threshold: 0,
-    ...overrides,
-  }
+	    balance_low_notify_enabled: false,
+	    account_quota_notify_enabled: false,
+	    balance_low_notify_threshold: 0,
+	    channel_monitor_enabled: true,
+	    channel_monitor_default_interval_seconds: 60,
+	    available_channels_enabled: false,
+	    free_models_enabled: false,
+	    carpool_enabled: false,
+	    carpool_base_service_fee_usd: 75,
+	    carpool_system_proxy_fee_usd: 10,
+	    carpool_risk_control_fee_usd: 15,
+	    affiliate_enabled: false,
+	    ...overrides,
+	  }
 }
 
 function seedPublicSettings(overrides: Partial<WeChatPublicSettings> = {}): void {

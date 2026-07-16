@@ -244,7 +244,7 @@ func FallbackGeminiModel(model string) GeminiModel {
 	return GeminiModel{Name: name, SupportedGenerationMethods: defaultGeminiMethods}
 }
 
-// IsGeminiReasoningModel 判断是否为不支持参数和强制 ToolConfig 的 Gemini 推理模型
+// IsGeminiReasoningModel 判断是否为不支持部分采样参数和强制空 ToolConfig 的 Gemini 推理模型。
 func IsGeminiReasoningModel(modelID string) bool {
 	lowerID := strings.ToLower(modelID)
 	for _, m := range geminiModels {

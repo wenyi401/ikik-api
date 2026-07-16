@@ -22,15 +22,6 @@ export const createModelsListState = (
   items: [],
 })
 
-export const hydrateModelsListState = (
-  config: Partial<ModelsListConfig> | null | undefined,
-  candidates: string[],
-): ModelsListState => {
-  const state = createModelsListState(config)
-  setModelsListCandidates(state, candidates)
-  return state
-}
-
 export const setModelsListCandidates = (
   state: ModelsListState,
   candidates: string[],
@@ -60,13 +51,6 @@ export const setModelsListCandidates = (
       selected: selected && (currentKnown.has(id) || savedSelected.has(id) || state.savedModels.length === 0),
     }
   })
-}
-
-export const toggleModelsListItem = (state: ModelsListState, modelID: string) => {
-  const item = state.items.find(item => item.id === modelID)
-  if (item) {
-    item.selected = !item.selected
-  }
 }
 
 export const selectAllModelsListItems = (state: ModelsListState) => {

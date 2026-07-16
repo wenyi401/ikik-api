@@ -3,12 +3,12 @@
 package group
 
 import (
+	"ikik-api/internal/domain"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"ikik-api/internal/domain"
 )
 
 const (
@@ -28,20 +28,18 @@ const (
 	FieldDescription = "description"
 	// FieldRateMultiplier holds the string denoting the rate_multiplier field in the database.
 	FieldRateMultiplier = "rate_multiplier"
-	// FieldPeakRateEnabled holds the string denoting the peak_rate_enabled field in the database.
-	FieldPeakRateEnabled = "peak_rate_enabled"
-	// FieldPeakStart holds the string denoting the peak_start field in the database.
-	FieldPeakStart = "peak_start"
-	// FieldPeakEnd holds the string denoting the peak_end field in the database.
-	FieldPeakEnd = "peak_end"
-	// FieldPeakRateMultiplier holds the string denoting the peak_rate_multiplier field in the database.
-	FieldPeakRateMultiplier = "peak_rate_multiplier"
 	// FieldIsExclusive holds the string denoting the is_exclusive field in the database.
 	FieldIsExclusive = "is_exclusive"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldOwnerUserID holds the string denoting the owner_user_id field in the database.
+	FieldOwnerUserID = "owner_user_id"
+	// FieldScope holds the string denoting the scope field in the database.
+	FieldScope = "scope"
 	// FieldPlatform holds the string denoting the platform field in the database.
 	FieldPlatform = "platform"
+	// FieldRequiredAccountLevel holds the string denoting the required_account_level field in the database.
+	FieldRequiredAccountLevel = "required_account_level"
 	// FieldSubscriptionType holds the string denoting the subscription_type field in the database.
 	FieldSubscriptionType = "subscription_type"
 	// FieldDailyLimitUsd holds the string denoting the daily_limit_usd field in the database.
@@ -54,8 +52,6 @@ const (
 	FieldDefaultValidityDays = "default_validity_days"
 	// FieldAllowImageGeneration holds the string denoting the allow_image_generation field in the database.
 	FieldAllowImageGeneration = "allow_image_generation"
-	// FieldAllowBatchImageGeneration holds the string denoting the allow_batch_image_generation field in the database.
-	FieldAllowBatchImageGeneration = "allow_batch_image_generation"
 	// FieldImageRateIndependent holds the string denoting the image_rate_independent field in the database.
 	FieldImageRateIndependent = "image_rate_independent"
 	// FieldImageRateMultiplier holds the string denoting the image_rate_multiplier field in the database.
@@ -66,22 +62,6 @@ const (
 	FieldImagePrice2k = "image_price_2k"
 	// FieldImagePrice4k holds the string denoting the image_price_4k field in the database.
 	FieldImagePrice4k = "image_price_4k"
-	// FieldBatchImageDiscountMultiplier holds the string denoting the batch_image_discount_multiplier field in the database.
-	FieldBatchImageDiscountMultiplier = "batch_image_discount_multiplier"
-	// FieldBatchImageHoldMultiplier holds the string denoting the batch_image_hold_multiplier field in the database.
-	FieldBatchImageHoldMultiplier = "batch_image_hold_multiplier"
-	// FieldVideoRateIndependent holds the string denoting the video_rate_independent field in the database.
-	FieldVideoRateIndependent = "video_rate_independent"
-	// FieldVideoRateMultiplier holds the string denoting the video_rate_multiplier field in the database.
-	FieldVideoRateMultiplier = "video_rate_multiplier"
-	// FieldVideoPrice480p holds the string denoting the video_price_480p field in the database.
-	FieldVideoPrice480p = "video_price_480p"
-	// FieldVideoPrice720p holds the string denoting the video_price_720p field in the database.
-	FieldVideoPrice720p = "video_price_720p"
-	// FieldVideoPrice1080p holds the string denoting the video_price_1080p field in the database.
-	FieldVideoPrice1080p = "video_price_1080p"
-	// FieldWebSearchPricePerCall holds the string denoting the web_search_price_per_call field in the database.
-	FieldWebSearchPricePerCall = "web_search_price_per_call"
 	// FieldClaudeCodeOnly holds the string denoting the claude_code_only field in the database.
 	FieldClaudeCodeOnly = "claude_code_only"
 	// FieldFallbackGroupID holds the string denoting the fallback_group_id field in the database.
@@ -112,8 +92,20 @@ const (
 	FieldModelsListConfig = "models_list_config"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
+	// FieldKiroCacheEmulationEnabled holds the string denoting the kiro_cache_emulation_enabled field in the database.
+	FieldKiroCacheEmulationEnabled = "kiro_cache_emulation_enabled"
+	// FieldKiroAutoStickyEnabled holds the string denoting the kiro_auto_sticky_enabled field in the database.
+	FieldKiroAutoStickyEnabled = "kiro_auto_sticky_enabled"
+	// FieldKiroStickySessionTTLSeconds holds the string denoting the kiro_sticky_session_ttl_seconds field in the database.
+	FieldKiroStickySessionTTLSeconds = "kiro_sticky_session_ttl_seconds"
+	// FieldKiroCacheEmulationRatio holds the string denoting the kiro_cache_emulation_ratio field in the database.
+	FieldKiroCacheEmulationRatio = "kiro_cache_emulation_ratio"
+	// FieldKiroEndpointMode holds the string denoting the kiro_endpoint_mode field in the database.
+	FieldKiroEndpointMode = "kiro_endpoint_mode"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
+	// EdgeAPIKeyGroupRoutes holds the string denoting the api_key_group_routes edge name in mutations.
+	EdgeAPIKeyGroupRoutes = "api_key_group_routes"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
 	EdgeRedeemCodes = "redeem_codes"
 	// EdgeSubscriptions holds the string denoting the subscriptions edge name in mutations.
@@ -137,6 +129,13 @@ const (
 	APIKeysInverseTable = "api_keys"
 	// APIKeysColumn is the table column denoting the api_keys relation/edge.
 	APIKeysColumn = "group_id"
+	// APIKeyGroupRoutesTable is the table that holds the api_key_group_routes relation/edge.
+	APIKeyGroupRoutesTable = "api_key_group_routes"
+	// APIKeyGroupRoutesInverseTable is the table name for the APIKeyGroupRoute entity.
+	// It exists in this package in order to avoid circular dependency with the "apikeygrouproute" package.
+	APIKeyGroupRoutesInverseTable = "api_key_group_routes"
+	// APIKeyGroupRoutesColumn is the table column denoting the api_key_group_routes relation/edge.
+	APIKeyGroupRoutesColumn = "group_id"
 	// RedeemCodesTable is the table that holds the redeem_codes relation/edge.
 	RedeemCodesTable = "redeem_codes"
 	// RedeemCodesInverseTable is the table name for the RedeemCode entity.
@@ -193,33 +192,23 @@ var Columns = []string{
 	FieldName,
 	FieldDescription,
 	FieldRateMultiplier,
-	FieldPeakRateEnabled,
-	FieldPeakStart,
-	FieldPeakEnd,
-	FieldPeakRateMultiplier,
 	FieldIsExclusive,
 	FieldStatus,
+	FieldOwnerUserID,
+	FieldScope,
 	FieldPlatform,
+	FieldRequiredAccountLevel,
 	FieldSubscriptionType,
 	FieldDailyLimitUsd,
 	FieldWeeklyLimitUsd,
 	FieldMonthlyLimitUsd,
 	FieldDefaultValidityDays,
 	FieldAllowImageGeneration,
-	FieldAllowBatchImageGeneration,
 	FieldImageRateIndependent,
 	FieldImageRateMultiplier,
 	FieldImagePrice1k,
 	FieldImagePrice2k,
 	FieldImagePrice4k,
-	FieldBatchImageDiscountMultiplier,
-	FieldBatchImageHoldMultiplier,
-	FieldVideoRateIndependent,
-	FieldVideoRateMultiplier,
-	FieldVideoPrice480p,
-	FieldVideoPrice720p,
-	FieldVideoPrice1080p,
-	FieldWebSearchPricePerCall,
 	FieldClaudeCodeOnly,
 	FieldFallbackGroupID,
 	FieldFallbackGroupIDOnInvalidRequest,
@@ -235,6 +224,11 @@ var Columns = []string{
 	FieldMessagesDispatchModelConfig,
 	FieldModelsListConfig,
 	FieldRpmLimit,
+	FieldKiroCacheEmulationEnabled,
+	FieldKiroAutoStickyEnabled,
+	FieldKiroStickySessionTTLSeconds,
+	FieldKiroCacheEmulationRatio,
+	FieldKiroEndpointMode,
 }
 
 var (
@@ -274,28 +268,24 @@ var (
 	NameValidator func(string) error
 	// DefaultRateMultiplier holds the default value on creation for the "rate_multiplier" field.
 	DefaultRateMultiplier float64
-	// DefaultPeakRateEnabled holds the default value on creation for the "peak_rate_enabled" field.
-	DefaultPeakRateEnabled bool
-	// DefaultPeakStart holds the default value on creation for the "peak_start" field.
-	DefaultPeakStart string
-	// PeakStartValidator is a validator for the "peak_start" field. It is called by the builders before save.
-	PeakStartValidator func(string) error
-	// DefaultPeakEnd holds the default value on creation for the "peak_end" field.
-	DefaultPeakEnd string
-	// PeakEndValidator is a validator for the "peak_end" field. It is called by the builders before save.
-	PeakEndValidator func(string) error
-	// DefaultPeakRateMultiplier holds the default value on creation for the "peak_rate_multiplier" field.
-	DefaultPeakRateMultiplier float64
 	// DefaultIsExclusive holds the default value on creation for the "is_exclusive" field.
 	DefaultIsExclusive bool
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	StatusValidator func(string) error
+	// DefaultScope holds the default value on creation for the "scope" field.
+	DefaultScope string
+	// ScopeValidator is a validator for the "scope" field. It is called by the builders before save.
+	ScopeValidator func(string) error
 	// DefaultPlatform holds the default value on creation for the "platform" field.
 	DefaultPlatform string
 	// PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
 	PlatformValidator func(string) error
+	// DefaultRequiredAccountLevel holds the default value on creation for the "required_account_level" field.
+	DefaultRequiredAccountLevel string
+	// RequiredAccountLevelValidator is a validator for the "required_account_level" field. It is called by the builders before save.
+	RequiredAccountLevelValidator func(string) error
 	// DefaultSubscriptionType holds the default value on creation for the "subscription_type" field.
 	DefaultSubscriptionType string
 	// SubscriptionTypeValidator is a validator for the "subscription_type" field. It is called by the builders before save.
@@ -304,20 +294,10 @@ var (
 	DefaultDefaultValidityDays int
 	// DefaultAllowImageGeneration holds the default value on creation for the "allow_image_generation" field.
 	DefaultAllowImageGeneration bool
-	// DefaultAllowBatchImageGeneration holds the default value on creation for the "allow_batch_image_generation" field.
-	DefaultAllowBatchImageGeneration bool
 	// DefaultImageRateIndependent holds the default value on creation for the "image_rate_independent" field.
 	DefaultImageRateIndependent bool
 	// DefaultImageRateMultiplier holds the default value on creation for the "image_rate_multiplier" field.
 	DefaultImageRateMultiplier float64
-	// DefaultBatchImageDiscountMultiplier holds the default value on creation for the "batch_image_discount_multiplier" field.
-	DefaultBatchImageDiscountMultiplier float64
-	// DefaultBatchImageHoldMultiplier holds the default value on creation for the "batch_image_hold_multiplier" field.
-	DefaultBatchImageHoldMultiplier float64
-	// DefaultVideoRateIndependent holds the default value on creation for the "video_rate_independent" field.
-	DefaultVideoRateIndependent bool
-	// DefaultVideoRateMultiplier holds the default value on creation for the "video_rate_multiplier" field.
-	DefaultVideoRateMultiplier float64
 	// DefaultClaudeCodeOnly holds the default value on creation for the "claude_code_only" field.
 	DefaultClaudeCodeOnly bool
 	// DefaultModelRoutingEnabled holds the default value on creation for the "model_routing_enabled" field.
@@ -344,6 +324,18 @@ var (
 	DefaultModelsListConfig domain.GroupModelsListConfig
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
+	// DefaultKiroCacheEmulationEnabled holds the default value on creation for the "kiro_cache_emulation_enabled" field.
+	DefaultKiroCacheEmulationEnabled bool
+	// DefaultKiroAutoStickyEnabled holds the default value on creation for the "kiro_auto_sticky_enabled" field.
+	DefaultKiroAutoStickyEnabled bool
+	// DefaultKiroStickySessionTTLSeconds holds the default value on creation for the "kiro_sticky_session_ttl_seconds" field.
+	DefaultKiroStickySessionTTLSeconds int
+	// DefaultKiroCacheEmulationRatio holds the default value on creation for the "kiro_cache_emulation_ratio" field.
+	DefaultKiroCacheEmulationRatio float64
+	// DefaultKiroEndpointMode holds the default value on creation for the "kiro_endpoint_mode" field.
+	DefaultKiroEndpointMode string
+	// KiroEndpointModeValidator is a validator for the "kiro_endpoint_mode" field. It is called by the builders before save.
+	KiroEndpointModeValidator func(string) error
 )
 
 // OrderOption defines the ordering options for the Group queries.
@@ -384,26 +376,6 @@ func ByRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRateMultiplier, opts...).ToFunc()
 }
 
-// ByPeakRateEnabled orders the results by the peak_rate_enabled field.
-func ByPeakRateEnabled(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldPeakRateEnabled, opts...).ToFunc()
-}
-
-// ByPeakStart orders the results by the peak_start field.
-func ByPeakStart(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldPeakStart, opts...).ToFunc()
-}
-
-// ByPeakEnd orders the results by the peak_end field.
-func ByPeakEnd(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldPeakEnd, opts...).ToFunc()
-}
-
-// ByPeakRateMultiplier orders the results by the peak_rate_multiplier field.
-func ByPeakRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldPeakRateMultiplier, opts...).ToFunc()
-}
-
 // ByIsExclusive orders the results by the is_exclusive field.
 func ByIsExclusive(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsExclusive, opts...).ToFunc()
@@ -414,9 +386,24 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
 }
 
+// ByOwnerUserID orders the results by the owner_user_id field.
+func ByOwnerUserID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOwnerUserID, opts...).ToFunc()
+}
+
+// ByScope orders the results by the scope field.
+func ByScope(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldScope, opts...).ToFunc()
+}
+
 // ByPlatform orders the results by the platform field.
 func ByPlatform(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPlatform, opts...).ToFunc()
+}
+
+// ByRequiredAccountLevel orders the results by the required_account_level field.
+func ByRequiredAccountLevel(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRequiredAccountLevel, opts...).ToFunc()
 }
 
 // BySubscriptionType orders the results by the subscription_type field.
@@ -449,11 +436,6 @@ func ByAllowImageGeneration(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAllowImageGeneration, opts...).ToFunc()
 }
 
-// ByAllowBatchImageGeneration orders the results by the allow_batch_image_generation field.
-func ByAllowBatchImageGeneration(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldAllowBatchImageGeneration, opts...).ToFunc()
-}
-
 // ByImageRateIndependent orders the results by the image_rate_independent field.
 func ByImageRateIndependent(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldImageRateIndependent, opts...).ToFunc()
@@ -477,46 +459,6 @@ func ByImagePrice2k(opts ...sql.OrderTermOption) OrderOption {
 // ByImagePrice4k orders the results by the image_price_4k field.
 func ByImagePrice4k(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldImagePrice4k, opts...).ToFunc()
-}
-
-// ByBatchImageDiscountMultiplier orders the results by the batch_image_discount_multiplier field.
-func ByBatchImageDiscountMultiplier(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldBatchImageDiscountMultiplier, opts...).ToFunc()
-}
-
-// ByBatchImageHoldMultiplier orders the results by the batch_image_hold_multiplier field.
-func ByBatchImageHoldMultiplier(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldBatchImageHoldMultiplier, opts...).ToFunc()
-}
-
-// ByVideoRateIndependent orders the results by the video_rate_independent field.
-func ByVideoRateIndependent(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVideoRateIndependent, opts...).ToFunc()
-}
-
-// ByVideoRateMultiplier orders the results by the video_rate_multiplier field.
-func ByVideoRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVideoRateMultiplier, opts...).ToFunc()
-}
-
-// ByVideoPrice480p orders the results by the video_price_480p field.
-func ByVideoPrice480p(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVideoPrice480p, opts...).ToFunc()
-}
-
-// ByVideoPrice720p orders the results by the video_price_720p field.
-func ByVideoPrice720p(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVideoPrice720p, opts...).ToFunc()
-}
-
-// ByVideoPrice1080p orders the results by the video_price_1080p field.
-func ByVideoPrice1080p(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVideoPrice1080p, opts...).ToFunc()
-}
-
-// ByWebSearchPricePerCall orders the results by the web_search_price_per_call field.
-func ByWebSearchPricePerCall(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldWebSearchPricePerCall, opts...).ToFunc()
 }
 
 // ByClaudeCodeOnly orders the results by the claude_code_only field.
@@ -574,6 +516,31 @@ func ByRpmLimit(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRpmLimit, opts...).ToFunc()
 }
 
+// ByKiroCacheEmulationEnabled orders the results by the kiro_cache_emulation_enabled field.
+func ByKiroCacheEmulationEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldKiroCacheEmulationEnabled, opts...).ToFunc()
+}
+
+// ByKiroAutoStickyEnabled orders the results by the kiro_auto_sticky_enabled field.
+func ByKiroAutoStickyEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldKiroAutoStickyEnabled, opts...).ToFunc()
+}
+
+// ByKiroStickySessionTTLSeconds orders the results by the kiro_sticky_session_ttl_seconds field.
+func ByKiroStickySessionTTLSeconds(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldKiroStickySessionTTLSeconds, opts...).ToFunc()
+}
+
+// ByKiroCacheEmulationRatio orders the results by the kiro_cache_emulation_ratio field.
+func ByKiroCacheEmulationRatio(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldKiroCacheEmulationRatio, opts...).ToFunc()
+}
+
+// ByKiroEndpointMode orders the results by the kiro_endpoint_mode field.
+func ByKiroEndpointMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldKiroEndpointMode, opts...).ToFunc()
+}
+
 // ByAPIKeysCount orders the results by api_keys count.
 func ByAPIKeysCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -585,6 +552,20 @@ func ByAPIKeysCount(opts ...sql.OrderTermOption) OrderOption {
 func ByAPIKeys(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newAPIKeysStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByAPIKeyGroupRoutesCount orders the results by api_key_group_routes count.
+func ByAPIKeyGroupRoutesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newAPIKeyGroupRoutesStep(), opts...)
+	}
+}
+
+// ByAPIKeyGroupRoutes orders the results by api_key_group_routes terms.
+func ByAPIKeyGroupRoutes(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAPIKeyGroupRoutesStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
 
@@ -690,6 +671,13 @@ func newAPIKeysStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(APIKeysInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, APIKeysTable, APIKeysColumn),
+	)
+}
+func newAPIKeyGroupRoutesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(APIKeyGroupRoutesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, APIKeyGroupRoutesTable, APIKeyGroupRoutesColumn),
 	)
 }
 func newRedeemCodesStep() *sqlgraph.Step {

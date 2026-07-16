@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 	"sync/atomic"
@@ -10,20 +9,12 @@ import (
 
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/logger"
-	"github.com/google/uuid"
 )
 
 const (
 	defaultDashboardAggregationTimeout         = 2 * time.Minute
 	defaultDashboardAggregationBackfillTimeout = 30 * time.Minute
 	dashboardAggregationRetentionInterval      = 6 * time.Hour
-
-	// dashboardAggregationLeaderLockKey gates the periodic scheduled aggregation so
-	// that only one instance runs it per cycle in a multi-replica deployment.
-	dashboardAggregationLeaderLockKey = "dashboard:aggregation:leader"
-	// dashboardAggregationLeaderLockTTL must exceed the job's worst-case runtime
-	// (defaultDashboardAggregationTimeout) so the lock never expires mid-run.
-	dashboardAggregationLeaderLockTTL = 5 * time.Minute
 )
 
 var (
@@ -55,10 +46,6 @@ type DashboardAggregationService struct {
 	cfg                  config.DashboardAggregationConfig
 	running              int32
 	lastRetentionCleanup atomic.Value // time.Time
-
-	lockCache  LeaderLockCache
-	db         *sql.DB
-	instanceID string
 }
 
 // NewDashboardAggregationService 创建聚合服务。
@@ -71,19 +58,7 @@ func NewDashboardAggregationService(repo DashboardAggregationRepository, timingW
 		repo:        repo,
 		timingWheel: timingWheel,
 		cfg:         aggCfg,
-		instanceID:  uuid.NewString(),
 	}
-}
-
-// SetLeaderLock injects the leader-lock cache and DB used to elect a single
-// instance for the periodic scheduled aggregation. When both are nil the job runs
-// ungated (single-instance / test behavior).
-func (s *DashboardAggregationService) SetLeaderLock(lockCache LeaderLockCache, db *sql.DB) {
-	if s == nil {
-		return
-	}
-	s.lockCache = lockCache
-	s.db = db
 }
 
 // Start 启动定时聚合作业（重启生效配置）。
@@ -178,6 +153,25 @@ func (s *DashboardAggregationService) TriggerRecomputeRange(start, end time.Time
 	return nil
 }
 
+// RecomputeRangeSync synchronously rebuilds aggregate snapshots for a range.
+// It is used by destructive cleanup flows so raw records are not deleted before
+// their daily/hourly summaries are materialized.
+func (s *DashboardAggregationService) RecomputeRangeSync(ctx context.Context, start, end time.Time) error {
+	if s == nil || s.repo == nil {
+		return errors.New("聚合服务未初始化")
+	}
+	if !s.cfg.Enabled {
+		return errors.New("聚合服务已禁用")
+	}
+	if !end.After(start) {
+		return errors.New("重新计算时间范围无效")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return s.recomputeRange(ctx, start, end)
+}
+
 func (s *DashboardAggregationService) recomputeRecentDays() {
 	days := s.cfg.RecomputeDays
 	if days <= 0 {
@@ -221,14 +215,6 @@ func (s *DashboardAggregationService) runScheduledAggregation() {
 	jobStart := time.Now().UTC()
 	ctx, cancel := context.WithTimeout(context.Background(), defaultDashboardAggregationTimeout)
 	defer cancel()
-
-	// Multi-instance guard: only the leader runs the periodic aggregation; peers
-	// skip this cycle to avoid N× redundant GROUP BY queries and watermark races.
-	release, ok := tryAcquireSingletonLeaderLock(ctx, s.lockCache, s.db, dashboardAggregationLeaderLockKey, s.instanceID, dashboardAggregationLeaderLockTTL)
-	if !ok {
-		return
-	}
-	defer release()
 
 	now := time.Now().UTC()
 	last, err := s.repo.GetAggregationWatermark(ctx)
@@ -329,22 +315,17 @@ func (s *DashboardAggregationService) maybeCleanupRetention(ctx context.Context,
 
 	hourlyCutoff := now.AddDate(0, 0, -s.cfg.Retention.HourlyDays)
 	dailyCutoff := now.AddDate(0, 0, -s.cfg.Retention.DailyDays)
-	usageCutoff := now.AddDate(0, 0, -s.cfg.Retention.UsageLogsDays)
 	dedupCutoff := now.AddDate(0, 0, -s.cfg.Retention.UsageBillingDedupDays)
 
 	aggErr := s.repo.CleanupAggregates(ctx, hourlyCutoff, dailyCutoff)
 	if aggErr != nil {
 		logger.LegacyPrintf("service.dashboard_aggregation", "[DashboardAggregation] 聚合保留清理失败: %v", aggErr)
 	}
-	usageErr := s.repo.CleanupUsageLogs(ctx, usageCutoff)
-	if usageErr != nil {
-		logger.LegacyPrintf("service.dashboard_aggregation", "[DashboardAggregation] usage_logs 保留清理失败: %v", usageErr)
-	}
 	dedupErr := s.repo.CleanupUsageBillingDedup(ctx, dedupCutoff)
 	if dedupErr != nil {
 		logger.LegacyPrintf("service.dashboard_aggregation", "[DashboardAggregation] usage_billing_dedup 保留清理失败: %v", dedupErr)
 	}
-	if aggErr == nil && usageErr == nil && dedupErr == nil {
+	if aggErr == nil && dedupErr == nil {
 		s.lastRetentionCleanup.Store(now)
 	}
 }

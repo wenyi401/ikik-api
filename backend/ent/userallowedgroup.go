@@ -4,14 +4,14 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/group"
+	"ikik-api/ent/user"
+	"ikik-api/ent/userallowedgroup"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/group"
-	"ikik-api/ent/user"
-	"ikik-api/ent/userallowedgroup"
 )
 
 // UserAllowedGroup is the model entity for the UserAllowedGroup schema.

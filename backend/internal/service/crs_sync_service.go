@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -43,31 +42,6 @@ func NewCRSSyncService(
 		geminiOAuthService: geminiOAuthService,
 		cfg:                cfg,
 	}
-}
-
-// guardCRSShadowParentInvariant 守住「有 spark 影子的母账号」不变量(与 AdminService.UpdateAccount 一致):
-// 影子读透母账号凭据,母账号必须**始终是 OpenAI OAuth**。CRS 同步按全局 crs_account_id 匹配既有账号
-// (GetByCRSAccountID 已排除影子、但能命中母账号),各平台分支会重写 Platform/Type;若 CRS ID 跨 kind/平台
-// 碰撞,非 OpenAI 分支会把母账号改成 Anthropic/Gemini 或 api_key→影子 resolveCredentialAccount 必崩(外审第9轮,
-// 收紧第8轮仅查 Type 的版本:Claude OAuth 把 Type 保持 OAuth 但 Platform 改成 Anthropic 能绕过旧守卫)。
-// 故任何会把母账号目标结果改离 OpenAI OAuth 的 CRS 更新,在其有影子时一律拒绝(须先删影子);返回非 nil
-// 表示该账号更新应被跳过(调用方标记 failed)。
-func guardCRSShadowParentInvariant(ctx context.Context, repo AccountRepository, existing *Account, newPlatform, newType string) error {
-	if existing == nil {
-		return nil
-	}
-	// 目标仍是合法影子父(OpenAI OAuth)→ 放行(常见:OpenAI OAuth 分支重新同步母账号),免去一次查询。
-	if newPlatform == PlatformOpenAI && newType == AccountTypeOAuth {
-		return nil
-	}
-	shadows, err := repo.ListShadowsByParent(ctx, existing.ID)
-	if err != nil {
-		return fmt.Errorf("check spark shadows for crs update: %w", err)
-	}
-	if len(shadows) > 0 {
-		return fmt.Errorf("cannot change a spark-shadow parent account to %s/%s; it must stay OpenAI OAuth (delete the shadow first)", newPlatform, newType)
-	}
-	return nil
 }
 
 type SyncFromCRSInput struct {
@@ -168,7 +142,6 @@ type crsOpenAIResponsesAccount struct {
 	Status      string         `json:"status"`
 	Proxy       *crsProxy      `json:"proxy"`
 	Credentials map[string]any `json:"credentials"`
-	Extra       map[string]any `json:"extra"`
 }
 
 type crsOpenAIOAuthAccount struct {
@@ -282,7 +255,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 		proxies, _ = s.proxyRepo.ListActive(ctx)
 	}
 
-	// Claude OAuth / Setup Token -> sub2api anthropic oauth/setup-token
+	// Claude OAuth / Setup Token -> ikik-api anthropic oauth/setup-token
 	for _, src := range exported.Data.ClaudeAccounts {
 		item := SyncFromCRSItemResult{
 			CRSAccountID: src.ID,
@@ -403,15 +376,6 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 			continue
 		}
 
-		// 母账号守卫(外审第9轮):CRS ID 跨平台碰撞时,本(Anthropic OAuth)分支不得改坏有 spark 影子的 OpenAI 母账号。
-		if gerr := guardCRSShadowParentInvariant(ctx, s.accountRepo, existing, PlatformAnthropic, targetType); gerr != nil {
-			item.Action = "failed"
-			item.Error = gerr.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
 		// Update existing
 		existing.Extra = mergeMap(existing.Extra, extra)
 		existing.Name = defaultName(src.Name, src.ID)
@@ -446,7 +410,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 		result.Items = append(result.Items, item)
 	}
 
-	// Claude Console API Key -> sub2api anthropic apikey
+	// Claude Console API Key -> ikik-api anthropic apikey
 	for _, src := range exported.Data.ClaudeConsoleAccounts {
 		item := SyncFromCRSItemResult{
 			CRSAccountID: src.ID,
@@ -528,15 +492,6 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 			continue
 		}
 
-		// 母账号守卫(外审第9轮):CRS ID 跨平台碰撞时,本(Anthropic APIKey)分支不得改坏有 spark 影子的 OpenAI 母账号。
-		if gerr := guardCRSShadowParentInvariant(ctx, s.accountRepo, existing, PlatformAnthropic, AccountTypeAPIKey); gerr != nil {
-			item.Action = "failed"
-			item.Error = gerr.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
 		existing.Extra = mergeMap(existing.Extra, extra)
 		existing.Name = defaultName(src.Name, src.ID)
 		existing.Platform = PlatformAnthropic
@@ -563,7 +518,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 		result.Items = append(result.Items, item)
 	}
 
-	// OpenAI OAuth -> sub2api openai oauth
+	// OpenAI OAuth -> ikik-api openai oauth
 	for _, src := range exported.Data.OpenAIOAuthAccounts {
 		item := SyncFromCRSItemResult{
 			CRSAccountID: src.ID,
@@ -633,18 +588,6 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 			result.Items = append(result.Items, item)
 			continue
 		}
-		var existingExtra map[string]any
-		if existing != nil {
-			existingExtra = existing.Extra
-		}
-		extra, err = mergeCRSOpenAILongContextBillingExtra(existingExtra, extra)
-		if err != nil {
-			item.Action = "failed"
-			item.Error = err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
 
 		if existing == nil {
 			if !shouldCreateAccount(src.ID, selectedSet) {
@@ -683,7 +626,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 			continue
 		}
 
-		existing.Extra = extra
+		existing.Extra = mergeMap(existing.Extra, extra)
 		existing.Name = defaultName(src.Name, src.ID)
 		existing.Platform = PlatformOpenAI
 		existing.Type = AccountTypeOAuth
@@ -709,19 +652,12 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 			_ = persistAccountCredentials(ctx, s.accountRepo, existing, refreshedCreds)
 		}
 
-		// 母账号 proxy 经 CRS 改动后同步到其 spark 影子,避免影子保留旧 proxy 出现出站漂移(外审第8轮)。
-		// 影子 proxy 恒继承母账号(创建即继承、AdminService 编辑也传播)。best-effort:母账号本身已成功
-		// 更新,影子传播失败仅记录告警,不回退该条目状态。
-		if perr := propagateAccountProxyToShadows(ctx, s.accountRepo, existing.ID, existing.ProxyID); perr != nil {
-			slog.Warn("crs_sync_propagate_proxy_to_shadows_failed", "account_id", existing.ID, "error", perr)
-		}
-
 		item.Action = "updated"
 		result.Updated++
 		result.Items = append(result.Items, item)
 	}
 
-	// OpenAI Responses API Key -> sub2api openai apikey
+	// OpenAI Responses API Key -> ikik-api openai apikey
 	for _, src := range exported.Data.OpenAIResponsesAccounts {
 		item := SyncFromCRSItemResult{
 			CRSAccountID: src.ID,
@@ -764,30 +700,16 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 		concurrency := 3
 		status := mapCRSStatus(src.IsActive, src.Status)
 
-		extra := make(map[string]any, len(src.Extra)+3)
-		for key, value := range src.Extra {
-			extra[key] = value
+		extra := map[string]any{
+			"crs_account_id": src.ID,
+			"crs_kind":       src.Kind,
+			"crs_synced_at":  now,
 		}
-		extra["crs_account_id"] = src.ID
-		extra["crs_kind"] = src.Kind
-		extra["crs_synced_at"] = now
 
 		existing, err := s.accountRepo.GetByCRSAccountID(ctx, src.ID)
 		if err != nil {
 			item.Action = "failed"
 			item.Error = "db lookup failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-		var existingExtra map[string]any
-		if existing != nil {
-			existingExtra = existing.Extra
-		}
-		extra, err = mergeCRSOpenAILongContextBillingExtra(existingExtra, extra)
-		if err != nil {
-			item.Action = "failed"
-			item.Error = err.Error()
 			result.Failed++
 			result.Items = append(result.Items, item)
 			continue
@@ -826,17 +748,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 			continue
 		}
 
-		// 母账号守卫(外审第8/9轮):CRS 不得把有 spark 影子的母账号改离 OpenAI OAuth(此处会翻成 api_key),
-		// 否则影子读透母凭据失败、resolveCredentialAccount 必报错、spark 调度与用量刷新全崩。须先删影子再改。
-		if gerr := guardCRSShadowParentInvariant(ctx, s.accountRepo, existing, PlatformOpenAI, AccountTypeAPIKey); gerr != nil {
-			item.Action = "failed"
-			item.Error = gerr.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		existing.Extra = extra
+		existing.Extra = mergeMap(existing.Extra, extra)
 		existing.Name = defaultName(src.Name, src.ID)
 		existing.Platform = PlatformOpenAI
 		existing.Type = AccountTypeAPIKey
@@ -862,7 +774,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 		result.Items = append(result.Items, item)
 	}
 
-	// Gemini OAuth -> sub2api gemini oauth
+	// Gemini OAuth -> ikik-api gemini oauth
 	for _, src := range exported.Data.GeminiOAuthAccounts {
 		item := SyncFromCRSItemResult{
 			CRSAccountID: src.ID,
@@ -954,15 +866,6 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 			continue
 		}
 
-		// 母账号守卫(外审第9轮):CRS ID 跨平台碰撞时,本(Gemini OAuth)分支不得改坏有 spark 影子的 OpenAI 母账号。
-		if gerr := guardCRSShadowParentInvariant(ctx, s.accountRepo, existing, PlatformGemini, AccountTypeOAuth); gerr != nil {
-			item.Action = "failed"
-			item.Error = gerr.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
 		existing.Extra = mergeMap(existing.Extra, extra)
 		existing.Name = defaultName(src.Name, src.ID)
 		existing.Platform = PlatformGemini
@@ -993,7 +896,7 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 		result.Items = append(result.Items, item)
 	}
 
-	// Gemini API Key -> sub2api gemini apikey
+	// Gemini API Key -> ikik-api gemini apikey
 	for _, src := range exported.Data.GeminiAPIKeyAccounts {
 		item := SyncFromCRSItemResult{
 			CRSAccountID: src.ID,
@@ -1076,15 +979,6 @@ func (s *CRSSyncService) SyncFromCRS(ctx context.Context, input SyncFromCRSInput
 			continue
 		}
 
-		// 母账号守卫(外审第9轮):CRS ID 跨平台碰撞时,本(Gemini APIKey)分支不得改坏有 spark 影子的 OpenAI 母账号。
-		if gerr := guardCRSShadowParentInvariant(ctx, s.accountRepo, existing, PlatformGemini, AccountTypeAPIKey); gerr != nil {
-			item.Action = "failed"
-			item.Error = gerr.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
 		existing.Extra = mergeMap(existing.Extra, extra)
 		existing.Name = defaultName(src.Name, src.ID)
 		existing.Platform = PlatformGemini
@@ -1123,10 +1017,6 @@ func mergeMap(existing map[string]any, updates map[string]any) map[string]any {
 		out[k] = v
 	}
 	return out
-}
-
-func mergeCRSOpenAILongContextBillingExtra(existing, updates map[string]any) (map[string]any, error) {
-	return normalizeOpenAILongContextBillingExtra(PlatformOpenAI, mergeMap(existing, updates))
 }
 
 func (s *CRSSyncService) mapOrCreateProxy(ctx context.Context, enabled bool, cached *[]Proxy, src *crsProxy, defaultName string) (*int64, error) {
@@ -1381,7 +1271,6 @@ func (s *CRSSyncService) refreshOAuthToken(ctx context.Context, account *Account
 					newCredentials[k] = v
 				}
 			}
-			newCredentials = NormalizeOpenAIPersonalAccessTokenCredentials(account, tokenInfo, newCredentials)
 		}
 	case PlatformGemini:
 		if s.geminiOAuthService == nil {

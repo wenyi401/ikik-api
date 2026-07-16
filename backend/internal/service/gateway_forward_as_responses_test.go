@@ -21,9 +21,13 @@ func TestExtractResponsesReasoningEffortFromBody(t *testing.T) {
 	require.NotNil(t, got)
 	require.Equal(t, "high", *got)
 
-	maxGot := ExtractResponsesReasoningEffortFromBody([]byte(`{"model":"deepseek-v4-pro","reasoning":{"effort":"max"}}`))
-	require.NotNil(t, maxGot)
-	require.Equal(t, "xhigh", *maxGot)
+	got = ExtractResponsesReasoningEffortFromBody([]byte(`{"model":"gpt-5.5","providerOptions":{"openai":{"reasoningEffort":"HIGH"}}}`))
+	require.NotNil(t, got)
+	require.Equal(t, "high", *got)
+
+	got = ExtractResponsesReasoningEffortFromBody([]byte(`{"model":"gpt-5.5","provider_options":{"openai":{"extra_body":{"reasoning_effort":"x-high"}}}}`))
+	require.NotNil(t, got)
+	require.Equal(t, "xhigh", *got)
 
 	require.Nil(t, ExtractResponsesReasoningEffortFromBody([]byte(`{"model":"claude-sonnet-4.5"}`)))
 }

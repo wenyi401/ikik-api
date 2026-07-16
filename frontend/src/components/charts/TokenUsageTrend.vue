@@ -1,21 +1,22 @@
 <template>
-  <div class="card p-4">
-    <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
-      {{ t('admin.dashboard.tokenUsageTrend') }}
-    </h3>
+  <UiSection :title="t('admin.dashboard.tokenUsageTrend')">
     <div v-if="loading" class="flex h-48 items-center justify-center">
       <LoadingSpinner />
     </div>
-    <div v-else-if="trendData.length > 0 && chartData" class="h-48">
+    <div
+      v-else-if="trendData.length > 0 && chartData"
+      class="token-trend-chart"
+      :class="{ 'token-trend-chart--large': size === 'large' }"
+    >
       <Line :data="chartData" :options="lineOptions" />
     </div>
     <div
       v-else
-      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+      class="flex h-48 items-center justify-center text-sm text-[var(--app-muted)]"
     >
       {{ t('admin.dashboard.noDataAvailable') }}
     </div>
-  </div>
+  </UiSection>
 </template>
 
 <script setup lang="ts">
@@ -34,6 +35,9 @@ import {
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { UiSection } from '@/ui'
+import { useDarkMode } from '@/composables/useDarkMode'
+import { DASHBOARD_TREND_COLORS } from '@/utils/chartPalette'
 import type { TrendDataPoint } from '@/types'
 
 ChartJS.register(
@@ -52,62 +56,69 @@ const { t } = useI18n()
 const props = defineProps<{
   trendData: TrendDataPoint[]
   loading?: boolean
+  size?: 'default' | 'large'
 }>()
 
-const isDarkMode = computed(() => {
-  return document.documentElement.classList.contains('dark')
-})
+const isDarkMode = useDarkMode()
 
 const chartColors = computed(() => ({
-  text: isDarkMode.value ? '#e5e7eb' : '#374151',
-  grid: isDarkMode.value ? '#374151' : '#e5e7eb',
-  input: '#3b82f6',
-  output: '#10b981',
-  cacheCreation: '#f59e0b',
-  cacheRead: '#06b6d4',
-  cacheHitRate: '#8b5cf6'
+  text: isDarkMode.value ? '#b4b4b4' : '#676767',
+  grid: isDarkMode.value ? '#343434' : '#ececec',
+  ...DASHBOARD_TREND_COLORS
 }))
 
 const chartData = computed(() => {
   if (!props.trendData?.length) return null
 
   return {
-    labels: props.trendData.map((d) => d.date),
+    labels: props.trendData.map((d) => formatChartDate(d.date)),
     datasets: [
       {
-        label: 'Input',
+        label: t('dashboard.input'),
         data: props.trendData.map((d) => d.input_tokens),
         borderColor: chartColors.value.input,
         backgroundColor: `${chartColors.value.input}20`,
         fill: true,
-        tension: 0.3
+        tension: 0.28,
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 3
       },
       {
-        label: 'Output',
+        label: t('dashboard.output'),
         data: props.trendData.map((d) => d.output_tokens),
         borderColor: chartColors.value.output,
         backgroundColor: `${chartColors.value.output}20`,
-        fill: true,
-        tension: 0.3
+        fill: false,
+        tension: 0.28,
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 3
       },
       {
-        label: 'Cache Creation',
+        label: t('keyUsage.cacheCreationTokens'),
         data: props.trendData.map((d) => d.cache_creation_tokens),
         borderColor: chartColors.value.cacheCreation,
-        backgroundColor: `${chartColors.value.cacheCreation}20`,
-        fill: true,
-        tension: 0.3
+        backgroundColor: 'transparent',
+        fill: false,
+        tension: 0.28,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        hidden: true
       },
       {
-        label: 'Cache Read',
+        label: t('keyUsage.cacheReadTokens'),
         data: props.trendData.map((d) => d.cache_read_tokens),
         borderColor: chartColors.value.cacheRead,
-        backgroundColor: `${chartColors.value.cacheRead}20`,
-        fill: true,
-        tension: 0.3
+        backgroundColor: 'transparent',
+        fill: false,
+        tension: 0.28,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        hidden: true
       },
       {
-        label: 'Cache Hit Rate',
+        label: `${t('dashboard.cache')} %`,
         data: props.trendData.map((d) => {
           const totalPromptTokens = d.input_tokens + d.cache_read_tokens + d.cache_creation_tokens
           return totalPromptTokens > 0 ? (d.cache_read_tokens / totalPromptTokens) * 100 : 0
@@ -116,7 +127,10 @@ const chartData = computed(() => {
         backgroundColor: `${chartColors.value.cacheHitRate}20`,
         borderDash: [5, 5],
         fill: false,
-        tension: 0.3,
+        tension: 0.28,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        hidden: true,
         yAxisID: 'yPercent'
       }
     ]
@@ -133,11 +147,12 @@ const lineOptions = computed(() => ({
   plugins: {
     legend: {
       position: 'top' as const,
+      align: 'start' as const,
       labels: {
         color: chartColors.value.text,
         usePointStyle: true,
         pointStyle: 'circle',
-        padding: 15,
+        padding: 18,
         font: {
           size: 11
         }
@@ -155,7 +170,7 @@ const lineOptions = computed(() => ({
           const dataIndex = tooltipItems[0]?.dataIndex
           if (dataIndex !== undefined && props.trendData[dataIndex]) {
             const data = props.trendData[dataIndex]
-            return `Actual: $${formatCost(data.actual_cost)} | Standard: $${formatCost(data.cost)}`
+            return `${t('dashboard.actual')}: $${formatCost(data.actual_cost)} · ${t('dashboard.standard')}: $${formatCost(data.cost)}`
           }
           return ''
         }
@@ -165,10 +180,13 @@ const lineOptions = computed(() => ({
   scales: {
     x: {
       grid: {
-        color: chartColors.value.grid
+        display: false
       },
       ticks: {
         color: chartColors.value.text,
+        maxRotation: 0,
+        autoSkip: true,
+        maxTicksLimit: 8,
         font: {
           size: 10
         }
@@ -215,6 +233,17 @@ const formatTokens = (value: number): string => {
   return value.toLocaleString()
 }
 
+const formatChartDate = (value: string): string => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  const hasTime = /T\d{2}:\d{2}/.test(value)
+  return new Intl.DateTimeFormat(undefined, hasTime
+    ? { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }
+    : { month: '2-digit', day: '2-digit' }
+  ).format(date)
+}
+
 const formatCost = (value: number): string => {
   if (value >= 1000) {
     return (value / 1000).toFixed(2) + 'K'
@@ -226,3 +255,19 @@ const formatCost = (value: number): string => {
   return value.toFixed(4)
 }
 </script>
+
+<style scoped>
+.token-trend-chart {
+  height: 12rem;
+}
+
+.token-trend-chart--large {
+  height: 17rem;
+}
+
+@media (max-width: 640px) {
+  .token-trend-chart--large {
+    height: 15rem;
+  }
+}
+</style>

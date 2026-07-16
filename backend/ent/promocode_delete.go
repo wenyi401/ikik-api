@@ -4,12 +4,12 @@ package ent
 
 import (
 	"context"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/promocode"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/promocode"
 )
 
 // PromoCodeDelete is the builder for deleting a PromoCode entity.

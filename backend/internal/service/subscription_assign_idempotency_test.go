@@ -6,48 +6,10 @@ import (
 	"testing"
 	"time"
 
-	dbent "ikik-api/ent"
+	"github.com/stretchr/testify/require"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/pagination"
-	"github.com/dgraph-io/ristretto"
-	"github.com/stretchr/testify/require"
 )
-
-func TestWithSubscriptionUpdateTx_ReusesExistingTransaction(t *testing.T) {
-	existingTx := &dbent.Tx{}
-	ctx := dbent.NewTxContext(context.Background(), existingTx)
-	svc := &SubscriptionService{entClient: &dbent.Client{}}
-
-	called := false
-	err := svc.withSubscriptionUpdateTx(ctx, func(txCtx context.Context) error {
-		called = true
-		require.Same(t, existingTx, dbent.TxFromContext(txCtx))
-		return nil
-	})
-
-	require.NoError(t, err)
-	require.True(t, called)
-}
-
-func TestMaybeInvalidateAssignmentCaches_DefersForOuterTransactionOwner(t *testing.T) {
-	cache, err := ristretto.NewCache(&ristretto.Config{NumCounters: 1_000, MaxCost: 100, BufferItems: 64})
-	require.NoError(t, err)
-	t.Cleanup(cache.Close)
-
-	svc := &SubscriptionService{subCacheL1: cache}
-	key := subCacheKey(7, 9)
-	require.True(t, cache.Set(key, &UserSubscription{ID: 42}, 1))
-	cache.Wait()
-
-	svc.maybeInvalidateAssignmentCaches(7, 9, true)
-	_, cachedBeforeCommit := cache.Get(key)
-	require.True(t, cachedBeforeCommit, "outer transaction must retain caches until its owner commits")
-
-	svc.maybeInvalidateAssignmentCaches(7, 9, false)
-	cache.Wait()
-	_, cachedAfterCommit := cache.Get(key)
-	require.False(t, cachedAfterCommit, "post-commit invalidation must remove the cached subscription")
-}
 
 type groupRepoNoop struct{}
 
@@ -157,16 +119,13 @@ func (userSubRepoNoop) UpdateNotes(context.Context, int64, string) error {
 func (userSubRepoNoop) ActivateWindows(context.Context, int64, time.Time) error {
 	panic("unexpected ActivateWindows call")
 }
-func (userSubRepoNoop) ResetUsageWindows(context.Context, int64, bool, bool, bool, time.Time) error {
-	panic("unexpected ResetUsageWindows call")
-}
-func (userSubRepoNoop) ResetDailyUsage(context.Context, int64, *time.Time, time.Time) error {
+func (userSubRepoNoop) ResetDailyUsage(context.Context, int64, time.Time) error {
 	panic("unexpected ResetDailyUsage call")
 }
-func (userSubRepoNoop) ResetWeeklyUsage(context.Context, int64, *time.Time, time.Time) error {
+func (userSubRepoNoop) ResetWeeklyUsage(context.Context, int64, time.Time) error {
 	panic("unexpected ResetWeeklyUsage call")
 }
-func (userSubRepoNoop) ResetMonthlyUsage(context.Context, int64, *time.Time, time.Time) error {
+func (userSubRepoNoop) ResetMonthlyUsage(context.Context, int64, time.Time) error {
 	panic("unexpected ResetMonthlyUsage call")
 }
 func (userSubRepoNoop) IncrementUsage(context.Context, int64, float64) error {
@@ -215,6 +174,10 @@ func (s *subscriptionUserSubRepoStub) ExistsByUserIDAndGroupID(_ context.Context
 	return ok, nil
 }
 
+func (s *subscriptionUserSubRepoStub) ExistsActiveByUserIDAndGroupID(ctx context.Context, userID, groupID int64) (bool, error) {
+	return s.ExistsByUserIDAndGroupID(ctx, userID, groupID)
+}
+
 func (s *subscriptionUserSubRepoStub) GetByUserIDAndGroupID(_ context.Context, userID, groupID int64) (*UserSubscription, error) {
 	sub := s.byUserGroup[s.key(userID, groupID)]
 	if sub == nil {
@@ -247,24 +210,6 @@ func (s *subscriptionUserSubRepoStub) GetByID(_ context.Context, id int64) (*Use
 	}
 	cp := *sub
 	return &cp, nil
-}
-
-func (s *subscriptionUserSubRepoStub) Update(_ context.Context, sub *UserSubscription) error {
-	if sub == nil {
-		return ErrSubscriptionNilInput
-	}
-	existing := s.byID[sub.ID]
-	if existing == nil {
-		return ErrSubscriptionNotFound
-	}
-	oldKey := s.key(existing.UserID, existing.GroupID)
-	cp := *sub
-	s.byID[cp.ID] = &cp
-	if oldKey != s.key(cp.UserID, cp.GroupID) {
-		delete(s.byUserGroup, oldKey)
-	}
-	s.byUserGroup[s.key(cp.UserID, cp.GroupID)] = &cp
-	return nil
 }
 
 func TestAssignSubscriptionReuseWhenSemanticsMatch(t *testing.T) {

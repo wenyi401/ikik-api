@@ -1,0 +1,1315 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "file": "src/components/account/AccountQuotaDashboard.vue",
+      "text": "<span class=\"text-gray-300\">：{{ item.description }}</span>",
+      "count": 1
+    },
+    {
+      "file": "src/components/account/CreateAccountModal.vue",
+      "text": "<span>{{ showAdvancedOAuth ? '隐藏' : '显示' }}高级选项（自建 OAuth Client）</span>",
+      "count": 1
+    },
+    {
+      "file": "src/components/account/CreateAccountModal.vue",
+      "text": "高并发",
+      "count": 1
+    },
+    {
+      "file": "src/components/account/CreateAccountModal.vue",
+      "text": "个人账号，享受 Google One 订阅配额",
+      "count": 1
+    },
+    {
+      "file": "src/components/account/CreateAccountModal.vue",
+      "text": "企业级，需要 GCP 项目",
+      "count": 1
+    },
+    {
+      "file": "src/components/account/CreateAccountModal.vue",
+      "text": "企业用户",
+      "count": 1
+    },
+    {
+      "file": "src/components/account/CreateAccountModal.vue",
+      "text": "推荐个人用户",
+      "count": 1
+    },
+    {
+      "file": "src/components/account/CreateAccountModal.vue",
+      "text": "无需 GCP",
+      "count": 1
+    },
+    {
+      "file": "src/components/account/CreateAccountModal.vue",
+      "text": "修改归属地",
+      "count": 1
+    },
+    {
+      "file": "src/components/account/CreateAccountModal.vue",
+      "text": "需要激活 GCP 项目并绑定信用卡",
+      "count": 1
+    },
+    {
+      "file": "src/components/account/OAuthAuthorizationFlow.vue",
+      "text": "t('admin.accounts.oauth.openai.accessTokenAuth', '手动输入 AT')",
+      "count": 1
+    },
+    {
+      "file": "src/components/account/OAuthAuthorizationFlow.vue",
+      "text": "t('admin.accounts.oauth.openai.mobileRefreshTokenAuth', '手动输入 Mobile RT')",
+      "count": 1
+    },
+    {
+      "file": "src/components/account/ReAuthAccountModal.vue",
+      "text": "? '个人账号'",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/account/ReAuthAccountModal.vue",
+      "text": "? '个人账号'",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/IntervalRow.vue",
+      "text": "{{ mode === 'image' ? t('admin.channels.form.resolution', '分辨率') : t('admin.channels.form.tierLabel', '层级') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/IntervalRow.vue",
+      "text": "<label class=\"text-xs text-gray-400\">{{ t('admin.channels.form.cacheReadPrice', '缓存R') }} <span class=\"text-gray-300\">$/M</span></label>",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/IntervalRow.vue",
+      "text": "<label class=\"text-xs text-gray-400\">{{ t('admin.channels.form.cacheWritePrice', '缓存W') }} <span class=\"text-gray-300\">$/M</span></label>",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/IntervalRow.vue",
+      "text": "<label class=\"text-xs text-gray-400\">{{ t('admin.channels.form.inputPrice', '输入') }} <span v-if=\"isEmpty\" class=\"text-red-500\">*</span> <span class=\"text-gray-3",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/IntervalRow.vue",
+      "text": "<label class=\"text-xs text-gray-400\">{{ t('admin.channels.form.outputPrice', '输出') }} <span v-if=\"isEmpty\" class=\"text-red-500\">*</span> <span class=\"text-gray-",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/IntervalRow.vue",
+      "text": "<label class=\"text-xs text-gray-400\">{{ t('admin.channels.form.perRequestPrice', '单次价格') }} <span v-if=\"isEmpty\" class=\"text-red-500\">*</span> <span class=\"text",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/IntervalRow.vue",
+      "text": "<label class=\"text-xs text-gray-400\">Max <span class=\"text-gray-300\">(含)</span></label>",
+      "count": 2
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": ":placeholder=\"t('admin.channels.form.modelsPlaceholder', '输入模型名后按回车添加，支持通配符 *')\"",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "{{ t('admin.channels.form.billingMode', '计费模式') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "{{ t('admin.channels.form.defaultImagePrice', '默认图片价格（未命中层级时使用）') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "{{ t('admin.channels.form.defaultPerRequestPrice', '默认单次价格（未命中层级时使用）') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "{{ t('admin.channels.form.defaultPrices', '默认价格（未命中区间时使用）') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "{{ t('admin.channels.form.imageTiers', '图片计费层级（按次）') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "{{ t('admin.channels.form.intervals', '上下文区间定价（可选）') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "{{ t('admin.channels.form.models', '模型列表') }} <span class=\"text-red-500\">*</span>",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "{{ t('admin.channels.form.noModels', '未添加模型') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "{{ t('admin.channels.form.noTiersYet', '暂无层级，点击添加配置按次计费价格') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "{{ t('admin.channels.form.pricingEntry', '定价配置') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "{{ t('admin.channels.form.requestTiers', '按次计费层级') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "+ {{ t('admin.channels.form.addInterval', '添加区间') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "+ {{ t('admin.channels.form.addTier', '添加层级') }}",
+      "count": 2
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "<label class=\"text-xs text-gray-400\">{{ t('admin.channels.form.cacheReadPrice', '缓存读取') }}</label>",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "<label class=\"text-xs text-gray-400\">{{ t('admin.channels.form.cacheWritePrice', '缓存写入') }}</label>",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "<label class=\"text-xs text-gray-400\">{{ t('admin.channels.form.imageTokenPrice', '图片输出') }}</label>",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "<label class=\"text-xs text-gray-400\">{{ t('admin.channels.form.inputPrice', '输入') }}</label>",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "<label class=\"text-xs text-gray-400\">{{ t('admin.channels.form.outputPrice', '输出') }}</label>",
+      "count": 1
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "type=\"number\" step=\"any\" min=\"0\" class=\"input mt-0.5 text-sm\" :placeholder=\"t('admin.channels.form.pricePlaceholder', '默认')\" />",
+      "count": 5
+    },
+    {
+      "file": "src/components/admin/channel/PricingEntryCard.vue",
+      "text": "type=\"number\" step=\"any\" min=\"0\" class=\"input text-sm\" :placeholder=\"t('admin.channels.form.pricePlaceholder', '默认')\" />",
+      "count": 2
+    },
+    {
+      "file": "src/components/admin/monitor/MonitorTemplateApplyPickerDialog.vue",
+      "text": "{{ t('admin.channelMonitor.onlyDisabled').replace(/^仅|^Only /, '') }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/auth/LoginAgreementPrompt.vue",
+      "text": "{{ hasError ? errorMessage : '提交前请先查看并同意条款。' }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/auth/LoginAgreementPrompt.vue",
+      "text": "<p class=\"font-medium\">继续{{ actionName }}前需要先同意最新条款。</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/auth/LoginAgreementPrompt.vue",
+      "text": "<p class=\"text-sm font-semibold text-gray-900 dark:text-white\">相关文档</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/auth/LoginAgreementPrompt.vue",
+      "text": "<span v-if=\"index < documents.length - 1\">、</span>",
+      "count": 1
+    },
+    {
+      "file": "src/components/auth/LoginAgreementPrompt.vue",
+      "text": "查看条款",
+      "count": 1
+    },
+    {
+      "file": "src/components/auth/LoginAgreementPrompt.vue",
+      "text": "拒绝",
+      "count": 1
+    },
+    {
+      "file": "src/components/auth/LoginAgreementPrompt.vue",
+      "text": "条款更新通知",
+      "count": 1
+    },
+    {
+      "file": "src/components/auth/LoginAgreementPrompt.vue",
+      "text": "同意并继续",
+      "count": 1
+    },
+    {
+      "file": "src/components/auth/LoginAgreementPrompt.vue",
+      "text": "我们的服务条款已于 {{ updatedAt || '近期' }} 更新。在继续使用服务之前，请仔细阅读并同意以下条款。",
+      "count": 1
+    },
+    {
+      "file": "src/components/auth/LoginAgreementPrompt.vue",
+      "text": "我已阅读并同意",
+      "count": 1
+    },
+    {
+      "file": "src/components/common/GroupOptionItem.vue",
+      "text": "{{ rateMultiplier }}x 倍率",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "{{ currentReceiptCode ? `已保存于 ${formatDateTime(currentReceiptCode.updated_at)}` : '当前方式还未保存收款码' }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "{{ draftFile ? '清除' : '删除' }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "{{ hasPendingWithdrawal ? '已有待结算' : '可提交' }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "{{ submitting ? t('common.processing') : '提交提现申请' }}",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<h3 class=\"text-lg font-semibold text-gray-900 dark:text-white\">余额提现与收款码</h3>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<label class=\"mt-4 block text-sm font-medium text-gray-700 dark:text-gray-300\">提现金额</label>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<p class=\"mt-1 text-xs text-gray-500 dark:text-gray-400\">待结算申请可取消，取消后金额退回余额。</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<p class=\"mt-1 text-xs text-gray-500 dark:text-gray-400\">上传后保存，提交提现时会保存本次收款码快照。</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<p class=\"mt-1 text-xs text-gray-500 dark:text-gray-400\">同一用户只能保留一笔待结算提现。</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<p class=\"text-sm font-medium text-gray-700 dark:text-gray-300\">本次收款码</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<p class=\"text-sm font-semibold text-gray-900 dark:text-white\">收款码管理</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<p class=\"text-sm font-semibold text-gray-900 dark:text-white\">提交提现</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<p class=\"text-sm font-semibold text-gray-900 dark:text-white\">提现记录</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<p class=\"text-xs text-gray-500 dark:text-gray-400\">扣除</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<p class=\"text-xs text-gray-500 dark:text-gray-400\">提现金额</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<p class=\"text-xs text-gray-500 dark:text-gray-400\">提现状态</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<p class=\"text-xs text-primary-600 dark:text-primary-300\">当前余额</p>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<span class=\"text-gray-500 dark:text-gray-400\">本次扣除</span>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<span class=\"text-gray-500 dark:text-gray-400\">首次手续费</span>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<span class=\"text-gray-500 dark:text-gray-400\">提现金额</span>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "<span class=\"text-sm\">未上传{{ methodLabel(selectedMethod) }}收款码</span>",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "取消提现",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "上传",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "已选择新图片，保存后才能用于提现。",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "用户账户余额可提现，最低 1.00 元，金额最多保留两位小数。首次提交提现申请额外扣除 0.10 元。",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "暂无提现记录",
+      "count": 1
+    },
+    {
+      "file": "src/components/user/profile/ProfileWithdrawalCard.vue",
+      "text": "最近 {{ withdrawals.length }} 笔",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ChannelsView.vue",
+      "text": "({{ t('admin.channels.form.selectedCount', { count: section.group_ids.length }, `已选 ${section.group_ids.length} 个`) }})",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ChannelsView.vue",
+      "text": "{{ t('admin.channels.form.basicSettings', '基础设置') }}",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ChannelsView.vue",
+      "text": "<label class=\"input-label mb-0\">{{ t('admin.channels.form.platformConfig', '平台配置') }}</label>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/GroupsView.vue",
+      "text": ": \"未启用\"",
+      "count": 4
+    },
+    {
+      "file": "src/views/admin/GroupsView.vue",
+      "text": "? \"已启用 — 排除 API Key 类型账号\"",
+      "count": 2
+    },
+    {
+      "file": "src/views/admin/GroupsView.vue",
+      "text": "? \"已启用 — Privacy 未设置的账号将被排除\"",
+      "count": 2
+    },
+    {
+      "file": "src/views/admin/GroupsView.vue",
+      "text": ">仅允许 OAuth 账号</label",
+      "count": 2
+    },
+    {
+      "file": "src/views/admin/GroupsView.vue",
+      "text": ">仅允许隐私保护已设置的账号</label",
+      "count": 2
+    },
+    {
+      "file": "src/views/admin/GroupsView.vue",
+      "text": "账号过滤控制",
+      "count": 2
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsDashboardHeader.vue",
+      "text": "<span>剩余 {{ props.autoRefreshCountdown }}s</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "{{ runtimeSaving ? '保存中...' : '保存并生效' }}",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<button type=\"button\" class=\"btn btn-danger btn-sm\" @click=\"cleanupCurrentFilter\">按当前筛选清理</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<button type=\"button\" class=\"btn btn-primary btn-sm\" @click=\"applyFilters\">查询</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<button type=\"button\" class=\"btn btn-secondary btn-sm\" @click=\"fetchHealth\">刷新健康指标</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<button type=\"button\" class=\"btn btn-secondary btn-sm\" @click=\"resetFilters\">重置</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<div class=\"text-xs font-semibold text-gray-700 dark:text-gray-200\">运行时日志配置（实时生效）</div>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<div v-else-if=\"!hasData\" class=\"px-4 py-8 text-center text-sm text-gray-500\">暂无系统日志</div>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<div v-if=\"loading\" class=\"px-4 py-8 text-center text-sm text-gray-500\">加载中...</div>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<h3 class=\"text-sm font-bold text-gray-900 dark:text-white\">系统日志</h3>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<input v-model=\"filters.component\" type=\"text\" class=\"input mt-1\" placeholder=\"如 http.access\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<input v-model=\"filters.q\" type=\"text\" class=\"input mt-1\" placeholder=\"消息/request_id\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<p class=\"mt-1 text-xs text-gray-500 dark:text-gray-400\">默认按最新时间倒序，支持筛选搜索与按条件清理。</p>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<p v-if=\"health.last_error\" class=\"mt-2 text-xs text-red-600 dark:text-red-400\">最近写入错误：{{ health.last_error }}</p>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<span class=\"rounded-md bg-amber-100 px-2 py-1 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300\">丢弃 {{ health.dropped_count }}</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<span class=\"rounded-md bg-gray-100 px-2 py-1 text-gray-700 dark:bg-dark-700 dark:text-gray-200\">队列 {{ health.queue_depth }}/{{ health.queue_capacity }}</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<span class=\"rounded-md bg-gray-100 px-2 py-1 text-gray-700 dark:bg-dark-700 dark:text-gray-200\">写入 {{ health.written_count }}</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<span class=\"rounded-md bg-red-100 px-2 py-1 text-red-700 dark:bg-red-900/30 dark:text-red-300\">失败 {{ health.write_failed_count }}</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<span v-if=\"runtimeLoading\" class=\"text-xs text-gray-500\">加载中...</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<th class=\"px-3 py-2 text-left text-[11px] font-semibold text-gray-500\">日志详细信息</th>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<th class=\"w-[170px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500\">时间</th>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "<th class=\"w-[80px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500\">级别</th>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "保留天数",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "采样初始",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "采样后续",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "堆栈阈值",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "关键词",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "回滚默认值",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "级别",
+      "count": 2
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "结束时间（可选）",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "开始时间（可选）",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "模型",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "平台",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "时间范围",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/ops/components/OpsSystemLogTable.vue",
+      "text": "组件",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "{{ processAction === 'settle' ? '确认已向用户收款码完成打款。' : '拒绝后会自动退回本次扣除金额。' }}",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "{{ processing ? '处理中' : '确认' }}",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<BaseDialog :show=\"!!detailTarget\" title=\"提现详情\" width=\"wide\" @close=\"detailTarget = null\">",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<BaseDialog :show=\"!!processTarget\" :title=\"processAction === 'settle' ? '确认已打款' : '拒绝提现'\" width=\"narrow\" @close=\"processTarget = null\">",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<BaseDialog :show=\"!!receiptTarget\" title=\"收款码快照\" width=\"narrow\" @close=\"closeReceipt\">",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<button class=\"btn btn-secondary btn-sm\" @click=\"openReceipt(row)\">查看收款码</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<button class=\"btn btn-secondary\" @click=\"processTarget = null\">取消</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<InfoItem class=\"sm:col-span-2\" label=\"备注\" :value=\"detailTarget.admin_note || detailTarget.user_cancel_reason || '-'\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<InfoItem label=\"处理时间\" :value=\"detailTarget.processed_at ? formatDate(detailTarget.processed_at) : '-'\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<InfoItem label=\"申请后余额\" :value=\"'$' + detailTarget.balance_after.toFixed(2)\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<InfoItem label=\"申请前余额\" :value=\"'$' + detailTarget.balance_before.toFixed(2)\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<InfoItem label=\"申请时间\" :value=\"formatDate(detailTarget.created_at)\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<InfoItem label=\"手续费\" :value=\"'$' + detailTarget.fee_amount.toFixed(2)\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<InfoItem label=\"提现单号\" :value=\"'#' + detailTarget.id\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<InfoItem label=\"提现金额\" :value=\"'$' + detailTarget.amount.toFixed(2)\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<InfoItem label=\"用户邮箱\" :value=\"detailTarget.user_email\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<InfoItem label=\"用户ID\" :value=\"String(detailTarget.user_id)\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<InfoItem label=\"状态\" :value=\"statusLabel(detailTarget.status)\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<input v-model=\"keyword\" type=\"text\" placeholder=\"搜索邮箱或提现单号\" class=\"input\" @input=\"debounceLoad\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<p class=\"break-all\">SHA256：{{ receiptTarget.receipt_code_sha256 }}</p>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<p class=\"text-xs text-gray-500 dark:text-gray-400\">扣除 ${{ row.total_deducted.toFixed(2) }}</p>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<p>方式：{{ methodLabel(receiptTarget.payment_method) }}</p>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<span class=\"text-sm\">收款码图片暂不可访问</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<span class=\"text-sm\">图片加载中</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "<textarea v-model=\"processNote\" rows=\"3\" class=\"input\" placeholder=\"备注\"></textarea>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "查看",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "拒绝",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "确认打款",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/orders/AdminWithdrawalsView.vue",
+      "text": "alt=\"收款码\"",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "'公众号 AppID',",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "'公众号 AppSecret',",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "'密钥已配置，留空以保留当前值。',",
+      "count": 3
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "'微信开放平台 PC 应用 AppID',",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "'微信开放平台 PC 应用 AppSecret',",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "'移动应用 AppID',",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "'移动应用 AppSecret',",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"公众号 AppSecret\",",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"仅在微信内浏览器可用；非微信环境下会显示不可用。\",",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"开通引导：Google Cloud Console → APIs & Services → OAuth consent screen 完成同意屏幕；Credentials → Create Credentials → OAuth client ID，类型选择 Web application，并把下面地址加入 Auth",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"控制登录页是否要求用户先阅读并同意服务条款、隐私政策或其他 Markdown 文档。\",",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"浏览器回调地址\",",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"配置邮箱型第三方 OAuth 登录入口，用户可通过 GitHub 或 Google 完成登录与注册。\",",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"如果同时启用 PC 应用和公众号/移动应用，这些应用需要挂在同一个微信开放平台主体下，否则 UnionID 无法稳定归并账号。\",",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"文档名称可自定义，内容按 Markdown 保存。可参考：服务条款、使用政策、支持的国家和地区、服务特定条款。\",",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"用于 PC 应用和公众号的网页回调。移动应用走原生 SDK 时不直接使用这个浏览器回调。\",",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"原生移动端通过微信 SDK 唤起授权，网页端不会直接发起该流程。\",",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"桌面浏览器通过微信开放平台扫码登录。可与公众号或移动应用同时存在。\",",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"GitHub OAuth App 需要 read:user user:email 权限，回调地址填写下方后端地址。\",",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "\"Google OAuth 客户端需要 openid email profile 范围，并在凭据里登记后端回调地址。\",",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "→ New OAuth App；Homepage URL 填站点域名，Authorization callback URL 填下面的后端回调地址。",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SettingsView.vue",
+      "text": "开通引导：GitHub Settings → Developer settings →",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "{{ leaseBulkSaving ? `添加中 ${leaseBulkProgress.done}/${leaseBulkProgress.total}` : `添加全部 ${bulkLeaseAccounts.length} 个账号` }}",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "{{ leaseBulkUpdating ? `保存中 ${leaseBulkProgress.done}/${leaseBulkProgress.total}` : '保存所选租约设置' }}",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "{{ leaseSaving ? '创建中...' : '创建租约' }}",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "{{ resettingSecret ? '修复中...' : '重置密钥' }}",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<BaseDialog :show=\"!!createdSecret\" title=\"子站密钥\" width=\"normal\" @close=\"createdSecret = ''\">",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<BaseDialog :show=\"!!leaseSubsite\" :title=\"leaseSubsite ? `租约 - ${leaseSubsite.name}` : '租约'\" width=\"full\" @close=\"closeLeases\">",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<BaseDialog :show=\"!!resetTarget\" title=\"修复子站连通\" width=\"normal\" @close=\"closeResetSecret\">",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<BaseDialog :show=\"showForm\" :title=\"editing ? '编辑子站' : '新建子站'\" width=\"wide\" @close=\"closeForm\">",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button class=\"btn btn-primary\" @click=\"closeResetSecret\">完成</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button class=\"btn btn-secondary\" :disabled=\"resettingSecret\" @click=\"closeResetSecret\">取消</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button class=\"btn btn-secondary\" @click=\"copy(createdSecret)\">复制</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button class=\"btn btn-secondary\" @click=\"copy(resetEnvText)\">复制环境变量</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button class=\"btn btn-secondary\" @click=\"copy(resetSecretResult.secret)\">复制</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button class=\"btn btn-sm btn-danger\" @click=\"deleteLease(row)\">删除</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button class=\"btn btn-sm btn-secondary\" @click=\"copyClientConfig(row)\">复制配置</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button class=\"btn btn-sm btn-secondary\" @click=\"openEdit(row)\">编辑</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button class=\"btn btn-sm btn-secondary\" @click=\"openLeases(row)\">租约</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button class=\"btn btn-sm btn-secondary\" @click=\"renewLease(row)\">续租 24h</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button type=\"button\" class=\"btn btn-secondary\" @click=\"closeForm\">取消</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button type=\"submit\" class=\"btn btn-primary\" :disabled=\"saving\">{{ saving ? '保存中...' : '保存' }}</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button v-if=\"row.status !== 'released'\" class=\"btn btn-sm btn-danger\" @click=\"releaseLease(row)\">释放</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button v-if=\"row.status === 'active' || row.status === 'renewing'\" class=\"btn btn-sm btn-secondary\" @click=\"drainLease(row)\">排空</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button v-if=\"row.status === 'active'\" class=\"btn btn-sm btn-secondary\" @click=\"changeStatus(row, 'pause')\">暂停</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button v-if=\"row.status === 'maintenance'\" class=\"btn btn-sm btn-primary\" @click=\"changeStatus(row, 'resume')\">恢复</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button v-if=\"row.status === 'pending' || row.status === 'unhealthy'\" class=\"btn btn-sm btn-primary\" @click=\"changeStatus(row, 'activate')\">激活</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button v-if=\"row.status === 'pending' || row.status === 'unhealthy'\" class=\"btn btn-sm btn-secondary\" @click=\"openResetSecret(row)\">修复</button>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<button v-if=\"value\" class=\"rounded p-1 text-gray-400 hover:text-primary-600 dark:hover:text-primary-300\" title=\"复制 URL\" @click.stop=\"copy(value)\">",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<h3 class=\"text-sm font-semibold text-gray-900 dark:text-white\">批量更改设置</h3>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<h3 class=\"text-sm font-semibold text-gray-900 dark:text-white\">新增租约</h3>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<input v-model.trim=\"form.subsite_id\" class=\"input\" :disabled=\"!!editing\" placeholder=\"留空自动生成\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<input v-model=\"search\" type=\"text\" class=\"input min-h-[44px] pl-10\" placeholder=\"搜索名称、ID 或 URL\" @input=\"handleSearch\" />",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<option :value=\"0\" disabled>选择分组</option>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<option :value=\"0\" disabled>选择账号</option>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<option value=\"\">全部状态</option>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<option value=\"active\">运行中</option>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<option value=\"disabled\">已停用</option>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<option value=\"maintenance\">维护中</option>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<option value=\"pending\">待激活</option>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<option value=\"unhealthy\">异常</option>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<p class=\"mt-1 text-xs text-gray-500 dark:text-gray-400\">已选择 {{ selectedLeaseIDs.size }} 个租约</p>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<p class=\"text-sm text-gray-600 dark:text-gray-300\">密钥只显示一次，请写入子站镜像服务的环境变量。</p>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<p class=\"text-xs text-gray-500 dark:text-gray-400\">请确认 SUBSITE_MASTER_URL 是子站能够访问到的主站根地址，不要带 /api/v1。</p>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<p v-if=\"leaseAccountsLoading\" class=\"mt-1 text-xs text-gray-500 dark:text-gray-400\">正在按分组加载主站账号...</p>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">版本</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">分组</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">名称</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">能力标签</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">区域</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">随机数量</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">账号</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">子站 ID</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">最大 QPS</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">最大 Token</span>",
+      "count": 2
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">最大并发</span>",
+      "count": 2
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">最大请求数</span>",
+      "count": 2
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "<span class=\"form-label\">TTL 小时</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "批量删除",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "批量释放",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "批量续租",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "请求 {{ row.used_requests }} / {{ row.max_requests || '-' }}",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "随机 {{ randomTenCount }} 个",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "随机 {{ randomTwentyCount }} 个",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "随机自定义 {{ normalizedLeaseRandomCount }} 个",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "新建子站",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "这会重置 {{ resetTarget?.name }} 的主站认证密钥。旧子站密钥会立即失效，必须把新密钥写入子站环境变量并重启子站后，心跳才会恢复。",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "placeholder=\"输入账号 ID、名称或平台搜索\"",
+      "count": 1
+    },
+    {
+      "file": "src/views/admin/SubsitesView.vue",
+      "text": "QPS {{ row.max_qps || '-' }} / 并发 {{ row.max_concurrency || '-' }}",
+      "count": 1
+    },
+    {
+      "file": "src/views/auth/LoginView.vue",
+      "text": "action-name=\"登录\"",
+      "count": 1
+    },
+    {
+      "file": "src/views/auth/RegisterView.vue",
+      "text": "action-name=\"注册\"",
+      "count": 1
+    },
+    {
+      "file": "src/views/public/LegalDocumentView.vue",
+      "text": "<h1 class=\"text-lg font-semibold text-gray-900 dark:text-white\">文档不存在</h1>",
+      "count": 1
+    },
+    {
+      "file": "src/views/public/LegalDocumentView.vue",
+      "text": "<h1 class=\"text-lg font-semibold\">文档加载失败</h1>",
+      "count": 1
+    },
+    {
+      "file": "src/views/public/LegalDocumentView.vue",
+      "text": "<p class=\"mt-2 text-sm\">请稍后刷新页面重试。</p>",
+      "count": 1
+    },
+    {
+      "file": "src/views/public/LegalDocumentView.vue",
+      "text": "<p class=\"text-sm font-medium text-primary-700 dark:text-primary-300\">登录条款</p>",
+      "count": 1
+    },
+    {
+      "file": "src/views/public/LegalDocumentView.vue",
+      "text": "当前条款文档不存在或已被管理员移除。",
+      "count": 1
+    },
+    {
+      "file": "src/views/public/LegalDocumentView.vue",
+      "text": "登录",
+      "count": 1
+    },
+    {
+      "file": "src/views/public/LegalDocumentView.vue",
+      "text": "更新日期：{{ updatedAt }}",
+      "count": 1
+    },
+    {
+      "file": "src/views/public/LegalDocumentView.vue",
+      "text": "暂无正文内容",
+      "count": 1
+    },
+    {
+      "file": "src/views/user/KeysView.vue",
+      "text": "<label class=\"mb-1 block text-xs text-gray-500 dark:text-dark-400\">分组</label>",
+      "count": 1
+    },
+    {
+      "file": "src/views/user/KeysView.vue",
+      "text": "<label class=\"mb-1 block text-xs text-gray-500 dark:text-dark-400\">冷却秒数</label>",
+      "count": 1
+    },
+    {
+      "file": "src/views/user/KeysView.vue",
+      "text": "<label class=\"mb-1 block text-xs text-gray-500 dark:text-dark-400\">权重</label>",
+      "count": 1
+    },
+    {
+      "file": "src/views/user/KeysView.vue",
+      "text": "<label class=\"mb-1 block text-xs text-gray-500 dark:text-dark-400\">优先级</label>",
+      "count": 1
+    },
+    {
+      "file": "src/views/user/KeysView.vue",
+      "text": "<label class=\"text-sm font-medium text-gray-700 dark:text-dark-200\">多分组路由</label>",
+      "count": 1
+    },
+    {
+      "file": "src/views/user/KeysView.vue",
+      "text": "<span class=\"text-sm font-medium text-gray-700 dark:text-dark-200\">路由配置</span>",
+      "count": 1
+    },
+    {
+      "file": "src/views/user/KeysView.vue",
+      "text": "开启后可按优先级和权重为同一个 Key 配置多个分组",
+      "count": 1
+    },
+    {
+      "file": "src/views/user/KeysView.vue",
+      "text": "启用",
+      "count": 1
+    },
+    {
+      "file": "src/views/user/KeysView.vue",
+      "text": "添加路由",
+      "count": 1
+    }
+  ]
+}

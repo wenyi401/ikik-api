@@ -1,36 +1,29 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
+    <UiPage width="wide">
       <div v-if="loading" class="flex items-center justify-center py-16">
-        <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
+        <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-current"></div>
       </div>
 
       <template v-else>
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.title') }}</h1>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.description') }}</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <button type="button" class="btn btn-secondary inline-flex items-center gap-2" :disabled="statusLoading" @click="loadStatus(false)">
-              <Icon name="refresh" size="sm" :class="statusLoading ? 'animate-spin' : ''" />
-              {{ t('admin.riskControl.refreshStatus') }}
-            </button>
+        <div class="flex items-center justify-end gap-2">
+            <UiIconButton :label="t('admin.riskControl.refreshStatus')" :disabled="statusLoading" @click="loadStatus(false)">
+              <Icon name="refresh" size="md" :class="statusLoading ? 'animate-spin' : ''" />
+            </UiIconButton>
             <button type="button" class="btn btn-primary inline-flex items-center gap-2" @click="openSettings">
               <Icon name="cog" size="sm" />
               {{ t('admin.riskControl.openSettings') }}
             </button>
-          </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div class="risk-overview">
           <div
             v-for="item in overviewItems"
             :key="item.key"
-            class="rounded-lg border border-gray-100 bg-white px-4 py-3 shadow-sm dark:border-dark-700 dark:bg-dark-800"
+            class="risk-overview-item"
           >
             <div class="flex min-w-0 items-center gap-3">
-              <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg" :class="item.iconClass">
+              <div class="risk-overview-icon">
                 <Icon :name="item.icon" size="sm" />
               </div>
               <div class="min-w-0 flex-1">
@@ -38,14 +31,13 @@
                   <p class="truncate text-xs font-medium text-gray-500 dark:text-gray-400">{{ item.label }}</p>
                   <span
                     v-if="item.badge"
-                    class="inline-flex flex-shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                    :class="item.badgeClass"
+                    class="risk-overview-badge"
                   >
                     {{ item.badge }}
                   </span>
                 </div>
                 <div class="mt-1 flex min-w-0 items-baseline gap-2">
-                  <p class="truncate text-xl font-semibold leading-7 text-gray-900 dark:text-white">{{ item.value }}</p>
+                  <p class="truncate text-xl font-semibold leading-7 text-[var(--app-text)]">{{ item.value }}</p>
                   <p v-if="item.meta" class="truncate text-xs text-gray-500 dark:text-gray-400">{{ item.meta }}</p>
                 </div>
               </div>
@@ -58,7 +50,7 @@
           data-test="pre-block-runtime-cards"
           class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]"
         >
-          <div data-test="pre-block-sync-card" class="card">
+          <div data-test="pre-block-sync-card" class="risk-section">
             <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.preBlockSyncStatus') }}</h2>
@@ -74,8 +66,7 @@
                 <div
                   v-for="item in preBlockMetricItems"
                   :key="item.key"
-                  class="rounded-lg p-4"
-                  :class="item.class"
+                  class="risk-metric"
                 >
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ item.label }}</p>
                   <p class="mt-2 truncate text-2xl font-semibold leading-8" :class="item.valueClass">{{ item.value }}</p>
@@ -85,7 +76,7 @@
             </div>
           </div>
 
-          <div data-test="pre-block-api-key-load-card" class="card">
+          <div data-test="pre-block-api-key-load-card" class="risk-section">
             <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.preBlockAPIKeyLoad') }}</h2>
@@ -107,7 +98,7 @@
                 <div
                   v-for="item in preBlockAPIKeyLoads"
                   :key="item.key_hash || item.index"
-                  class="rounded-lg bg-gray-50 p-3 dark:bg-dark-700/50"
+                  class="risk-list-row"
                 >
                   <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div class="min-w-0">
@@ -144,14 +135,14 @@
                   </div>
                 </div>
               </div>
-              <p v-else class="rounded-lg bg-gray-50 p-4 text-sm text-gray-500 dark:bg-dark-700/50 dark:text-gray-400">
+              <p v-else class="risk-empty">
                 {{ t('admin.riskControl.preBlockAPIKeyLoadEmpty') }}
               </p>
             </div>
           </div>
         </div>
 
-        <div v-if="showWorkerRuntimeCard" class="card">
+        <div v-if="showWorkerRuntimeCard" class="risk-section">
           <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.workerStatus') }}</h2>
@@ -183,19 +174,19 @@
               </div>
 
               <div class="grid grid-cols-2 gap-3">
-                <div class="rounded-lg bg-gray-50 p-4 dark:bg-dark-700/50">
+                <div class="risk-metric">
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.activeWorkers') }}</p>
                   <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ status?.active_workers ?? 0 }}</p>
                 </div>
-                <div class="rounded-lg bg-emerald-50 p-4 dark:bg-emerald-900/10">
+                <div class="risk-metric">
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.idleWorkers') }}</p>
                   <p class="mt-2 text-2xl font-semibold text-emerald-700 dark:text-emerald-300">{{ status?.idle_workers ?? configForm.worker_count }}</p>
                 </div>
-                <div class="rounded-lg bg-gray-50 p-4 dark:bg-dark-700/50">
+                <div class="risk-metric">
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.processed') }}</p>
                   <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ formatNumber(status?.processed ?? 0) }}</p>
                 </div>
-                <div class="rounded-lg bg-gray-50 p-4 dark:bg-dark-700/50">
+                <div class="risk-metric">
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.droppedErrors') }}</p>
                   <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ formatNumber((status?.dropped ?? 0) + (status?.errors ?? 0)) }}</p>
                 </div>
@@ -230,7 +221,9 @@
           </div>
         </div>
 
-        <div class="card">
+        <AdaptiveRiskProfiles v-if="configForm.mode === 'adaptive'" class="mt-6" />
+
+        <div class="risk-section">
           <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -243,7 +236,7 @@
               </button>
             </div>
 
-            <div class="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900/30 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col gap-2 border-y border-gray-100 px-0 py-2 dark:border-dark-700 sm:flex-row sm:items-center sm:justify-between">
               <div class="flex min-w-0 items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                 <Icon name="filter" size="sm" class="flex-shrink-0 text-gray-400" />
                 <span class="font-medium">{{ t('admin.riskControl.modelFilter') }}</span>
@@ -275,7 +268,7 @@
 
           <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
-              <thead class="bg-gray-50 dark:bg-dark-800">
+              <thead>
                 <tr>
                   <th class="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.table.time') }}</th>
                   <th class="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.table.group') }}</th>
@@ -317,7 +310,7 @@
                     <td class="whitespace-nowrap px-5 py-4 text-sm text-gray-700 dark:text-gray-300">
                       <div>{{ row.highest_category || '-' }}</div>
                       <div class="text-xs text-gray-400">{{ percent(row.highest_score) }}</div>
-                      <div v-if="row.matched_keyword" class="mt-0.5 text-xs font-medium text-red-600 dark:text-red-300" :title="t('admin.riskControl.matchedKeyword') + ': ' + row.matched_keyword">
+                      <div v-if="row.matched_keyword" class="mt-0.5 max-w-[220px] truncate text-xs font-medium text-red-600 dark:text-red-300" :title="t('admin.riskControl.matchedKeyword') + ': ' + row.matched_keyword">
                         {{ t('admin.riskControl.matchedKeyword') }}: {{ row.matched_keyword }}
                       </div>
                     </td>
@@ -402,13 +395,76 @@
                 <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ modeDescription(configForm.mode) }}</p>
               </div>
               <div>
+                <label class="input-label">{{ t('admin.riskControl.provider') }}</label>
+                <Select v-model="configForm.moderation_provider" :options="providerOptions" />
+              </div>
+              <div v-if="configForm.moderation_provider !== 'aliyun_guardrails'">
                 <label class="input-label">{{ t('admin.riskControl.baseUrl') }}</label>
                 <input v-model.trim="configForm.base_url" type="url" class="input" placeholder="https://api.openai.com" />
               </div>
-              <div>
+              <div v-if="configForm.moderation_provider !== 'aliyun_guardrails'">
                 <label class="input-label">{{ t('admin.riskControl.model') }}</label>
                 <input v-model.trim="configForm.model" type="text" class="input" placeholder="omni-moderation-latest" />
               </div>
+              <div v-if="configForm.moderation_provider === 'model_classifier'" class="space-y-3 lg:col-span-2">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <label class="input-label">{{ t('admin.riskControl.classifierPrompt') }}</label>
+                    <p class="text-xs leading-5 text-[var(--app-muted)]">{{ t('admin.riskControl.classifierPromptHint') }}</p>
+                  </div>
+                  <div class="inline-flex w-fit rounded-lg bg-gray-100 p-1 dark:bg-dark-700">
+                    <button
+                      type="button"
+                      class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+                      :class="configForm.classifier_prompt_mode === 'default' ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-800 dark:text-white' : 'text-gray-500 dark:text-gray-300'"
+                      @click="setClassifierPromptMode('default')"
+                    >
+                      {{ t('admin.riskControl.classifierPromptDefault') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+                      :class="configForm.classifier_prompt_mode === 'custom' ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-800 dark:text-white' : 'text-gray-500 dark:text-gray-300'"
+                      @click="setClassifierPromptMode('custom')"
+                    >
+                      {{ t('admin.riskControl.classifierPromptCustom') }}
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  v-if="configForm.classifier_prompt_mode === 'custom'"
+                  v-model="configForm.classifier_prompt"
+                  rows="11"
+                  maxlength="20000"
+                  class="input min-h-56 resize-y font-mono text-xs leading-5"
+                ></textarea>
+                <textarea
+                  v-else
+                  :value="configForm.classifier_prompt_default"
+                  rows="11"
+                  readonly
+                  class="input min-h-56 resize-y bg-gray-50 font-mono text-xs leading-5 text-[var(--app-muted)] dark:bg-dark-900/40"
+                ></textarea>
+                <div class="flex items-center justify-between text-xs text-[var(--app-muted)]">
+                  <span>{{ t('admin.riskControl.classifierPromptContract') }}</span>
+                  <span v-if="configForm.classifier_prompt_mode === 'custom'">{{ configForm.classifier_prompt.length }} / 20000</span>
+                </div>
+              </div>
+              <template v-if="configForm.moderation_provider === 'aliyun_guardrails'">
+                <div>
+                  <label class="input-label">{{ t('admin.riskControl.aliyunRegionId') }}</label>
+                  <input v-model.trim="configForm.aliyun_region_id" type="text" class="input" placeholder="cn-shanghai" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.riskControl.aliyunEndpoint') }}</label>
+                  <input v-model.trim="configForm.aliyun_endpoint" type="text" class="input" placeholder="green-cip.cn-shanghai.aliyuncs.com" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.riskControl.aliyunService') }}</label>
+                  <input v-model.trim="configForm.aliyun_service" type="text" class="input" placeholder="query_security_check_cb" />
+                  <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.aliyunServiceHint') }}</p>
+                </div>
+              </template>
               <div>
                 <label class="input-label">{{ t('admin.riskControl.timeoutMs') }}</label>
                 <input v-model.number="configForm.timeout_ms" type="number" min="500" max="30000" class="input" />
@@ -417,7 +473,7 @@
                 <label class="input-label">{{ t('admin.riskControl.retryCount') }}</label>
                 <input v-model.number="configForm.retry_count" type="number" min="0" max="5" class="input" />
               </div>
-              <div>
+              <div v-if="configForm.mode !== 'adaptive'">
                 <label class="input-label">{{ t('admin.riskControl.sampleRate') }}</label>
                 <div class="relative">
                   <input v-model.number="configForm.sample_rate" type="number" min="0" max="100" step="1" class="input pr-8" />
@@ -671,7 +727,7 @@
                     </div>
                     <div class="mt-3">
                       <div class="mb-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                        <span>{{ t('admin.riskControl.auditTestComposite') }}</span>
+                        <span>{{ t('admin.riskControl.auditTestDispositionScore') }}</span>
                         <span class="font-semibold text-gray-900 dark:text-white">{{ percent(moderationTestResult.composite_score) }}</span>
                       </div>
                       <div class="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
@@ -682,13 +738,122 @@
                       <div v-for="score in moderationScoreRows" :key="score.category">
                         <div class="mb-1 flex items-center justify-between gap-3 text-xs">
                           <span class="truncate text-gray-600 dark:text-gray-300">{{ score.category }}</span>
-                          <span class="font-mono text-gray-500 dark:text-gray-400">{{ percent(score.score) }} / {{ percent(score.threshold) }}</span>
+                          <span class="shrink-0 font-mono text-gray-500 dark:text-gray-400">
+                            <template v-if="score.observeOnly">{{ percent(score.score) }} · {{ t('admin.riskControl.auditTestObserveOnly') }}</template>
+                            <template v-else>{{ percent(score.score) }} / {{ percent(score.threshold ?? 1) }}</template>
+                          </span>
                         </div>
                         <div class="h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
-                          <div class="h-full rounded-full" :class="score.hit ? 'bg-red-500' : 'bg-primary-500'" :style="{ width: percentWidth(score.score) }"></div>
+                          <div class="h-full rounded-full" :class="score.hit ? 'bg-red-500' : score.observeOnly ? 'bg-amber-400' : 'bg-primary-500'" :style="{ width: percentWidth(score.score) }"></div>
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="activeSettingsTab === 'adaptive'" class="space-y-6">
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-900/30">
+              <div class="flex items-start gap-3">
+                <Icon name="shield" size="md" class="mt-0.5 shrink-0 text-gray-700 dark:text-gray-200" />
+                <div>
+                  <h3 class="text-sm font-semibold text-[var(--app-text)]">{{ t('admin.riskControl.adaptive.title') }}</h3>
+                  <p class="mt-1 text-sm leading-6 text-[var(--app-muted)]">{{ t('admin.riskControl.adaptive.summary') }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label class="input-label">{{ t('admin.riskControl.adaptive.enforcementMode') }}</label>
+              <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <button
+                  v-for="option in adaptiveEnforcementOptions"
+                  :key="option.value"
+                  type="button"
+                  class="rounded-lg border px-4 py-3 text-left transition-colors"
+                  :class="configForm.adaptive_policy.enforcement_mode === option.value
+                    ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
+                    : 'border-gray-200 text-[var(--app-text)] hover:bg-gray-50 dark:border-dark-700 dark:hover:bg-dark-700/60'"
+                  @click="configForm.adaptive_policy.enforcement_mode = option.value"
+                >
+                  <span class="block text-sm font-semibold">{{ option.label }}</span>
+                  <span class="mt-1 block text-xs leading-5 opacity-70">{{ option.description }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <h3 class="text-sm font-semibold text-[var(--app-text)]">{{ t('admin.riskControl.adaptive.auditStages') }}</h3>
+              <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label class="input-label">{{ t('admin.riskControl.adaptive.fullAuditRequests') }}</label>
+                  <input v-model.number="configForm.adaptive_policy.full_audit_requests" type="number" min="1" max="10000" class="input" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.riskControl.adaptive.rampAuditRequests') }}</label>
+                  <input v-model.number="configForm.adaptive_policy.ramp_audit_requests" type="number" min="1" max="100000" class="input" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.riskControl.adaptive.rampSampleRate') }}</label>
+                  <input v-model.number="configForm.adaptive_policy.ramp_sample_rate" type="number" min="0" max="100" class="input" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.riskControl.adaptive.trustedSampleRate') }}</label>
+                  <input v-model.number="configForm.adaptive_policy.trusted_sample_rate" type="number" min="0" max="100" class="input" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.riskControl.adaptive.watchSampleRate') }}</label>
+                  <input v-model.number="configForm.adaptive_policy.watch_sample_rate" type="number" min="0" max="100" class="input" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.riskControl.adaptive.highRiskSampleRate') }}</label>
+                  <input v-model.number="configForm.adaptive_policy.high_risk_sample_rate" type="number" min="0" max="100" class="input" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.riskControl.adaptive.dailyDecay') }}</label>
+                  <input v-model.number="configForm.adaptive_policy.daily_decay_percent" type="number" min="0.1" max="99" step="0.1" class="input" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.riskControl.adaptive.notificationCooldown') }}</label>
+                  <input v-model.number="configForm.adaptive_policy.notification_cooldown_hours" type="number" min="1" max="720" class="input" />
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div>
+                <h3 class="text-sm font-semibold text-[var(--app-text)]">{{ t('admin.riskControl.adaptive.scoreWeights') }}</h3>
+                <div class="mt-3 grid grid-cols-3 gap-3">
+                  <div>
+                    <label class="input-label">{{ t('admin.riskControl.adaptive.low') }}</label>
+                    <input v-model.number="configForm.adaptive_policy.low_risk_weight" type="number" min="0.1" max="100" step="0.1" class="input" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('admin.riskControl.adaptive.medium') }}</label>
+                    <input v-model.number="configForm.adaptive_policy.medium_risk_weight" type="number" min="0.1" max="100" step="0.1" class="input" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('admin.riskControl.adaptive.severe') }}</label>
+                    <input v-model.number="configForm.adaptive_policy.severe_risk_weight" type="number" min="0.1" max="100" step="0.1" class="input" />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h3 class="text-sm font-semibold text-[var(--app-text)]">{{ t('admin.riskControl.adaptive.scoreThresholds') }}</h3>
+                <div class="mt-3 grid grid-cols-3 gap-3">
+                  <div>
+                    <label class="input-label">{{ t('admin.riskControl.riskLevels.watch') }}</label>
+                    <input v-model.number="configForm.adaptive_policy.watch_threshold" type="number" min="1" max="98" step="0.1" class="input" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('admin.riskControl.riskLevels.high') }}</label>
+                    <input v-model.number="configForm.adaptive_policy.high_risk_threshold" type="number" min="2" max="99" step="0.1" class="input" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('admin.riskControl.riskLevels.critical') }}</label>
+                    <input v-model.number="configForm.adaptive_policy.critical_threshold" type="number" min="3" max="100" step="0.1" class="input" />
                   </div>
                 </div>
               </div>
@@ -877,25 +1042,18 @@
                 </div>
                 <Toggle v-model="configForm.email_on_hit" />
               </div>
-              <div class="flex items-center justify-between rounded-lg border border-gray-100 p-4 dark:border-dark-700">
+              <div v-if="configForm.mode !== 'adaptive'" class="flex items-center justify-between rounded-lg border border-gray-100 p-4 dark:border-dark-700">
                 <div>
                   <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.riskControl.autoBan') }}</p>
                   <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.autoBanHint') }}</p>
                 </div>
                 <Toggle v-model="configForm.auto_ban_enabled" />
               </div>
-              <div class="flex items-center justify-between rounded-lg border border-gray-100 p-4 dark:border-dark-700 lg:col-span-2">
-                <div>
-                  <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.riskControl.cyberPolicyExcludeBan') }}</p>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.cyberPolicyExcludeBanHint') }}</p>
-                </div>
-                <Toggle v-model="configForm.cyber_policy_exclude_from_ban_count" />
-              </div>
-              <div>
+              <div v-if="configForm.mode !== 'adaptive'">
                 <label class="input-label">{{ t('admin.riskControl.banThreshold') }}</label>
                 <input v-model.number="configForm.ban_threshold" type="number" min="1" max="1000" class="input" />
               </div>
-              <div>
+              <div v-if="configForm.mode !== 'adaptive'">
                 <label class="input-label">{{ t('admin.riskControl.violationWindowHours') }}</label>
                 <input v-model.number="configForm.violation_window_hours" type="number" min="1" max="8760" class="input" />
               </div>
@@ -1109,7 +1267,7 @@
           </div>
         </template>
       </BaseDialog>
-    </div>
+    </UiPage>
   </AppLayout>
 </template>
 
@@ -1119,18 +1277,23 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { UiIconButton, UiPage } from '@/ui'
 import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
+import AdaptiveRiskProfiles from '@/components/admin/risk-control/AdaptiveRiskProfiles.vue'
 import { adminAPI } from '@/api/admin'
 import type {
   ContentModerationAPIKeyLoad,
   ContentModerationAPIKeyStatus,
+  ContentModerationAdaptivePolicy,
+  ContentModerationEnforcementMode,
   ContentModerationConfig,
   ContentModerationLog,
   ContentModerationModelFilter,
   ContentModerationModelFilterType,
+  ContentModerationProvider,
   ContentModerationRuntimeStatus,
   ContentModerationTestAuditResult,
   KeywordBlockingMode,
@@ -1142,7 +1305,7 @@ import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime as formatDateTimeValue } from '@/utils/format'
 
-type SettingsTab = 'basic' | 'scope' | 'runtime' | 'response' | 'riskThresholds' | 'retention' | 'keywords'
+type SettingsTab = 'basic' | 'adaptive' | 'scope' | 'runtime' | 'response' | 'riskThresholds' | 'retention' | 'keywords'
 type WorkerSlotState = 'active' | 'idle' | 'disabled'
 type APIKeysWriteMode = 'append' | 'replace'
 type OverviewIcon = 'shield' | 'key' | 'users' | 'document'
@@ -1159,8 +1322,9 @@ type OverviewItem = {
 type ModerationScoreRow = {
   category: string
   score: number
-  threshold: number
+  threshold: number | null
   hit: boolean
+  observeOnly: boolean
 }
 type RiskThresholdRow = {
   category: string
@@ -1173,6 +1337,34 @@ const maxModerationTestImageSize = 8 * 1024 * 1024
 const maxVisibleApiKeyRows: number = 3
 const blockedKeywordMax = 10000
 const riskThresholdDefaults: Record<string, number> = {
+  'gateway_abuse/safety_bypass': 80,
+  'gateway_abuse/credential_theft': 80,
+  'gateway_abuse/account_automation': 80,
+  'gateway_abuse/auth_reverse_engineering': 80,
+  'gateway_abuse/exploit_reverse_engineering': 82,
+  'gateway_abuse/cheat_automation': 82,
+  'gateway_abuse/other': 85,
+  'policy/harassment_or_defamation': 88,
+  'policy/self_harm': 85,
+  'policy/sexual_or_nonconsensual': 85,
+  'policy/violence_terrorism_or_hate': 85,
+  'policy/weapons': 85,
+  'policy/illicit_goods_or_services': 85,
+  'policy/cyber_abuse': 82,
+  'policy/real_money_gambling': 90,
+  'policy/unlicensed_high_stakes_advice': 88,
+  'policy/privacy_or_sensitive_data': 85,
+  'policy/biometric_or_social_profiling': 88,
+  'policy/minor_exploitation': 75,
+  'policy/minor_unsafe_content': 82,
+  'policy/fraud_spam_or_impersonation': 84,
+  'policy/academic_dishonesty': 90,
+  'policy/political_manipulation': 88,
+  'policy/high_stakes_automation': 85,
+  'policy/national_security_or_intelligence': 88,
+  'policy/ip_infringement': 90,
+  'aliyun.block': 100,
+  'aliyun.high': 100,
   harassment: 98,
   'harassment/threatening': 90,
   hate: 65,
@@ -1191,7 +1383,6 @@ const riskThresholdCategories = Object.keys(riskThresholdDefaults)
 
 const { t } = useI18n()
 const appStore = useAppStore()
-const defaultBlockMessage = () => t('admin.riskControl.defaultBlockMessage')
 
 const loading = ref(true)
 const saving = ref(false)
@@ -1219,8 +1410,15 @@ let statusTimer: number | null = null
 const configForm = reactive({
   enabled: false,
   mode: 'pre_block' as ModerationMode,
+  moderation_provider: 'openai' as ContentModerationProvider,
   base_url: 'https://api.openai.com',
   model: 'omni-moderation-latest',
+  classifier_prompt_mode: 'default' as 'default' | 'custom',
+  classifier_prompt: '',
+  classifier_prompt_default: '',
+  aliyun_region_id: 'cn-shanghai',
+  aliyun_endpoint: 'green-cip.cn-shanghai.aliyuncs.com',
+  aliyun_service: 'query_security_check_cb',
   api_keys_text: '',
   api_key_configured: false,
   api_key_masked: '',
@@ -1238,10 +1436,9 @@ const configForm = reactive({
   worker_count: 4,
   queue_size: 32768,
   block_status: 403,
-  block_message: defaultBlockMessage(),
+  block_message: '内容审计命中风险规则，请调整输入后重试',
   email_on_hit: true,
   auto_ban_enabled: true,
-  cyber_policy_exclude_from_ban_count: false,
   ban_threshold: 10,
   violation_window_hours: 720,
   hit_retention_days: 180,
@@ -1252,6 +1449,7 @@ const configForm = reactive({
   keyword_blocking_mode: 'keyword_and_api' as KeywordBlockingMode,
   model_filter_type: 'all' as ContentModerationModelFilterType,
   model_filter_models: [] as string[],
+  adaptive_policy: defaultAdaptivePolicy(),
 })
 
 const pagination = reactive({
@@ -1272,6 +1470,7 @@ const filters = reactive({
 
 const settingsTabs = computed<Array<{ id: SettingsTab; label: string }>>(() => [
   { id: 'basic', label: t('admin.riskControl.tabs.basic') },
+  { id: 'adaptive', label: t('admin.riskControl.tabs.adaptive') },
   { id: 'scope', label: t('admin.riskControl.tabs.scope') },
   { id: 'runtime', label: t('admin.riskControl.tabs.runtime') },
   { id: 'response', label: t('admin.riskControl.tabs.response') },
@@ -1281,9 +1480,22 @@ const settingsTabs = computed<Array<{ id: SettingsTab; label: string }>>(() => [
 ])
 
 const modeOptions = computed<SelectOption[]>(() => [
+  { value: 'adaptive', label: t('admin.riskControl.modeAdaptive') },
   { value: 'pre_block', label: t('admin.riskControl.modePreBlock') },
   { value: 'observe', label: t('admin.riskControl.modeObserve') },
   { value: 'off', label: t('admin.riskControl.modeOff') },
+])
+
+const providerOptions = computed<SelectOption[]>(() => [
+  { value: 'model_classifier', label: t('admin.riskControl.providerModelClassifier') },
+  { value: 'openai', label: t('admin.riskControl.providerOpenAI') },
+  { value: 'aliyun_guardrails', label: t('admin.riskControl.providerAliyunGuardrails') },
+])
+
+const adaptiveEnforcementOptions = computed<Array<{ value: ContentModerationEnforcementMode; label: string; description: string }>>(() => [
+  { value: 'shadow', label: t('admin.riskControl.adaptive.shadow'), description: t('admin.riskControl.adaptive.shadowDesc') },
+  { value: 'notify', label: t('admin.riskControl.adaptive.notify'), description: t('admin.riskControl.adaptive.notifyDesc') },
+  { value: 'enforce', label: t('admin.riskControl.adaptive.enforce'), description: t('admin.riskControl.adaptive.enforceDesc') },
 ])
 
 const keywordBlockingModeOptions = computed<Array<{ value: KeywordBlockingMode; label: string; description: string }>>(() => [
@@ -1557,12 +1769,14 @@ const moderationScoreRows = computed<ModerationScoreRow[]>(() => {
   if (!result) return []
   return Object.entries(result.category_scores || {})
     .map(([category, score]) => {
-      const threshold = result.thresholds?.[category] ?? 1
+      const hasThreshold = Object.prototype.hasOwnProperty.call(result.thresholds || {}, category)
+      const threshold = hasThreshold ? result.thresholds?.[category] ?? 1 : null
       return {
         category,
         score,
         threshold,
-        hit: score >= threshold,
+        hit: threshold !== null && score >= threshold,
+        observeOnly: threshold === null,
       }
     })
     .sort((a, b) => b.score - a.score)
@@ -1591,7 +1805,7 @@ const runtimeMode = computed<ModerationMode>(() => status.value?.mode ?? configF
 
 const showPreBlockRuntimeCard = computed(() => runtimeMode.value === 'pre_block')
 
-const showWorkerRuntimeCard = computed(() => runtimeMode.value === 'observe')
+const showWorkerRuntimeCard = computed(() => runtimeMode.value === 'observe' || runtimeMode.value === 'adaptive')
 
 const preBlockMetricItems = computed(() => [
   {
@@ -1693,8 +1907,15 @@ const runtimeBadgeClass = computed(() => {
 function applyConfig(config: ContentModerationConfig) {
   configForm.enabled = config.enabled
   configForm.mode = config.mode
+  configForm.moderation_provider = normalizeModerationProvider(config.moderation_provider)
   configForm.base_url = config.base_url || 'https://api.openai.com'
   configForm.model = config.model || 'omni-moderation-latest'
+  configForm.classifier_prompt = config.classifier_prompt || ''
+  configForm.classifier_prompt_default = config.classifier_prompt_default || ''
+  configForm.classifier_prompt_mode = configForm.classifier_prompt.trim() ? 'custom' : 'default'
+  configForm.aliyun_region_id = config.aliyun_region_id || 'cn-shanghai'
+  configForm.aliyun_endpoint = config.aliyun_endpoint || 'green-cip.cn-shanghai.aliyuncs.com'
+  configForm.aliyun_service = config.aliyun_service || 'query_security_check_cb'
   configForm.api_keys_text = ''
   configForm.api_key_configured = config.api_key_configured
   configForm.api_key_masked = config.api_key_masked || ''
@@ -1715,10 +1936,9 @@ function applyConfig(config: ContentModerationConfig) {
   configForm.worker_count = config.worker_count || 4
   configForm.queue_size = config.queue_size || 32768
   configForm.block_status = config.block_status || 403
-  configForm.block_message = config.block_message || defaultBlockMessage()
+  configForm.block_message = config.block_message || '内容审计命中风险规则，请调整输入后重试'
   configForm.email_on_hit = config.email_on_hit ?? true
   configForm.auto_ban_enabled = config.auto_ban_enabled ?? true
-  configForm.cyber_policy_exclude_from_ban_count = config.cyber_policy_exclude_from_ban_count ?? false
   configForm.ban_threshold = config.ban_threshold || 10
   configForm.violation_window_hours = config.violation_window_hours || 720
   configForm.hit_retention_days = config.hit_retention_days || 180
@@ -1730,6 +1950,7 @@ function applyConfig(config: ContentModerationConfig) {
   const modelFilter = normalizeModelFilter(config.model_filter)
   configForm.model_filter_type = modelFilter.type
   configForm.model_filter_models = modelFilter.models
+  configForm.adaptive_policy = normalizeAdaptivePolicy(config.adaptive_policy)
 }
 
 async function loadAll() {
@@ -1781,11 +2002,31 @@ async function saveConfig() {
       appStore.showError(t('admin.riskControl.modelFilterModelsRequired'))
       return
     }
+    if (configForm.adaptive_policy.full_audit_requests > configForm.adaptive_policy.ramp_audit_requests) {
+      appStore.showError(t('admin.riskControl.adaptive.invalidAuditStages'))
+      return
+    }
+    if (!(configForm.adaptive_policy.watch_threshold < configForm.adaptive_policy.high_risk_threshold
+      && configForm.adaptive_policy.high_risk_threshold < configForm.adaptive_policy.critical_threshold)) {
+      appStore.showError(t('admin.riskControl.adaptive.invalidThresholds'))
+      return
+    }
+    if (configForm.moderation_provider === 'model_classifier'
+      && configForm.classifier_prompt_mode === 'custom'
+      && !configForm.classifier_prompt.trim()) {
+      appStore.showError(t('admin.riskControl.classifierPromptRequired'))
+      return
+    }
     const payload: UpdateContentModerationConfig = {
       enabled: configForm.enabled,
       mode: configForm.mode,
+      moderation_provider: configForm.moderation_provider,
       base_url: configForm.base_url,
       model: configForm.model,
+      classifier_prompt: configForm.classifier_prompt_mode === 'custom' ? configForm.classifier_prompt.trim() : '',
+      aliyun_region_id: configForm.aliyun_region_id,
+      aliyun_endpoint: configForm.aliyun_endpoint,
+      aliyun_service: configForm.aliyun_service,
       timeout_ms: Number(configForm.timeout_ms) || 3000,
       retry_count: Number(configForm.retry_count) || 0,
       sample_rate: Number(configForm.sample_rate) || 0,
@@ -1796,10 +2037,9 @@ async function saveConfig() {
       worker_count: Number(configForm.worker_count) || 4,
       queue_size: Number(configForm.queue_size) || 32768,
       block_status: Number(configForm.block_status) || 403,
-      block_message: configForm.block_message || defaultBlockMessage(),
+      block_message: configForm.block_message || '内容审计命中风险规则，请调整输入后重试',
       email_on_hit: configForm.email_on_hit,
       auto_ban_enabled: configForm.auto_ban_enabled,
-      cyber_policy_exclude_from_ban_count: configForm.cyber_policy_exclude_from_ban_count,
       ban_threshold: Number(configForm.ban_threshold) || 10,
       violation_window_hours: Number(configForm.violation_window_hours) || 720,
       hit_retention_days: Number(configForm.hit_retention_days) || 180,
@@ -1809,6 +2049,7 @@ async function saveConfig() {
       blocked_keywords: blockedKeywordList.value,
       keyword_blocking_mode: configForm.keyword_blocking_mode,
       model_filter: modelFilterPayload,
+      adaptive_policy: { ...configForm.adaptive_policy },
     }
     const keys = parseApiKeys(configForm.api_keys_text)
     if (!payload.clear_api_key && configForm.api_keys_mode === 'replace' && keys.length === 0) {
@@ -1971,6 +2212,13 @@ function setModelFilterType(type: ContentModerationModelFilterType) {
   }
 }
 
+function setClassifierPromptMode(mode: 'default' | 'custom') {
+  configForm.classifier_prompt_mode = mode
+  if (mode === 'custom' && !configForm.classifier_prompt.trim()) {
+    configForm.classifier_prompt = configForm.classifier_prompt_default
+  }
+}
+
 async function testApiKeys(useInputKeys: boolean) {
   const keys = useInputKeys ? parseApiKeys(configForm.api_keys_text) : []
   if (useInputKeys && keys.length === 0) {
@@ -1981,8 +2229,13 @@ async function testApiKeys(useInputKeys: boolean) {
   try {
     const result = await adminAPI.riskControl.testAPIKeys({
       api_keys: keys,
+      moderation_provider: configForm.moderation_provider,
       base_url: configForm.base_url,
       model: configForm.model,
+      classifier_prompt: configForm.classifier_prompt_mode === 'custom' ? configForm.classifier_prompt : '',
+      aliyun_region_id: configForm.aliyun_region_id,
+      aliyun_endpoint: configForm.aliyun_endpoint,
+      aliyun_service: configForm.aliyun_service,
       timeout_ms: Number(configForm.timeout_ms) || 3000,
       prompt: moderationTestPrompt.value,
       images: moderationTestImages.value,
@@ -2107,6 +2360,7 @@ function modeLabel(mode: ModerationMode): string {
 
 function modeDescription(mode: ModerationMode): string {
   const descriptions: Record<ModerationMode, string> = {
+    adaptive: t('admin.riskControl.modeAdaptiveDesc'),
     pre_block: t('admin.riskControl.modePreBlockDesc'),
     observe: t('admin.riskControl.modeObserveDesc'),
     off: t('admin.riskControl.modeOffDesc'),
@@ -2115,7 +2369,6 @@ function modeDescription(mode: ModerationMode): string {
 }
 
 function resultLabel(row: ContentModerationLog): string {
-  if (row.action === 'cyber_policy') return t('admin.riskControl.action.cyberPolicy')
   if (row.action === 'keyword_block') return t('admin.riskControl.action.keywordBlock')
   if (row.action === 'block') return t('admin.riskControl.action.block')
   if (row.action === 'error' || row.error) return t('admin.riskControl.action.error')
@@ -2124,7 +2377,7 @@ function resultLabel(row: ContentModerationLog): string {
 }
 
 function resultBadgeClass(row: ContentModerationLog): string {
-  if (row.action === 'block' || row.action === 'keyword_block' || row.action === 'cyber_policy') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+  if (row.action === 'block' || row.action === 'keyword_block') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
   if (row.action === 'error' || row.error) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
   if (row.flagged) return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'
   return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
@@ -2219,6 +2472,53 @@ function parseApiKeys(value: string): string[] {
     .split(/\r?\n/)
     .map((item) => item.trim())
     .filter((item, index, arr) => item && arr.indexOf(item) === index)
+}
+
+function normalizeModerationProvider(value: unknown): ContentModerationProvider {
+  if (value === 'aliyun_guardrails' || value === 'model_classifier') return value
+  return 'openai'
+}
+
+function defaultAdaptivePolicy(): ContentModerationAdaptivePolicy {
+  return {
+    enforcement_mode: 'shadow',
+    full_audit_requests: 100,
+    ramp_audit_requests: 300,
+    ramp_sample_rate: 30,
+    trusted_sample_rate: 5,
+    watch_sample_rate: 50,
+    high_risk_sample_rate: 100,
+    daily_decay_percent: 10,
+    low_risk_weight: 4,
+    medium_risk_weight: 12,
+    severe_risk_weight: 30,
+    watch_threshold: 40,
+    high_risk_threshold: 60,
+    critical_threshold: 80,
+    notification_cooldown_hours: 24,
+  }
+}
+
+function normalizeAdaptivePolicy(value: ContentModerationAdaptivePolicy | null | undefined): ContentModerationAdaptivePolicy {
+  const defaults = defaultAdaptivePolicy()
+  if (!value) return defaults
+  return {
+    enforcement_mode: value.enforcement_mode === 'notify' || value.enforcement_mode === 'enforce' ? value.enforcement_mode : 'shadow',
+    full_audit_requests: Number(value.full_audit_requests) || defaults.full_audit_requests,
+    ramp_audit_requests: Number(value.ramp_audit_requests) || defaults.ramp_audit_requests,
+    ramp_sample_rate: Number.isFinite(value.ramp_sample_rate) ? value.ramp_sample_rate : defaults.ramp_sample_rate,
+    trusted_sample_rate: Number.isFinite(value.trusted_sample_rate) ? value.trusted_sample_rate : defaults.trusted_sample_rate,
+    watch_sample_rate: Number.isFinite(value.watch_sample_rate) ? value.watch_sample_rate : defaults.watch_sample_rate,
+    high_risk_sample_rate: Number.isFinite(value.high_risk_sample_rate) ? value.high_risk_sample_rate : defaults.high_risk_sample_rate,
+    daily_decay_percent: Number(value.daily_decay_percent) || defaults.daily_decay_percent,
+    low_risk_weight: Number(value.low_risk_weight) || defaults.low_risk_weight,
+    medium_risk_weight: Number(value.medium_risk_weight) || defaults.medium_risk_weight,
+    severe_risk_weight: Number(value.severe_risk_weight) || defaults.severe_risk_weight,
+    watch_threshold: Number(value.watch_threshold) || defaults.watch_threshold,
+    high_risk_threshold: Number(value.high_risk_threshold) || defaults.high_risk_threshold,
+    critical_threshold: Number(value.critical_threshold) || defaults.critical_threshold,
+    notification_cooldown_hours: Number(value.notification_cooldown_hours) || defaults.notification_cooldown_hours,
+  }
 }
 
 function normalizeKeywordBlockingMode(value: unknown): KeywordBlockingMode {
@@ -2322,7 +2622,6 @@ function parseBlockedKeywords(value: string): string[] {
 
 function violationCountText(row: ContentModerationLog): string {
   if (!row.flagged) return '-'
-  if (row.violation_count === 0) return t('admin.riskControl.violationNotCounted')
   return t('admin.riskControl.violationCount', { count: row.violation_count || 1 })
 }
 
@@ -2355,3 +2654,84 @@ onUnmounted(() => {
   }
 })
 </script>
+
+<style scoped>
+.risk-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.5rem;
+  padding: 0.25rem 0 1.25rem;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.risk-overview-item {
+  min-width: 0;
+}
+
+.risk-overview-icon {
+  display: flex;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--ui-text-secondary);
+}
+
+.risk-overview-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--ui-text-tertiary);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.risk-section {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: transparent;
+}
+
+.risk-metric {
+  min-width: 0;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.risk-list-row {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.risk-list-row:last-child {
+  border-bottom: 0;
+}
+
+.risk-empty {
+  padding: 1rem 0;
+  color: var(--ui-text-tertiary);
+  font-size: 0.875rem;
+}
+
+.risk-section :deep(th) {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+@media (max-width: 900px) {
+  .risk-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .risk-overview {
+    grid-template-columns: 1fr;
+    gap: 0.875rem;
+  }
+}
+</style>

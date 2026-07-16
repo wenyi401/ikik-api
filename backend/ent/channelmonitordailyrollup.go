@@ -4,13 +4,13 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/channelmonitor"
+	"ikik-api/ent/channelmonitordailyrollup"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/channelmonitor"
-	"ikik-api/ent/channelmonitordailyrollup"
 )
 
 // ChannelMonitorDailyRollup is the model entity for the ChannelMonitorDailyRollup schema.

@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"ikik-api/internal/pkg/logger"
-	"ikik-api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
+	"ikik-api/internal/pkg/logger"
+	"ikik-api/internal/util/responseheaders"
 )
 
 func (s *OpenAIGatewayService) ForwardEmbeddings(
@@ -81,8 +81,6 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	if customUA := account.GetOpenAIUserAgent(); customUA != "" {
 		upstreamReq.Header.Set("user-agent", customUA)
 	}
-
-	// 账号级请求头覆写（仅 openai api_key 账号启用时生效）
 	account.ApplyHeaderOverrides(upstreamReq.Header)
 
 	proxyURL := ""
@@ -197,30 +195,14 @@ func extractOpenAIEmbeddingsUsage(body []byte) OpenAIUsage {
 	if !usage.Exists() || !usage.IsObject() {
 		return OpenAIUsage{}
 	}
-	inputTokens := firstPositiveGJSONInt(
-		usage.Get("prompt_tokens"),
-		usage.Get("input_tokens"),
-		usage.Get("total_tokens"),
-	)
-	outputTokens := firstPositiveGJSONInt(
-		usage.Get("completion_tokens"),
-		usage.Get("output_tokens"),
-	)
-	cacheReadTokens := openAICacheReadTokensFromUsage(usage)
-	cacheCreationTokens := openAICacheCreationTokensFromUsage(usage)
-	// 多模态 embedding（如 doubao-embedding-vision）回传图文 token 拆分，
-	// 用于图文不同价计费；纯文本 embedding 该字段为 0，行为不变。
-	imageInputTokens := firstPositiveGJSONInt(
-		usage.Get("prompt_tokens_details.image_tokens"),
-		usage.Get("input_tokens_details.image_tokens"),
-	)
-	return OpenAIUsage{
-		InputTokens:              inputTokens,
-		ImageInputTokens:         imageInputTokens,
-		OutputTokens:             outputTokens,
-		CacheReadInputTokens:     cacheReadTokens,
-		CacheCreationInputTokens: cacheCreationTokens,
+	parsed, ok := openAIUsageFromGJSON(usage)
+	if !ok {
+		return OpenAIUsage{}
 	}
+	if parsed.InputTokens == 0 {
+		parsed.InputTokens = firstPositiveGJSONInt(usage.Get("total_tokens"))
+	}
+	return parsed
 }
 
 func firstPositiveGJSONInt(values ...gjson.Result) int {

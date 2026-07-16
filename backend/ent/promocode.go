@@ -4,12 +4,12 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/promocode"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/promocode"
 )
 
 // PromoCode is the model entity for the PromoCode schema.

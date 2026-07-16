@@ -4,12 +4,12 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/paymentauditlog"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/paymentauditlog"
 )
 
 // PaymentAuditLog is the model entity for the PaymentAuditLog schema.

@@ -5,11 +5,11 @@ import (
 	"errors"
 
 	entsql "entgo.io/ent/dialect/sql"
+	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
 	"ikik-api/ent"
 	"ikik-api/internal/config"
 	"ikik-api/internal/service"
-	"github.com/google/wire"
-	"github.com/redis/go-redis/v9"
 )
 
 // ProvideConcurrencyCache 创建并发控制缓存，从配置读取 TTL 参数
@@ -68,6 +68,7 @@ var ProviderSet = wire.NewSet(
 	NewAPIKeyRepository,
 	NewGroupRepository,
 	NewAccountRepository,
+	NewCarpoolRepository,
 	NewScheduledTestPlanRepository,   // 定时测试计划仓储
 	NewScheduledTestResultRepository, // 定时测试结果仓储
 	NewProxyRepository,
@@ -75,9 +76,11 @@ var ProviderSet = wire.NewSet(
 	NewPromoCodeRepository,
 	NewAnnouncementRepository,
 	NewAnnouncementReadRepository,
+	NewEmailBroadcastRepository,
 	NewUsageLogRepository,
 	NewUsageBillingRepository,
-	NewBatchImageRepository,
+	NewAccountSharePolicyRepository,
+	NewAccountBatchTaskRepository,
 	NewIdempotencyRepository,
 	NewUsageCleanupRepository,
 	NewDashboardAggregationRepository,
@@ -87,6 +90,7 @@ var ProviderSet = wire.NewSet(
 	NewUserAttributeDefinitionRepository,
 	NewUserAttributeValueRepository,
 	NewUserGroupRateRepository,
+	NewGroupRateScheduleRepository,
 	NewErrorPassthroughRepository,
 	NewTLSFingerprintProfileRepository,
 	NewChannelRepository,
@@ -94,8 +98,8 @@ var ProviderSet = wire.NewSet(
 	NewChannelMonitorRequestTemplateRepository,
 	NewContentModerationRepository,
 	NewAffiliateRepository,
-	NewUserPlatformQuotaRepository,     // T14: user × platform quota
-	NewUserPlatformQuotaServiceAdapter, // T14: adapter → service.UserPlatformQuotaRepository
+	NewReceiptCodeRepository,
+	NewWithdrawalRepository,
 
 	// Cache implementations
 	NewGatewayCache,
@@ -116,9 +120,6 @@ var ProviderSet = wire.NewSet(
 	NewRedeemCache,
 	NewUpdateCache,
 	NewGeminiTokenCache,
-	NewBatchImageQueue,
-	NewBatchImageDownloadLimiter,
-	NewLeaderLockCache,
 	ProvideSchedulerCache,
 	NewSchedulerOutboxRepository,
 	NewProxyLatencyCache,
@@ -134,6 +135,8 @@ var ProviderSet = wire.NewSet(
 	// Backup infrastructure
 	NewPgDumper,
 	NewS3BackupStoreFactory,
+	NewReceiptCodeObjectStoreFactory,
+	NewShopFileCardObjectStoreFactory,
 
 	// HTTP service ports (DI Strategy A: return interface directly)
 	NewTurnstileVerifier,
@@ -144,10 +147,10 @@ var ProviderSet = wire.NewSet(
 	NewClaudeOAuthClient,
 	NewHTTPUpstream,
 	NewOpenAIOAuthClient,
-	NewGrokOAuthClient,
 	NewGeminiOAuthClient,
 	NewGeminiCliCodeAssistClient,
 	NewGeminiDriveClient,
+	NewGrokOAuthClient,
 
 	ProvideEnt,
 	ProvideSQLDB,

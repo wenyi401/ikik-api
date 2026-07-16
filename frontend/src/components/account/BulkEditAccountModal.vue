@@ -33,7 +33,7 @@
 
       <!-- OpenAI passthrough -->
       <div
-        v-if="allOpenAIPassthroughCapable"
+        v-if="!isUserScope && allOpenAIPassthroughCapable"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <div class="mb-3 flex items-center justify-between">
@@ -83,7 +83,7 @@
       </div>
 
       <!-- Base URL (API Key only) -->
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <div v-if="canManageBaseUrl" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
             id="bulk-edit-base-url-label"
@@ -116,7 +116,7 @@
       </div>
 
       <!-- Model restriction -->
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <div v-if="canManageModelRestriction" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
             id="bulk-edit-model-restriction-label"
@@ -347,7 +347,7 @@
       </div>
 
       <!-- Custom error codes -->
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <div v-if="canManageCustomErrorCodes" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <div>
             <label
@@ -486,15 +486,10 @@
         </div>
       </div>
 
-      <!-- Header Override (anthropic/openai apikey only) -->
       <div v-if="allHeaderOverrideCapable" class="border-t border-gray-200 pt-4 dark:border-dark-600">
-        <div class="flex items-center justify-between">
+        <div class="mb-3 flex items-center justify-between">
           <div class="flex-1 pr-4">
-            <label
-              id="bulk-edit-header-override-label"
-              class="input-label mb-0"
-              for="bulk-edit-header-override-enabled"
-            >
+            <label class="input-label mb-0" for="bulk-edit-header-override-enabled">
               {{ t('admin.accounts.headerOverride.title') }}
             </label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -505,112 +500,21 @@
             v-model="enableHeaderOverride"
             id="bulk-edit-header-override-enabled"
             type="checkbox"
-            aria-controls="bulk-edit-header-override-body"
             class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
           />
         </div>
-        <div v-if="enableHeaderOverride" id="bulk-edit-header-override-body" class="mt-3 space-y-3">
-          <button
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              headerOverrideEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="headerOverrideEnabled = !headerOverrideEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                headerOverrideEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
-
-          <div v-if="headerOverrideEnabled" class="space-y-3">
-            <div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
-              <p class="text-xs text-blue-700 dark:text-blue-400">
-                <Icon name="exclamationCircle" size="sm" class="mr-1 inline" :stroke-width="2" />
-                {{ t('admin.accounts.headerOverride.info') }}
-              </p>
-            </div>
-
-            <p class="text-xs text-amber-600 dark:text-amber-400">
-              {{ t('admin.accounts.headerOverride.bulkReplaceHint') }}
-            </p>
-
-            <div v-if="headerOverrideRows.length > 0" class="space-y-2">
-              <div
-                v-for="(row, index) in headerOverrideRows"
-                :key="getHeaderOverrideRowKey(row)"
-                class="flex items-center gap-2"
-              >
-                <input
-                  v-model="row.name"
-                  type="text"
-                  class="input flex-1"
-                  :placeholder="t('admin.accounts.headerOverride.namePlaceholder')"
-                />
-                <input
-                  v-model="row.value"
-                  type="text"
-                  class="input flex-1"
-                  :placeholder="t('admin.accounts.headerOverride.valuePlaceholder')"
-                />
-                <button
-                  type="button"
-                  class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                  @click="removeHeaderOverrideRow(index)"
-                >
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
-              @click="addHeaderOverrideRow"
-            >
-              <svg class="mr-1 inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              {{ t('admin.accounts.headerOverride.addRow') }}
-            </button>
-
-            <div v-if="headerOverrideTemplatePlatform" class="flex flex-wrap gap-2">
-              <button
-                type="button"
-                class="rounded-lg bg-primary-50 px-3 py-1 text-xs text-primary-700 transition-colors hover:bg-primary-100 dark:bg-primary-900/30 dark:text-primary-400 dark:hover:bg-primary-900/50"
-                @click="fillHeaderOverrideTemplate"
-              >
-                + {{ t('admin.accounts.headerOverride.fillTemplate') }}
-              </button>
-            </div>
-
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.headerOverride.emptyValueHint') }}
-            </p>
-          </div>
-          <p v-else class="text-xs text-gray-500 dark:text-gray-400">
-            {{ t('admin.accounts.headerOverride.bulkDisableHint') }}
-          </p>
-        </div>
+        <HeaderOverrideEditor
+          v-if="enableHeaderOverride"
+          v-model:enabled="headerOverrideEnabled"
+          v-model:rows="headerOverrideRows"
+          :platform="headerOverrideTemplatePlatform"
+          bulk
+          class="border-t-0 pt-0"
+        />
       </div>
 
       <!-- Proxy -->
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <div v-if="canManageProxy" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
             id="bulk-edit-proxy-label"
@@ -631,6 +535,7 @@
           <ProxySelector
             v-model="proxyId"
             :proxies="proxies"
+            :scope="accountScope"
             aria-labelledby="bulk-edit-proxy-label"
           />
         </div>
@@ -651,6 +556,7 @@
               v-model="enableConcurrency"
               id="bulk-edit-concurrency-enabled"
               type="checkbox"
+              :disabled="isUserScope"
               aria-controls="bulk-edit-concurrency"
               class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
             />
@@ -660,9 +566,9 @@
             id="bulk-edit-concurrency"
             type="number"
             min="1"
-            :disabled="!enableConcurrency"
+            :disabled="isUserScope || !enableConcurrency"
             class="input"
-            :class="!enableConcurrency && 'cursor-not-allowed opacity-50'"
+            :class="(isUserScope || !enableConcurrency) && 'cursor-not-allowed opacity-50'"
             aria-labelledby="bulk-edit-concurrency-label"
             @input="concurrency = Math.max(1, concurrency || 1)"
           />
@@ -680,6 +586,7 @@
               v-model="enableLoadFactor"
               id="bulk-edit-load-factor-enabled"
               type="checkbox"
+              :disabled="isUserScope"
               aria-controls="bulk-edit-load-factor"
               class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
             />
@@ -689,9 +596,9 @@
             id="bulk-edit-load-factor"
             type="number"
             min="1"
-            :disabled="!enableLoadFactor"
+            :disabled="isUserScope || !enableLoadFactor"
             class="input"
-            :class="!enableLoadFactor && 'cursor-not-allowed opacity-50'"
+            :class="(isUserScope || !enableLoadFactor) && 'cursor-not-allowed opacity-50'"
             aria-labelledby="bulk-edit-load-factor-label"
             @input="loadFactor = (loadFactor &amp;&amp; loadFactor >= 1) ? loadFactor : null"
           />
@@ -725,7 +632,7 @@
             aria-labelledby="bulk-edit-priority-label"
           />
         </div>
-        <div>
+        <div v-if="canManageBillingRate">
           <div class="mb-3 flex items-center justify-between">
             <label
               id="bulk-edit-rate-multiplier-label"
@@ -757,8 +664,65 @@
         </div>
       </div>
 
+      <!-- Share mode (user accounts only) -->
+      <div v-if="isUserScope" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between">
+          <label
+            id="bulk-edit-share-mode-label"
+            class="input-label mb-0"
+            for="bulk-edit-share-mode-enabled"
+          >
+            {{ t('userAccounts.shareMode') }}
+          </label>
+          <input
+            v-model="enableShareMode"
+            id="bulk-edit-share-mode-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-share-mode"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div id="bulk-edit-share-mode" :class="!enableShareMode && 'pointer-events-none opacity-50'">
+          <Select
+            v-model="shareMode"
+            :options="shareModeOptions"
+            aria-labelledby="bulk-edit-share-mode-label"
+          />
+          <p class="input-hint">{{ t('userAccounts.shareModeHint') }}</p>
+        </div>
+      </div>
+
+      <!-- Account level (OpenAI only) -->
+      <div v-if="canManageAccountLevel" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between">
+          <label
+            id="bulk-edit-account-level-label"
+            class="input-label mb-0"
+            for="bulk-edit-account-level-enabled"
+          >
+            {{ t('admin.accounts.accountLevel.label') }}
+          </label>
+          <input
+            v-model="enableAccountLevel"
+            id="bulk-edit-account-level-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-account-level"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div id="bulk-edit-account-level" :class="!enableAccountLevel && 'pointer-events-none opacity-50'">
+          <Select
+            v-model="accountLevel"
+            :options="accountLevelOptions"
+            data-testid="bulk-edit-account-level-select"
+            aria-labelledby="bulk-edit-account-level-label"
+          />
+          <p class="input-hint">{{ t('admin.accounts.accountLevel.manualHint') }}</p>
+        </div>
+      </div>
+
       <!-- Status -->
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <div v-if="!isUserScope" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
             id="bulk-edit-status-label"
@@ -785,7 +749,7 @@
       </div>
 
       <!-- OpenAI OAuth WS mode -->
-      <div v-if="allOpenAIOAuth" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <div v-if="!isUserScope && allOpenAIOAuth" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
             id="bulk-edit-openai-ws-mode-label"
@@ -822,7 +786,7 @@
       </div>
 
       <!-- OpenAI OAuth Codex CLI only -->
-      <div v-if="allOpenAIOAuth" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <div v-if="!isUserScope && allOpenAIOAuth" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
             id="bulk-edit-openai-codex-cli-only-label"
@@ -865,52 +829,8 @@
         </div>
       </div>
 
-      <!-- OpenAI OAuth: Codex app-server -->
-      <div v-if="allOpenAIOAuth" class="border-t border-gray-200 pt-4 dark:border-dark-600">
-        <div class="mb-3 flex items-center justify-between">
-          <label
-            id="bulk-edit-openai-codex-app-server-label"
-            class="input-label mb-0"
-            for="bulk-edit-openai-codex-app-server-enabled"
-          >
-            {{ t('admin.accounts.openai.codexCLIOnlyAppServer') }}
-          </label>
-          <input
-            v-model="enableCodexCLIOnlyAppServer"
-            id="bulk-edit-openai-codex-app-server-enabled"
-            type="checkbox"
-            aria-controls="bulk-edit-openai-codex-app-server"
-            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-        </div>
-        <div
-          id="bulk-edit-openai-codex-app-server"
-          :class="!enableCodexCLIOnlyAppServer && 'pointer-events-none opacity-50'"
-        >
-          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
-            {{ t('admin.accounts.openai.codexCLIOnlyAppServerDesc') }}
-          </p>
-          <button
-            id="bulk-edit-openai-codex-app-server-toggle"
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              codexCLIOnlyAppServerEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="codexCLIOnlyAppServerEnabled = !codexCLIOnlyAppServerEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                codexCLIOnlyAppServerEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
-        </div>
-      </div>
-
       <!-- OpenAI API Key WS mode -->
-      <div v-if="allOpenAIAPIKey" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <div v-if="!isUserScope && allOpenAIAPIKey" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
             id="bulk-edit-openai-apikey-ws-mode-label"
@@ -946,112 +866,8 @@
         </div>
       </div>
 
-      <!-- OpenAI Compact mode -->
-      <div v-if="allOpenAIPassthroughCapable" class="border-t border-gray-200 pt-4 dark:border-dark-600">
-        <div class="mb-3 flex items-center justify-between">
-          <div class="flex-1 pr-4">
-            <label
-              id="bulk-edit-openai-compact-mode-label"
-              class="input-label mb-0"
-              for="bulk-edit-openai-compact-mode-enabled"
-            >
-              {{ t('admin.accounts.openai.compactMode') }}
-            </label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.openai.compactModeDesc') }}
-            </p>
-          </div>
-          <input
-            v-model="enableOpenAICompactMode"
-            id="bulk-edit-openai-compact-mode-enabled"
-            type="checkbox"
-            aria-controls="bulk-edit-openai-compact-mode"
-            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-        </div>
-        <div
-          id="bulk-edit-openai-compact-mode"
-          :class="!enableOpenAICompactMode && 'pointer-events-none opacity-50'"
-        >
-          <Select
-            v-model="openAICompactMode"
-            data-testid="bulk-edit-openai-compact-mode-select"
-            :options="openAICompactModeOptions"
-            aria-labelledby="bulk-edit-openai-compact-mode-label"
-          />
-        </div>
-      </div>
-
-      <!-- OpenAI Compact model mapping -->
-      <div v-if="allOpenAIPassthroughCapable" class="border-t border-gray-200 pt-4 dark:border-dark-600">
-        <div class="mb-3 flex items-center justify-between">
-          <div class="flex-1 pr-4">
-            <label
-              id="bulk-edit-openai-compact-model-mapping-label"
-              class="input-label mb-0"
-              for="bulk-edit-openai-compact-model-mapping-enabled"
-            >
-              {{ t('admin.accounts.openai.compactModelMapping') }}
-            </label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.openai.compactModelMappingDesc') }}
-            </p>
-          </div>
-          <input
-            v-model="enableOpenAICompactModelMapping"
-            id="bulk-edit-openai-compact-model-mapping-enabled"
-            type="checkbox"
-            aria-controls="bulk-edit-openai-compact-model-mapping"
-            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-        </div>
-        <div
-          id="bulk-edit-openai-compact-model-mapping"
-          :class="!enableOpenAICompactModelMapping && 'pointer-events-none opacity-50'"
-        >
-          <div v-if="openAICompactModelMappings.length > 0" class="mb-3 space-y-2">
-            <div
-              v-for="(mapping, index) in openAICompactModelMappings"
-              :key="index"
-              class="flex items-center gap-2"
-            >
-              <input
-                v-model="mapping.from"
-                type="text"
-                class="input flex-1"
-                :placeholder="t('admin.accounts.fromModel')"
-                data-testid="bulk-edit-openai-compact-model-mapping-input"
-              />
-              <span class="text-gray-400">→</span>
-              <input
-                v-model="mapping.to"
-                type="text"
-                class="input flex-1"
-                :placeholder="t('admin.accounts.toModel')"
-                data-testid="bulk-edit-openai-compact-model-mapping-input"
-              />
-              <button
-                type="button"
-                class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                @click="removeOpenAICompactModelMapping(index)"
-              >
-                <Icon name="trash" size="sm" />
-              </button>
-            </div>
-          </div>
-          <button
-            type="button"
-            class="mb-3 w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
-            data-testid="bulk-edit-openai-compact-model-mapping-add"
-            @click="addOpenAICompactModelMapping"
-          >
-            + {{ t('admin.accounts.addMapping') }}
-          </button>
-        </div>
-      </div>
-
       <!-- RPM Limit (仅全部为 Anthropic OAuth/SetupToken 时显示) -->
-      <div v-if="allAnthropicOAuthOrSetupToken" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <div v-if="!isUserScope && allAnthropicOAuthOrSetupToken" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
             id="bulk-edit-rpm-limit-label"
@@ -1177,7 +993,7 @@
       </div>
 
       <!-- Groups -->
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <div v-if="canManageGroups" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
             id="bulk-edit-groups-label"
@@ -1197,7 +1013,7 @@
         <div id="bulk-edit-groups" :class="!enableGroups && 'pointer-events-none opacity-50'">
           <GroupSelector
             v-model="groupIds"
-            :groups="groups"
+            :groups="bulkEditableGroups"
             aria-labelledby="bulk-edit-groups-label"
           />
         </div>
@@ -1260,36 +1076,42 @@ import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { Proxy as ProxyConfig, AdminGroup, AccountPlatform, AccountType, OpenAICompactMode } from '@/types'
+import { accountsAPI } from '@/api/accounts'
+import type { AccountBatchTask } from '@/api/accounts'
+import type { Proxy as ProxyConfig, AdminGroup, AccountPlatform, AccountType, AccountLevel, GroupPlatform } from '@/types'
+import type { AccountApiScope } from '@/composables/useAccountOAuth'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
+import HeaderOverrideEditor from '@/components/account/HeaderOverrideEditor.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import Icon from '@/components/icons/Icon.vue'
+import {
+  PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY,
+  PERSONAL_ACCOUNT_DEFAULT_PRIORITY
+} from '@/components/account/personalAccountTemplate'
 import {
   buildModelMappingObject as buildModelMappingPayload,
   getPresetMappingsByPlatform
 } from '@/composables/useModelWhitelist'
 import {
   buildHeaderOverridesObject,
-  getHeaderOverrideTemplate,
   isHeaderOverridePlatform,
   validateHeaderOverrideRows,
   HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
   HEADER_OVERRIDES_CREDENTIAL_KEY,
   type HeaderOverrideRow
 } from '@/components/account/credentialsBuilder'
-import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import {
   OPENAI_WS_MODE_CTX_POOL,
   OPENAI_WS_MODE_OFF,
   OPENAI_WS_MODE_PASSTHROUGH,
-  OPENAI_WS_MODE_HTTP_BRIDGE,
   isOpenAIWSModeEnabled,
   resolveOpenAIWSModeConcurrencyHintKey
 } from '@/utils/openaiWsMode'
+import { accountAssignableGroups } from '@/utils/accountGroups'
 import type { OpenAIWSMode } from '@/utils/openaiWsMode'
 interface Props {
   show: boolean
@@ -1305,16 +1127,30 @@ interface Props {
   }
   proxies: ProxyConfig[]
   groups: AdminGroup[]
+  accountScope?: AccountApiScope
+  allowProxy?: boolean
+  allowBillingRate?: boolean
+  allowBaseUrl?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  accountScope: 'admin',
+  allowProxy: true,
+  allowBillingRate: true,
+  allowBaseUrl: true
+})
 const emit = defineEmits<{
   close: []
-  updated: []
+  updated: [payload?: { async?: boolean; task?: AccountBatchTask }]
 }>()
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const accountScope = computed(() => props.accountScope ?? 'admin')
+const isUserScope = computed(() => accountScope.value === 'user')
+const canManageProxy = computed(() => props.allowProxy !== false)
+const canManageBillingRate = computed(() => !isUserScope.value && props.allowBillingRate !== false)
+const canManageBaseUrl = computed(() => !isUserScope.value && props.allowBaseUrl !== false)
 
 // Platform awareness
 const targetMode = computed(() => props.target?.mode ?? 'selected')
@@ -1322,13 +1158,55 @@ const targetPreviewCount = computed(() => props.target?.previewCount ?? props.ac
 const targetSelectedPlatforms = computed(() => props.target?.selectedPlatforms ?? props.selectedPlatforms)
 const targetSelectedTypes = computed(() => props.target?.selectedTypes ?? props.selectedTypes)
 const isMixedPlatform = computed(() => targetSelectedPlatforms.value.length > 1)
+const allKiroAccounts = computed(
+  () => targetSelectedPlatforms.value.length === 1 && targetSelectedPlatforms.value[0] === 'kiro'
+)
+const bulkGroupPlatform = computed<GroupPlatform | undefined>(() => {
+  if (targetSelectedPlatforms.value.length !== 1) return undefined
+  return targetSelectedPlatforms.value[0] as GroupPlatform
+})
+const selectedTypesAllowOAuthOnlyGroups = computed(
+  () =>
+    targetSelectedTypes.value.length > 0 &&
+    targetSelectedTypes.value.every(type => type === 'oauth' || type === 'setup-token')
+)
+const canManageGroups = computed(() => !isUserScope.value)
+const canManageAccountLevel = computed(
+  () =>
+    !isUserScope.value &&
+    targetSelectedPlatforms.value.length === 1 &&
+    targetSelectedPlatforms.value[0] === 'openai'
+)
+const assignableGroups = computed(() => accountAssignableGroups(props.groups))
+const bulkEditableGroups = computed<AdminGroup[]>(() => {
+  if (!isUserScope.value) {
+    return assignableGroups.value
+  }
+  const platform = bulkGroupPlatform.value
+  if (!platform) {
+    return []
+  }
+  return assignableGroups.value.filter((group) => {
+    if (group.status !== 'active' || group.platform !== platform) {
+      return false
+    }
+    return !group.require_oauth_only || selectedTypesAllowOAuthOnlyGroups.value
+  })
+})
+const canManageModelRestriction = computed(
+  () =>
+    !isUserScope.value ||
+    (targetSelectedTypes.value.length > 0 &&
+      targetSelectedTypes.value.every(type => type === 'oauth' || type === 'setup-token'))
+)
+const canManageCustomErrorCodes = computed(() => !isUserScope.value)
 
 const allOpenAIPassthroughCapable = computed(() => {
   return (
     targetSelectedPlatforms.value.length === 1 &&
     targetSelectedPlatforms.value[0] === 'openai' &&
     targetSelectedTypes.value.length > 0 &&
-    targetSelectedTypes.value.every(t => t === 'oauth' || t === 'setup-token' || t === 'apikey')
+    targetSelectedTypes.value.every(t => t === 'oauth' || t === 'apikey')
   )
 })
 
@@ -1337,7 +1215,7 @@ const allOpenAIOAuth = computed(() => {
     targetSelectedPlatforms.value.length === 1 &&
     targetSelectedPlatforms.value[0] === 'openai' &&
     targetSelectedTypes.value.length > 0 &&
-    targetSelectedTypes.value.every(t => t === 'oauth' || t === 'setup-token')
+    targetSelectedTypes.value.every(t => t === 'oauth')
   )
 })
 
@@ -1350,15 +1228,19 @@ const allOpenAIAPIKey = computed(() => {
   )
 })
 
-// 是否全部为 anthropic/openai 平台的 apikey 账号（请求头覆写仅在此条件下显示）
 const allHeaderOverrideCapable = computed(() => {
   return (
+    !isUserScope.value &&
     targetSelectedPlatforms.value.length > 0 &&
-    targetSelectedPlatforms.value.every(p => isHeaderOverridePlatform(p)) &&
+    targetSelectedPlatforms.value.every(platform => isHeaderOverridePlatform(platform)) &&
     targetSelectedTypes.value.length > 0 &&
-    targetSelectedTypes.value.every(t => t === 'apikey')
+    targetSelectedTypes.value.every(type => type === 'apikey')
   )
 })
+
+const headerOverrideTemplatePlatform = computed(() =>
+  targetSelectedPlatforms.value.length === 1 ? targetSelectedPlatforms.value[0] : ''
+)
 
 // 是否全部为 Anthropic OAuth/SetupToken（RPM 配置仅在此条件下显示）
 const allAnthropicOAuthOrSetupToken = computed(() => {
@@ -1402,15 +1284,14 @@ const enableConcurrency = ref(false)
 const enableLoadFactor = ref(false)
 const enablePriority = ref(false)
 const enableRateMultiplier = ref(false)
+const enableShareMode = ref(false)
+const enableAccountLevel = ref(false)
 const enableStatus = ref(false)
 const enableGroups = ref(false)
 const enableOpenAIPassthrough = ref(false)
 const enableOpenAIWSMode = ref(false)
 const enableOpenAIAPIKeyWSMode = ref(false)
 const enableCodexCLIOnly = ref(false)
-const enableCodexCLIOnlyAppServer = ref(false)
-const enableOpenAICompactMode = ref(false)
-const enableOpenAICompactModelMapping = ref(false)
 const enableRpmLimit = ref(false)
 
 // State - field values
@@ -1427,51 +1308,19 @@ const customErrorCodeInput = ref<number | null>(null)
 const interceptWarmupRequests = ref(false)
 const headerOverrideEnabled = ref(false)
 const headerOverrideRows = ref<HeaderOverrideRow[]>([])
-const getHeaderOverrideRowKey = createStableObjectKeyResolver<HeaderOverrideRow>('bulk-header-override-row')
-
-const addHeaderOverrideRow = () => {
-  headerOverrideRows.value.push({ name: '', value: '' })
-}
-
-const removeHeaderOverrideRow = (index: number) => {
-  headerOverrideRows.value.splice(index, 1)
-}
-
-// 模板仅在所选账号平台唯一时可用：混合 anthropic+openai 选择无法确定用哪套模板，
-// 误填会把另一平台的专有头写进所有所选账号
-const headerOverrideTemplatePlatform = computed(() => {
-  return targetSelectedPlatforms.value.length === 1 ? targetSelectedPlatforms.value[0] : null
-})
-
-// 模板按钮：填入所选平台的标准客户端请求头名称（值留空），跳过已存在的同名行
-const fillHeaderOverrideTemplate = () => {
-  const platform = headerOverrideTemplatePlatform.value
-  if (!platform) return
-  const existing = new Set(
-    headerOverrideRows.value.map((row) => row.name.trim().toLowerCase()).filter(Boolean)
-  )
-  const rows = headerOverrideRows.value.filter((row) => row.name.trim() || row.value.trim())
-  for (const row of getHeaderOverrideTemplate(platform)) {
-    if (!existing.has(row.name)) {
-      rows.push(row)
-    }
-  }
-  headerOverrideRows.value = rows
-}
 const proxyId = ref<number | null>(null)
 const concurrency = ref(1)
 const loadFactor = ref<number | null>(null)
 const priority = ref(1)
 const rateMultiplier = ref(1)
-const status = ref<'active' | 'inactive'>('active')
+const shareMode = ref<'private' | 'public'>('private')
+const accountLevel = ref<AccountLevel>('unknown')
+const status = ref<'active' | 'inactive' | 'disabled'>('active')
 const groupIds = ref<number[]>([])
 const openaiPassthroughEnabled = ref(false)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
-const codexCLIOnlyAppServerEnabled = ref(false)
-const openAICompactMode = ref<OpenAICompactMode>('auto')
-const openAICompactModelMappings = ref<ModelMapping[]>([])
 const rpmLimitEnabled = ref(false)
 const bulkBaseRpm = ref<number | null>(null)
 const bulkRpmStrategy = ref<'tiered' | 'sticky_exempt'>('tiered')
@@ -1496,7 +1345,19 @@ const commonErrorCodes = [
 
 const statusOptions = computed(() => [
   { value: 'active', label: t('common.active') },
-  { value: 'inactive', label: t('common.inactive') }
+  { value: isUserScope.value ? 'disabled' : 'inactive', label: t('common.inactive') }
+])
+const shareModeOptions = computed(() => [
+  { value: 'private', label: t('userAccounts.privateMode') },
+  { value: 'public', label: t('userAccounts.publicMode') }
+])
+const accountLevelOptions = computed(() => [
+  { value: 'unknown', label: t('admin.accounts.accountLevel.unknown') },
+  { value: 'free', label: t('admin.accounts.accountLevel.free') },
+  { value: 'plus', label: t('admin.accounts.accountLevel.plus') },
+  { value: 'pro', label: t('admin.accounts.accountLevel.pro') },
+  { value: 'team', label: t('admin.accounts.accountLevel.team') },
+  { value: 'k12', label: t('admin.accounts.accountLevel.k12') }
 ])
 const isOpenAIModelRestrictionDisabled = computed(
   () =>
@@ -1508,13 +1369,7 @@ const isOpenAIModelRestrictionDisabled = computed(
 const openAIWSModeOptions = computed(() => [
   { value: OPENAI_WS_MODE_OFF, label: t('admin.accounts.openai.wsModeOff') },
   { value: OPENAI_WS_MODE_CTX_POOL, label: t('admin.accounts.openai.wsModeCtxPool') },
-  { value: OPENAI_WS_MODE_PASSTHROUGH, label: t('admin.accounts.openai.wsModePassthrough') },
-  { value: OPENAI_WS_MODE_HTTP_BRIDGE, label: t('admin.accounts.openai.wsModeHttpBridge') }
-])
-const openAICompactModeOptions = computed(() => [
-  { value: 'auto', label: t('admin.accounts.openai.compactModeAuto') },
-  { value: 'force_on', label: t('admin.accounts.openai.compactModeForceOn') },
-  { value: 'force_off', label: t('admin.accounts.openai.compactModeForceOff') }
+  { value: OPENAI_WS_MODE_PASSTHROUGH, label: t('admin.accounts.openai.wsModePassthrough') }
 ])
 const openAIWSModeConcurrencyHintKey = computed(() =>
   resolveOpenAIWSModeConcurrencyHintKey(openaiOAuthResponsesWebSocketV2Mode.value)
@@ -1532,14 +1387,6 @@ const removeModelMapping = (index: number) => {
   modelMappings.value.splice(index, 1)
 }
 
-const addOpenAICompactModelMapping = () => {
-  openAICompactModelMappings.value.push({ from: '', to: '' })
-}
-
-const removeOpenAICompactModelMapping = (index: number) => {
-  openAICompactModelMappings.value.splice(index, 1)
-}
-
 const addPresetMapping = (from: string, to: string) => {
   const exists = modelMappings.value.some((m) => m.from === from)
   if (exists) {
@@ -1547,6 +1394,21 @@ const addPresetMapping = (from: string, to: string) => {
     return
   }
   modelMappings.value.push({ from, to })
+}
+
+const getKiroDefaultModelMappings = (): ModelMapping[] =>
+  getPresetMappingsByPlatform('kiro').map(({ from, to }) => ({ from, to }))
+
+const applyDefaultModelRestrictionForTarget = () => {
+  if (allKiroAccounts.value) {
+    modelRestrictionMode.value = 'mapping'
+    allowedModels.value = []
+    modelMappings.value = getKiroDefaultModelMappings()
+    return
+  }
+  modelRestrictionMode.value = 'whitelist'
+  allowedModels.value = []
+  modelMappings.value = []
 }
 
 // Error code helpers
@@ -1601,15 +1463,20 @@ const removeErrorCode = (code: number) => {
 }
 
 const buildModelMappingObject = (): Record<string, string> | null => {
+  if (allKiroAccounts.value) {
+    if (modelRestrictionMode.value === 'whitelist') {
+      return buildModelMappingPayload('whitelist', allowedModels.value, [])
+    }
+    const mappings = modelMappings.value.length > 0
+      ? modelMappings.value
+      : getKiroDefaultModelMappings()
+    return buildModelMappingPayload('mapping', [], mappings)
+  }
   return buildModelMappingPayload(
     modelRestrictionMode.value,
     allowedModels.value,
     modelMappings.value
   )
-}
-
-const buildOpenAICompactModelMapping = (): Record<string, string> | null => {
-  return buildModelMappingPayload('mapping', [], openAICompactModelMappings.value)
 }
 
 const buildUpdatePayload = (): Record<string, unknown> | null => {
@@ -1623,7 +1490,7 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     return updates.extra as Record<string, unknown>
   }
 
-  if (enableProxy.value) {
+  if (canManageProxy.value && enableProxy.value) {
     // 后端期望 proxy_id: 0 表示清除代理，而不是 null
     updates.proxy_id = proxyId.value === null ? 0 : proxyId.value
   }
@@ -1642,19 +1509,32 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     updates.priority = priority.value
   }
 
-  if (enableRateMultiplier.value) {
+  if (isUserScope.value) {
+    delete updates.concurrency
+    delete updates.load_factor
+  }
+
+  if (canManageBillingRate.value && enableRateMultiplier.value) {
     updates.rate_multiplier = rateMultiplier.value
+  }
+
+  if (isUserScope.value && enableShareMode.value) {
+    updates.share_mode = shareMode.value
+  }
+
+  if (canManageAccountLevel.value && enableAccountLevel.value) {
+    updates.account_level = accountLevel.value
   }
 
   if (enableStatus.value) {
     updates.status = status.value
   }
 
-  if (enableGroups.value) {
+  if (canManageGroups.value && enableGroups.value) {
     updates.group_ids = groupIds.value
   }
 
-  if (enableBaseUrl.value) {
+  if (canManageBaseUrl.value && enableBaseUrl.value) {
     const baseUrlValue = baseUrl.value.trim()
     if (baseUrlValue) {
       credentials.base_url = baseUrlValue
@@ -1670,26 +1550,13 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     }
   }
 
-  if (enableModelRestriction.value && !isOpenAIModelRestrictionDisabled.value) {
-    // 统一使用 model_mapping 字段
-    if (modelRestrictionMode.value === 'whitelist') {
-      // 白名单模式：将模型转换为 model_mapping 格式（key=value）
-      // 空白名单表示“支持所有模型”，需显式发送空对象以覆盖已有限制。
-      const mapping: Record<string, string> = {}
-      for (const m of allowedModels.value) {
-        mapping[m] = m
-      }
-      credentials.model_mapping = mapping
-      credentialsChanged = true
-    } else {
-      // 映射模式下空配置同样表示“支持所有模型”。
-      const modelMapping = buildModelMappingObject()
-      credentials.model_mapping = modelMapping ?? {}
-      credentialsChanged = true
-    }
+  if (canManageModelRestriction.value && enableModelRestriction.value && !isOpenAIModelRestrictionDisabled.value) {
+    const modelMapping = buildModelMappingObject()
+    credentials.model_mapping = modelMapping ?? {}
+    credentialsChanged = true
   }
 
-  if (enableCustomErrorCodes.value) {
+  if (canManageCustomErrorCodes.value && enableCustomErrorCodes.value) {
     credentials.custom_error_codes_enabled = true
     credentials.custom_error_codes = [...selectedErrorCodes.value]
     credentialsChanged = true
@@ -1701,12 +1568,15 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
   }
 
   if (enableHeaderOverride.value) {
-    // 后端使用 JSONB || merge 语义：关闭时显式写入 false + 空对象以清除旧配置
     credentials[HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY] = headerOverrideEnabled.value
     credentials[HEADER_OVERRIDES_CREDENTIAL_KEY] = headerOverrideEnabled.value
       ? buildHeaderOverridesObject(headerOverrideRows.value)
       : {}
     credentialsChanged = true
+  }
+
+  if (credentialsChanged) {
+    updates.credentials = credentials
   }
 
   if (enableOpenAIWSMode.value) {
@@ -1728,27 +1598,6 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
   if (enableCodexCLIOnly.value) {
     const extra = ensureExtra()
     extra.codex_cli_only = codexCLIOnlyEnabled.value
-  }
-
-  // 子开关从属于 codex_cli_only：仅当同一次批量编辑也把父开关设为开启时才写入，
-  // 与 Create/Edit 语义对齐，避免在父开关关闭的账号上写入无意义的孤立字段。
-  if (
-    enableCodexCLIOnlyAppServer.value &&
-    enableCodexCLIOnly.value &&
-    codexCLIOnlyEnabled.value
-  ) {
-    const extra = ensureExtra()
-    extra.codex_cli_only_allow_app_server = codexCLIOnlyAppServerEnabled.value
-  }
-
-  if (enableOpenAICompactMode.value) {
-    const extra = ensureExtra()
-    extra.openai_compact_mode = openAICompactMode.value
-  }
-
-  if (enableOpenAICompactModelMapping.value) {
-    credentials.compact_model_mapping = buildOpenAICompactModelMapping() ?? {}
-    credentialsChanged = true
   }
 
   // RPM limit settings (写入 extra 字段)
@@ -1778,10 +1627,6 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     umqExtra.user_msg_queue_enabled = false  // 清理旧字段（JSONB merge）
   }
 
-  if (credentialsChanged) {
-    updates.credentials = credentials
-  }
-
   return Object.keys(updates).length > 0 ? updates : null
 }
 
@@ -1790,6 +1635,7 @@ const mixedChannelConfirmed = ref(false)
 // 是否需要预检查：改了分组 + 全是单一的 antigravity 或 anthropic 平台
 // 多平台混合的情况由 submitBulkUpdate 的 409 catch 兜底
 const canPreCheck = () =>
+  !isUserScope.value &&
   enableGroups.value &&
   groupIds.value.length > 0 &&
   targetSelectedPlatforms.value.length === 1 &&
@@ -1801,6 +1647,55 @@ const handleClose = () => {
   pendingUpdatesForConfirm.value = null
   mixedChannelConfirmed.value = false
   emit('close')
+}
+
+const sanitizeBulkUpdatePayload = (payload: Record<string, unknown>) => {
+  const next = { ...payload }
+  if (isUserScope.value && next.status === 'inactive') {
+    next.status = 'disabled'
+  }
+  if (!canManageProxy.value) {
+    delete next.proxy_id
+  }
+  if (!canManageBillingRate.value) {
+    delete next.rate_multiplier
+  }
+  if (!canManageGroups.value) {
+    delete next.group_ids
+  }
+  if (!canManageAccountLevel.value) {
+    delete next.account_level
+  }
+  if (isUserScope.value) {
+    delete next.status
+    delete next.account_level
+    delete next.concurrency
+    delete next.load_factor
+    if ('priority' in next) {
+      next.priority = typeof next.priority === 'number' && Number(next.priority) > 0
+        ? next.priority
+        : PERSONAL_ACCOUNT_DEFAULT_PRIORITY
+    }
+  }
+  if (next.credentials && typeof next.credentials === 'object') {
+    const credentials = { ...(next.credentials as Record<string, unknown>) }
+    if (!canManageBaseUrl.value) {
+      delete credentials.base_url
+    }
+    if (!canManageModelRestriction.value) {
+      delete credentials.model_mapping
+    }
+    if (!canManageCustomErrorCodes.value) {
+      delete credentials.custom_error_codes_enabled
+      delete credentials.custom_error_codes
+    }
+    if (Object.keys(credentials).length > 0) {
+      next.credentials = credentials
+    } else {
+      delete next.credentials
+    }
+  }
+  return next
 }
 
 // 预检查：提交前调接口检测，有风险就弹窗阻止，返回 false 表示需要用户确认
@@ -1832,25 +1727,24 @@ const handleSubmit = async () => {
   }
 
   const hasAnyFieldEnabled =
-    enableBaseUrl.value ||
+    (canManageBaseUrl.value && enableBaseUrl.value) ||
     enableOpenAIPassthrough.value ||
-    enableModelRestriction.value ||
-    enableCustomErrorCodes.value ||
+    (canManageModelRestriction.value && enableModelRestriction.value) ||
+    (canManageCustomErrorCodes.value && enableCustomErrorCodes.value) ||
     enableInterceptWarmup.value ||
     enableHeaderOverride.value ||
-    enableProxy.value ||
+    (canManageProxy.value && enableProxy.value) ||
     enableConcurrency.value ||
     enableLoadFactor.value ||
     enablePriority.value ||
-    enableRateMultiplier.value ||
+    (canManageBillingRate.value && enableRateMultiplier.value) ||
+    (isUserScope.value && enableShareMode.value) ||
+    (canManageAccountLevel.value && enableAccountLevel.value) ||
     enableStatus.value ||
-    enableGroups.value ||
+    (canManageGroups.value && enableGroups.value) ||
     enableOpenAIWSMode.value ||
     enableOpenAIAPIKeyWSMode.value ||
     enableCodexCLIOnly.value ||
-    enableCodexCLIOnlyAppServer.value ||
-    enableOpenAICompactMode.value ||
-    enableOpenAICompactModelMapping.value ||
     enableRpmLimit.value ||
     userMsgQueueMode.value !== null
 
@@ -1860,8 +1754,6 @@ const handleSubmit = async () => {
   }
 
   if (enableHeaderOverride.value && headerOverrideEnabled.value) {
-    // 批量保存对 header_overrides 是整键替换：开启但没有任何有效行会把所选账号的
-    // 既有覆写配置静默清空，必须显式拦截（清空请走关闭开关的路径，有专门提示）
     if (!headerOverrideRows.value.some((row) => row.name.trim())) {
       appStore.showError(t('admin.accounts.headerOverride.bulkEmptyRows'))
       return
@@ -1894,12 +1786,21 @@ const submitBulkUpdate = async (baseUpdates: Record<string, unknown>) => {
   submitting.value = true
 
   try {
-    const res = targetMode.value === 'filtered' && props.target?.filters
+    const payload = sanitizeBulkUpdatePayload(updates)
+    const res = isUserScope.value
+      ? await accountsAPI.bulkUpdate(props.accountIds, payload)
+      : targetMode.value === 'filtered' && props.target?.filters
       ? await adminAPI.accounts.bulkUpdate({
         filters: props.target.filters,
-        ...updates
+        ...payload
       })
-      : await adminAPI.accounts.bulkUpdate(props.accountIds, updates)
+      : await adminAPI.accounts.bulkUpdate(props.accountIds, payload)
+    if (isUserScope.value && res.async && res.task) {
+      appStore.showSuccess(t('admin.accounts.bulkActions.asyncSubmitted', { count: res.task.total }))
+      emit('updated', { async: true, task: res.task })
+      handleClose()
+      return
+    }
     const success = res.success || 0
     const failed = res.failed || 0
 
@@ -1960,15 +1861,14 @@ watch(
       enableLoadFactor.value = false
       enablePriority.value = false
       enableRateMultiplier.value = false
+      enableShareMode.value = false
+      enableAccountLevel.value = false
       enableStatus.value = false
       enableGroups.value = false
       enableOpenAIPassthrough.value = false
       enableOpenAIWSMode.value = false
       enableOpenAIAPIKeyWSMode.value = false
       enableCodexCLIOnly.value = false
-      enableCodexCLIOnlyAppServer.value = false
-      enableOpenAICompactMode.value = false
-      enableOpenAICompactModelMapping.value = false
       enableRpmLimit.value = false
 
       // Reset all values
@@ -1983,18 +1883,17 @@ watch(
       headerOverrideEnabled.value = false
       headerOverrideRows.value = []
       proxyId.value = null
-      concurrency.value = 1
+      concurrency.value = isUserScope.value ? PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY : 1
       loadFactor.value = null
-      priority.value = 1
+      priority.value = PERSONAL_ACCOUNT_DEFAULT_PRIORITY
       rateMultiplier.value = 1
+      shareMode.value = 'private'
+      accountLevel.value = 'unknown'
       status.value = 'active'
       groupIds.value = []
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       codexCLIOnlyEnabled.value = false
-      codexCLIOnlyAppServerEnabled.value = false
-      openAICompactMode.value = 'auto'
-      openAICompactModelMappings.value = []
       rpmLimitEnabled.value = false
       bulkBaseRpm.value = null
       bulkRpmStrategy.value = 'tiered'
@@ -2006,7 +1905,49 @@ watch(
       mixedChannelWarningMessage.value = ''
       pendingUpdatesForConfirm.value = null
       mixedChannelConfirmed.value = false
+    } else {
+      applyDefaultModelRestrictionForTarget()
     }
   }
 )
+
+watch(
+  targetSelectedPlatforms,
+  () => {
+    if (!props.show || enableModelRestriction.value) {
+      return
+    }
+    applyDefaultModelRestrictionForTarget()
+  },
+  { deep: true }
+)
+
+watch(
+  [bulkEditableGroups, canManageGroups],
+  () => {
+    if (!canManageGroups.value) {
+      enableGroups.value = false
+      groupIds.value = []
+      return
+    }
+    const allowedGroupIDs = new Set(bulkEditableGroups.value.map((group) => group.id))
+    const nextGroupIDs = groupIds.value.filter((groupID) => allowedGroupIDs.has(groupID))
+    if (nextGroupIDs.length !== groupIds.value.length) {
+      groupIds.value = nextGroupIDs
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  canManageAccountLevel,
+  (enabled) => {
+    if (!enabled) {
+      enableAccountLevel.value = false
+      accountLevel.value = 'unknown'
+    }
+  },
+  { immediate: true }
+)
+
 </script>

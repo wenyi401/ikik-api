@@ -2,11 +2,9 @@ package admin
 
 import (
 	"strconv"
-	"strings"
 	"time"
 
 	"ikik-api/internal/pkg/response"
-	"ikik-api/internal/pkg/timezone"
 	"ikik-api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -51,11 +49,31 @@ func (h *AffiliateHandler) ListUsers(c *gin.Context) {
 //
 // Both fields are optional and applied independently.
 type UpdateAffiliateUserRequest struct {
-	AffCode              *string  `json:"aff_code"`
-	AffRebateRatePercent *float64 `json:"aff_rebate_rate_percent"`
+	AffCode               *string    `json:"aff_code"`
+	AffRebateRatePercent  *float64   `json:"aff_rebate_rate_percent"`
+	AffCodeUsageLimit     *int       `json:"aff_code_usage_limit"`
+	AffCodeExpiresAt      *time.Time `json:"aff_code_expires_at"`
+	AffSignupBonusBalance *float64   `json:"aff_signup_bonus_balance"`
+	AffAutoGroupID        *int64     `json:"aff_auto_group_id"`
 	// ClearRebateRate explicitly clears the per-user rate (sets it to NULL).
 	// Used to disambiguate from "field not provided".
-	ClearRebateRate bool `json:"clear_rebate_rate"`
+	ClearRebateRate        bool `json:"clear_rebate_rate"`
+	ClearAffCodeUsageLimit bool `json:"clear_aff_code_usage_limit"`
+	ClearAffCodeExpiresAt  bool `json:"clear_aff_code_expires_at"`
+	ClearAffAutoGroupID    bool `json:"clear_aff_auto_group_id"`
+}
+
+type BindAffiliateInviterRequest struct {
+	InviterUserID int64 `json:"inviter_user_id" binding:"required"`
+	ResetValidity bool  `json:"reset_validity"`
+}
+
+type ExtendAffiliateInviteRewardsRequest struct {
+	Scope          string  `json:"scope" binding:"required"`
+	InviterUserID  int64   `json:"inviter_user_id"`
+	AllInvitees    bool    `json:"all_invitees"`
+	InviteeUserIDs []int64 `json:"invitee_user_ids"`
+	ExtendDays     int     `json:"extend_days" binding:"required"`
 }
 
 func (h *AffiliateHandler) UpdateUserSettings(c *gin.Context) {
@@ -71,11 +89,18 @@ func (h *AffiliateHandler) UpdateUserSettings(c *gin.Context) {
 		return
 	}
 
-	if req.AffCode != nil {
-		if err := h.affiliateService.AdminUpdateUserAffCode(c.Request.Context(), userID, *req.AffCode); err != nil {
-			response.ErrorFrom(c, err)
-			return
-		}
+	if err := h.affiliateService.AdminUpdateUserAffiliateSettings(c.Request.Context(), userID, service.AffiliateUserSettingsUpdate{
+		AffCode:                req.AffCode,
+		AffCodeUsageLimit:      req.AffCodeUsageLimit,
+		ClearAffCodeUsageLimit: req.ClearAffCodeUsageLimit,
+		AffCodeExpiresAt:       req.AffCodeExpiresAt,
+		ClearAffCodeExpiresAt:  req.ClearAffCodeExpiresAt,
+		AffSignupBonusBalance:  req.AffSignupBonusBalance,
+		AffAutoGroupID:         req.AffAutoGroupID,
+		ClearAffAutoGroupID:    req.ClearAffAutoGroupID,
+	}); err != nil {
+		response.ErrorFrom(c, err)
+		return
 	}
 
 	if req.ClearRebateRate {
@@ -91,6 +116,52 @@ func (h *AffiliateHandler) UpdateUserSettings(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"user_id": userID})
+}
+
+// BindInviter sets or replaces the inviter for a user.
+// POST /api/v1/admin/affiliates/users/:user_id/inviter
+func (h *AffiliateHandler) BindInviter(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user_id")
+		return
+	}
+
+	var req BindAffiliateInviterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	summary, err := h.affiliateService.AdminBindInviter(c.Request.Context(), userID, req.InviterUserID, req.ResetValidity)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, summary)
+}
+
+// ExtendInviteRewards extends active non-permanent invite reward windows.
+// POST /api/v1/admin/affiliates/invite-rewards/extend
+func (h *AffiliateHandler) ExtendInviteRewards(c *gin.Context) {
+	var req ExtendAffiliateInviteRewardsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	result, err := h.affiliateService.AdminExtendInviteRewards(c.Request.Context(), service.AffiliateInviteRewardExtensionRequest{
+		Scope:          req.Scope,
+		InviterUserID:  req.InviterUserID,
+		AllInvitees:    req.AllInvitees,
+		InviteeUserIDs: req.InviteeUserIDs,
+		ExtendDays:     req.ExtendDays,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
 }
 
 // ClearUserSettings removes ALL of a user's custom affiliate settings — clears
@@ -183,109 +254,4 @@ func (h *AffiliateHandler) LookupUsers(c *gin.Context) {
 		result[i] = AffiliateUserSummary{ID: u.ID, Email: u.Email, Username: u.Username}
 	}
 	response.Success(c, result)
-}
-
-// GetUserOverview returns one user's affiliate overview.
-// GET /api/v1/admin/affiliates/users/:user_id/overview
-func (h *AffiliateHandler) GetUserOverview(c *gin.Context) {
-	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
-	if err != nil || userID <= 0 {
-		response.BadRequest(c, "Invalid user_id")
-		return
-	}
-	overview, err := h.affiliateService.AdminGetUserOverview(c.Request.Context(), userID)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, overview)
-}
-
-// ListInviteRecords returns all inviter-invitee relationships.
-// GET /api/v1/admin/affiliates/invites
-func (h *AffiliateHandler) ListInviteRecords(c *gin.Context) {
-	page, pageSize := response.ParsePagination(c)
-	filter := parseAffiliateRecordFilter(c, page, pageSize)
-	items, total, err := h.affiliateService.AdminListInviteRecords(c.Request.Context(), filter)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Paginated(c, items, total, filter.Page, filter.PageSize)
-}
-
-// ListRebateRecords returns all order-level affiliate rebate records.
-// GET /api/v1/admin/affiliates/rebates
-func (h *AffiliateHandler) ListRebateRecords(c *gin.Context) {
-	page, pageSize := response.ParsePagination(c)
-	filter := parseAffiliateRecordFilter(c, page, pageSize)
-	items, total, err := h.affiliateService.AdminListRebateRecords(c.Request.Context(), filter)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Paginated(c, items, total, filter.Page, filter.PageSize)
-}
-
-// ListTransferRecords returns all affiliate quota-to-balance transfer records.
-// GET /api/v1/admin/affiliates/transfers
-func (h *AffiliateHandler) ListTransferRecords(c *gin.Context) {
-	page, pageSize := response.ParsePagination(c)
-	filter := parseAffiliateRecordFilter(c, page, pageSize)
-	items, total, err := h.affiliateService.AdminListTransferRecords(c.Request.Context(), filter)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Paginated(c, items, total, filter.Page, filter.PageSize)
-}
-
-func parseAffiliateRecordFilter(c *gin.Context, page, pageSize int) service.AffiliateRecordFilter {
-	filter := service.AffiliateRecordFilter{
-		Search:   c.Query("search"),
-		Page:     page,
-		PageSize: pageSize,
-		SortBy:   c.Query("sort_by"),
-		SortDesc: c.Query("sort_order") != "asc",
-	}
-	if filter.PageSize > 100 {
-		filter.PageSize = 100
-	}
-	userTZ := c.Query("timezone")
-	if t := parseAffiliateRecordStartTime(c.Query("start_at"), userTZ); t != nil {
-		filter.StartAt = t
-	}
-	if t := parseAffiliateRecordEndTime(c.Query("end_at"), userTZ); t != nil {
-		filter.EndAt = t
-	}
-	return filter
-}
-
-func parseAffiliateRecordStartTime(raw string, userTZ string) *time.Time {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil
-	}
-	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
-		return &parsed
-	}
-	if parsed, err := timezone.ParseInUserLocation("2006-01-02", raw, userTZ); err == nil {
-		return &parsed
-	}
-	return nil
-}
-
-func parseAffiliateRecordEndTime(raw string, userTZ string) *time.Time {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil
-	}
-	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
-		return &parsed
-	}
-	if parsed, err := timezone.ParseInUserLocation("2006-01-02", raw, userTZ); err == nil {
-		end := parsed.AddDate(0, 0, 1).Add(-time.Nanosecond)
-		return &end
-	}
-	return nil
 }

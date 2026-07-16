@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"ikik-api/internal/pkg/logger"
-	servermiddleware "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -48,9 +47,9 @@ var upgrader = websocket.Upgrader{
 		return isAllowedOpsWSOrigin(r)
 	},
 	// Subprotocol negotiation:
-	// - The frontend passes ["sub2api-admin", "jwt.<token>"].
-	// - We always select "sub2api-admin" so the token is never echoed back in the handshake response.
-	Subprotocols: []string{"sub2api-admin"},
+	// - The frontend passes ["ikik-api-admin", "jwt.<token>"].
+	// - We always select "ikik-api-admin" so the token is never echoed back in the handshake response.
+	Subprotocols: []string{"ikik-api-admin"},
 }
 
 const (
@@ -324,7 +323,7 @@ func (h *OpsHandler) QPSWSHandler(c *gin.Context) {
 	// If realtime monitoring is disabled, prefer a successful WS upgrade followed by a clean close
 	// with a deterministic close code. This prevents clients from spinning on 404/1006 reconnect loops.
 	if !h.opsService.IsRealtimeMonitoringEnabled(c.Request.Context()) {
-		conn, err := upgrader.Upgrade(c.Writer, c.Request, servermiddleware.ServerTimingResponseHeader(c))
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "ops realtime monitoring is disabled"})
 			return
@@ -359,7 +358,7 @@ func (h *OpsHandler) QPSWSHandler(c *gin.Context) {
 		defer releaseOpsWSIPSlot(clientIP)
 	}
 
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, servermiddleware.ServerTimingResponseHeader(c))
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		logger.LegacyPrintf("handler.admin.ops_ws", "[OpsWS] upgrade failed: %v", err)
 		return

@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	dbent "ikik-api/ent"
+	entuser "ikik-api/ent/user"
 
 	entsql "entgo.io/ent/dialect/sql"
 )
@@ -78,8 +80,18 @@ ON CONFLICT (user_id, provider_type, grant_reason) DO NOTHING`,
 	}
 
 	if providerDefaults.Balance != 0 {
-		if err := client.User.UpdateOneID(userID).AddBalance(providerDefaults.Balance).Exec(ctx); err != nil {
+		affected, err := client.User.Update().
+			Where(entuser.ID(userID), entuser.DeletedAtIsNil()).
+			AddBalance(providerDefaults.Balance).
+			AddRechargeBalance(providerDefaults.Balance).
+			AddTotalRecharged(providerDefaults.Balance).
+			SetUpdatedAt(time.Now()).
+			Save(ctx)
+		if err != nil {
 			return fmt.Errorf("apply first bind balance default: %w", err)
+		}
+		if affected == 0 {
+			return ErrUserNotFound
 		}
 	}
 	if providerDefaults.Concurrency != 0 {

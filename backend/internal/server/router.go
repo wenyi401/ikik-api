@@ -60,12 +60,11 @@ func SetupRouter(
 		}
 		return nil
 	}))
-	r.Use(middleware2.ServerTiming(cfg.Server.EnableServerTiming))
 
 	// Serve embedded frontend with settings injection if available
 	if web.HasEmbeddedFrontend() {
 		frontendServer, err := web.NewFrontendServer(settingService)
-		if err != nil {
+		if err != nil { //nolint:staticcheck // The !embed build intentionally returns an error to select legacy serving.
 			log.Printf("Warning: Failed to create frontend server with settings injection: %v, using legacy mode", err)
 			r.Use(web.ServeEmbeddedFrontend())
 			settingService.SetOnUpdateCallback(refreshFrameOrigins)
@@ -110,9 +109,7 @@ func registerRoutes(
 	// 注册各模块路由
 	routes.RegisterAuthRoutes(v1, h, jwtAuth, redisClient, settingService)
 	routes.RegisterUserRoutes(v1, h, jwtAuth, settingService)
-	routes.RegisterAdminRoutes(v1, h, adminAuth, settingService)
+	routes.RegisterAdminRoutes(v1, h, adminAuth)
 	routes.RegisterGatewayRoutes(r, h, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg)
 	routes.RegisterPaymentRoutes(v1, h.Payment, h.PaymentWebhook, h.Admin.Payment, jwtAuth, adminAuth, settingService)
-
-	handler.RegisterPageRoutes(v1, cfg.Pricing.DataDir, gin.HandlerFunc(jwtAuth), gin.HandlerFunc(adminAuth), settingService)
 }

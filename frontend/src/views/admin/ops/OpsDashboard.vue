@@ -1,9 +1,9 @@
 <template>
-  <component :is="isFullscreen ? 'div' : AppLayout" :class="isFullscreen ? 'flex min-h-screen flex-col justify-center bg-gray-50 dark:bg-dark-950' : ''">
-    <div :class="[isFullscreen ? 'p-4 md:p-6' : '', 'space-y-6 pb-12']">
+  <component :is="isFullscreen ? 'div' : AppLayout" :class="isFullscreen ? 'flex min-h-screen flex-col justify-center bg-[var(--ui-bg)]' : ''">
+    <div :class="['ops-dashboard-page', { 'ops-dashboard-page--fullscreen': isFullscreen }]">
       <div
         v-if="errorMessage"
-        class="rounded-2xl bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400"
+        class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
       >
         {{ errorMessage }}
       </div>
@@ -40,11 +40,11 @@
       />
 
       <!-- Row: Concurrency + Throughput -->
-      <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="grid grid-cols-1 gap-6 lg:grid-cols-4">
-        <div class="lg:col-span-1 min-h-[360px]">
+      <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="ops-monitor-grid ops-monitor-grid--primary">
+        <div class="ops-monitor-cell h-[360px] lg:col-span-1">
           <OpsConcurrencyCard :platform-filter="platform" :group-id-filter="groupId" :refresh-token="dashboardRefreshToken" />
         </div>
-        <div class="lg:col-span-1 h-[360px]">
+        <div class="ops-monitor-cell h-[360px] lg:col-span-1">
           <OpsSwitchRateTrendChart
             :points="switchTrend?.points ?? []"
             :loading="loadingSwitchTrend"
@@ -52,7 +52,7 @@
             :fullscreen="isFullscreen"
           />
         </div>
-        <div class="lg:col-span-2 h-[360px]">
+        <div class="ops-monitor-cell h-[360px] lg:col-span-2">
           <OpsThroughputTrendChart
             :points="throughputTrend?.points ?? []"
             :by-platform="throughputTrend?.by_platform ?? []"
@@ -68,20 +68,26 @@
       </div>
 
       <!-- Row: Visual Analysis (baseline 3-up grid) -->
-      <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <OpsLatencyChart :latency-data="latencyHistogram" :loading="loadingLatency" />
-        <OpsErrorDistributionChart
-          :data="errorDistribution"
-          :loading="loadingErrorDistribution"
-          @open-details="openErrorDetails('request')"
-        />
-        <OpsErrorTrendChart
-          :points="errorTrend?.points ?? []"
-          :loading="loadingErrorTrend"
-          :time-range="timeRange"
-          @open-request-errors="openErrorDetails('request')"
-          @open-upstream-errors="openErrorDetails('upstream')"
-        />
+      <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="ops-monitor-grid ops-monitor-grid--analysis">
+        <div class="ops-monitor-cell">
+          <OpsLatencyChart :latency-data="latencyHistogram" :loading="loadingLatency" />
+        </div>
+        <div class="ops-monitor-cell">
+          <OpsErrorDistributionChart
+            :data="errorDistribution"
+            :loading="loadingErrorDistribution"
+            @open-details="openErrorDetails('request')"
+          />
+        </div>
+        <div class="ops-monitor-cell">
+          <OpsErrorTrendChart
+            :points="errorTrend?.points ?? []"
+            :loading="loadingErrorTrend"
+            :time-range="timeRange"
+            @open-request-errors="openErrorDetails('request')"
+            @open-upstream-errors="openErrorDetails('upstream')"
+          />
+        </div>
       </div>
 
       <!-- Row: OpenAI Token Stats -->
@@ -310,6 +316,8 @@ const applyRouteQueryToState = () => {
   }
 }
 
+applyRouteQueryToState()
+
 const buildQueryFromState = () => {
   const next: Record<string, any> = { ...route.query }
 
@@ -377,8 +385,6 @@ const requestDetailsPreset = ref<OpsRequestDetailsPreset>({
 
 const showSettingsDialog = ref(false)
 const showAlertRulesCard = ref(false)
-
-applyRouteQueryToState()
 
 // Auto refresh settings
 const showAlertEvents = ref(true)
@@ -830,3 +836,84 @@ watch(showSettingsDialog, async (show) => {
   }
 })
 </script>
+
+<style scoped>
+.ops-dashboard-page {
+  display: flex;
+  width: 100%;
+  max-width: var(--ui-page-wide);
+  min-width: 0;
+  flex-direction: column;
+  gap: 1rem;
+  margin-inline: auto;
+  padding-bottom: 3rem;
+}
+
+.ops-dashboard-page--fullscreen {
+  max-width: none;
+  padding: 1rem;
+}
+
+.ops-monitor-grid {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: transparent;
+}
+
+.ops-monitor-grid--primary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ops-monitor-grid--analysis {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ops-monitor-cell {
+  min-width: 0;
+}
+
+.ops-monitor-cell + .ops-monitor-cell {
+  border-left: 1px solid var(--ui-border);
+}
+
+.ops-monitor-cell :deep(.ops-panel) {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+
+@media (max-width: 1023px) {
+  .ops-monitor-grid--primary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ops-monitor-grid--primary .ops-monitor-cell:nth-child(3) {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--ui-border);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .ops-monitor-grid--primary,
+  .ops-monitor-grid--analysis {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-monitor-cell + .ops-monitor-cell,
+  .ops-monitor-grid--primary .ops-monitor-cell:nth-child(3) {
+    grid-column: auto;
+    border-top: 1px solid var(--ui-border);
+    border-left: 0;
+  }
+}
+
+@media (min-width: 768px) {
+  .ops-dashboard-page--fullscreen {
+    padding: 1.5rem;
+  }
+}
+</style>

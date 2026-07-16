@@ -5,13 +5,16 @@ package routes
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
@@ -79,8 +82,8 @@ func ensureAuthRouteDockerAvailable(t *testing.T) {
 }
 
 func authRouteDockerAvailable() bool {
-	if os.Getenv("DOCKER_HOST") != "" {
-		return true
+	if dockerHost := strings.TrimSpace(os.Getenv("DOCKER_HOST")); dockerHost != "" {
+		return authRouteDockerHostReachable(dockerHost)
 	}
 
 	socketCandidates := []string{
@@ -95,11 +98,53 @@ func authRouteDockerAvailable() bool {
 		if socket == "" {
 			continue
 		}
-		if _, err := os.Stat(socket); err == nil {
+		if authRouteDockerSocketReachable(socket) {
 			return true
 		}
 	}
 	return false
+}
+
+func authRouteDockerHostReachable(rawHost string) bool {
+	parsed, err := url.Parse(rawHost)
+	if err != nil {
+		return false
+	}
+	switch parsed.Scheme {
+	case "unix":
+		return authRouteDockerSocketReachable(parsed.Path)
+	case "tcp", "http", "https":
+		return authRouteDockerTCPReachable(parsed.Host)
+	default:
+		return false
+	}
+}
+
+func authRouteDockerSocketReachable(socket string) bool {
+	if socket == "" {
+		return false
+	}
+	if _, err := os.Stat(socket); err != nil {
+		return false
+	}
+	conn, err := net.DialTimeout("unix", socket, 500*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
+func authRouteDockerTCPReachable(host string) bool {
+	if host == "" {
+		return false
+	}
+	conn, err := net.DialTimeout("tcp", host, 500*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
 }
 
 func authRouteUserHomeDir() string {

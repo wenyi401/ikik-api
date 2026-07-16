@@ -39,6 +39,23 @@ export interface UserMonitorListResponse {
   items: UserMonitorView[]
 }
 
+export interface ChannelMonitorGroupCapacity {
+  group_id: number
+  group_name: string
+  group_platform: string
+  concurrency_used: number
+  concurrency_max: number
+  sessions_used: number
+  sessions_max: number
+  rpm_used: number
+  rpm_max: number
+}
+
+export interface ChannelMonitorCapacitySummaryResponse {
+  items: ChannelMonitorGroupCapacity[]
+  total: ChannelMonitorGroupCapacity
+}
+
 export interface UserMonitorModelDetail {
   model: string
   latest_status: MonitorStatus
@@ -75,9 +92,21 @@ export async function status(id: number): Promise<UserMonitorDetail> {
   return data
 }
 
+/**
+ * Get user-facing group capacity summary for channel status.
+ */
+export async function capacitySummary(options?: { signal?: AbortSignal }): Promise<ChannelMonitorCapacitySummaryResponse> {
+  const { data } = await apiClient.get<ChannelMonitorCapacitySummaryResponse>(
+    '/channel-monitors/capacity-summary',
+    { signal: options?.signal }
+  )
+  return data
+}
+
 export const channelMonitorUserAPI = {
   list,
   status,
+  capacitySummary,
 }
 
 export default channelMonitorUserAPI

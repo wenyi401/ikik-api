@@ -1,5 +1,5 @@
 /**
- * Vue Router configuration for Sub2API frontend
+ * Vue Router configuration for ikik-api frontend
  * Defines all application routes with lazy loading and navigation guards
  */
 
@@ -7,12 +7,10 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
-import { useAdminComplianceStore } from '@/stores/adminCompliance'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
-import { getSetupStatus } from '@/api/setup'
-import { resolveCompletedSetupRedirectPath } from './setupRedirect'
-import { resolveRouteDocumentTitle } from './title'
+import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
+import { resolveDocumentTitle } from './title'
 
 /**
  * Route definitions with lazy loading
@@ -46,7 +44,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: 'Login',
-      titleKey: 'home.login'
+      titleKey: 'common.login'
     }
   },
   {
@@ -110,25 +108,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/auth/dingtalk/callback',
-    name: 'DingTalkOAuthCallback',
-    component: () => import('@/views/auth/DingTalkCallbackView.vue'),
-    meta: {
-      requiresAuth: false,
-      title: 'DingTalk OAuth Callback',
-      titleKey: 'auth.dingtalkCallbackPageTitle'
-    }
-  },
-  {
-    path: '/auth/dingtalk/email-completion',
-    name: 'dingtalk-email-completion',
-    component: () => import('@/views/auth/DingTalkEmailCompletionView.vue'),
-    meta: {
-      requiresAuth: false,
-      title: 'DingTalk Email Completion'
-    }
-  },
-  {
     path: '/auth/oidc/callback',
     name: 'OIDCOAuthCallback',
     component: () => import('@/views/auth/OidcCallbackView.vue'),
@@ -175,6 +154,16 @@ const routes: RouteRecordRaw[] = [
       title: 'Legal Document'
     }
   },
+  {
+    path: '/store',
+    name: 'Store',
+    component: () => import('@/views/StoreView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Store',
+      titleKey: 'store.title'
+    }
+  },
 
   // ==================== User Routes ====================
   {
@@ -206,16 +195,41 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/batch-image',
-    name: 'BatchImageGuide',
-    alias: '/docs/batch-image',
-    component: () => import('@/views/user/BatchImageGuideView.vue'),
+    path: '/accounts',
+    name: 'UserAccounts',
+    component: () => import('@/views/user/AccountsView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Batch Image Guide',
-      titleKey: 'batchImageGuide.title',
-      descriptionKey: 'batchImageGuide.description'
+      title: 'My Accounts',
+      titleKey: 'userAccounts.title',
+      descriptionKey: 'userAccounts.description'
+    }
+  },
+  {
+    path: '/accounts/free-models',
+    name: 'FreeModels',
+    component: () => import('@/views/user/FreeModelsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Free Models',
+      titleKey: 'freeModels.title',
+      descriptionKey: 'freeModels.description',
+      requiresFreeModels: true
+    }
+  },
+  {
+    path: '/accounts/carpools',
+    name: 'CarpoolPools',
+    component: () => import('@/views/user/CarpoolPoolsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Carpool Pools',
+      titleKey: 'carpool.title',
+      descriptionKey: 'carpool.description',
+      requiresCarpool: true
     }
   },
   {
@@ -255,12 +269,26 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/models',
+    name: 'ModelMarket',
+    component: () => import('@/views/user/ModelMarketView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      requiresAvailableChannels: true,
+      title: 'Model Market',
+      titleKey: 'modelMarket.title',
+      descriptionKey: 'modelMarket.description'
+    }
+  },
+  {
     path: '/available-channels',
     name: 'UserAvailableChannels',
     component: () => import('@/views/user/AvailableChannelsView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
+      requiresAvailableChannels: true,
       title: 'Available Channels',
       titleKey: 'availableChannels.title',
       descriptionKey: 'availableChannels.description'
@@ -359,7 +387,7 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: false,
       requiresAdmin: false,
       title: 'Airwallex Payment',
-      titleKey: 'payment.airwallexPay',
+      titleKey: 'payment.title',
       requiresPayment: false
     }
   },
@@ -503,6 +531,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/carpools',
+    name: 'AdminCarpools',
+    component: () => import('@/views/admin/CarpoolPoolsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Carpool Management',
+      titleKey: 'admin.carpools.title',
+      descriptionKey: 'admin.carpools.description',
+      requiresCarpool: true
+    }
+  },
+  {
     path: '/admin/announcements',
     name: 'AdminAnnouncements',
     component: () => import('@/views/admin/AnnouncementsView.vue'),
@@ -551,6 +592,58 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/store',
+    redirect: '/admin/store/categories'
+  },
+  {
+    path: '/admin/store/categories',
+    name: 'AdminStoreCategories',
+    component: () => import('@/views/admin/store/StoreCategoriesView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Store Categories',
+      titleKey: 'admin.store.categoriesTitle',
+      descriptionKey: 'admin.store.categoriesDescription'
+    }
+  },
+  {
+    path: '/admin/store/products',
+    name: 'AdminStoreProducts',
+    component: () => import('@/views/admin/store/StoreProductsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Store Products',
+      titleKey: 'admin.store.productsTitle',
+      descriptionKey: 'admin.store.productsDescription'
+    }
+  },
+  {
+    path: '/admin/store/cards',
+    name: 'AdminStoreCards',
+    component: () => import('@/views/admin/store/StoreCardsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Store Cards',
+      titleKey: 'admin.store.cardsTitle',
+      descriptionKey: 'admin.store.cardsDescription'
+    }
+  },
+  {
+    path: '/admin/store/file-storage',
+    name: 'AdminStoreFileStorage',
+    component: () => import('@/views/admin/store/StoreFileStorageView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Store File Card Storage',
+      titleKey: 'admin.store.fileStorageTitle',
+      descriptionKey: 'admin.store.fileStorageDescription'
+    }
+  },
+  {
     path: '/admin/settings',
     name: 'AdminSettings',
     component: () => import('@/views/admin/SettingsView.vue'),
@@ -560,6 +653,18 @@ const routes: RouteRecordRaw[] = [
       title: 'System Settings',
       titleKey: 'admin.settings.title',
       descriptionKey: 'admin.settings.description'
+    }
+  },
+  {
+    path: '/admin/modules',
+    name: 'AdminModules',
+    component: () => import('@/views/admin/ModulesView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Plugin Modules',
+      titleKey: 'admin.modules.title',
+      descriptionKey: 'admin.modules.description'
     }
   },
   {
@@ -588,43 +693,27 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/affiliates',
-    redirect: '/admin/affiliates/invites'
-  },
-  {
-    path: '/admin/affiliates/invites',
-    name: 'AdminAffiliateInvites',
-    component: () => import('@/views/admin/affiliates/AdminAffiliateInvitesView.vue'),
+    path: '/admin/token-leaderboard',
+    name: 'AdminTokenLeaderboard',
+    component: () => import('@/views/admin/UserTokenLeaderboardView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Affiliate Invite Records',
-      titleKey: 'nav.affiliateInviteRecords',
-      descriptionKey: 'admin.affiliates.invitesDescription'
+      title: 'User Token Usage Ranking',
+      titleKey: 'admin.usage.tokenLeaderboardTitle',
+      descriptionKey: 'admin.usage.tokenLeaderboardDescription'
     }
   },
   {
-    path: '/admin/affiliates/rebates',
-    name: 'AdminAffiliateRebates',
-    component: () => import('@/views/admin/affiliates/AdminAffiliateRebatesView.vue'),
+    path: '/admin/revenue',
+    name: 'AdminRevenue',
+    component: () => import('@/views/admin/RevenueView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Affiliate Rebate Records',
-      titleKey: 'nav.affiliateRebateRecords',
-      descriptionKey: 'admin.affiliates.rebatesDescription'
-    }
-  },
-  {
-    path: '/admin/affiliates/transfers',
-    name: 'AdminAffiliateTransfers',
-    component: () => import('@/views/admin/affiliates/AdminAffiliateTransfersView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Affiliate Transfer Records',
-      titleKey: 'nav.affiliateTransferRecords',
-      descriptionKey: 'admin.affiliates.transfersDescription'
+      title: 'Revenue Management',
+      titleKey: 'admin.revenue.title',
+      descriptionKey: 'admin.revenue.description'
     }
   },
 
@@ -666,6 +755,18 @@ const routes: RouteRecordRaw[] = [
       requiresPayment: true
     }
   },
+  {
+    path: '/admin/withdrawals',
+    name: 'AdminWithdrawals',
+    component: () => import('@/views/admin/orders/AdminWithdrawalsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Withdrawal Management',
+      titleKey: 'nav.withdrawalManagement',
+      requiresPayment: true
+    }
+  },
 
   // ==================== 404 Not Found ====================
   {
@@ -703,12 +804,10 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result', '/payment/airwallex', '/legal']
+const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result', '/payment/airwallex', '/legal', '/store']
 const BACKEND_MODE_CALLBACK_PATHS = [
   '/auth/callback',
   '/auth/linuxdo/callback',
-  '/auth/dingtalk/callback',
-  '/auth/dingtalk/email-completion',
   '/auth/oidc/callback',
   '/auth/wechat/callback',
   '/auth/wechat/payment/callback',
@@ -745,28 +844,26 @@ router.beforeEach(async (to, _from, next) => {
 
   // Set page title
   const appStore = useAppStore()
-  const adminSettingsStore = useAdminSettingsStore()
-  const customMenuItems = [
-    ...(appStore.cachedPublicSettings?.custom_menu_items ?? []),
-    ...(authStore.isAdmin ? adminSettingsStore.customMenuItems : []),
-  ]
-  document.title = resolveRouteDocumentTitle(to, appStore.siteName, customMenuItems)
+  // For custom pages, use menu item label as document title
+  if (to.name === 'CustomPage') {
+    const id = to.params.id as string
+    const publicItems = appStore.cachedPublicSettings?.custom_menu_items ?? []
+    const adminSettingsStore = useAdminSettingsStore()
+    const menuItem = publicItems.find((item) => item.id === id)
+      ?? (authStore.isAdmin ? adminSettingsStore.customMenuItems.find((item) => item.id === id) : undefined)
+    if (menuItem?.label) {
+      const siteName = appStore.siteName || 'ikik-api'
+      document.title = `${menuItem.label} - ${siteName}`
+    } else {
+      document.title = resolveDocumentTitle(to.meta.title, appStore.siteName, to.meta.titleKey as string)
+    }
+  } else {
+    document.title = resolveDocumentTitle(to.meta.title, appStore.siteName, to.meta.titleKey as string)
+  }
 
   // Check if route requires authentication
   const requiresAuth = to.meta.requiresAuth !== false // Default to true
   const requiresAdmin = to.meta.requiresAdmin === true
-
-  if (to.path === '/setup') {
-    try {
-      const status = await getSetupStatus()
-      if (!status.needs_setup) {
-        next(resolveCompletedSetupRedirectPath(authStore.isAuthenticated, authStore.isAdmin))
-        return
-      }
-    } catch {
-      // If setup status cannot be determined, keep the setup page reachable.
-    }
-  }
 
   // If route doesn't require auth, allow access
   if (!requiresAuth) {
@@ -811,59 +908,83 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
-  if (requiresAdmin && authStore.isAdmin) {
-    const adminComplianceStore = useAdminComplianceStore()
-    if (!adminComplianceStore.initialized) {
-      try {
-        await adminComplianceStore.fetchStatus()
-      } catch (error) {
-        const err = error as { status?: number; code?: string; metadata?: Record<string, string> }
-        if (err.status === 423 && err.code === 'ADMIN_COMPLIANCE_ACK_REQUIRED') {
-          adminComplianceStore.requireAcknowledgement(err.metadata)
-        }
-      }
-    }
-  }
 
-
-  // 公共设置可能尚未加载（App.vue 的 onMounted 异步拉取晚于首次导航，且纯静态部署
-  // 无 __APP_CONFIG__ 注入）。此时 cachedPublicSettings 为空会把 payment/risk_control
-  // 误判为“未启用”而错误拦截，故这里先确保设置加载完成。
-  if ((to.meta.requiresPayment || to.meta.requiresRiskControl) && !appStore.publicSettingsLoaded) {
-    try {
+  // Check payment requirement. The purchase page can be backed by either
+  // internal payment orders or an external card-code store URL.
+  if (to.meta.requiresPayment) {
+    if (!appStore.publicSettingsLoaded && !appStore.cachedPublicSettings) {
       await appStore.fetchPublicSettings()
-    } catch (error) {
-      console.warn('Failed to load public settings in route guard', error)
     }
-  }
-
-  // Only an explicit value from successfully loaded settings can disable a route.
-  // A transient settings failure is unknown state, not a confirmed feature toggle.
-  if (
-    to.meta.requiresPayment &&
-    appStore.publicSettingsLoaded &&
-    appStore.cachedPublicSettings?.payment_enabled === false
-  ) {
-    next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
-    return
-  }
-
-  if (
-    to.meta.requiresRiskControl &&
-    appStore.publicSettingsLoaded &&
-    appStore.cachedPublicSettings?.risk_control_enabled === false
-  ) {
-    next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
-    return
+    const publicSettings = appStore.cachedPublicSettings
+    const paymentEnabled = publicSettings?.payment_enabled === true
+    const externalPurchaseEnabled =
+      publicSettings?.purchase_subscription_enabled === true &&
+      /^https?:\/\//i.test(publicSettings.purchase_subscription_url?.trim() || '')
+    if (!paymentEnabled && !externalPurchaseEnabled) {
+      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      return
+    }
   }
 
   // 简易模式下限制访问某些页面
+  if (to.meta.requiresRiskControl) {
+    const riskControlEnabled = appStore.cachedPublicSettings?.risk_control_enabled === true
+    if (!riskControlEnabled) {
+      next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
+      return
+    }
+  }
+
+  if (to.meta.requiresAvailableChannels) {
+    if (!appStore.cachedPublicSettings) {
+      try {
+        await appStore.fetchPublicSettings()
+      } catch (error) {
+        console.error('Failed to load public settings:', error)
+      }
+    }
+    if (!isFeatureFlagEnabled(FeatureFlags.availableChannels)) {
+      next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
+      return
+    }
+  }
+
+  if (to.meta.requiresFreeModels) {
+    if (!appStore.cachedPublicSettings) {
+      try {
+        await appStore.fetchPublicSettings()
+      } catch (error) {
+        console.error('Failed to load public settings:', error)
+      }
+    }
+    if (!isFeatureFlagEnabled(FeatureFlags.freeModels)) {
+      next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
+      return
+    }
+  }
+
+  if (to.meta.requiresCarpool) {
+    if (!appStore.cachedPublicSettings) {
+      try {
+        await appStore.fetchPublicSettings()
+      } catch (error) {
+        console.error('Failed to load public settings:', error)
+      }
+    }
+    if (!isFeatureFlagEnabled(FeatureFlags.carpool)) {
+      next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
+      return
+    }
+  }
+
   if (authStore.isSimpleMode) {
     const restrictedPaths = [
       '/admin/groups',
       '/admin/subscriptions',
       '/admin/redeem',
       '/subscriptions',
+      '/models',
+      '/available-channels',
       '/redeem'
     ]
 

@@ -17,14 +17,10 @@ import (
 	"ikik-api/ent/paymentorder"
 	"ikik-api/ent/paymentproviderinstance"
 	"ikik-api/internal/payment"
-	"ikik-api/internal/payment/provider"
 	infraerrors "ikik-api/internal/pkg/errors"
-	"ikik-api/internal/pkg/servertiming"
 )
 
 // --- Refund Flow ---
-
-var createPaymentProviderFromInstance = provider.CreateProvider
 
 // getOrderProviderInstance looks up the provider instance that processed this order.
 // For legacy orders without provider_instance_id, it resolves only when the
@@ -251,6 +247,14 @@ func (s *PaymentService) PrepareRefund(ctx context.Context, oid int64, amt float
 			return nil, er, nil
 		}
 	}
+	if o.Status == OrderStatusRefundPending {
+		// Pending means the previous refund request already reached the gateway.
+		// Re-check/retry must not deduct user balance or subscription days again.
+		p.DeductionType = payment.DeductionTypeNone
+		p.BalanceToDeduct = 0
+		p.SubDaysToDeduct = 0
+		p.SubscriptionID = 0
+	}
 	return p, nil, nil
 }
 
@@ -323,11 +327,11 @@ func (s *PaymentService) ExecuteRefund(ctx context.Context, p *RefundPlan) (*Ref
 			p.SubDaysToDeduct = 0
 		}
 	}
-	resp, err := s.gwRefund(ctx, p)
+	refundResp, err := s.gwRefund(ctx, p)
 	if err != nil {
 		return s.handleGwFail(ctx, p, err)
 	}
-	return s.finishRefund(ctx, p, resp)
+	return s.finishRefund(ctx, p, refundResp)
 }
 
 func (s *PaymentService) gwRefund(ctx context.Context, p *RefundPlan) (*payment.RefundResponse, error) {
@@ -348,14 +352,12 @@ func (s *PaymentService) gwRefund(ctx context.Context, p *RefundPlan) (*payment.
 		})
 		return nil, err
 	}
-	finishProviderCall := servertiming.ObserveDependency(ctx, "payment")
 	resp, err := prov.Refund(ctx, payment.RefundRequest{
 		TradeNo: p.Order.PaymentTradeNo,
 		OrderID: p.Order.OutTradeNo,
 		Amount:  formatGatewayRefundAmount(p.GatewayAmount, p.Order),
 		Reason:  p.Reason,
 	})
-	finishProviderCall()
 	if err != nil {
 		if resp != nil && strings.TrimSpace(resp.Status) == payment.ProviderStatusPending {
 			return resp, nil
@@ -368,8 +370,29 @@ func (s *PaymentService) gwRefund(ctx context.Context, p *RefundPlan) (*payment.
 	return resp, nil
 }
 
-func formatGatewayRefundAmount(amount float64, order *dbent.PaymentOrder) string {
-	return payment.FormatAmountForCurrency(amount, PaymentOrderCurrency(order))
+// getRefundProvider creates a provider using the order's original instance config.
+// Delegates to getOrderProvider which handles instance lookup and fallback.
+func (s *PaymentService) getRefundProvider(ctx context.Context, o *dbent.PaymentOrder) (payment.Provider, error) {
+	inst, err := s.getRefundOrderProviderInstance(ctx, o)
+	if err != nil {
+		return nil, err
+	}
+	if inst == nil {
+		return nil, fmt.Errorf("refund provider instance is unavailable for order %d", o.ID)
+	}
+	return s.createProviderFromInstance(ctx, inst)
+}
+
+func (s *PaymentService) handleGwFail(ctx context.Context, p *RefundPlan, gErr error) (*RefundResult, error) {
+	if s.RollbackRefund(ctx, p, gErr) {
+		s.restoreStatus(ctx, p)
+		s.writeAuditLog(ctx, p.OrderID, "REFUND_GATEWAY_FAILED", "admin", map[string]any{"detail": psErrMsg(gErr)})
+		return &RefundResult{Success: false, Warning: "gateway failed: " + psErrMsg(gErr) + ", rolled back"}, nil
+	}
+	now := time.Now()
+	_, _ = s.entClient.PaymentOrder.UpdateOneID(p.OrderID).SetStatus(OrderStatusRefundFailed).SetFailedAt(now).SetFailedReason(psErrMsg(gErr)).Save(ctx)
+	s.writeAuditLog(ctx, p.OrderID, "REFUND_FAILED", "admin", map[string]any{"detail": psErrMsg(gErr)})
+	return nil, infraerrors.InternalServer("REFUND_FAILED", psErrMsg(gErr))
 }
 
 func validateRefundProviderResponse(resp *payment.RefundResponse) error {
@@ -420,14 +443,12 @@ func (s *PaymentService) QueryAndFinalizeRefund(ctx context.Context, oid int64) 
 	}
 
 	pendingDetail := s.latestRefundPendingDetail(ctx, oid)
-	finishProviderCall := servertiming.ObserveDependency(ctx, "payment")
 	resp, err := queryProvider.QueryRefund(ctx, payment.RefundQueryRequest{
 		TradeNo:  o.PaymentTradeNo,
 		OrderID:  o.OutTradeNo,
 		RefundID: pendingDetail.RefundID,
 		Amount:   formatGatewayRefundAmount(o.RefundAmount, o),
 	})
-	finishProviderCall()
 	if err != nil {
 		return nil, fmt.Errorf("query refund: %w", err)
 	}
@@ -444,6 +465,7 @@ func (s *PaymentService) QueryAndFinalizeRefund(ctx context.Context, oid int64) 
 			return early, nil
 		}
 	}
+
 	switch strings.TrimSpace(resp.Status) {
 	case payment.ProviderStatusSuccess, payment.ProviderStatusRefunded:
 		if err := s.applyRefundFinalDeduction(ctx, plan); err != nil {
@@ -456,6 +478,10 @@ func (s *PaymentService) QueryAndFinalizeRefund(ctx context.Context, oid int64) 
 	default:
 		return s.finalizeRefundFailed(ctx, o, fmt.Errorf("payment refund returned unknown status: %s", strings.TrimSpace(resp.Status)))
 	}
+}
+
+func formatGatewayRefundAmount(amount float64, order *dbent.PaymentOrder) string {
+	return payment.FormatAmountForCurrency(amount, PaymentOrderCurrency(order))
 }
 
 func (s *PaymentService) refundFinalizePlan(o *dbent.PaymentOrder) *RefundPlan {
@@ -533,31 +559,6 @@ func (s *PaymentService) latestRefundPendingDetail(ctx context.Context, oid int6
 	return detail
 }
 
-// getRefundProvider creates a provider using the order's original instance config.
-// Delegates to getOrderProvider which handles instance lookup and fallback.
-func (s *PaymentService) getRefundProvider(ctx context.Context, o *dbent.PaymentOrder) (payment.Provider, error) {
-	inst, err := s.getRefundOrderProviderInstance(ctx, o)
-	if err != nil {
-		return nil, err
-	}
-	if inst == nil {
-		return nil, fmt.Errorf("refund provider instance is unavailable for order %d", o.ID)
-	}
-	return s.createProviderFromInstance(ctx, inst)
-}
-
-func (s *PaymentService) handleGwFail(ctx context.Context, p *RefundPlan, gErr error) (*RefundResult, error) {
-	if s.RollbackRefund(ctx, p, gErr) {
-		s.restoreStatus(ctx, p)
-		s.writeAuditLog(ctx, p.OrderID, "REFUND_GATEWAY_FAILED", "admin", map[string]any{"detail": psErrMsg(gErr)})
-		return &RefundResult{Success: false, Warning: "gateway failed: " + psErrMsg(gErr) + ", rolled back"}, nil
-	}
-	now := time.Now()
-	_, _ = s.entClient.PaymentOrder.UpdateOneID(p.OrderID).SetStatus(OrderStatusRefundFailed).SetFailedAt(now).SetFailedReason(psErrMsg(gErr)).Save(ctx)
-	s.writeAuditLog(ctx, p.OrderID, "REFUND_FAILED", "admin", map[string]any{"detail": psErrMsg(gErr)})
-	return nil, infraerrors.InternalServer("REFUND_FAILED", psErrMsg(gErr))
-}
-
 func (s *PaymentService) markRefundOk(ctx context.Context, p *RefundPlan) (*RefundResult, error) {
 	fs := OrderStatusRefunded
 	if p.RefundAmount < p.Order.Amount {
@@ -581,32 +582,28 @@ func (s *PaymentService) markRefundPending(ctx context.Context, p *RefundPlan, r
 		p.SubDaysToDeduct = 0
 	}
 
-	_, err := s.entClient.PaymentOrder.UpdateOneID(p.OrderID).
+	update := s.entClient.PaymentOrder.UpdateOneID(p.OrderID).
 		SetStatus(OrderStatusRefundPending).
 		SetRefundAmount(p.RefundAmount).
 		SetRefundReason(p.Reason).
 		ClearRefundAt().
 		SetForceRefund(p.Force).
 		ClearFailedAt().
-		ClearFailedReason().
-		Save(ctx)
-	if err != nil {
+		ClearFailedReason()
+	if _, err := update.Save(ctx); err != nil {
 		return nil, fmt.Errorf("mark refund pending: %w", err)
 	}
-
-	detail := map[string]any{
-		"refundID":            refundResponseID(resp),
+	s.writeAuditLog(ctx, p.OrderID, "REFUND_PENDING", "admin", map[string]any{
 		"refundAmount":        p.RefundAmount,
 		"reason":              p.Reason,
-		"force":               p.Force,
 		"balanceDeducted":     p.BalanceToDeduct,
 		"subDaysDeducted":     p.SubDaysToDeduct,
 		"balanceRolledBack":   balanceDeducted,
 		"subDaysRolledBack":   subDaysDeducted,
+		"force":               p.Force,
+		"refundID":            refundResponseID(resp),
 		"deductionRollbackOK": rollbackOK,
-	}
-	s.writeAuditLog(ctx, p.OrderID, "REFUND_PENDING", "admin", detail)
-
+	})
 	warning := "gateway refund is pending confirmation"
 	if !rollbackOK {
 		warning += "; refund deduction rollback failed"

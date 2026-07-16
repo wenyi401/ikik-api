@@ -53,6 +53,7 @@ type GeminiMessagesCompatService struct {
 	httpUpstream              HTTPUpstream
 	antigravityGatewayService *AntigravityGatewayService
 	cfg                       *config.Config
+	settingService            *SettingService
 	responseHeaderFilter      *responseheaders.CompiledHeaderFilter
 }
 
@@ -78,6 +79,7 @@ func NewGeminiMessagesCompatService(
 	httpUpstream HTTPUpstream,
 	antigravityGatewayService *AntigravityGatewayService,
 	cfg *config.Config,
+	settingService *SettingService,
 ) *GeminiMessagesCompatService {
 	return &GeminiMessagesCompatService{
 		accountRepo:               accountRepo,
@@ -89,6 +91,7 @@ func NewGeminiMessagesCompatService(
 		httpUpstream:              httpUpstream,
 		antigravityGatewayService: antigravityGatewayService,
 		cfg:                       cfg,
+		settingService:            settingService,
 		responseHeaderFilter:      compileResponseHeaderFilter(cfg),
 	}
 }
@@ -211,6 +214,10 @@ func (s *GeminiMessagesCompatService) tryStickySessionHit(
 
 	account, err := s.getSchedulableAccount(ctx, accountID)
 	if err != nil {
+		return nil
+	}
+	if !IsAccountVisibleToRequestUser(ctx, account) {
+		_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), cacheKey)
 		return nil
 	}
 
@@ -422,14 +429,24 @@ func (s *GeminiMessagesCompatService) GetAntigravityGatewayService() *Antigravit
 }
 
 func (s *GeminiMessagesCompatService) getSchedulableAccount(ctx context.Context, accountID int64) (*Account, error) {
+	var account *Account
+	var err error
 	if s.schedulerSnapshot != nil {
-		return s.schedulerSnapshot.GetAccount(ctx, accountID)
+		account, err = s.schedulerSnapshot.GetAccount(ctx, accountID)
+	} else {
+		account, err = s.accountRepo.GetByID(ctx, accountID)
 	}
-	return s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	return account, nil
 }
 
 func (s *GeminiMessagesCompatService) hydrateSelectedAccount(ctx context.Context, account *Account) (*Account, error) {
 	if account == nil || s.schedulerSnapshot == nil {
+		if !IsAccountVisibleToRequestUser(ctx, account) {
+			return nil, ErrAccountNotFound
+		}
 		return account, nil
 	}
 	hydrated, err := s.schedulerSnapshot.GetAccount(ctx, account.ID)
@@ -439,13 +456,19 @@ func (s *GeminiMessagesCompatService) hydrateSelectedAccount(ctx context.Context
 	if hydrated == nil {
 		return nil, fmt.Errorf("selected gemini account %d not found during hydration", account.ID)
 	}
+	if !IsAccountVisibleToRequestUser(ctx, hydrated) {
+		return nil, ErrAccountNotFound
+	}
 	return hydrated, nil
 }
 
 func (s *GeminiMessagesCompatService) listSchedulableAccountsOnce(ctx context.Context, groupID *int64, platform string, hasForcePlatform bool) ([]Account, error) {
 	if s.schedulerSnapshot != nil {
 		accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, hasForcePlatform)
-		return accounts, err
+		if err != nil {
+			return nil, err
+		}
+		return FilterAccountsVisibleToRequestUser(ctx, accounts), nil
 	}
 
 	useMixedScheduling := platform == PlatformGemini && !hasForcePlatform
@@ -455,12 +478,23 @@ func (s *GeminiMessagesCompatService) listSchedulableAccountsOnce(ctx context.Co
 	}
 
 	if groupID != nil {
-		return s.accountRepo.ListSchedulableByGroupIDAndPlatforms(ctx, *groupID, queryPlatforms)
+		accounts, err := s.accountRepo.ListSchedulableByGroupIDAndPlatforms(ctx, *groupID, queryPlatforms)
+		if err != nil {
+			return nil, err
+		}
+		return FilterAccountsVisibleToRequestUser(ctx, accounts), nil
 	}
+	var accounts []Account
+	var err error
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		return s.accountRepo.ListSchedulableByPlatforms(ctx, queryPlatforms)
+		accounts, err = s.accountRepo.ListSchedulableByPlatforms(ctx, queryPlatforms)
+	} else {
+		accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatforms(ctx, queryPlatforms)
 	}
-	return s.accountRepo.ListSchedulableUngroupedByPlatforms(ctx, queryPlatforms)
+	if err != nil {
+		return nil, err
+	}
+	return FilterAccountsVisibleToRequestUser(ctx, accounts), nil
 }
 
 func (s *GeminiMessagesCompatService) validateUpstreamBaseURL(raw string) (string, error) {
@@ -778,6 +812,12 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 		}
 		requestIDHeader = idHeader
 
+		// Capture upstream request body for ops retry of this attempt.
+		if c != nil {
+			// In this code path `body` is already the JSON sent to upstream.
+			c.Set(OpsUpstreamRequestBodyKey, string(body))
+		}
+
 		resp, err = s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 		if err != nil {
 			safeErr := sanitizeUpstreamErrorMessage(err.Error())
@@ -832,18 +872,15 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 
 				var strippedClaudeBody []byte
 				stageName := ""
-				// 路径说明：本处上游是 Gemini，但被剥离的 body 是 Anthropic 格式。传 originalModel
-				// （客户端原 Anthropic model）而非 mappedModel（上游 Gemini model），让剥离逻辑按
-				// 客户端请求的 Anthropic 子协议族判定（详见 ResolveThinkingProtocol 文档）。
 				switch signatureRetryStage {
 				case 0:
 					// Stage 1: disable thinking + thinking->text
-					strippedClaudeBody = FilterThinkingBlocksForRetry(originalClaudeBody, originalModel)
+					strippedClaudeBody = FilterThinkingBlocksForRetry(originalClaudeBody)
 					stageName = "thinking-only"
 					signatureRetryStage = 1
 				default:
 					// Stage 2: additionally downgrade tool_use/tool_result blocks to text
-					strippedClaudeBody = FilterSignatureSensitiveBlocksForRetry(originalClaudeBody, originalModel)
+					strippedClaudeBody = FilterSignatureSensitiveBlocksForRetry(originalClaudeBody)
 					stageName = "thinking+tools"
 					signatureRetryStage = 2
 				}
@@ -1081,23 +1118,21 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 
 	// 图片生成计费
 	imageCount := 0
-	imageInputSize := s.extractImageInputSize(body)
-	imageSize := normalizeOpenAIImageSizeTier(imageInputSize)
+	imageSize := s.extractImageSize(body)
 	if isImageGenerationModel(originalModel) {
 		imageCount = 1
 	}
 
 	return &ForwardResult{
-		RequestID:      requestID,
-		Usage:          *usage,
-		Model:          originalModel,
-		UpstreamModel:  mappedModel,
-		Stream:         req.Stream,
-		Duration:       time.Since(startTime),
-		FirstTokenMs:   firstTokenMs,
-		ImageCount:     imageCount,
-		ImageSize:      imageSize,
-		ImageInputSize: imageInputSize,
+		RequestID:     requestID,
+		Usage:         *usage,
+		Model:         originalModel,
+		UpstreamModel: mappedModel,
+		Stream:        req.Stream,
+		Duration:      time.Since(startTime),
+		FirstTokenMs:  firstTokenMs,
+		ImageCount:    imageCount,
+		ImageSize:     imageSize,
 	}, nil
 }
 
@@ -1302,6 +1337,12 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 		}
 		requestIDHeader = idHeader
 
+		// Capture upstream request body for ops retry of this attempt.
+		if c != nil {
+			// In this code path `body` is already the JSON sent to upstream.
+			c.Set(OpsUpstreamRequestBodyKey, string(body))
+		}
+
 		resp, err = s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 		if err != nil {
 			safeErr := sanitizeUpstreamErrorMessage(err.Error())
@@ -1452,7 +1493,6 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 				if contentType == "" {
 					contentType = "application/json"
 				}
-				MarkResponseCommitted(c)
 				c.Data(http.StatusInternalServerError, contentType, respBody)
 				return nil, fmt.Errorf("gemini upstream error: %d (skipped by error policy)", resp.StatusCode)
 			case ErrorPolicyMatched, ErrorPolicyTempUnscheduled:
@@ -1565,7 +1605,6 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 		if contentType == "" {
 			contentType = "application/json"
 		}
-		MarkResponseCommitted(c)
 		c.Data(resp.StatusCode, contentType, respBody)
 		if upstreamMsg == "" {
 			return nil, fmt.Errorf("gemini upstream error: %d", resp.StatusCode)
@@ -1607,23 +1646,21 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 
 	// 图片生成计费
 	imageCount := 0
-	imageInputSize := s.extractImageInputSize(body)
-	imageSize := normalizeOpenAIImageSizeTier(imageInputSize)
+	imageSize := s.extractImageSize(body)
 	if isImageGenerationModel(originalModel) {
 		imageCount = 1
 	}
 
 	return &ForwardResult{
-		RequestID:      requestID,
-		Usage:          *usage,
-		Model:          originalModel,
-		UpstreamModel:  mappedModel,
-		Stream:         stream,
-		Duration:       time.Since(startTime),
-		FirstTokenMs:   firstTokenMs,
-		ImageCount:     imageCount,
-		ImageSize:      imageSize,
-		ImageInputSize: imageInputSize,
+		RequestID:     requestID,
+		Usage:         *usage,
+		Model:         originalModel,
+		UpstreamModel: mappedModel,
+		Stream:        stream,
+		Duration:      time.Since(startTime),
+		FirstTokenMs:  firstTokenMs,
+		ImageCount:    imageCount,
+		ImageSize:     imageSize,
 	}, nil
 }
 
@@ -1705,7 +1742,6 @@ func sanitizeUpstreamErrorMessage(msg string) string {
 }
 
 func (s *GeminiMessagesCompatService) writeGeminiMappedError(c *gin.Context, account *Account, upstreamStatus int, upstreamRequestID string, body []byte) error {
-	MarkResponseCommitted(c)
 	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
 	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
 	upstreamDetail := ""
@@ -2049,22 +2085,6 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 		parts := extractGeminiParts(geminiResp)
 		for _, part := range parts {
 			if text, ok := part["text"].(string); ok && text != "" {
-				// Close an open tool_use block before starting text, mirroring
-				// the functionCall branch (which closes open text blocks) and
-				// the chat-completions sibling's closeOpenTool(). Otherwise a
-				// tool→text sequence keeps the tool_use block open while the
-				// text block starts, emitting overlapping Anthropic content
-				// blocks that violate the SSE contract.
-				if openToolIndex >= 0 {
-					writeSSE(c.Writer, "content_block_stop", map[string]any{
-						"type":  "content_block_stop",
-						"index": openToolIndex,
-					})
-					openToolIndex = -1
-					openToolName = ""
-					seenToolJSON = ""
-				}
-
 				delta, newSeen := computeGeminiTextDelta(seenText, text)
 				seenText = newSeen
 				if delta == "" {
@@ -2249,7 +2269,6 @@ func randomHex(nBytes int) string {
 }
 
 func (s *GeminiMessagesCompatService) writeClaudeError(c *gin.Context, status int, errType, message string) error {
-	MarkResponseCommitted(c)
 	c.JSON(status, gin.H{
 		"type":  "error",
 		"error": gin.H{"type": errType, "message": message},
@@ -2258,7 +2277,6 @@ func (s *GeminiMessagesCompatService) writeClaudeError(c *gin.Context, status in
 }
 
 func (s *GeminiMessagesCompatService) writeGoogleError(c *gin.Context, status int, message string) error {
-	MarkResponseCommitted(c)
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"code":    status,
@@ -2850,18 +2868,14 @@ func (s *GeminiMessagesCompatService) handleGeminiUpstreamError(ctx context.Cont
 	if resetAt == nil {
 		// 根据账号类型使用不同的默认重置时间
 		var ra time.Time
-		if isCodeAssist || oauthType == "google_one" {
-			// Gemini CLI / Google One: fallback cooldown by tier
+		if isCodeAssist {
+			// Code Assist: fallback cooldown by tier
 			cooldown := geminiCooldownForTier(tierID)
 			if s.rateLimitService != nil {
 				cooldown = s.rateLimitService.GeminiCooldown(ctx, account)
 			}
 			ra = time.Now().Add(cooldown)
-			if isCodeAssist {
-				logger.LegacyPrintf("service.gemini_messages_compat", "[Gemini 429] Account %d (Code Assist, tier=%s, project=%s) rate limited, cooldown=%v", account.ID, tierID, projectID, time.Until(ra).Truncate(time.Second))
-			} else {
-				logger.LegacyPrintf("service.gemini_messages_compat", "[Gemini 429] Account %d (Google One OAuth, tier=%s, project=%s) rate limited, cooldown=%v", account.ID, tierID, projectID, time.Until(ra).Truncate(time.Second))
-			}
+			logger.LegacyPrintf("service.gemini_messages_compat", "[Gemini 429] Account %d (Code Assist, tier=%s, project=%s) rate limited, cooldown=%v", account.ID, tierID, projectID, time.Until(ra).Truncate(time.Second))
 		} else {
 			// API Key / AI Studio OAuth: PST 午夜
 			if ts := nextGeminiDailyResetUnix(); ts != nil {
@@ -3419,7 +3433,6 @@ func cleanToolSchema(schema any) any {
 		for key, value := range v {
 			// 跳过不支持的字段
 			if key == "$schema" || key == "$id" || key == "$ref" ||
-				key == "$defs" || key == "definitions" ||
 				key == "additionalProperties" || key == "patternProperties" || key == "minLength" ||
 				key == "maxLength" || key == "minItems" || key == "maxItems" {
 				continue
@@ -3430,17 +3443,6 @@ func cleanToolSchema(schema any) any {
 		// 规范化 type 字段为大写
 		if typeVal, ok := cleaned["type"].(string); ok {
 			cleaned["type"] = strings.ToUpper(typeVal)
-		} else if typeValues, ok := cleaned["type"].([]any); ok {
-			for _, typeValue := range typeValues {
-				typeName, ok := typeValue.(string)
-				if ok && !strings.EqualFold(typeName, "null") {
-					cleaned["type"] = strings.ToUpper(typeName)
-					break
-				}
-			}
-			if _, ok := cleaned["type"].([]any); ok {
-				delete(cleaned, "type")
-			}
 		}
 		return cleaned
 	case []any:
@@ -3474,7 +3476,8 @@ func convertClaudeGenerationConfig(req map[string]any) map[string]any {
 	return out
 }
 
-func (s *GeminiMessagesCompatService) extractImageInputSize(body []byte) string {
+// extractImageSize 从 Gemini 请求中提取 image_size 参数
+func (s *GeminiMessagesCompatService) extractImageSize(body []byte) string {
 	var req struct {
 		GenerationConfig *struct {
 			ImageConfig *struct {
@@ -3483,12 +3486,15 @@ func (s *GeminiMessagesCompatService) extractImageInputSize(body []byte) string 
 		} `json:"generationConfig"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
-		return ""
+		return "2K"
 	}
 
 	if req.GenerationConfig != nil && req.GenerationConfig.ImageConfig != nil {
-		return strings.TrimSpace(req.GenerationConfig.ImageConfig.ImageSize)
+		size := strings.ToUpper(strings.TrimSpace(req.GenerationConfig.ImageConfig.ImageSize))
+		if size == "1K" || size == "2K" || size == "4K" {
+			return size
+		}
 	}
 
-	return ""
+	return "2K"
 }

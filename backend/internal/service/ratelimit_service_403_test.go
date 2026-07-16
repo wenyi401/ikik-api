@@ -4,38 +4,20 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/config"
 )
-
-type runtimeBlockRecorder struct {
-	accounts   []*Account
-	until      []time.Time
-	reasons    []string
-	clearedIDs []int64
-}
-
-func (r *runtimeBlockRecorder) BlockAccountScheduling(account *Account, until time.Time, reason string) {
-	r.accounts = append(r.accounts, account)
-	r.until = append(r.until, until)
-	r.reasons = append(r.reasons, reason)
-}
-
-func (r *runtimeBlockRecorder) ClearAccountSchedulingBlock(accountID int64) {
-	r.clearedIDs = append(r.clearedIDs, accountID)
-}
 
 func TestRateLimitService_HandleUpstreamError_OpenAI403FirstHitTempUnschedulable(t *testing.T) {
 	repo := &rateLimitAccountRepoStub{}
 	counter := &openAI403CounterCacheStub{counts: []int64{1}}
-	blocker := &runtimeBlockRecorder{}
 	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	service.SetOpenAI403CounterCache(counter)
-	service.SetAccountRuntimeBlocker(blocker)
 	account := &Account{
 		ID:       301,
 		Platform: PlatformOpenAI,
@@ -55,10 +37,6 @@ func TestRateLimitService_HandleUpstreamError_OpenAI403FirstHitTempUnschedulable
 	require.Equal(t, 1, repo.tempCalls)
 	require.Contains(t, repo.lastTempReason, "temporary edge rejection")
 	require.Contains(t, repo.lastTempReason, "(1/3)")
-	require.Len(t, blocker.accounts, 1)
-	require.Equal(t, account.ID, blocker.accounts[0].ID)
-	require.Equal(t, "openai_403_temp", blocker.reasons[0])
-	require.True(t, blocker.until[0].After(time.Now()))
 }
 
 func TestRateLimitService_HandleUpstreamError_OpenAI403ThresholdDisables(t *testing.T) {
@@ -85,4 +63,124 @@ func TestRateLimitService_HandleUpstreamError_OpenAI403ThresholdDisables(t *test
 	require.Equal(t, 0, repo.tempCalls)
 	require.Contains(t, repo.lastErrorMsg, "workspace forbidden by policy")
 	require.Contains(t, repo.lastErrorMsg, "consecutive_403=3/3")
+}
+
+func TestRateLimitService_HandleUpstreamError_Kiro403ModelAccessDoesNotDisable(t *testing.T) {
+	repo := &rateLimitAccountRepoStub{}
+	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	account := &Account{
+		ID:       305,
+		Platform: PlatformKiro,
+		Type:     AccountTypeOAuth,
+	}
+
+	shouldDisable := service.HandleUpstreamError(
+		context.Background(),
+		account,
+		http.StatusForbidden,
+		http.Header{},
+		[]byte(`{"error":{"code":"no_access","message":"No access to model: claude-sonnet-4.6"}}`),
+	)
+
+	require.False(t, shouldDisable)
+	require.Equal(t, 0, repo.setErrorCalls)
+	require.Equal(t, 0, repo.tempCalls)
+}
+
+func TestRateLimitService_HandleUpstreamError_Kiro400InvalidModelDoesNotDisable(t *testing.T) {
+	repo := &rateLimitAccountRepoStub{}
+	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	account := &Account{
+		ID:       306,
+		Platform: PlatformKiro,
+		Type:     AccountTypeOAuth,
+	}
+
+	shouldDisable := service.HandleUpstreamError(
+		context.Background(),
+		account,
+		http.StatusBadRequest,
+		http.Header{},
+		[]byte(`{"error":{"code":"invalid_model_id","message":"invalid model id: claude-opus-4.8"}}`),
+	)
+
+	require.False(t, shouldDisable)
+	require.Equal(t, 0, repo.setErrorCalls)
+	require.Equal(t, 0, repo.tempCalls)
+}
+
+func TestRateLimitService_HandleUpstreamError_Cloudflare403TempUnschedulable(t *testing.T) {
+	repo := &rateLimitAccountRepoStub{}
+	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	account := &Account{
+		ID:       303,
+		Platform: PlatformAnthropic,
+		Type:     AccountTypeAPIKey,
+	}
+	headers := http.Header{}
+	headers.Set("content-type", "text/html; charset=UTF-8")
+	headers.Set("cf-ray", "abc123-SJC")
+	body := []byte(`<!doctype html><html><head><title>Access denied</title></head><body>Cloudflare restrict access</body></html>`)
+
+	shouldDisable := service.HandleUpstreamError(
+		context.Background(),
+		account,
+		http.StatusForbidden,
+		headers,
+		body,
+	)
+
+	require.True(t, shouldDisable)
+	require.Equal(t, 0, repo.setErrorCalls)
+	require.Equal(t, 1, repo.tempCalls)
+	require.Contains(t, repo.lastTempReason, "Cloudflare challenge (403)")
+	require.Contains(t, repo.lastTempReason, "cf-ray: abc123-SJC")
+
+	var state TempUnschedState
+	require.NoError(t, json.Unmarshal([]byte(repo.lastTempReason), &state))
+	require.Equal(t, "cloudflare_challenge", state.MatchedKeyword)
+	require.Equal(t, 1, state.ConsecutiveCount)
+	require.WithinDuration(t, time.Now().Add(30*time.Second), repo.lastTempUntil, 3*time.Second)
+	require.Contains(t, state.ErrorMessage, "cf-ray: abc123-SJC")
+}
+
+func TestRateLimitService_HandleUpstreamError_Cloudflare403EscalatesCooldown(t *testing.T) {
+	repo := &rateLimitAccountRepoStub{}
+	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	account := &Account{
+		ID:       304,
+		Platform: PlatformAnthropic,
+		Type:     AccountTypeAPIKey,
+	}
+	headers := http.Header{"cf-mitigated": []string{"challenge"}}
+	body := []byte(`<!doctype html><html><body>Just a moment...</body></html>`)
+
+	expected := []time.Duration{
+		30 * time.Second,
+		time.Minute,
+		2 * time.Minute,
+		5 * time.Minute,
+		5 * time.Minute,
+	}
+
+	for i, wantCooldown := range expected {
+		before := time.Now()
+		shouldDisable := service.HandleUpstreamError(
+			context.Background(),
+			account,
+			http.StatusForbidden,
+			headers,
+			body,
+		)
+
+		require.True(t, shouldDisable)
+		require.Equal(t, 0, repo.setErrorCalls)
+		require.Equal(t, i+1, repo.tempCalls)
+		require.WithinDuration(t, before.Add(wantCooldown), repo.lastTempUntil, 3*time.Second)
+
+		var state TempUnschedState
+		require.NoError(t, json.Unmarshal([]byte(repo.lastTempReason), &state))
+		require.Equal(t, "cloudflare_challenge", state.MatchedKeyword)
+		require.Equal(t, i+1, state.ConsecutiveCount)
+	}
 }

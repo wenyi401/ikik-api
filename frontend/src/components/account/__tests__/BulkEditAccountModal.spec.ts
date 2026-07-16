@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import BulkEditAccountModal from '../BulkEditAccountModal.vue'
 import ModelWhitelistSelector from '../ModelWhitelistSelector.vue'
 import { adminAPI } from '@/api/admin'
+import { accountsAPI } from '@/api/accounts'
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
@@ -21,6 +22,12 @@ vi.mock('@/api/admin', () => ({
   }
 }))
 
+vi.mock('@/api/accounts', () => ({
+  accountsAPI: {
+    bulkUpdate: vi.fn()
+  }
+}))
+
 vi.mock('@/api/admin/accounts', () => ({
   getAntigravityDefaultModelMapping: vi.fn()
 }))
@@ -35,7 +42,46 @@ vi.mock('vue-i18n', async () => {
   }
 })
 
-function mountModal(extraProps: Record<string, unknown> = {}) {
+function makeGroup(overrides: Record<string, unknown>) {
+  return {
+    id: 1,
+    name: 'group',
+    description: null,
+    platform: 'openai',
+    rate_multiplier: 1,
+    rpm_limit: 0,
+    is_exclusive: false,
+    status: 'active',
+    owner_user_id: null,
+    scope: 'user_private',
+    subscription_type: 'standard',
+    daily_limit_usd: null,
+    weekly_limit_usd: null,
+    monthly_limit_usd: null,
+    image_price_1k: null,
+    image_price_2k: null,
+    image_price_4k: null,
+    claude_code_only: false,
+    fallback_group_id: null,
+    fallback_group_id_on_invalid_request: null,
+    allow_messages_dispatch: false,
+    require_oauth_only: false,
+    require_privacy_set: false,
+    created_at: '',
+    updated_at: '',
+    model_routing: null,
+    model_routing_enabled: false,
+    mcp_xml_inject: false,
+    supported_model_scopes: [],
+    account_count: 0,
+    active_account_count: 0,
+    rate_limited_account_count: 0,
+    sort_order: 0,
+    ...overrides
+  }
+}
+
+function mountModal(extraProps: Record<string, unknown> = {}, extraStubs: Record<string, unknown> = {}) {
   return mount(BulkEditAccountModal, {
     props: {
       show: true,
@@ -59,7 +105,7 @@ function mountModal(extraProps: Record<string, unknown> = {}) {
               :value="modelValue"
               @change="$emit('update:modelValue', $event.target.value)"
             >
-              <option v-for="option in options" :key="option.value" :value="option.value">
+              <option v-for="option in options" :key="option.value" :value="option.value" :disabled="option.disabled">
                 {{ option.label }}
               </option>
             </select>
@@ -67,7 +113,8 @@ function mountModal(extraProps: Record<string, unknown> = {}) {
         },
         ProxySelector: true,
         GroupSelector: true,
-        Icon: true
+        Icon: true,
+        ...extraStubs
       }
     }
   })
@@ -77,6 +124,7 @@ describe('BulkEditAccountModal', () => {
   beforeEach(() => {
     vi.mocked(adminAPI.accounts.bulkUpdate).mockReset()
     vi.mocked(adminAPI.accounts.checkMixedChannelRisk).mockReset()
+    vi.mocked(accountsAPI.bulkUpdate).mockReset()
 
     vi.mocked(adminAPI.accounts.bulkUpdate).mockResolvedValue({
       success: 2,
@@ -85,6 +133,11 @@ describe('BulkEditAccountModal', () => {
     } as any)
     vi.mocked(adminAPI.accounts.checkMixedChannelRisk).mockResolvedValue({
       has_risk: false
+    } as any)
+    vi.mocked(accountsAPI.bulkUpdate).mockResolvedValue({
+      success: 2,
+      failed: 0,
+      results: []
     } as any)
   })
 
@@ -107,8 +160,8 @@ describe('BulkEditAccountModal', () => {
     expect(mappingTab).toBeTruthy()
     await mappingTab!.trigger('click')
 
-    expect(wrapper.text()).toContain('3.1-Flash-Image透传')
-    expect(wrapper.text()).toContain('3-Pro-Image→3.1')
+    expect(wrapper.text()).toContain('Flash-Image')
+    expect(wrapper.text()).toContain('Pro-Image')
     expect(wrapper.text()).not.toContain('GPT-5.3 Codex Spark')
   })
 
@@ -149,21 +202,21 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
-  it('OpenAI OAuth 批量编辑应提交 OAuth 专属 WS mode 字段（含 http_bridge）', async () => {
+  it('OpenAI OAuth 批量编辑应提交 OAuth 专属 WS mode 字段', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['openai'],
       selectedTypes: ['oauth']
     })
 
     await wrapper.get('#bulk-edit-openai-ws-mode-enabled').setValue(true)
-    await wrapper.get('[data-testid="bulk-edit-openai-ws-mode-select"]').setValue('http_bridge')
+    await wrapper.get('[data-testid="bulk-edit-openai-ws-mode-select"]').setValue('passthrough')
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
 
     expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
     expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
       extra: {
-        openai_oauth_responses_websockets_v2_mode: 'http_bridge',
+        openai_oauth_responses_websockets_v2_mode: 'passthrough',
         openai_oauth_responses_websockets_v2_enabled: true
       }
     })
@@ -197,44 +250,6 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
-  it('OpenAI OAuth 批量编辑应提交 codex_cli_only_allow_app_server 字段（需同时开启父开关）', async () => {
-    const wrapper = mountModal({
-      selectedPlatforms: ['openai'],
-      selectedTypes: ['oauth']
-    })
-
-    // 子开关从属于 codex_cli_only：必须同时批量开启父开关才写入
-    await wrapper.get('#bulk-edit-openai-codex-cli-only-enabled').setValue(true)
-    await wrapper.get('#bulk-edit-openai-codex-cli-only-toggle').trigger('click')
-    await wrapper.get('#bulk-edit-openai-codex-app-server-enabled').setValue(true)
-    await wrapper.get('#bulk-edit-openai-codex-app-server-toggle').trigger('click')
-    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
-    await flushPromises()
-
-    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
-    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
-      extra: {
-        codex_cli_only: true,
-        codex_cli_only_allow_app_server: true
-      }
-    })
-  })
-
-  it('未同时开启父开关时不应写入 codex_cli_only_allow_app_server', async () => {
-    const wrapper = mountModal({
-      selectedPlatforms: ['openai'],
-      selectedTypes: ['oauth']
-    })
-
-    // 仅开启子开关、不批量设置父开关 codex_cli_only：不应写入孤立字段，也不应调用接口
-    await wrapper.get('#bulk-edit-openai-codex-app-server-enabled').setValue(true)
-    await wrapper.get('#bulk-edit-openai-codex-app-server-toggle').trigger('click')
-    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
-    await flushPromises()
-
-    expect(adminAPI.accounts.bulkUpdate).not.toHaveBeenCalled()
-  })
-
   it('OpenAI API Key 批量编辑应提交 API Key 专属 WS mode 字段', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['openai'],
@@ -251,44 +266,6 @@ describe('BulkEditAccountModal', () => {
       extra: {
         openai_apikey_responses_websockets_v2_mode: 'ctx_pool',
         openai_apikey_responses_websockets_v2_enabled: true
-      }
-    })
-  })
-
-  it('筛选 OpenAI 账号批量编辑应提交 Compact 模式和专属模型映射', async () => {
-    const wrapper = mountModal({
-      accountIds: [],
-      selectedPlatforms: [],
-      selectedTypes: [],
-      target: {
-        mode: 'filtered',
-        filters: { platform: 'openai' },
-        previewCount: 12,
-        selectedPlatforms: ['openai'],
-        selectedTypes: ['oauth', 'apikey']
-      }
-    })
-
-    await wrapper.get('#bulk-edit-openai-compact-mode-enabled').setValue(true)
-    await wrapper.get('[data-testid="bulk-edit-openai-compact-mode-select"]').setValue('force_on')
-    await wrapper.get('#bulk-edit-openai-compact-model-mapping-enabled').setValue(true)
-    await wrapper.get('[data-testid="bulk-edit-openai-compact-model-mapping-add"]').trigger('click')
-    const inputs = wrapper.findAll('[data-testid="bulk-edit-openai-compact-model-mapping-input"]')
-    await inputs[0].setValue('gpt-5.4')
-    await inputs[1].setValue('gpt-5.4-openai-compact')
-    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
-    await flushPromises()
-
-    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
-    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith({
-      filters: { platform: 'openai' },
-      extra: {
-        openai_compact_mode: 'force_on'
-      },
-      credentials: {
-        compact_model_mapping: {
-          'gpt-5.4': 'gpt-5.4-openai-compact'
-        }
       }
     })
   })
@@ -367,6 +344,165 @@ describe('BulkEditAccountModal', () => {
         privacy_mode: 'training_set_cf_blocked'
       },
       status: 'active'
+    })
+  })
+
+  it('用户作用域批量编辑分组只展示当前账号平台兼容分组', async () => {
+    const wrapper = mountModal({
+      accountScope: 'user',
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['apikey'],
+      groups: [
+        makeGroup({ id: 1, name: 'private-u9-openai', platform: 'openai' }),
+        makeGroup({ id: 2, name: 'private-u9-anthropic', platform: 'anthropic' }),
+        makeGroup({ id: 3, name: 'private-u9-gemini', platform: 'gemini' }),
+        makeGroup({ id: 4, name: 'Codex OAuth Only', platform: 'openai', require_oauth_only: true })
+      ]
+    }, {
+      GroupSelector: {
+        props: ['groups'],
+        template: `
+          <div>
+            <span v-for="group in groups" :key="group.id" class="group-option">{{ group.name }}</span>
+          </div>
+        `
+      }
+    })
+
+    expect(wrapper.find('#bulk-edit-share-mode-enabled').exists()).toBe(true)
+    expect(wrapper.find('#bulk-edit-groups-enabled').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('private-u9-openai')
+  })
+
+  it('用户作用域提交分组更新时调用用户接口', async () => {
+    const wrapper = mountModal({
+      accountScope: 'user',
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth'],
+      groups: [
+        makeGroup({ id: 1, name: 'private-u9-openai', platform: 'openai' }),
+        makeGroup({ id: 2, name: 'private-u9-anthropic', platform: 'anthropic' })
+      ]
+    }, {
+      GroupSelector: {
+        props: ['groups'],
+        emits: ['update:modelValue'],
+        template: `
+          <div>
+            <button
+              v-for="group in groups"
+              :key="group.id"
+              type="button"
+              class="group-option"
+              @click="$emit('update:modelValue', [group.id])"
+            >
+              {{ group.name }}
+            </button>
+          </div>
+        `
+      }
+    })
+
+    await wrapper.get('#bulk-edit-share-mode-enabled').setValue(true)
+    await wrapper.get('select[aria-labelledby="bulk-edit-share-mode-label"]').setValue('public')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(accountsAPI.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      share_mode: 'public'
+    })
+    expect(adminAPI.accounts.bulkUpdate).not.toHaveBeenCalled()
+  })
+
+  it('allows a user to apply a proxy and public sharing together', async () => {
+    const wrapper = mountModal({
+      accountScope: 'user',
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth'],
+      proxies: [{ id: 7, name: 'Residential', status: 'active' }]
+    }, {
+      ProxySelector: {
+        props: ['modelValue'],
+        emits: ['update:modelValue'],
+        template: `
+          <button type="button" data-testid="select-proxy" @click="$emit('update:modelValue', 7)">
+            select proxy
+          </button>
+        `
+      }
+    })
+
+    await wrapper.get('#bulk-edit-proxy-enabled').setValue(true)
+    await wrapper.get('[data-testid="select-proxy"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('#bulk-edit-share-mode-enabled').setValue(true)
+
+    const shareModeSelect = wrapper.get('select[aria-labelledby="bulk-edit-share-mode-label"]')
+    expect(shareModeSelect.get('option[value="public"]').attributes('disabled')).toBeUndefined()
+    await shareModeSelect.setValue('public')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(accountsAPI.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      proxy_id: 7,
+      share_mode: 'public'
+    })
+  })
+
+  it('用户作用域批量改为公共共享时支持后台任务响应', async () => {
+    vi.mocked(accountsAPI.bulkUpdate).mockResolvedValueOnce({
+      async: true,
+      task: {
+        id: 77,
+        scope: 'user',
+        operation: 'user_set_public_share',
+        status: 'pending',
+        total: 2,
+        processed: 0,
+        success: 0,
+        failed: 0,
+        created_by: 9,
+      },
+      success: 0,
+      failed: 0,
+      results: []
+    } as any)
+    const wrapper = mountModal({
+      accountScope: 'user',
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-share-mode-enabled').setValue(true)
+    await wrapper.get('select[aria-labelledby="bulk-edit-share-mode-label"]').setValue('public')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(accountsAPI.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      share_mode: 'public'
+    })
+    expect(wrapper.emitted('updated')?.[0]).toEqual([
+      expect.objectContaining({
+        async: true,
+        task: expect.objectContaining({ id: 77, operation: 'user_set_public_share' })
+      })
+    ])
+  })
+
+  it('admin OpenAI bulk edit submits account_level', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-account-level-enabled').setValue(true)
+    await wrapper.get('[data-testid="bulk-edit-account-level-select"]').setValue('plus')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      account_level: 'plus'
     })
   })
 })

@@ -1,6 +1,7 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <UiPage width="wide" density="compact">
+      <TablePageLayout>
       <template #filters>
         <div class="flex flex-col gap-3">
           <div class="flex flex-wrap items-center gap-3">
@@ -24,7 +25,7 @@
             />
           </div>
           <EndpointPopover
-            v-if="publicSettings?.api_base_url || (publicSettings?.custom_endpoints?.length ?? 0) > 0"
+            v-if="publicSettings"
             :api-base-url="publicSettings?.api_base_url || ''"
             :custom-endpoints="publicSettings?.custom_endpoints || []"
           />
@@ -33,51 +34,17 @@
 
       <template #actions>
         <div class="flex justify-end gap-3">
-          <button
-            @click="loadApiKeys"
-            :disabled="loading"
-            class="btn btn-secondary"
-            :title="t('common.refresh')"
-          >
-            <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-          </button>
-          <div class="relative" ref="columnDropdownRef">
-            <button
-              @click="showColumnDropdown = !showColumnDropdown"
-              class="btn btn-secondary px-2 md:px-3"
-              :title="t('keys.columnSettings')"
-            >
-              <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-              </svg>
-              <span class="hidden md:inline">{{ t('keys.columnSettings') }}</span>
-            </button>
-            <div
-              v-if="showColumnDropdown"
-              class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-            >
-              <button
-                v-for="col in toggleableColumns"
-                :key="col.key"
-                @click="toggleColumn(col.key)"
-                class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
-              >
-                <span>{{ col.label }}</span>
-                <Icon
-                  v-if="isColumnVisible(col.key)"
-                  name="check"
-                  size="sm"
-                  class="text-primary-500"
-                  :stroke-width="2"
-                />
-              </button>
-            </div>
-          </div>
-          <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
-            <Icon name="plus" size="md" class="mr-2" />
-            {{ t('keys.createKey') }}
-          </button>
-        </div>
+        <UiIconButton
+          :label="t('common.refresh')"
+          @click="refreshKeyPageData"
+          :disabled="loading"
+        >
+          <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+        </UiIconButton>
+        <button @click="openCreateModal" class="btn btn-primary" data-tour="keys-create-btn">
+          {{ t('keys.createKey') }}
+        </button>
+      </div>
       </template>
 
       <template #table>
@@ -85,6 +52,8 @@
           :columns="columns"
           :data="apiKeys"
           :loading="loading"
+          :card-rows="true"
+          :sticky-actions-column="false"
           :server-side-sort="true"
           default-sort-key="created_at"
           default-sort-order="desc"
@@ -95,15 +64,15 @@
               <code class="code text-xs">
                 {{ maskApiKey(value) }}
               </code>
-              <button
+              <UiIconButton
+                size="sm"
+                :label="copiedKeyId === row.id ? t('keys.copied') : t('keys.copyToClipboard')"
                 @click="copyToClipboard(value, row.id)"
-                class="rounded-lg p-1 transition-colors hover:bg-gray-100 dark:hover:bg-dark-700"
                 :class="
                   copiedKeyId === row.id
                     ? 'text-green-500'
-                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+	                    : 'text-[var(--app-muted)] hover:text-[var(--app-text)]'
                 "
-                :title="copiedKeyId === row.id ? t('keys.copied') : t('keys.copyToClipboard')"
               >
                 <Icon
                   v-if="copiedKeyId === row.id"
@@ -112,49 +81,53 @@
                   :stroke-width="2"
                 />
                 <Icon v-else name="clipboard" size="sm" />
-              </button>
+              </UiIconButton>
             </div>
           </template>
 
           <template #cell-name="{ value, row }">
             <div class="flex items-center gap-1.5">
-              <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
-              <Icon
+	              <span class="font-medium text-[var(--app-text)]">{{ value }}</span>
+              <span
                 v-if="row.ip_whitelist?.length > 0 || row.ip_blacklist?.length > 0"
-                name="shield"
-                size="sm"
-                class="text-blue-500"
+                class="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--ui-success)]"
                 :title="t('keys.ipRestrictionEnabled')"
-              />
+              ></span>
             </div>
           </template>
 
           <template #cell-group="{ row }">
-            <div class="group/dropdown relative">
+            <div class="group/dropdown relative min-w-0 max-w-full">
               <button
                 :ref="(el) => setGroupButtonRef(row.id, el)"
                 @click="openGroupSelector(row)"
-                class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
+	                class="-mx-2 -my-1 flex min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-[var(--app-surface-muted)]"
                 :title="t('keys.clickToChangeGroup')"
               >
                 <GroupBadge
-                  v-if="row.group"
+                  v-if="isPrivateRouterKey(row)"
+                  :name="t('keys.privateRouter.title')"
+                  platform="custom"
+                  subscription-type="subscription"
+                  :rate-multiplier="1"
+                  :user-rate-multiplier="null"
+                  class="min-w-0"
+                />
+                <GroupBadge
+                  v-else-if="row.group"
                   :name="row.group.name"
                   :platform="row.group.platform"
                   :subscription-type="row.group.subscription_type"
                   :rate-multiplier="row.group.rate_multiplier"
                   :user-rate-multiplier="userGroupRates[row.group.id]"
-                  :peak-rate-enabled="row.group.peak_rate_enabled"
-                  :peak-start="row.group.peak_start"
-                  :peak-end="row.group.peak_end"
-                  :peak-rate-multiplier="row.group.peak_rate_multiplier"
+                  class="min-w-0"
                 />
-                <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
+	                <span v-else class="text-sm text-[var(--app-muted)]">{{
                   t('keys.noGroup')
                 }}</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
+	                <span class="shrink-0 text-xs text-[var(--app-muted)]">{{ t('keys.selectGroup') }}</span>
                 <svg
-                  class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
+	                  class="h-3.5 w-3.5 shrink-0 text-[var(--app-muted)] opacity-60 transition-opacity group-hover/dropdown:opacity-100"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -175,8 +148,8 @@
               :class="[
                 'inline-flex min-w-8 items-center justify-center rounded px-2 py-1 text-sm font-semibold tabular-nums',
                 (value ?? 0) > 0
-                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
-                  : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
+                  ? 'bg-[var(--app-primary-soft)] text-[var(--app-primary)] ring-1 ring-[var(--app-primary-border)]'
+                  : 'bg-[var(--app-surface-muted)] text-[var(--app-muted)]'
               ]"
             >
               {{ value ?? 0 }}
@@ -186,31 +159,31 @@
           <template #cell-usage="{ row }">
             <div class="text-sm">
               <div class="flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
+	                <span class="text-[var(--app-muted)]">{{ t('keys.today') }}:</span>
+	                <span class="font-medium text-[var(--app-text)]">
                   ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
                 </span>
               </div>
               <div class="mt-0.5 flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
+	                <span class="text-[var(--app-muted)]">{{ t('keys.total') }}:</span>
+	                <span class="font-medium text-[var(--app-text)]">
                   ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
                 </span>
               </div>
               <!-- Quota progress (if quota is set) -->
               <div v-if="row.quota > 0" class="mt-1.5">
                 <div class="flex items-center gap-1.5">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('keys.quota') }}:</span>
+	                  <span class="text-[var(--app-muted)]">{{ t('keys.quota') }}:</span>
                   <span :class="[
                     'font-medium',
                     row.quota_used >= row.quota ? 'text-red-500' :
                     row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' :
-                    'text-gray-900 dark:text-white'
+	                    'text-[var(--app-text)]'
                   ]">
                     ${{ row.quota_used?.toFixed(2) || '0.00' }} / ${{ row.quota?.toFixed(2) }}
                   </span>
                 </div>
-                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
+	                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[var(--app-surface-muted)]">
                   <div
                     :class="[
                       'h-full rounded-full transition-all',
@@ -230,17 +203,17 @@
               <!-- 5h window -->
               <div v-if="row.rate_limit_5h > 0">
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-gray-500 dark:text-gray-400">5h</span>
+	                  <span class="text-[var(--app-muted)]">5h</span>
                   <span :class="[
                     'font-medium tabular-nums',
                     row.usage_5h >= row.rate_limit_5h ? 'text-red-500' :
                     row.usage_5h >= row.rate_limit_5h * 0.8 ? 'text-yellow-500' :
-                    'text-gray-700 dark:text-gray-300'
+	                    'text-[var(--app-muted-strong)]'
                   ]">
                     ${{ row.usage_5h?.toFixed(2) || '0.00' }}/${{ row.rate_limit_5h?.toFixed(2) }}
                   </span>
                 </div>
-                <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
+	                <div class="h-1 w-full overflow-hidden rounded-full bg-[var(--app-surface-muted)]">
                   <div
                     :class="[
                       'h-full rounded-full transition-all',
@@ -251,24 +224,24 @@
                     :style="{ width: Math.min((row.usage_5h / row.rate_limit_5h) * 100, 100) + '%' }"
                   />
                 </div>
-                <div v-if="row.reset_5h_at && formatResetTime(row.reset_5h_at)" class="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
+	                <div v-if="row.reset_5h_at && formatResetTime(row.reset_5h_at)" class="text-[10px] text-[var(--app-muted)] tabular-nums">
                   ⟳ {{ formatResetTime(row.reset_5h_at) }}
                 </div>
               </div>
               <!-- 1d window -->
               <div v-if="row.rate_limit_1d > 0">
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-gray-500 dark:text-gray-400">1d</span>
+	                  <span class="text-[var(--app-muted)]">1d</span>
                   <span :class="[
                     'font-medium tabular-nums',
                     row.usage_1d >= row.rate_limit_1d ? 'text-red-500' :
                     row.usage_1d >= row.rate_limit_1d * 0.8 ? 'text-yellow-500' :
-                    'text-gray-700 dark:text-gray-300'
+	                    'text-[var(--app-muted-strong)]'
                   ]">
                     ${{ row.usage_1d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_1d?.toFixed(2) }}
                   </span>
                 </div>
-                <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
+	                <div class="h-1 w-full overflow-hidden rounded-full bg-[var(--app-surface-muted)]">
                   <div
                     :class="[
                       'h-full rounded-full transition-all',
@@ -279,24 +252,24 @@
                     :style="{ width: Math.min((row.usage_1d / row.rate_limit_1d) * 100, 100) + '%' }"
                   />
                 </div>
-                <div v-if="row.reset_1d_at && formatResetTime(row.reset_1d_at)" class="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
+	                <div v-if="row.reset_1d_at && formatResetTime(row.reset_1d_at)" class="text-[10px] text-[var(--app-muted)] tabular-nums">
                   ⟳ {{ formatResetTime(row.reset_1d_at) }}
                 </div>
               </div>
               <!-- 7d window -->
               <div v-if="row.rate_limit_7d > 0">
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-gray-500 dark:text-gray-400">7d</span>
+	                  <span class="text-[var(--app-muted)]">7d</span>
                   <span :class="[
                     'font-medium tabular-nums',
                     row.usage_7d >= row.rate_limit_7d ? 'text-red-500' :
                     row.usage_7d >= row.rate_limit_7d * 0.8 ? 'text-yellow-500' :
-                    'text-gray-700 dark:text-gray-300'
+	                    'text-[var(--app-muted-strong)]'
                   ]">
                     ${{ row.usage_7d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_7d?.toFixed(2) }}
                   </span>
                 </div>
-                <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
+	                <div class="h-1 w-full overflow-hidden rounded-full bg-[var(--app-surface-muted)]">
                   <div
                     :class="[
                       'h-full rounded-full transition-all',
@@ -307,7 +280,7 @@
                     :style="{ width: Math.min((row.usage_7d / row.rate_limit_7d) * 100, 100) + '%' }"
                   />
                 </div>
-                <div v-if="row.reset_7d_at && formatResetTime(row.reset_7d_at)" class="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
+	                <div v-if="row.reset_7d_at && formatResetTime(row.reset_7d_at)" class="text-[10px] text-[var(--app-muted)] tabular-nums">
                   ⟳ {{ formatResetTime(row.reset_7d_at) }}
                 </div>
               </div>
@@ -315,24 +288,24 @@
               <button
                 v-if="row.usage_5h > 0 || row.usage_1d > 0 || row.usage_7d > 0"
                 @click.stop="confirmResetRateLimitFromTable(row)"
-                class="mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+	                class="mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-[var(--app-muted)] transition-colors hover:bg-[var(--app-surface-muted)] hover:text-[var(--app-primary-hover)]"
                 :title="t('keys.resetRateLimitUsage')"
               >
                 <Icon name="refresh" size="xs" />
                 {{ t('keys.resetUsage') }}
               </button>
             </div>
-            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+	            <span v-else class="text-sm text-[var(--app-muted)]">-</span>
           </template>
 
           <template #cell-expires_at="{ value }">
             <span v-if="value" :class="[
               'text-sm',
-              new Date(value) < new Date() ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-dark-400'
+	              new Date(value) < new Date() ? 'text-red-500 dark:text-red-400' : 'text-[var(--app-muted)]'
             ]">
               {{ formatDateTime(value) }}
             </span>
-            <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{ t('keys.noExpiration') }}</span>
+	            <span v-else class="text-sm text-[var(--app-muted)]">{{ t('keys.noExpiration') }}</span>
           </template>
 
           <template #cell-status="{ value }">
@@ -348,21 +321,14 @@
           </template>
 
           <template #cell-last_used_at="{ value }">
-            <span v-if="value" class="text-sm text-gray-500 dark:text-dark-400">
+	            <span v-if="value" class="text-sm text-[var(--app-muted)]">
               {{ formatDateTime(value) }}
             </span>
-            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
-          </template>
-
-          <template #cell-last_used_ip="{ value }">
-            <span v-if="value" class="text-sm text-gray-500 dark:text-dark-400">
-              {{ value }}
-            </span>
-            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+	            <span v-else class="text-sm text-[var(--app-muted)]">-</span>
           </template>
 
           <template #cell-created_at="{ value }">
-            <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatDateTime(value) }}</span>
+	            <span class="text-sm text-[var(--app-muted)]">{{ formatDateTime(value) }}</span>
           </template>
 
           <template #cell-actions="{ row }">
@@ -370,7 +336,7 @@
               <!-- Use Key Button -->
               <button
                 @click="openUseKeyModal(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
+	                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-[var(--app-muted)] transition-colors hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary-hover)]"
               >
                 <Icon name="terminal" size="sm" />
                 <span class="text-xs">{{ t('keys.useKey') }}</span>
@@ -379,7 +345,7 @@
               <button
                 v-if="!publicSettings?.hide_ccs_import_button"
                 @click="importToCcswitch(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-[var(--app-muted)] transition-colors hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary-hover)]"
               >
                 <Icon name="upload" size="sm" />
                 <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
@@ -390,8 +356,8 @@
                 :class="[
                   'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
                   row.status === 'active'
-                    ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
-                    : 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
+	                    ? 'text-[var(--app-muted)] hover:bg-amber-50 hover:text-amber-700 dark:hover:bg-amber-950/30 dark:hover:text-amber-300'
+	                    : 'text-[var(--app-muted)] hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary-hover)]'
                 ]"
               >
                 <Icon v-if="row.status === 'active'" name="ban" size="sm" />
@@ -401,7 +367,7 @@
               <!-- Edit Button -->
               <button
                 @click="editKey(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+	                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-[var(--app-muted)] transition-colors hover:bg-[var(--app-surface-muted)] hover:text-[var(--app-primary-hover)]"
               >
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t('common.edit') }}</span>
@@ -409,7 +375,7 @@
               <!-- Delete Button -->
               <button
                 @click="confirmDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+	                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-[var(--app-muted)] transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 dark:hover:text-red-300"
               >
                 <Icon name="trash" size="sm" />
                 <span class="text-xs">{{ t('common.delete') }}</span>
@@ -422,7 +388,7 @@
               :title="t('keys.noKeysYet')"
               :description="t('keys.createFirstKey')"
               :action-text="t('keys.createKey')"
-              @action="showCreateModal = true"
+              @action="openCreateModal"
             />
           </template>
         </DataTable>
@@ -438,13 +404,14 @@
           @update:pageSize="handlePageSizeChange"
         />
       </template>
-    </TablePageLayout>
+      </TablePageLayout>
+    </UiPage>
 
     <!-- Create/Edit Modal -->
     <BaseDialog
       :show="showCreateModal || showEditModal"
       :title="showEditModal ? t('keys.editKey') : t('keys.createKey')"
-      width="normal"
+      width="wide"
       @close="closeModals"
     >
       <form id="key-form" @submit.prevent="handleSubmit" class="space-y-5">
@@ -461,7 +428,21 @@
         </div>
 
         <div>
-          <label class="input-label">{{ t('keys.groupLabel') }}</label>
+          <div class="mb-2 flex items-center justify-between gap-3">
+            <label class="input-label mb-0">{{ t('keys.groupLabel') }}</label>
+            <button
+              v-if="privateRouterOption"
+              type="button"
+              class="text-xs font-medium text-[var(--app-muted)] transition-colors hover:text-[var(--app-text)]"
+              @click="showPrivateGroupDetails = !showPrivateGroupDetails"
+            >
+              {{
+                showPrivateGroupDetails
+                  ? t('keys.privateRouter.hideSpecific')
+                  : t('keys.privateRouter.showSpecific')
+              }}
+            </button>
+          </div>
           <Select
             v-model="formData.group_id"
             :options="groupOptions"
@@ -475,32 +456,164 @@
                 v-if="option"
                 :name="(option as unknown as GroupOption).label"
                 :platform="(option as unknown as GroupOption).platform"
+                :scope="(option as unknown as GroupOption).scope"
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
                 :rate-multiplier="(option as unknown as GroupOption).rate"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
-                :peak-rate-enabled="(option as unknown as GroupOption).peakRateEnabled"
-                :peak-start="(option as unknown as GroupOption).peakStart"
-                :peak-end="(option as unknown as GroupOption).peakEnd"
-                :peak-rate-multiplier="(option as unknown as GroupOption).peakRateMultiplier"
               />
-              <span v-else class="text-gray-400">{{ t('keys.selectGroup') }}</span>
+	              <span v-else class="text-[var(--app-muted)]">{{ t('keys.selectGroup') }}</span>
             </template>
             <template #option="{ option, selected }">
               <GroupOptionItem
                 :name="(option as unknown as GroupOption).label"
                 :platform="(option as unknown as GroupOption).platform"
+                :scope="(option as unknown as GroupOption).scope"
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
                 :rate-multiplier="(option as unknown as GroupOption).rate"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
-                :peak-rate-enabled="(option as unknown as GroupOption).peakRateEnabled"
-                :peak-start="(option as unknown as GroupOption).peakStart"
-                :peak-end="(option as unknown as GroupOption).peakEnd"
-                :peak-rate-multiplier="(option as unknown as GroupOption).peakRateMultiplier"
                 :description="(option as unknown as GroupOption).description"
                 :selected="selected"
               />
             </template>
           </Select>
+        </div>
+
+        <EndpointCards
+          v-if="publicSettings"
+          :api-base-url="publicSettings?.api_base_url || ''"
+          :custom-endpoints="publicSettings?.custom_endpoints || []"
+        />
+
+	        <div class="space-y-4 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4 sm:p-5">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+	              <label class="text-sm font-medium text-[var(--app-text)]">{{ t('keys.groupRouting.title') }}</label>
+	              <p class="mt-1 max-w-2xl text-xs leading-5 text-[var(--app-muted)]">
+                {{ t('keys.groupRouting.description') }}
+              </p>
+            </div>
+            <button
+              type="button"
+              @click="toggleGroupRoutes"
+              :class="[
+                'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors',
+	                formData.enable_group_routes ? 'bg-[var(--app-primary)]' : 'bg-[var(--app-border-strong)]'
+              ]"
+            >
+              <span
+                :class="[
+                  'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                  formData.enable_group_routes ? 'translate-x-6' : 'translate-x-1'
+                ]"
+              />
+            </button>
+          </div>
+
+          <div v-if="formData.enable_group_routes" class="space-y-3">
+            <div
+              v-for="(route, index) in formData.group_routes"
+              :key="index"
+	              class="space-y-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3 shadow-none sm:p-4"
+            >
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex min-w-0 items-center gap-2">
+	                  <span class="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--app-primary-soft)] px-2 text-xs font-medium text-[var(--app-primary-hover)]">
+                    {{ index + 1 }}
+                  </span>
+	                  <span class="text-sm font-medium text-[var(--app-text)]">{{ t('keys.groupRouting.routeConfig') }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+	                  <label class="inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-muted)] px-3 text-sm text-[var(--app-muted-strong)]">
+                    <input
+                      v-model="route.enabled"
+                      type="checkbox"
+                      class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    {{ t('keys.groupRouting.enabled') }}
+                  </label>
+                  <button
+                    type="button"
+                    class="btn btn-secondary h-10 px-3"
+                    :disabled="formData.group_routes.length <= 1"
+                    @click="removeGroupRoute(index)"
+                  >
+                    <Icon name="trash" size="sm" />
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-[minmax(16rem,1fr)_8rem_8rem_9rem]">
+                <div class="md:col-span-2 lg:col-span-1">
+	                  <label class="mb-1 block text-xs text-[var(--app-muted)]">{{ t('keys.groupRouting.group') }}</label>
+                  <Select
+                    v-model="route.group_id"
+                    :options="realGroupOptions"
+                    :searchable="true"
+                    :search-placeholder="t('keys.searchGroup')"
+                  >
+                    <template #selected="{ option }">
+                      <GroupBadge
+                        v-if="option"
+                        :name="(option as unknown as GroupOption).label"
+                        :platform="(option as unknown as GroupOption).platform"
+                        :scope="(option as unknown as GroupOption).scope"
+                        :subscription-type="(option as unknown as GroupOption).subscriptionType"
+                        :rate-multiplier="(option as unknown as GroupOption).rate"
+                        :user-rate-multiplier="(option as unknown as GroupOption).userRate"
+                      />
+	                      <span v-else class="text-[var(--app-muted)]">{{ t('keys.selectGroup') }}</span>
+                    </template>
+                    <template #option="{ option, selected }">
+                      <GroupOptionItem
+                        :name="(option as unknown as GroupOption).label"
+                        :platform="(option as unknown as GroupOption).platform"
+                        :scope="(option as unknown as GroupOption).scope"
+                        :subscription-type="(option as unknown as GroupOption).subscriptionType"
+                        :rate-multiplier="(option as unknown as GroupOption).rate"
+                        :user-rate-multiplier="(option as unknown as GroupOption).userRate"
+                        :description="(option as unknown as GroupOption).description"
+                        :selected="selected"
+                      />
+                    </template>
+                  </Select>
+                </div>
+                <div>
+	                  <label class="mb-1 block text-xs text-[var(--app-muted)]">{{ t('keys.groupRouting.priority') }}</label>
+                  <input
+                    v-model.number="route.priority"
+                    type="number"
+                    min="0"
+                    step="1"
+                    class="input"
+                  />
+                </div>
+                <div>
+	                  <label class="mb-1 block text-xs text-[var(--app-muted)]">{{ t('keys.groupRouting.weight') }}</label>
+                  <input
+                    v-model.number="route.weight"
+                    type="number"
+                    min="1"
+                    step="1"
+                    class="input"
+                  />
+                </div>
+                <div>
+	                  <label class="mb-1 block text-xs text-[var(--app-muted)]">{{ t('keys.groupRouting.cooldownSeconds') }}</label>
+                  <input
+                    v-model.number="route.cooldown_seconds"
+                    type="number"
+                    min="0"
+                    step="1"
+                    class="input"
+                  />
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary w-full sm:w-auto" @click="addGroupRoute">
+              <Icon name="plus" size="sm" class="mr-2" />
+              {{ t('keys.groupRouting.addRoute') }}
+            </button>
+          </div>
         </div>
 
         <!-- Custom Key Section (only for create) -->
@@ -512,7 +625,7 @@
               @click="formData.use_custom_key = !formData.use_custom_key"
               :class="[
                 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.use_custom_key ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+	                formData.use_custom_key ? 'bg-[var(--app-primary)]' : 'bg-[var(--app-border-strong)]'
               ]"
             >
               <span
@@ -554,7 +667,7 @@
               @click="formData.enable_ip_restriction = !formData.enable_ip_restriction"
               :class="[
                 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_ip_restriction ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+	                formData.enable_ip_restriction ? 'bg-[var(--app-primary)]' : 'bg-[var(--app-border-strong)]'
               ]"
             >
               <span
@@ -618,7 +731,7 @@
           <div class="space-y-4">
             <div>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+	                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--app-muted)]">$</span>
                 <input
                   v-model.number="formData.quota"
                   type="number"
@@ -635,12 +748,12 @@
             <div v-if="showEditModal && selectedKey && selectedKey.quota > 0">
               <label class="input-label">{{ t('keys.quotaUsed') }}</label>
               <div class="flex items-center gap-2">
-                <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700">
-                  <span class="font-medium text-gray-900 dark:text-white">
+	                <div class="flex-1 rounded-xl bg-[var(--app-surface-muted)] px-3 py-2">
+	                  <span class="font-medium text-[var(--app-text)]">
                     ${{ selectedKey.quota_used?.toFixed(4) || '0.0000' }}
                   </span>
-                  <span class="mx-2 text-gray-400">/</span>
-                  <span class="text-gray-500 dark:text-gray-400">
+	                  <span class="mx-2 text-[var(--app-muted)]">/</span>
+	                  <span class="text-[var(--app-muted)]">
                     ${{ selectedKey.quota?.toFixed(2) || '0.00' }}
                   </span>
                 </div>
@@ -666,7 +779,7 @@
               @click="formData.enable_rate_limit = !formData.enable_rate_limit"
               :class="[
                 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_rate_limit ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+	                formData.enable_rate_limit ? 'bg-[var(--app-primary)]' : 'bg-[var(--app-border-strong)]'
               ]"
             >
               <span
@@ -684,7 +797,7 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit5h') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+	                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--app-muted)]">$</span>
                 <input
                   v-model.number="formData.rate_limit_5h"
                   type="number"
@@ -697,22 +810,22 @@
               <!-- Usage info (edit mode only) -->
               <div v-if="showEditModal && selectedKey && selectedKey.rate_limit_5h > 0" class="mt-2">
                 <div class="flex items-center gap-2">
-                  <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700 text-sm">
+	                  <div class="flex-1 rounded-xl bg-[var(--app-surface-muted)] px-3 py-2 text-sm">
                     <span :class="[
                       'font-medium',
                       selectedKey.usage_5h >= selectedKey.rate_limit_5h ? 'text-red-500' :
                       selectedKey.usage_5h >= selectedKey.rate_limit_5h * 0.8 ? 'text-yellow-500' :
-                      'text-gray-900 dark:text-white'
+	                      'text-[var(--app-text)]'
                     ]">
                       ${{ selectedKey.usage_5h?.toFixed(4) || '0.0000' }}
                     </span>
-                    <span class="mx-2 text-gray-400">/</span>
-                    <span class="text-gray-500 dark:text-gray-400">
+	                    <span class="mx-2 text-[var(--app-muted)]">/</span>
+	                    <span class="text-[var(--app-muted)]">
                       ${{ selectedKey.rate_limit_5h?.toFixed(2) || '0.00' }}
                     </span>
                   </div>
                 </div>
-                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
+	                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[var(--app-surface-muted)]">
                   <div
                     :class="[
                       'h-full rounded-full transition-all',
@@ -730,7 +843,7 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit1d') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+	                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--app-muted)]">$</span>
                 <input
                   v-model.number="formData.rate_limit_1d"
                   type="number"
@@ -743,22 +856,22 @@
               <!-- Usage info (edit mode only) -->
               <div v-if="showEditModal && selectedKey && selectedKey.rate_limit_1d > 0" class="mt-2">
                 <div class="flex items-center gap-2">
-                  <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700 text-sm">
+	                  <div class="flex-1 rounded-xl bg-[var(--app-surface-muted)] px-3 py-2 text-sm">
                     <span :class="[
                       'font-medium',
                       selectedKey.usage_1d >= selectedKey.rate_limit_1d ? 'text-red-500' :
                       selectedKey.usage_1d >= selectedKey.rate_limit_1d * 0.8 ? 'text-yellow-500' :
-                      'text-gray-900 dark:text-white'
+	                      'text-[var(--app-text)]'
                     ]">
                       ${{ selectedKey.usage_1d?.toFixed(4) || '0.0000' }}
                     </span>
-                    <span class="mx-2 text-gray-400">/</span>
-                    <span class="text-gray-500 dark:text-gray-400">
+	                    <span class="mx-2 text-[var(--app-muted)]">/</span>
+	                    <span class="text-[var(--app-muted)]">
                       ${{ selectedKey.rate_limit_1d?.toFixed(2) || '0.00' }}
                     </span>
                   </div>
                 </div>
-                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
+	                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[var(--app-surface-muted)]">
                   <div
                     :class="[
                       'h-full rounded-full transition-all',
@@ -776,7 +889,7 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit7d') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+	                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--app-muted)]">$</span>
                 <input
                   v-model.number="formData.rate_limit_7d"
                   type="number"
@@ -789,22 +902,22 @@
               <!-- Usage info (edit mode only) -->
               <div v-if="showEditModal && selectedKey && selectedKey.rate_limit_7d > 0" class="mt-2">
                 <div class="flex items-center gap-2">
-                  <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700 text-sm">
+	                  <div class="flex-1 rounded-xl bg-[var(--app-surface-muted)] px-3 py-2 text-sm">
                     <span :class="[
                       'font-medium',
                       selectedKey.usage_7d >= selectedKey.rate_limit_7d ? 'text-red-500' :
                       selectedKey.usage_7d >= selectedKey.rate_limit_7d * 0.8 ? 'text-yellow-500' :
-                      'text-gray-900 dark:text-white'
+	                      'text-[var(--app-text)]'
                     ]">
                       ${{ selectedKey.usage_7d?.toFixed(4) || '0.0000' }}
                     </span>
-                    <span class="mx-2 text-gray-400">/</span>
-                    <span class="text-gray-500 dark:text-gray-400">
+	                    <span class="mx-2 text-[var(--app-muted)]">/</span>
+	                    <span class="text-[var(--app-muted)]">
                       ${{ selectedKey.rate_limit_7d?.toFixed(2) || '0.00' }}
                     </span>
                   </div>
                 </div>
-                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
+	                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[var(--app-surface-muted)]">
                   <div
                     :class="[
                       'h-full rounded-full transition-all',
@@ -840,7 +953,7 @@
               @click="formData.enable_expiration = !formData.enable_expiration"
               :class="[
                 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_expiration ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+	                formData.enable_expiration ? 'bg-[var(--app-primary)]' : 'bg-[var(--app-border-strong)]'
               ]"
             >
               <span
@@ -863,8 +976,8 @@
                 :class="[
                   'rounded-lg px-3 py-1.5 text-sm transition-colors',
                   formData.expiration_preset === days
-                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600'
+	                    ? 'bg-[var(--app-primary-soft)] text-[var(--app-primary-hover)]'
+	                    : 'bg-[var(--app-surface-muted)] text-[var(--app-muted-strong)] hover:text-[var(--app-text)]'
                 ]"
               >
                 {{ showEditModal ? t('keys.extendDays', { days }) : t('keys.expiresInDays', { days }) }}
@@ -875,8 +988,8 @@
                 :class="[
                   'rounded-lg px-3 py-1.5 text-sm transition-colors',
                   formData.expiration_preset === 'custom'
-                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600'
+	                    ? 'bg-[var(--app-primary-soft)] text-[var(--app-primary-hover)]'
+	                    : 'bg-[var(--app-surface-muted)] text-[var(--app-muted-strong)] hover:text-[var(--app-text)]'
                 ]"
               >
                 {{ t('keys.customDate') }}
@@ -896,8 +1009,8 @@
 
             <!-- Current expiration display (only in edit mode) -->
             <div v-if="showEditModal && selectedKey?.expires_at" class="text-sm">
-              <span class="text-gray-500 dark:text-gray-400">{{ t('keys.currentExpiration') }}: </span>
-              <span class="font-medium text-gray-900 dark:text-white">
+	              <span class="text-[var(--app-muted)]">{{ t('keys.currentExpiration') }}: </span>
+	              <span class="font-medium text-[var(--app-text)]">
                 {{ formatDateTime(selectedKey.expires_at) }}
               </span>
             </div>
@@ -989,6 +1102,7 @@
       :show="showUseKeyModal"
       :api-key="selectedKey?.key || ''"
       :base-url="publicSettings?.api_base_url || ''"
+      :custom-endpoints="publicSettings?.custom_endpoints || []"
       :platform="selectedKey?.group?.platform || null"
       :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
       @close="closeUseKeyModal"
@@ -1002,31 +1116,31 @@
       @close="closeCcsClientSelect"
     >
       <div class="space-y-4">
-        <p class="text-sm text-gray-600 dark:text-gray-400">
+	        <p class="text-sm text-[var(--app-muted-strong)]">
           {{ t('keys.ccsClientSelect.description') }}
 	        </p>
 	        <div class="grid grid-cols-2 gap-3">
 	          <button
 	            @click="handleCcsClientSelect('claude')"
-	            class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+		            class="flex flex-col items-center gap-2 rounded-2xl border border-[var(--app-border)] p-4 transition-colors hover:border-[var(--app-primary)] hover:bg-[var(--app-primary-soft)]"
 	          >
-	            <Icon name="terminal" size="xl" class="text-gray-600 dark:text-gray-400" />
-	            <span class="font-medium text-gray-900 dark:text-white">{{
+		            <Icon name="terminal" size="xl" class="text-[var(--app-muted-strong)]" />
+		            <span class="font-medium text-[var(--app-text)]">{{
 	              t('keys.ccsClientSelect.claudeCode')
 	            }}</span>
-	            <span class="text-xs text-gray-500 dark:text-gray-400">{{
+		            <span class="text-xs text-[var(--app-muted)]">{{
 	              t('keys.ccsClientSelect.claudeCodeDesc')
 	            }}</span>
 	          </button>
 	          <button
 	            @click="handleCcsClientSelect('gemini')"
-	            class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+		            class="flex flex-col items-center gap-2 rounded-2xl border border-[var(--app-border)] p-4 transition-colors hover:border-[var(--app-primary)] hover:bg-[var(--app-primary-soft)]"
 	          >
-	            <Icon name="sparkles" size="xl" class="text-gray-600 dark:text-gray-400" />
-	            <span class="font-medium text-gray-900 dark:text-white">{{
+		            <Icon name="sparkles" size="xl" class="text-[var(--app-muted-strong)]" />
+		            <span class="font-medium text-[var(--app-text)]">{{
 	              t('keys.ccsClientSelect.geminiCli')
 	            }}</span>
-	            <span class="text-xs text-gray-500 dark:text-gray-400">{{
+		            <span class="text-xs text-[var(--app-muted)]">{{
 	              t('keys.ccsClientSelect.geminiCliDesc')
 	            }}</span>
 	          </button>
@@ -1046,12 +1160,13 @@
       <div
         v-if="groupSelectorKeyId !== null && dropdownPosition"
         ref="dropdownRef"
-        class="animate-in fade-in slide-in-from-top-2 fixed z-[100000020] w-max min-w-[380px] overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5 duration-200 dark:bg-dark-800 dark:ring-white/10"
+        class="animate-in fade-in slide-in-from-top-2 fixed z-[100000020] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5 duration-200 dark:bg-dark-800 dark:ring-white/10"
         style="pointer-events: auto !important;"
         :style="{
           top: dropdownPosition.top !== undefined ? dropdownPosition.top + 'px' : undefined,
           bottom: dropdownPosition.bottom !== undefined ? dropdownPosition.bottom + 'px' : undefined,
-          left: dropdownPosition.left + 'px'
+          left: dropdownPosition.left + 'px',
+          width: dropdownPosition.width + 'px'
         }"
       >
         <!-- Search box -->
@@ -1076,10 +1191,9 @@
             :key="option.value ?? 'null'"
             @click="changeGroup(selectedKeyForGroup!, option.value)"
             :class="[
-              'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
+              'flex min-w-0 w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
               'border-b border-gray-100 last:border-0 dark:border-dark-700',
-              selectedKeyForGroup?.group_id === option.value ||
-              (!selectedKeyForGroup?.group_id && option.value === null)
+              isGroupOptionSelected(selectedKeyForGroup, option)
                 ? 'bg-primary-50 dark:bg-primary-900/20'
                 : 'hover:bg-gray-100 dark:hover:bg-dark-700'
             ]"
@@ -1088,13 +1202,10 @@
             <GroupOptionItem
               :name="option.label"
               :platform="option.platform"
+              :scope="option.scope"
               :subscription-type="option.subscriptionType"
               :rate-multiplier="option.rate"
               :user-rate-multiplier="option.userRate"
-              :peak-rate-enabled="option.peakRateEnabled"
-              :peak-start="option.peakStart"
-              :peak-end="option.peakEnd"
-              :peak-rate-multiplier="option.peakRateMultiplier"
               :description="option.description"
               :selected="
                 selectedKeyForGroup?.group_id === option.value ||
@@ -1113,7 +1224,7 @@
 </template>
 
 <script setup lang="ts">
-	import { ref, reactive, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
+	import { ref, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
 	import { useAppStore } from '@/stores/app'
 	import { useOnboardingStore } from '@/stores/onboarding'
@@ -1124,6 +1235,7 @@ const { t } = useI18n()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+import { UiIconButton, UiPage } from '@/ui'
 	import DataTable from '@/components/common/DataTable.vue'
 	import Pagination from '@/components/common/Pagination.vue'
 	import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -1134,17 +1246,16 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import Icon from '@/components/icons/Icon.vue'
 	import UseKeyModal from '@/components/keys/UseKeyModal.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
+	import EndpointCards from '@/components/keys/EndpointCards.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
-	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform, UpdateApiKeyRequest } from '@/types'
+	import type { ApiKey, ApiKeyGroupRoute, Group, PublicSettings, SubscriptionType, GroupPlatform, GroupScope } from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
-import {
-  buildCcSwitchImportDeeplink,
-  type CcSwitchClientType
-} from '@/utils/ccswitchImport'
+import { buildCcSwitchImportDeeplink } from '@/utils/ccswitchImport'
+import { platformLabel } from '@/utils/platformColors'
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -1154,114 +1265,52 @@ const formatDateTimeLocal = (isoDate: string): string => {
 }
 
 interface GroupOption {
+  [key: string]: unknown
   value: number
   label: string
   description: string | null
   rate: number
   userRate: number | null
-  peakRateEnabled: boolean
-  peakStart: string
-  peakEnd: string
-  peakRateMultiplier: number
   subscriptionType: SubscriptionType
   platform: GroupPlatform
+  scope?: GroupScope
 }
+
+const privateRouterValue = -1000
+
+interface ApiKeyGroupRouteForm {
+  group_id: number | null
+  priority: number
+  weight: number
+  enabled: boolean
+  cooldown_seconds: number
+}
+
+const defaultGroupRoute = (groupId: number | null = null): ApiKeyGroupRouteForm => ({
+  group_id: groupId,
+  priority: 100,
+  weight: 1,
+  enabled: true,
+  cooldown_seconds: 30
+})
 
 const appStore = useAppStore()
 const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
-const allColumns = computed<Column[]>(() => [
+const columns = computed<Column[]>(() => [
   { key: 'name', label: t('common.name'), sortable: true },
   { key: 'key', label: t('keys.apiKey'), sortable: false },
   { key: 'group', label: t('keys.group'), sortable: false },
-  { key: 'current_concurrency', label: t('keys.currentConcurrency'), sortable: true },
+  { key: 'current_concurrency', label: t('keys.currentConcurrency'), sortable: false },
   { key: 'usage', label: t('keys.usage'), sortable: false },
   { key: 'rate_limit', label: t('keys.rateLimitColumn'), sortable: false },
   { key: 'expires_at', label: t('keys.expiresAt'), sortable: true },
   { key: 'status', label: t('common.status'), sortable: true },
   { key: 'last_used_at', label: t('keys.lastUsedAt'), sortable: true },
-  { key: 'last_used_ip', label: t('keys.lastUsedIP'), sortable: false },
   { key: 'created_at', label: t('keys.created'), sortable: true },
   { key: 'actions', label: t('common.actions'), sortable: false }
 ])
-
-const ALWAYS_VISIBLE_COLUMNS = new Set(['name', 'actions'])
-const DEFAULT_HIDDEN_COLUMNS = ['rate_limit', 'last_used_at', 'last_used_ip']
-const HIDDEN_COLUMNS_KEY = 'api-key-hidden-columns'
-const COLUMN_SETTINGS_VERSION_KEY = 'api-key-column-settings-version'
-const COLUMN_SETTINGS_VERSION = 2
-const VERSION_NEW_HIDDEN_COLUMNS: Record<number, string[]> = {
-  2: ['last_used_ip']
-}
-
-const toggleableColumns = computed(() =>
-  allColumns.value.filter((col) => !ALWAYS_VISIBLE_COLUMNS.has(col.key))
-)
-
-const hiddenColumns = reactive<Set<string>>(new Set())
-
-const saveColumnsToStorage = () => {
-  try {
-    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-    localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-  } catch (error) {
-    console.error('Failed to save API key table columns:', error)
-  }
-}
-
-const loadSavedColumns = () => {
-  hiddenColumns.clear()
-  try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved) as string[]
-      const validColumnKeys = new Set(allColumns.value.map((col) => col.key))
-      parsed
-        .filter((key) =>
-          typeof key === 'string' &&
-          validColumnKeys.has(key) &&
-          !ALWAYS_VISIBLE_COLUMNS.has(key)
-        )
-        .forEach((key) => hiddenColumns.add(key))
-      const storedVersion = Number(localStorage.getItem(COLUMN_SETTINGS_VERSION_KEY) ?? '1')
-      if (storedVersion < COLUMN_SETTINGS_VERSION) {
-        for (let v = storedVersion + 1; v <= COLUMN_SETTINGS_VERSION; v++) {
-          for (const key of VERSION_NEW_HIDDEN_COLUMNS[v] ?? []) {
-            if (validColumnKeys.has(key) && !ALWAYS_VISIBLE_COLUMNS.has(key)) {
-              hiddenColumns.add(key)
-            }
-          }
-        }
-        saveColumnsToStorage()
-      } else {
-        localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-      }
-    } else {
-      DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
-      localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-    }
-  } catch (error) {
-    console.error('Failed to load API key table columns:', error)
-    DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
-  }
-}
-
-const toggleColumn = (key: string) => {
-  if (ALWAYS_VISIBLE_COLUMNS.has(key)) return
-  if (hiddenColumns.has(key)) {
-    hiddenColumns.delete(key)
-  } else {
-    hiddenColumns.add(key)
-  }
-  saveColumnsToStorage()
-}
-
-const isColumnVisible = (key: string) => !hiddenColumns.has(key)
-
-const columns = computed<Column[]>(() =>
-  allColumns.value.filter((col) => ALWAYS_VISIBLE_COLUMNS.has(col.key) || !hiddenColumns.has(col.key))
-)
 
 const apiKeys = ref<ApiKey[]>([])
 const groups = ref<Group[]>([])
@@ -1271,6 +1320,7 @@ const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
 const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({})
 const userGroupRates = ref<Record<number, number>>({})
+const showPrivateGroupDetails = ref(false)
 
 const pagination = ref({
   page: 1,
@@ -1295,15 +1345,13 @@ const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
 const showCcsClientSelect = ref(false)
-const showColumnDropdown = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
-const columnDropdownRef = ref<HTMLElement | null>(null)
-const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
+const dropdownPosition = ref<{ top?: number; bottom?: number; left: number; width: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 let abortController: AbortController | null = null
 
@@ -1338,6 +1386,8 @@ const formData = ref({
   rate_limit_5h: null as number | null,
   rate_limit_1d: null as number | null,
   rate_limit_7d: null as number | null,
+  enable_group_routes: false,
+  group_routes: [defaultGroupRoute()] as ApiKeyGroupRouteForm[],
   enable_expiration: false,
   expiration_preset: '30' as '7' | '30' | '90' | 'custom',
   expiration_date: ''
@@ -1364,13 +1414,6 @@ const statusOptions = computed(() => [
   { value: 'inactive', label: t('common.inactive') }
 ])
 
-const shouldSubmitEditStatus = (key: ApiKey, status: 'active' | 'inactive') => {
-  if (key.status === 'quota_exhausted' || key.status === 'expired') {
-    return status === 'active'
-  }
-  return true
-}
-
 // Filter dropdown options
 const groupFilterOptions = computed(() => [
   { value: '', label: t('keys.allGroups') },
@@ -1385,6 +1428,13 @@ const statusFilterOptions = computed(() => [
   { value: 'quota_exhausted', label: t('keys.status.quota_exhausted') },
   { value: 'expired', label: t('keys.status.expired') }
 ])
+
+const getGroupOptionDescription = (group: Group): string | null => {
+  if (group.scope === 'user_private') {
+    return t('keys.privateGroupDescription', { platform: platformLabel(group.platform) })
+  }
+  return group.description
+}
 
 const onFilterChange = () => {
   pagination.value.page = 1
@@ -1401,22 +1451,178 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
   onFilterChange()
 }
 
+const privateGroups = computed(() =>
+  groups.value.filter((group) => group.scope === 'user_private')
+)
+
+const privateRouterOption = computed<GroupOption | null>(() => {
+  if (privateGroups.value.length < 2) return null
+  return {
+    value: privateRouterValue,
+    label: t('keys.privateRouter.title'),
+    description: t('keys.privateRouter.description'),
+    rate: 1,
+    userRate: null,
+    subscriptionType: 'subscription',
+    platform: 'custom',
+    scope: 'user_private'
+  }
+})
+
 // Convert groups to Select options format with rate multiplier and subscription type
-const groupOptions = computed(() =>
+const realGroupOptions = computed<GroupOption[]>(() =>
   groups.value.map((group) => ({
     value: group.id,
     label: group.name,
-    description: group.description,
+    description: getGroupOptionDescription(group),
     rate: group.rate_multiplier,
     userRate: userGroupRates.value[group.id] ?? null,
-    peakRateEnabled: group.peak_rate_enabled,
-    peakStart: group.peak_start,
-    peakEnd: group.peak_end,
-    peakRateMultiplier: group.peak_rate_multiplier,
     subscriptionType: group.subscription_type,
-    platform: group.platform
+    platform: group.platform,
+    scope: group.scope
   }))
 )
+
+const groupOptions = computed<GroupOption[]>(() => {
+  const options = [...realGroupOptions.value]
+  if (!privateRouterOption.value) return options
+  if (showPrivateGroupDetails.value) {
+    return [privateRouterOption.value, ...options]
+  }
+  return [
+    privateRouterOption.value,
+    ...options.filter((option) => option.scope !== 'user_private')
+  ]
+})
+
+const privateRouterRouteForms = (): ApiKeyGroupRouteForm[] =>
+  privateGroups.value.map((group, index) => ({
+    group_id: group.id,
+    priority: 100 + index,
+    weight: 1,
+    enabled: true,
+    cooldown_seconds: 30
+  }))
+
+const privateRouterRoutes = (): ApiKeyGroupRoute[] =>
+  privateRouterRouteForms()
+    .filter((route): route is ApiKeyGroupRouteForm & { group_id: number } => route.group_id !== null)
+    .map((route) => ({
+      group_id: route.group_id,
+      priority: route.priority,
+      weight: route.weight,
+      enabled: route.enabled,
+      cooldown_seconds: route.cooldown_seconds
+    }))
+
+const isPrivateRouterRoutes = (routes: ApiKeyGroupRoute[] | ApiKeyGroupRouteForm[] | undefined): boolean => {
+  if (!routes || routes.length < 2) return false
+  const privateIDs = new Set(privateGroups.value.map((group) => group.id))
+  return routes.every((route) => privateIDs.has(route.group_id || 0))
+}
+
+const isPrivateRouterKey = (key: ApiKey): boolean => isPrivateRouterRoutes(key.group_routes)
+
+const createRoutesFromKey = (key: ApiKey): ApiKeyGroupRouteForm[] => {
+  if (key.group_routes && key.group_routes.length > 0) {
+    return key.group_routes.map((route) => ({
+      group_id: route.group_id,
+      priority: route.priority,
+      weight: route.weight,
+      enabled: route.enabled === false ? false : true,
+      cooldown_seconds: route.cooldown_seconds
+    }))
+  }
+  return [defaultGroupRoute(key.group_id)]
+}
+
+const toggleGroupRoutes = () => {
+  formData.value.enable_group_routes = !formData.value.enable_group_routes
+  if (
+    formData.value.enable_group_routes &&
+    (formData.value.group_routes.length === 0 || formData.value.group_routes.every((route) => route.group_id === null))
+  ) {
+    formData.value.group_routes = [defaultGroupRoute(formData.value.group_id)]
+  }
+}
+
+const addGroupRoute = () => {
+  formData.value.group_routes.push(defaultGroupRoute())
+}
+
+const removeGroupRoute = (index: number) => {
+  if (formData.value.group_routes.length <= 1) return
+  formData.value.group_routes.splice(index, 1)
+}
+
+const normalizeGroupRoutes = (): ApiKeyGroupRoute[] | null => {
+  if (!formData.value.enable_group_routes && formData.value.group_id === privateRouterValue) {
+    const routes = privateRouterRoutes()
+    if (routes.length === 0) {
+      appStore.showError(t('keys.groupRequired'))
+      return null
+    }
+    return routes
+  }
+
+  if (!formData.value.enable_group_routes) {
+    if (formData.value.group_id === null) return []
+    return [{
+      group_id: formData.value.group_id,
+      priority: 100,
+      weight: 1,
+      enabled: true,
+      cooldown_seconds: 30
+    }]
+  }
+
+  const routes: ApiKeyGroupRoute[] = []
+  const seenGroupIds = new Set<number>()
+  for (const route of formData.value.group_routes) {
+    if (route.group_id === null) {
+      appStore.showError(t('keys.groupRouting.errors.missingGroup'))
+      return null
+    }
+    if (seenGroupIds.has(route.group_id)) {
+      appStore.showError(t('keys.groupRouting.errors.duplicateGroup'))
+      return null
+    }
+    if (!Number.isInteger(route.priority) || route.priority < 0) {
+      appStore.showError(t('keys.groupRouting.errors.invalidPriority'))
+      return null
+    }
+    if (!Number.isInteger(route.weight) || route.weight < 1) {
+      appStore.showError(t('keys.groupRouting.errors.invalidWeight'))
+      return null
+    }
+    if (!Number.isInteger(route.cooldown_seconds) || route.cooldown_seconds < 0) {
+      appStore.showError(t('keys.groupRouting.errors.invalidCooldown'))
+      return null
+    }
+    seenGroupIds.add(route.group_id)
+    routes.push({
+      group_id: route.group_id,
+      priority: route.priority,
+      weight: route.weight,
+      enabled: route.enabled === true,
+      cooldown_seconds: route.cooldown_seconds
+    })
+  }
+
+  return routes
+}
+
+const resolvePrimaryGroupId = (routes: ApiKeyGroupRoute[] | null): number | null => {
+  if (!routes || routes.length === 0) return formData.value.group_id
+  const enabledRoutes = routes.filter((route) => route.enabled)
+  if (enabledRoutes.length === 0) return formData.value.group_id
+  return enabledRoutes.reduce((best, route) => (
+    route.priority < best.priority ? route : best
+  )).group_id
+}
+
+const defaultCreateGroupId = (): number | null =>
+  privateRouterOption.value ? privateRouterValue : null
 
 // Group dropdown search
 const groupSearchQuery = ref('')
@@ -1428,6 +1634,14 @@ const filteredGroupOptions = computed(() => {
       (opt.description && opt.description.toLowerCase().includes(query))
   })
 })
+
+const isGroupOptionSelected = (key: ApiKey | null, option: GroupOption): boolean => {
+  if (!key) return false
+  if (option.value === privateRouterValue) {
+    return isPrivateRouterKey(key)
+  }
+  return key.group_id === option.value
+}
 
 const copyToClipboard = async (text: string, keyId: number) => {
   const success = await clipboardCopy(text, t('keys.copied'))
@@ -1544,6 +1758,10 @@ const handlePageSizeChange = (pageSize: number) => {
   loadApiKeys()
 }
 
+const refreshKeyPageData = async () => {
+  await Promise.all([loadApiKeys(), loadGroups(), loadUserGroupRates()])
+}
+
 const handleSort = (key: string, order: 'asc' | 'desc') => {
   sortState.value.sort_by = key
   sortState.value.sort_order = order
@@ -1551,13 +1769,22 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
   loadApiKeys()
 }
 
+const openCreateModal = () => {
+  formData.value.group_id = defaultCreateGroupId()
+  formData.value.enable_group_routes = false
+  formData.value.group_routes = [defaultGroupRoute()]
+  showCreateModal.value = true
+}
+
 const editKey = (key: ApiKey) => {
   selectedKey.value = key
   const hasIPRestriction = (key.ip_whitelist?.length > 0) || (key.ip_blacklist?.length > 0)
   const hasExpiration = !!key.expires_at
+  const groupRoutes = createRoutesFromKey(key)
+  const usesPrivateRouter = isPrivateRouterKey(key)
   formData.value = {
     name: key.name,
-    group_id: key.group_id,
+    group_id: usesPrivateRouter ? privateRouterValue : key.group_id,
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
     use_custom_key: false,
     custom_key: '',
@@ -1570,6 +1797,8 @@ const editKey = (key: ApiKey) => {
     rate_limit_5h: key.rate_limit_5h || null,
     rate_limit_1d: key.rate_limit_1d || null,
     rate_limit_7d: key.rate_limit_7d || null,
+    enable_group_routes: !usesPrivateRouter && (key.group_routes?.length ?? 0) > 1,
+    group_routes: groupRoutes,
     enable_expiration: hasExpiration,
     expiration_preset: 'custom',
     expiration_date: key.expires_at ? formatDateTimeLocal(key.expires_at) : ''
@@ -1601,18 +1830,27 @@ const openGroupSelector = (key: ApiKey) => {
       const dropdownEstHeight = 400 // estimated max dropdown height
       const spaceBelow = window.innerHeight - rect.bottom
       const spaceAbove = rect.top
+      const viewportPadding = 8
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || rect.right
+      const dropdownWidth = Math.min(380, Math.max(0, viewportWidth - viewportPadding * 2))
+      const left = Math.min(
+        Math.max(rect.left, viewportPadding),
+        Math.max(viewportPadding, viewportWidth - dropdownWidth - viewportPadding)
+      )
 
       if (spaceBelow < dropdownEstHeight && spaceAbove > spaceBelow) {
         // Not enough space below, pop upward
         dropdownPosition.value = {
           bottom: window.innerHeight - rect.top + 4,
-          left: rect.left
+          left,
+          width: dropdownWidth
         }
       } else {
         // Default: pop downward
         dropdownPosition.value = {
           top: rect.bottom + 4,
-          left: rect.left
+          left,
+          width: dropdownWidth
         }
       }
     }
@@ -1624,10 +1862,33 @@ const openGroupSelector = (key: ApiKey) => {
 const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
   groupSelectorKeyId.value = null
   dropdownPosition.value = null
-  if (key.group_id === newGroupId) return
+  if (newGroupId === privateRouterValue && isPrivateRouterKey(key)) return
+  if (newGroupId !== privateRouterValue && key.group_id === newGroupId) return
 
   try {
-    await keysAPI.update(key.id, { group_id: newGroupId })
+    if (newGroupId === privateRouterValue) {
+      const routes = privateRouterRoutes()
+      const primaryGroupId = resolvePrimaryGroupId(routes)
+      if (primaryGroupId === null) {
+        appStore.showError(t('keys.groupRequired'))
+        return
+      }
+      await keysAPI.update(key.id, {
+        group_id: primaryGroupId,
+        group_routes: routes
+      })
+    } else {
+    await keysAPI.update(key.id, {
+      group_id: newGroupId,
+      group_routes: newGroupId === null ? [] : [{
+        group_id: newGroupId,
+        priority: 100,
+        weight: 1,
+        enabled: true,
+        cooldown_seconds: 30
+      }]
+    })
+    }
     appStore.showSuccess(t('keys.groupChangedSuccess'))
     loadApiKeys()
   } catch (error) {
@@ -1642,9 +1903,6 @@ const closeGroupSelector = (event: MouseEvent) => {
     groupSelectorKeyId.value = null
     dropdownPosition.value = null
   }
-  if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
-    showColumnDropdown.value = false
-  }
 }
 
 const confirmDelete = (key: ApiKey) => {
@@ -1653,8 +1911,14 @@ const confirmDelete = (key: ApiKey) => {
 }
 
 const handleSubmit = async () => {
+  const groupRoutes = normalizeGroupRoutes()
+  if (groupRoutes === null) {
+    return
+  }
+  const primaryGroupId = resolvePrimaryGroupId(groupRoutes)
+
   // Validate group_id is required
-  if (formData.value.group_id === null) {
+  if (primaryGroupId === null) {
     appStore.showError(t('keys.groupRequired'))
     return
   }
@@ -1709,9 +1973,11 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     if (showEditModal.value && selectedKey.value) {
-      const updates: UpdateApiKeyRequest = {
+      await keysAPI.update(selectedKey.value.id, {
         name: formData.value.name,
-        group_id: formData.value.group_id,
+        group_id: primaryGroupId,
+        group_routes: groupRoutes,
+        status: formData.value.status,
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
         quota: quota,
@@ -1719,23 +1985,20 @@ const handleSubmit = async () => {
         rate_limit_5h: rateLimitData.rate_limit_5h,
         rate_limit_1d: rateLimitData.rate_limit_1d,
         rate_limit_7d: rateLimitData.rate_limit_7d,
-      }
-      if (shouldSubmitEditStatus(selectedKey.value, formData.value.status)) {
-        updates.status = formData.value.status
-      }
-      await keysAPI.update(selectedKey.value.id, updates)
+      })
       appStore.showSuccess(t('keys.keyUpdatedSuccess'))
     } else {
       const customKey = formData.value.use_custom_key ? formData.value.custom_key : undefined
       await keysAPI.create(
         formData.value.name,
-        formData.value.group_id,
+        primaryGroupId,
         customKey,
         ipWhitelist,
         ipBlacklist,
         quota,
         expiresInDays,
-        rateLimitData
+        rateLimitData,
+        groupRoutes
       )
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
       // Only advance tour if active, on submit step, and creation succeeded
@@ -1778,9 +2041,9 @@ const closeModals = () => {
   showCreateModal.value = false
   showEditModal.value = false
   selectedKey.value = null
-  formData.value = {
-    name: '',
-    group_id: null,
+	  formData.value = {
+	    name: '',
+	    group_id: defaultCreateGroupId(),
     status: 'active',
     use_custom_key: false,
     custom_key: '',
@@ -1793,6 +2056,8 @@ const closeModals = () => {
     rate_limit_5h: null,
     rate_limit_1d: null,
     rate_limit_7d: null,
+    enable_group_routes: false,
+    group_routes: [defaultGroupRoute()],
     enable_expiration: false,
     expiration_preset: '30',
     expiration_date: ''
@@ -1874,7 +2139,7 @@ const importToCcswitch = (row: ApiKey) => {
   executeCcsImport(row, platform === 'gemini' ? 'gemini' : 'claude')
 }
 
-const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
+const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
   const baseUrl = publicSettings.value?.api_base_url || window.location.origin
   const platform = row.group?.platform || 'anthropic'
 
@@ -1894,7 +2159,8 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
       };
     }
   })`
-  const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
+  const providerName = (publicSettings.value?.site_name || 'ikik-api').trim() || 'ikik-api'
+
   const deeplink = buildCcSwitchImportDeeplink({
     baseUrl,
     platform,
@@ -1919,7 +2185,7 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
   }
 }
 
-const handleCcsClientSelect = (clientType: CcSwitchClientType) => {
+const handleCcsClientSelect = (clientType: 'claude' | 'gemini') => {
   if (pendingCcsRow.value) {
     executeCcsImport(pendingCcsRow.value, clientType)
   }
@@ -1945,7 +2211,6 @@ function formatResetTime(resetAt: string | null): string {
 }
 
 onMounted(() => {
-  loadSavedColumns()
   loadApiKeys()
   loadGroups()
   loadUserGroupRates()

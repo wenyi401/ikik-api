@@ -6,11 +6,14 @@
 import { apiClient } from '../client'
 import type {
   AdminGroup,
+  GroupScope,
   GroupPlatform,
   CreateGroupRequest,
   UpdateGroupRequest,
   PaginatedResponse
 } from '@/types'
+
+export type GroupScopeFilter = GroupScope | 'all'
 
 /**
  * List all groups with pagination
@@ -26,6 +29,7 @@ export async function list(
     platform?: GroupPlatform
     status?: 'active' | 'inactive'
     is_exclusive?: boolean
+    scope?: GroupScopeFilter
     search?: string
     sort_by?: string
     sort_order?: 'asc' | 'desc'
@@ -50,20 +54,27 @@ export async function list(
  * @param platform - Optional platform filter
  * @returns List of all active groups
  */
-export async function getAll(platform?: GroupPlatform): Promise<AdminGroup[]> {
+export async function getAll(platform?: GroupPlatform, scope: GroupScopeFilter = 'public'): Promise<AdminGroup[]> {
   const { data } = await apiClient.get<AdminGroup[]>('/admin/groups/all', {
-    params: platform ? { platform } : undefined
+    params: {
+      ...(platform ? { platform } : {}),
+      scope
+    }
   })
   return data
 }
 
 /**
- * Get ALL groups including disabled ones — used by the API Key group filter so
- * that admins can filter users whose keys are still bound to a now-disabled group.
+ * Get all groups including inactive groups (without pagination)
+ * @param scope - Scope filter
+ * @returns List of all groups, including inactive groups
  */
-export async function getAllIncludingInactive(): Promise<AdminGroup[]> {
+export async function getAllIncludingInactive(scope: GroupScopeFilter = 'all'): Promise<AdminGroup[]> {
   const { data } = await apiClient.get<AdminGroup[]>('/admin/groups/all', {
-    params: { include_inactive: true }
+    params: {
+      scope,
+      include_inactive: true
+    }
   })
   return data
 }
@@ -196,6 +207,28 @@ export interface GroupRateMultiplierEntry {
   rpm_override?: number | null
 }
 
+export interface GroupRateSchedule {
+  id: number
+  group_id: number
+  target_user_id?: number | null
+  target_user_name?: string
+  target_user_email?: string
+  start_minute: number
+  end_minute: number
+  rate_multiplier: number
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface GroupRateScheduleInput {
+  target_user_id?: number | null
+  start_minute: number
+  end_minute: number
+  rate_multiplier: number
+  enabled: boolean
+}
+
 /**
  * Get rate multipliers for users in a group
  * @param id - Group ID
@@ -204,6 +237,22 @@ export interface GroupRateMultiplierEntry {
 export async function getGroupRateMultipliers(id: number): Promise<GroupRateMultiplierEntry[]> {
   const { data } = await apiClient.get<GroupRateMultiplierEntry[]>(
     `/admin/groups/${id}/rate-multipliers`
+  )
+  return data
+}
+
+export async function getGroupRateSchedules(id: number): Promise<GroupRateSchedule[]> {
+  const { data } = await apiClient.get<GroupRateSchedule[]>(`/admin/groups/${id}/rate-schedules`)
+  return data
+}
+
+export async function replaceGroupRateSchedules(
+  id: number,
+  entries: GroupRateScheduleInput[]
+): Promise<GroupRateSchedule[]> {
+  const { data } = await apiClient.put<GroupRateSchedule[]>(
+    `/admin/groups/${id}/rate-schedules`,
+    { entries }
   )
   return data
 }
@@ -267,8 +316,8 @@ export async function getGroupRPMOverrides(id: number): Promise<GroupRPMOverride
     `/admin/groups/${id}/rate-multipliers`
   )
   return data
-    .filter(e => e.rpm_override != null)
-    .map(e => ({
+    .filter((e: GroupRateMultiplierEntry) => e.rpm_override != null)
+    .map((e: GroupRateMultiplierEntry) => ({
       user_id: e.user_id,
       user_name: e.user_name,
       user_email: e.user_email,
@@ -332,8 +381,8 @@ export async function getCapacitySummary(): Promise<
 export const groupsAPI = {
   list,
   getAll,
-  getByPlatform,
   getAllIncludingInactive,
+  getByPlatform,
   getById,
   getModelsListCandidates,
   create,
@@ -342,6 +391,8 @@ export const groupsAPI = {
   toggleStatus,
   getStats,
   getGroupApiKeys,
+  getGroupRateSchedules,
+  replaceGroupRateSchedules,
   getGroupRateMultipliers,
   clearGroupRateMultipliers,
   batchSetGroupRateMultipliers,

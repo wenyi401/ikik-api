@@ -18,10 +18,7 @@ var (
 	ErrSchedulerFallbackLimited = errors.New("scheduler db fallback limited")
 )
 
-const (
-	outboxEventTimeout          = 2 * time.Minute
-	schedulerOutboxCleanupBatch = 5000
-)
+const outboxEventTimeout = 2 * time.Minute
 
 // batchSeenKey tracks which (groupID, platform) bucket sets have already been
 // rebuilt within a single pollOutbox call, to avoid redundant work when multiple
@@ -43,12 +40,6 @@ type SchedulerSnapshotService struct {
 	fallbackLimit *fallbackLimiter
 	lagMu         sync.Mutex
 	lagFailures   int
-
-	fullRebuildRunMu     sync.Mutex
-	fullRebuildStateMu   sync.Mutex
-	fullRebuildRequested uint64
-	fullRebuildCompleted uint64
-	fullRebuildLastErr   error
 }
 
 func NewSchedulerSnapshotService(
@@ -189,26 +180,22 @@ func (s *SchedulerSnapshotService) runInitialRebuild() {
 	if s.cache == nil {
 		return
 	}
-	_ = s.coalesceFullRebuild(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		buckets, err := s.cache.ListBuckets(ctx)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	buckets, err := s.cache.ListBuckets(ctx)
+	if err != nil {
+		logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] list buckets failed: %v", err)
+	}
+	if len(buckets) == 0 {
+		buckets, err = s.defaultBuckets(ctx)
 		if err != nil {
-			logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] list buckets failed: %v", err)
+			logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] default buckets failed: %v", err)
+			return
 		}
-		if len(buckets) == 0 {
-			buckets, err = s.defaultBuckets(ctx)
-			if err != nil {
-				logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] default buckets failed: %v", err)
-				return err
-			}
-		}
-		if err := s.rebuildBuckets(ctx, buckets, "startup"); err != nil {
-			logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] rebuild startup failed: %v", err)
-			return err
-		}
-		return nil
-	})
+	}
+	if err := s.rebuildBuckets(ctx, buckets, "startup"); err != nil {
+		logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] rebuild startup failed: %v", err)
+	}
 }
 
 func (s *SchedulerSnapshotService) runOutboxWorker(interval time.Duration) {
@@ -255,7 +242,7 @@ func (s *SchedulerSnapshotService) pollOutbox() {
 		return
 	}
 
-	events, err := s.outboxRepo.ListAfterAndReleaseDedup(ctx, watermark, 200)
+	events, err := s.outboxRepo.ListAfter(ctx, watermark, 200)
 	if err != nil {
 		logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] outbox poll failed: %v", err)
 		return
@@ -264,6 +251,7 @@ func (s *SchedulerSnapshotService) pollOutbox() {
 		return
 	}
 
+	watermarkForCheck := watermark
 	seen := make(map[batchSeenKey]struct{})
 	for _, event := range events {
 		eventCtx, cancel := context.WithTimeout(context.Background(), outboxEventTimeout)
@@ -290,45 +278,11 @@ func (s *SchedulerSnapshotService) pollOutbox() {
 	}
 	if wmErr != nil {
 		logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] outbox watermark write failed: %v", wmErr)
-		return
-	}
-	s.cleanupConsumedOutbox(lastID)
-
-	// 只有 watermark 成功推进后，当前批次才算已消费。延迟必须按下一条待消费事件计算，
-	// 否则本批次处理越慢，越容易误触发一次更慢的全量重建，形成正反馈。
-	lagCtx, lagCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	s.checkOutboxLag(lagCtx, lastID)
-	lagCancel()
-}
-
-func (s *SchedulerSnapshotService) cleanupConsumedOutbox(watermark int64) {
-	if s == nil || s.outboxRepo == nil || watermark <= 0 {
-		return
+	} else {
+		watermarkForCheck = lastID
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	lease, acquired, err := s.outboxRepo.TryAcquireCleanupLock(ctx)
-	if err != nil {
-		logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] outbox cleanup lock failed: %v", err)
-		return
-	}
-	if !acquired {
-		return
-	}
-	defer lease.Release()
-
-	for {
-		deleted, err := s.outboxRepo.DeleteConsumedUpTo(ctx, watermark, schedulerOutboxCleanupBatch)
-		if err != nil {
-			logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] outbox cleanup failed: watermark=%d err=%v", watermark, err)
-			return
-		}
-		if deleted == 0 || deleted < schedulerOutboxCleanupBatch {
-			return
-		}
-	}
+	s.checkOutboxLag(ctx, events[0], watermarkForCheck)
 }
 
 func (s *SchedulerSnapshotService) handleOutboxEvent(ctx context.Context, event SchedulerOutboxEvent, seen map[batchSeenKey]struct{}) error {
@@ -527,7 +481,7 @@ func (s *SchedulerSnapshotService) rebuildByGroupIDs(ctx context.Context, groupI
 	if len(groupIDs) == 0 {
 		return nil
 	}
-	platforms := []string{PlatformAnthropic, PlatformGemini, PlatformOpenAI, PlatformAntigravity, PlatformGrok}
+	platforms := []string{PlatformAnthropic, PlatformGemini, PlatformOpenAI, PlatformAntigravity, PlatformKiro}
 	var firstErr error
 	for _, platform := range platforms {
 		if err := s.rebuildBucketsForPlatform(ctx, platform, groupIDs, reason, seen); err != nil && firstErr == nil {
@@ -614,72 +568,30 @@ func (s *SchedulerSnapshotService) triggerFullRebuild(reason string) error {
 	if s.cache == nil {
 		return ErrSchedulerCacheNotReady
 	}
-	return s.coalesceFullRebuild(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
 
-		buckets, err := s.cache.ListBuckets(ctx)
-		if err != nil {
-			logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] list buckets failed: %v", err)
-			return err
-		}
-		if len(buckets) == 0 {
-			buckets, err = s.defaultBuckets(ctx)
-			if err != nil {
-				logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] default buckets failed: %v", err)
-				return err
-			}
-		}
-		return s.rebuildBuckets(ctx, buckets, reason)
-	})
-}
-
-func (s *SchedulerSnapshotService) coalesceFullRebuild(run func() error) error {
-	s.fullRebuildStateMu.Lock()
-	s.fullRebuildRequested++
-	requestID := s.fullRebuildRequested
-	s.fullRebuildStateMu.Unlock()
-
-	s.fullRebuildRunMu.Lock()
-	defer s.fullRebuildRunMu.Unlock()
-
-	s.fullRebuildStateMu.Lock()
-	if s.fullRebuildCompleted >= requestID {
-		err := s.fullRebuildLastErr
-		s.fullRebuildStateMu.Unlock()
+	buckets, err := s.cache.ListBuckets(ctx)
+	if err != nil {
+		logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] list buckets failed: %v", err)
 		return err
 	}
-	// 当前轮重建可能早于新 outbox 事件对应事务的提交，不能让后到请求直接复用当前轮。
-	// 每轮开始前记录可覆盖的请求代次，执行期间登记的请求统一合并到下一轮。
-	coveredThrough := s.fullRebuildRequested
-	s.fullRebuildStateMu.Unlock()
-
-	err := run()
-
-	s.fullRebuildStateMu.Lock()
-	s.fullRebuildCompleted = coveredThrough
-	s.fullRebuildLastErr = err
-	s.fullRebuildStateMu.Unlock()
-	return err
+	if len(buckets) == 0 {
+		buckets, err = s.defaultBuckets(ctx)
+		if err != nil {
+			logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] default buckets failed: %v", err)
+			return err
+		}
+	}
+	return s.rebuildBuckets(ctx, buckets, reason)
 }
 
-func (s *SchedulerSnapshotService) checkOutboxLag(ctx context.Context, watermark int64) {
-	if s.cfg == nil || s.outboxRepo == nil {
-		return
-	}
-	oldestCreatedAt, ok, err := s.outboxRepo.FirstCreatedAtAfter(ctx, watermark)
-	if err != nil {
-		logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] outbox pending event read failed: %v", err)
-		return
-	}
-	if !ok || oldestCreatedAt.IsZero() {
-		s.lagMu.Lock()
-		s.lagFailures = 0
-		s.lagMu.Unlock()
+func (s *SchedulerSnapshotService) checkOutboxLag(ctx context.Context, oldest SchedulerOutboxEvent, watermark int64) {
+	if oldest.CreatedAt.IsZero() || s.cfg == nil {
 		return
 	}
 
-	lag := time.Since(oldestCreatedAt)
+	lag := time.Since(oldest.CreatedAt)
 	if lagSeconds := int(lag.Seconds()); lagSeconds >= s.cfg.Gateway.Scheduling.OutboxLagWarnSeconds && s.cfg.Gateway.Scheduling.OutboxLagWarnSeconds > 0 {
 		logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] outbox lag warning: %ds", lagSeconds)
 	}
@@ -706,7 +618,7 @@ func (s *SchedulerSnapshotService) checkOutboxLag(ctx context.Context, watermark
 	}
 
 	threshold := s.cfg.Gateway.Scheduling.OutboxBacklogRebuildRows
-	if threshold <= 0 {
+	if threshold <= 0 || s.outboxRepo == nil {
 		return
 	}
 	maxID, err := s.outboxRepo.MaxID(ctx)
@@ -871,7 +783,7 @@ func (s *SchedulerSnapshotService) fullRebuildInterval() time.Duration {
 
 func (s *SchedulerSnapshotService) defaultBuckets(ctx context.Context) ([]SchedulerBucket, error) {
 	buckets := make([]SchedulerBucket, 0)
-	platforms := []string{PlatformAnthropic, PlatformGemini, PlatformOpenAI, PlatformAntigravity, PlatformGrok}
+	platforms := []string{PlatformAnthropic, PlatformGemini, PlatformOpenAI, PlatformAntigravity, PlatformKiro}
 	for _, platform := range platforms {
 		buckets = append(buckets, SchedulerBucket{GroupID: 0, Platform: platform, Mode: SchedulerModeSingle})
 		buckets = append(buckets, SchedulerBucket{GroupID: 0, Platform: platform, Mode: SchedulerModeForced})

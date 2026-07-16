@@ -6,17 +6,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/apikey"
+	"ikik-api/ent/apikeygrouproute"
+	"ikik-api/ent/group"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/usagelog"
+	"ikik-api/ent/user"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/apikey"
-	"ikik-api/ent/group"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/usagelog"
-	"ikik-api/ent/user"
 )
 
 // APIKeyUpdate is the builder for updating APIKey entities.
@@ -448,6 +449,21 @@ func (_u *APIKeyUpdate) SetGroup(v *Group) *APIKeyUpdate {
 	return _u.SetGroupID(v.ID)
 }
 
+// AddGroupRouteIDs adds the "group_routes" edge to the APIKeyGroupRoute entity by IDs.
+func (_u *APIKeyUpdate) AddGroupRouteIDs(ids ...int64) *APIKeyUpdate {
+	_u.mutation.AddGroupRouteIDs(ids...)
+	return _u
+}
+
+// AddGroupRoutes adds the "group_routes" edges to the APIKeyGroupRoute entity.
+func (_u *APIKeyUpdate) AddGroupRoutes(v ...*APIKeyGroupRoute) *APIKeyUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddGroupRouteIDs(ids...)
+}
+
 // AddUsageLogIDs adds the "usage_logs" edge to the UsageLog entity by IDs.
 func (_u *APIKeyUpdate) AddUsageLogIDs(ids ...int64) *APIKeyUpdate {
 	_u.mutation.AddUsageLogIDs(ids...)
@@ -478,6 +494,27 @@ func (_u *APIKeyUpdate) ClearUser() *APIKeyUpdate {
 func (_u *APIKeyUpdate) ClearGroup() *APIKeyUpdate {
 	_u.mutation.ClearGroup()
 	return _u
+}
+
+// ClearGroupRoutes clears all "group_routes" edges to the APIKeyGroupRoute entity.
+func (_u *APIKeyUpdate) ClearGroupRoutes() *APIKeyUpdate {
+	_u.mutation.ClearGroupRoutes()
+	return _u
+}
+
+// RemoveGroupRouteIDs removes the "group_routes" edge to APIKeyGroupRoute entities by IDs.
+func (_u *APIKeyUpdate) RemoveGroupRouteIDs(ids ...int64) *APIKeyUpdate {
+	_u.mutation.RemoveGroupRouteIDs(ids...)
+	return _u
+}
+
+// RemoveGroupRoutes removes "group_routes" edges to APIKeyGroupRoute entities.
+func (_u *APIKeyUpdate) RemoveGroupRoutes(v ...*APIKeyGroupRoute) *APIKeyUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveGroupRouteIDs(ids...)
 }
 
 // ClearUsageLogs clears all "usage_logs" edges to the UsageLog entity.
@@ -747,6 +784,51 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.GroupRoutesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupRoutesTable,
+			Columns: []string{apikey.GroupRoutesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouproute.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedGroupRoutesIDs(); len(nodes) > 0 && !_u.mutation.GroupRoutesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupRoutesTable,
+			Columns: []string{apikey.GroupRoutesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouproute.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.GroupRoutesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupRoutesTable,
+			Columns: []string{apikey.GroupRoutesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouproute.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -1235,6 +1317,21 @@ func (_u *APIKeyUpdateOne) SetGroup(v *Group) *APIKeyUpdateOne {
 	return _u.SetGroupID(v.ID)
 }
 
+// AddGroupRouteIDs adds the "group_routes" edge to the APIKeyGroupRoute entity by IDs.
+func (_u *APIKeyUpdateOne) AddGroupRouteIDs(ids ...int64) *APIKeyUpdateOne {
+	_u.mutation.AddGroupRouteIDs(ids...)
+	return _u
+}
+
+// AddGroupRoutes adds the "group_routes" edges to the APIKeyGroupRoute entity.
+func (_u *APIKeyUpdateOne) AddGroupRoutes(v ...*APIKeyGroupRoute) *APIKeyUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddGroupRouteIDs(ids...)
+}
+
 // AddUsageLogIDs adds the "usage_logs" edge to the UsageLog entity by IDs.
 func (_u *APIKeyUpdateOne) AddUsageLogIDs(ids ...int64) *APIKeyUpdateOne {
 	_u.mutation.AddUsageLogIDs(ids...)
@@ -1265,6 +1362,27 @@ func (_u *APIKeyUpdateOne) ClearUser() *APIKeyUpdateOne {
 func (_u *APIKeyUpdateOne) ClearGroup() *APIKeyUpdateOne {
 	_u.mutation.ClearGroup()
 	return _u
+}
+
+// ClearGroupRoutes clears all "group_routes" edges to the APIKeyGroupRoute entity.
+func (_u *APIKeyUpdateOne) ClearGroupRoutes() *APIKeyUpdateOne {
+	_u.mutation.ClearGroupRoutes()
+	return _u
+}
+
+// RemoveGroupRouteIDs removes the "group_routes" edge to APIKeyGroupRoute entities by IDs.
+func (_u *APIKeyUpdateOne) RemoveGroupRouteIDs(ids ...int64) *APIKeyUpdateOne {
+	_u.mutation.RemoveGroupRouteIDs(ids...)
+	return _u
+}
+
+// RemoveGroupRoutes removes "group_routes" edges to APIKeyGroupRoute entities.
+func (_u *APIKeyUpdateOne) RemoveGroupRoutes(v ...*APIKeyGroupRoute) *APIKeyUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveGroupRouteIDs(ids...)
 }
 
 // ClearUsageLogs clears all "usage_logs" edges to the UsageLog entity.
@@ -1564,6 +1682,51 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.GroupRoutesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupRoutesTable,
+			Columns: []string{apikey.GroupRoutesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouproute.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedGroupRoutesIDs(); len(nodes) > 0 && !_u.mutation.GroupRoutesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupRoutesTable,
+			Columns: []string{apikey.GroupRoutesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouproute.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.GroupRoutesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupRoutesTable,
+			Columns: []string{apikey.GroupRoutesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouproute.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

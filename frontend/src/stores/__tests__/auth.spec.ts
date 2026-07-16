@@ -9,6 +9,7 @@ const mockLogout = vi.fn()
 const mockGetCurrentUser = vi.fn()
 const mockRegister = vi.fn()
 const mockRefreshToken = vi.fn()
+const mockResumeSession = vi.fn()
 
 vi.mock('@/api', () => ({
   authAPI: {
@@ -18,6 +19,7 @@ vi.mock('@/api', () => ({
     getCurrentUser: (...args: any[]) => mockGetCurrentUser(...args),
     register: (...args: any[]) => mockRegister(...args),
     refreshToken: (...args: any[]) => mockRefreshToken(...args),
+    resumeSession: (...args: any[]) => mockResumeSession(...args),
   },
   isTotp2FARequired: (response: any) => response?.requires_2fa === true,
 }))
@@ -177,12 +179,28 @@ describe('useAuthStore', () => {
     })
 
     it('localStorage 无数据时保持未认证状态', () => {
+      mockResumeSession.mockRejectedValue(new Error('No session'))
       const store = useAuthStore()
       store.checkAuth()
 
       expect(store.token).toBeNull()
       expect(store.user).toBeNull()
       expect(store.isAuthenticated).toBe(false)
+    })
+
+    it('localStorage 无数据时可通过网站会话恢复登录', async () => {
+      mockResumeSession.mockResolvedValue(fakeAuthResponse)
+      const store = useAuthStore()
+
+      store.checkAuth()
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(store.token).toBe('test-token-123')
+      expect(store.user).toEqual(fakeUser)
+      expect(store.isAuthenticated).toBe(true)
+      expect(localStorage.getItem('auth_token')).toBe('test-token-123')
+      expect(localStorage.getItem('refresh_token')).toBe('refresh-token-456')
     })
 
     it('localStorage 中用户数据损坏时清除状态', () => {

@@ -27,9 +27,8 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactOAuthSuccessPersi
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
-			"access_token":               "oauth-token",
-			"chatgpt_account_id":         "chatgpt-acc",
-			"chatgpt_account_is_fedramp": true,
+			"access_token":       "oauth-token",
+			"chatgpt_account_id": "chatgpt-acc",
 		},
 	}
 	repo := &snapshotUpdateAccountRepo{
@@ -58,10 +57,8 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactOAuthSuccessPersi
 	require.Equal(t, "application/json", upstream.lastReq.Header.Get("Accept"))
 	require.Equal(t, codexCLIVersion, upstream.lastReq.Header.Get("Version"))
 	require.NotEmpty(t, upstream.lastReq.Header.Get("Session_Id"))
-	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(upstream.lastReq.Context()))
 	require.Equal(t, codexCLIUserAgent, upstream.lastReq.Header.Get("User-Agent"))
 	require.Equal(t, "chatgpt-acc", upstream.lastReq.Header.Get("chatgpt-account-id"))
-	require.Equal(t, "true", upstream.lastReq.Header.Get("x-openai-fedramp"))
 	require.Equal(t, "gpt-5.4", gjson.GetBytes(upstream.lastBody, "model").String())
 
 	updates := <-updateCalls

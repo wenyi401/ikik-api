@@ -39,6 +39,10 @@
             <span class="text-sm text-gray-900 dark:text-gray-100">{{ formatAvailability(row) }}</span>
           </template>
 
+          <template #cell-availability_30d="{ row }">
+            <span class="text-sm text-gray-900 dark:text-gray-100">{{ formatAvailabilityWindow(row, row.availability_30d) }}</span>
+          </template>
+
           <template #cell-latency="{ row }">
             <span class="text-sm text-gray-900 dark:text-gray-100">{{ formatLatency(row.primary_latency_ms) }}</span>
           </template>
@@ -150,6 +154,7 @@ const {
   providerBadgeClass,
   formatLatency,
   formatAvailability,
+  formatPercent,
 } = useChannelMonitorFormat()
 
 const monitors = ref<ChannelMonitor[]>([])
@@ -176,6 +181,7 @@ const columns = computed<Column[]>(() => [
   { key: 'provider', label: t('admin.channelMonitor.columns.provider'), sortable: false },
   { key: 'primary_model', label: t('admin.channelMonitor.columns.primaryModel'), sortable: false },
   { key: 'availability_7d', label: t('admin.channelMonitor.columns.availability7d'), sortable: false },
+  { key: 'availability_30d', label: t('admin.channelMonitor.columns.availability30d'), sortable: false },
   { key: 'latency', label: t('admin.channelMonitor.columns.latency'), sortable: false },
   { key: 'enabled', label: t('admin.channelMonitor.columns.enabled'), sortable: false },
   { key: 'actions', label: t('admin.channelMonitor.columns.actions'), sortable: false },
@@ -185,6 +191,11 @@ const deleteConfirmMessage = computed(() => {
   const name = deleting.value?.name || ''
   return t('admin.channelMonitor.deleteConfirm', { name })
 })
+
+function formatAvailabilityWindow(row: ChannelMonitor, value: number | null | undefined): string {
+  if (!row.primary_status) return '-'
+  return formatPercent(value)
+}
 
 async function reload() {
   if (abortController) abortController.abort()

@@ -13,9 +13,6 @@
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
               <p class="truncate font-medium text-gray-900 dark:text-white">{{ user.email }}</p>
-              <span v-if="user.deleted_at" class="flex-shrink-0 inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-rose-100 text-rose-600 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:ring-rose-500/30">
-                {{ t('admin.usage.userDeletedBadge') }}
-              </span>
               <span
                 v-if="user.username"
                 class="flex-shrink-0 rounded bg-primary-50 px-1.5 py-0.5 text-xs text-primary-600 dark:bg-primary-900/20 dark:text-primary-400"
@@ -151,17 +148,17 @@
       <div v-if="totalPages > 1" class="flex items-center justify-center gap-2 pt-2">
         <button
           :disabled="currentPage <= 1"
-          class="btn btn-secondary px-3 py-1 text-sm"
+          class="pagination-text-button"
           @click="loadHistory(currentPage - 1)"
         >
           {{ t('pagination.previous') }}
         </button>
-        <span class="text-sm text-gray-500 dark:text-dark-400">
+        <span class="pagination-info whitespace-nowrap">
           {{ currentPage }} / {{ totalPages }}
         </span>
         <button
           :disabled="currentPage >= totalPages"
-          class="btn btn-secondary px-3 py-1 text-sm"
+          class="pagination-text-button"
           @click="loadHistory(currentPage + 1)"
         >
           {{ t('pagination.next') }}
@@ -199,8 +196,9 @@ const totalPages = computed(() => Math.ceil(total.value / pageSize) || 1)
 const typeOptions = computed(() => [
   { value: '', label: t('admin.users.allTypes') },
   { value: 'balance', label: t('admin.users.typeBalance') },
-  { value: 'affiliate_balance', label: t('admin.users.typeAffiliateBalance') },
   { value: 'admin_balance', label: t('admin.users.typeAdminBalance') },
+  { value: 'points', label: t('admin.users.typePoints') },
+  { value: 'admin_points', label: t('admin.users.typeAdminPoints') },
   { value: 'concurrency', label: t('admin.users.typeConcurrency') },
   { value: 'admin_concurrency', label: t('admin.users.typeAdminConcurrency') },
   { value: 'subscription', label: t('admin.users.typeSubscription') }
@@ -236,16 +234,20 @@ const loadHistory = async (page: number) => {
 }
 
 // Helper: check if admin type
-const isAdminType = (type: string) => type === 'admin_balance' || type === 'admin_concurrency'
+const isAdminType = (type: string) => type === 'admin_balance' || type === 'admin_points' || type === 'admin_concurrency'
 
 // Helper: check if balance type (includes admin_balance)
-const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance' || type === 'affiliate_balance'
+const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance'
+
+// Helper: check if points type (includes admin_points)
+const isPointsType = (type: string) => type === 'points' || type === 'admin_points'
 
 // Helper: check if subscription type
 const isSubscriptionType = (type: string) => type === 'subscription'
 
 // Icon name based on type
 const getIconName = (item: BalanceHistoryItem) => {
+  if (isPointsType(item.type)) return 'gift'
   if (isBalanceType(item.type)) return 'dollar'
   if (isSubscriptionType(item.type)) return 'badge'
   return 'bolt' // concurrency
@@ -253,6 +255,11 @@ const getIconName = (item: BalanceHistoryItem) => {
 
 // Icon background color
 const getIconBg = (item: BalanceHistoryItem) => {
+  if (isPointsType(item.type)) {
+    return item.value >= 0
+      ? 'bg-cyan-100 dark:bg-cyan-900/30'
+      : 'bg-red-100 dark:bg-red-900/30'
+  }
   if (isBalanceType(item.type)) {
     return item.value >= 0
       ? 'bg-emerald-100 dark:bg-emerald-900/30'
@@ -266,6 +273,11 @@ const getIconBg = (item: BalanceHistoryItem) => {
 
 // Icon text color
 const getIconColor = (item: BalanceHistoryItem) => {
+  if (isPointsType(item.type)) {
+    return item.value >= 0
+      ? 'text-cyan-600 dark:text-cyan-400'
+      : 'text-red-600 dark:text-red-400'
+  }
   if (isBalanceType(item.type)) {
     return item.value >= 0
       ? 'text-emerald-600 dark:text-emerald-400'
@@ -279,6 +291,11 @@ const getIconColor = (item: BalanceHistoryItem) => {
 
 // Value text color
 const getValueColor = (item: BalanceHistoryItem) => {
+  if (isPointsType(item.type)) {
+    return item.value >= 0
+      ? 'text-cyan-600 dark:text-cyan-400'
+      : 'text-red-600 dark:text-red-400'
+  }
   if (isBalanceType(item.type)) {
     return item.value >= 0
       ? 'text-emerald-600 dark:text-emerald-400'
@@ -295,10 +312,12 @@ const getItemTitle = (item: BalanceHistoryItem) => {
   switch (item.type) {
     case 'balance':
       return t('redeem.balanceAddedRedeem')
-    case 'affiliate_balance':
-      return t('redeem.balanceAddedAffiliate')
     case 'admin_balance':
       return item.value >= 0 ? t('redeem.balanceAddedAdmin') : t('redeem.balanceDeductedAdmin')
+    case 'points':
+      return t('redeem.pointsAddedRedeem')
+    case 'admin_points':
+      return item.value >= 0 ? t('redeem.pointsAddedAdmin') : t('redeem.pointsDeductedAdmin')
     case 'concurrency':
       return t('redeem.concurrencyAddedRedeem')
     case 'admin_concurrency':
@@ -315,6 +334,10 @@ const formatValue = (item: BalanceHistoryItem) => {
   if (isBalanceType(item.type)) {
     const sign = item.value >= 0 ? '+' : ''
     return `${sign}$${item.value.toFixed(2)}`
+  }
+  if (isPointsType(item.type)) {
+    const sign = item.value >= 0 ? '+' : ''
+    return `${sign}${item.value.toFixed(2)}`
   }
   if (isSubscriptionType(item.type)) {
     const days = item.validity_days || Math.round(item.value)

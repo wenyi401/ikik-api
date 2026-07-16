@@ -6,14 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/paymentorder"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/user"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/paymentorder"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/user"
 )
 
 // PaymentOrderUpdate is the builder for updating PaymentOrder entities.
@@ -362,6 +362,33 @@ func (_u *PaymentOrderUpdate) AddSubscriptionDays(v int) *PaymentOrderUpdate {
 // ClearSubscriptionDays clears the value of the "subscription_days" field.
 func (_u *PaymentOrderUpdate) ClearSubscriptionDays() *PaymentOrderUpdate {
 	_u.mutation.ClearSubscriptionDays()
+	return _u
+}
+
+// SetShopOrderID sets the "shop_order_id" field.
+func (_u *PaymentOrderUpdate) SetShopOrderID(v int64) *PaymentOrderUpdate {
+	_u.mutation.ResetShopOrderID()
+	_u.mutation.SetShopOrderID(v)
+	return _u
+}
+
+// SetNillableShopOrderID sets the "shop_order_id" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableShopOrderID(v *int64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetShopOrderID(*v)
+	}
+	return _u
+}
+
+// AddShopOrderID adds value to the "shop_order_id" field.
+func (_u *PaymentOrderUpdate) AddShopOrderID(v int64) *PaymentOrderUpdate {
+	_u.mutation.AddShopOrderID(v)
+	return _u
+}
+
+// ClearShopOrderID clears the value of the "shop_order_id" field.
+func (_u *PaymentOrderUpdate) ClearShopOrderID() *PaymentOrderUpdate {
+	_u.mutation.ClearShopOrderID()
 	return _u
 }
 
@@ -941,6 +968,15 @@ func (_u *PaymentOrderUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if _u.mutation.SubscriptionDaysCleared() {
 		_spec.ClearField(paymentorder.FieldSubscriptionDays, field.TypeInt)
 	}
+	if value, ok := _u.mutation.ShopOrderID(); ok {
+		_spec.SetField(paymentorder.FieldShopOrderID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedShopOrderID(); ok {
+		_spec.AddField(paymentorder.FieldShopOrderID, field.TypeInt64, value)
+	}
+	if _u.mutation.ShopOrderIDCleared() {
+		_spec.ClearField(paymentorder.FieldShopOrderID, field.TypeInt64)
+	}
 	if value, ok := _u.mutation.ProviderInstanceID(); ok {
 		_spec.SetField(paymentorder.FieldProviderInstanceID, field.TypeString, value)
 	}
@@ -1425,6 +1461,33 @@ func (_u *PaymentOrderUpdateOne) AddSubscriptionDays(v int) *PaymentOrderUpdateO
 // ClearSubscriptionDays clears the value of the "subscription_days" field.
 func (_u *PaymentOrderUpdateOne) ClearSubscriptionDays() *PaymentOrderUpdateOne {
 	_u.mutation.ClearSubscriptionDays()
+	return _u
+}
+
+// SetShopOrderID sets the "shop_order_id" field.
+func (_u *PaymentOrderUpdateOne) SetShopOrderID(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetShopOrderID()
+	_u.mutation.SetShopOrderID(v)
+	return _u
+}
+
+// SetNillableShopOrderID sets the "shop_order_id" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableShopOrderID(v *int64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetShopOrderID(*v)
+	}
+	return _u
+}
+
+// AddShopOrderID adds value to the "shop_order_id" field.
+func (_u *PaymentOrderUpdateOne) AddShopOrderID(v int64) *PaymentOrderUpdateOne {
+	_u.mutation.AddShopOrderID(v)
+	return _u
+}
+
+// ClearShopOrderID clears the value of the "shop_order_id" field.
+func (_u *PaymentOrderUpdateOne) ClearShopOrderID() *PaymentOrderUpdateOne {
+	_u.mutation.ClearShopOrderID()
 	return _u
 }
 
@@ -2033,6 +2096,15 @@ func (_u *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentOrd
 	}
 	if _u.mutation.SubscriptionDaysCleared() {
 		_spec.ClearField(paymentorder.FieldSubscriptionDays, field.TypeInt)
+	}
+	if value, ok := _u.mutation.ShopOrderID(); ok {
+		_spec.SetField(paymentorder.FieldShopOrderID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedShopOrderID(); ok {
+		_spec.AddField(paymentorder.FieldShopOrderID, field.TypeInt64, value)
+	}
+	if _u.mutation.ShopOrderIDCleared() {
+		_spec.ClearField(paymentorder.FieldShopOrderID, field.TypeInt64)
 	}
 	if value, ok := _u.mutation.ProviderInstanceID(); ok {
 		_spec.SetField(paymentorder.FieldProviderInstanceID, field.TypeString, value)

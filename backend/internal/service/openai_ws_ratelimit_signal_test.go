@@ -20,6 +20,8 @@ import (
 type openAIWSRateLimitSignalRepo struct {
 	stubOpenAIAccountRepo
 	rateLimitCalls []time.Time
+	tempCalls      []time.Time
+	tempReasons    []string
 	updateExtra    []map[string]any
 }
 
@@ -36,6 +38,12 @@ type openAICodexExtraListRepo struct {
 
 func (r *openAIWSRateLimitSignalRepo) SetRateLimited(_ context.Context, _ int64, resetAt time.Time) error {
 	r.rateLimitCalls = append(r.rateLimitCalls, resetAt)
+	return nil
+}
+
+func (r *openAIWSRateLimitSignalRepo) SetTempUnschedulable(_ context.Context, _ int64, until time.Time, reason string) error {
+	r.tempCalls = append(r.tempCalls, until)
+	r.tempReasons = append(r.tempReasons, reason)
 	return nil
 }
 
@@ -73,7 +81,7 @@ func (r *openAICodexExtraListRepo) SetRateLimited(_ context.Context, _ int64, re
 	return nil
 }
 
-func (r *openAICodexExtraListRepo) ListWithFilters(_ context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
+func (r *openAICodexExtraListRepo) ListWithFilters(_ context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID, proxyID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
 	_ = platform
 	_ = accountType
 	_ = status
@@ -239,6 +247,29 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake429PersistsRateLimit(t *testi
 	require.Contains(t, repo.updateExtra[0], "codex_usage_updated_at")
 }
 
+func TestOpenAIGatewayService_WSv2ErrorEventCapacityPersistsTempUnsched(t *testing.T) {
+	repo := &openAIWSRateLimitSignalRepo{}
+	rateSvc := &RateLimitService{accountRepo: repo}
+	svc := &OpenAIGatewayService{rateLimitService: rateSvc}
+	account := &Account{
+		ID:       504,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Extra: map[string]any{
+			"pool_mode": true,
+		},
+	}
+	body := []byte(`{"type":"error","error":{"code":"server_error","type":"server_error","message":"Selected model is at capacity. Please try a different model."}}`)
+
+	start := time.Now()
+	svc.persistOpenAIWSRateLimitSignal(context.Background(), account, http.Header{}, body, "server_error", "server_error", "Selected model is at capacity. Please try a different model.")
+
+	require.Empty(t, repo.rateLimitCalls)
+	require.Len(t, repo.tempCalls, 1)
+	require.WithinDuration(t, start.Add(openAIModelCapacityCooldown), repo.tempCalls[0], 5*time.Second)
+	require.Contains(t, repo.tempReasons[0], "openai_model_capacity")
+}
+
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageLimitPersistsRateLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -338,9 +369,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageL
 	select {
 	case serverErr := <-serverErrCh:
 		require.Error(t, serverErr)
-		var failoverErr *UpstreamFailoverError
-		require.ErrorAs(t, serverErr, &failoverErr)
-		require.Equal(t, http.StatusTooManyRequests, failoverErr.StatusCode)
 		require.Len(t, repo.rateLimitCalls, 1)
 		require.WithinDuration(t, time.Unix(resetAt, 0), repo.rateLimitCalls[0], 2*time.Second)
 	case <-time.After(5 * time.Second):
@@ -490,7 +518,7 @@ func TestAdminService_ListAccounts_ExhaustedCodexExtraDoesNotSetRateLimit(t *tes
 	}
 	svc := &adminServiceImpl{accountRepo: repo}
 
-	accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformOpenAI, AccountTypeOAuth, "", "", 0, "", "", "")
+	accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformOpenAI, AccountTypeOAuth, "", "", 0, 0, "", "", "")
 	require.NoError(t, err)
 	require.Equal(t, int64(1), total)
 	require.Len(t, accounts, 1)

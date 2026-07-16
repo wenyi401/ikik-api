@@ -1,5 +1,5 @@
 <template>
-  <div class="mt-4 pt-3 border-t border-gray-100 dark:border-dark-700/60">
+  <div :class="['mt-4 border-t border-gray-100 pt-3 dark:border-dark-700/60', { 'monitor-timeline--compact': compact }]">
     <div
       class="flex justify-between text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2"
     >
@@ -44,10 +44,12 @@ const props = withDefaults(defineProps<{
   countdownSeconds: number
   length?: number
   maintenance?: boolean
+  compact?: boolean
 }>(), {
   buckets: () => [],
   length: 60,
   maintenance: false,
+  compact: false,
 })
 
 const { t } = useI18n()
@@ -113,3 +115,20 @@ const displayBars = computed<Bar[]>(() => {
   return bars
 })
 </script>
+
+<style scoped>
+.monitor-timeline--compact {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.monitor-timeline--compact > :first-child {
+  margin-bottom: 0.25rem;
+}
+
+.monitor-timeline--compact > :first-child > :first-child,
+.monitor-timeline--compact > :last-child {
+  display: none;
+}
+</style>

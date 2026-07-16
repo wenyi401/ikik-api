@@ -25,19 +25,6 @@ func (s *OpsService) GetAccountAvailabilityStats(ctx context.Context, platformFi
 		return nil, nil, nil, nil, err
 	}
 
-	if groupIDFilter != nil && *groupIDFilter > 0 {
-		filtered := make([]Account, 0, len(accounts))
-		for _, acc := range accounts {
-			for _, grp := range acc.Groups {
-				if grp != nil && grp.ID == *groupIDFilter {
-					filtered = append(filtered, acc)
-					break
-				}
-			}
-		}
-		accounts = filtered
-	}
-
 	now := time.Now()
 	collectedAt := now
 

@@ -1,0 +1,166 @@
+// Package {{.Package}} 实现插件模块 {{.ID}}。
+//
+// TODO: 用 1-3 句话描述模块职责。
+//
+// 本骨架由 tools/newmodule 生成（蓝本：internal/modules/hello），实现了
+// 全部四个可选生命周期接口（Provision / Validate / Start / Stop）。
+// 模块默认 disabled——仅在 `modules:` 配置中显式 enabled 后才会运行。
+package {{.Package}}
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"go.uber.org/zap"
+
+	"ikik-api/internal/plugin"
+)
+
+// ID 是 {{.Package}} 模块的模块 ID。
+const ID plugin.ModuleID = "{{.ID}}"
+
+func init() {
+	plugin.RegisterModule(&Module{})
+}
+
+// Config 是 {{.Package}} 模块的私有配置
+// （`modules:` 子树中 "{{.ID}}" 项除 enabled 外的部分）。
+//
+// TODO: 替换为模块真实的配置字段（同步更新 defaultConfig 与 Validate）。
+// 注意：全局配置经 Viper 加载时所有 key 会被静默小写化，
+// mapstructure 标签必须全小写。
+type Config struct {
+	// Interval 是后台工作循环的执行间隔，必须大于 0。
+	// TODO: 示例字段，按需替换或删除。
+	Interval time.Duration `mapstructure:"interval"`
+}
+
+// defaultConfig 返回 {{.Package}} 模块的默认配置（用户未配置的字段保持默认值）。
+func defaultConfig() Config {
+	return Config{
+		Interval: 30 * time.Second,
+	}
+}
+
+// Module 是 {{.ID}} 模块实例。零值即可用，依赖在 Provision 中装配；
+// 每次 Runtime.Build 都会通过 ModuleInfo.New 创建全新实例，
+// 模块不应依赖包级可变状态。
+type Module struct {
+	cfg    Config
+	logger *zap.Logger
+
+	cancel context.CancelFunc
+	done   chan struct{}
+}
+
+// 编译期断言：Module 实现 plugin.Module 与全部四个可选生命周期接口。
+// TODO: 用不到的可选接口请连同对应方法与断言一起删除（plugin.Module 必须保留）。
+var (
+	_ plugin.Module      = (*Module)(nil)
+	_ plugin.Provisioner = (*Module)(nil)
+	_ plugin.Validator   = (*Module)(nil)
+	_ plugin.Starter     = (*Module)(nil)
+	_ plugin.Stopper     = (*Module)(nil)
+)
+
+// ModuleInfo 返回模块注册信息。EnabledByDefault 必须为 false：
+// 未在 `modules:` 中显式 enabled 时模块不实例化、无任何副作用，
+// 保证引入新模块在缺省配置下零行为变更。
+func (*Module) ModuleInfo() plugin.ModuleInfo {
+	return plugin.ModuleInfo{
+		ID:               ID,
+		New:              func() plugin.Module { return new(Module) },
+		EnabledByDefault: false,
+	}
+}
+
+// Provision 从宿主获取依赖，并在默认配置之上解码模块私有配置。
+//
+// TODO: 按需从 host 获取其他能力（Logger / ConfigOf / DB / Redis）。
+// 模块依赖只能经 Host 获取，禁止依赖具体 Service。
+func (m *Module) Provision(host *plugin.Host) error {
+	m.cfg = defaultConfig()
+	if host != nil {
+		m.logger = host.Logger
+		if host.ConfigOf != nil {
+			if err := host.ConfigOf(ID, &m.cfg); err != nil {
+				return err
+			}
+		}
+	}
+	if m.logger == nil {
+		m.logger = zap.NewNop()
+	}
+	return nil
+}
+
+// Validate 校验模块配置与状态，失败将中止启动（fail-fast）。
+//
+// TODO: 补充模块真实配置的校验规则。
+func (m *Module) Validate() error {
+	if m.cfg.Interval <= 0 {
+		return fmt.Errorf("{{.Package}}: interval must be positive, got %s", m.cfg.Interval)
+	}
+	return nil
+}
+
+// Start 启动模块的后台工作。
+//
+// 契约：Start 必须快速返回——长任务在独立 goroutine 中运行（Runtime 在
+// 持锁状态下调用 Start/Stop，阻塞的实现会同时阻塞 Snapshot 与其他生命周期
+// 操作）。模块持有独立于启动 ctx 的生命周期上下文，由 Stop 负责取消，
+// 因此模块的运行寿命不受启动流程上下文的影响。
+func (m *Module) Start(_ context.Context) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+	m.done = make(chan struct{})
+	go m.run(ctx)
+	m.logger.Info("{{.Package}} module started",
+		zap.String("module", string(ID)),
+		zap.Duration("interval", m.cfg.Interval))
+	return nil
+}
+
+// run 是模块的后台工作循环，直到 ctx 被取消。
+//
+// TODO: 替换为模块真实的后台逻辑；没有后台工作的模块可整体删除
+// Start / Stop / run（连同对应的编译期断言与字段）。
+func (m *Module) run(ctx context.Context) {
+	defer close(m.done)
+	ticker := time.NewTicker(m.cfg.Interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// TODO: 在这里执行周期工作。
+			m.logger.Debug("{{.Package}} tick", zap.String("module", string(ID)))
+		}
+	}
+}
+
+// Stop 取消后台 goroutine 并等待其退出，尊重 ctx 的 deadline
+// （与进程优雅关闭超时协同）。未 Start 过（或 Start 之前失败）时调用为 no-op。
+func (m *Module) Stop(ctx context.Context) error {
+	if m.cancel == nil {
+		return nil
+	}
+	m.cancel()
+	// 先非阻塞探测 worker 是否已退出：当传入的 ctx 已取消/超时而 worker 其实
+	// 已干净退出时，select 双臂就绪的随机选取可能把成功停止误报为失败。
+	select {
+	case <-m.done:
+		m.logger.Info("{{.Package}} module stopped", zap.String("module", string(ID)))
+		return nil
+	default:
+	}
+	select {
+	case <-m.done:
+		m.logger.Info("{{.Package}} module stopped", zap.String("module", string(ID)))
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("{{.Package}}: stop interrupted while waiting for worker exit: %w", ctx.Err())
+	}
+}

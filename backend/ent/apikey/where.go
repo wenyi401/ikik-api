@@ -3,11 +3,11 @@
 package apikey
 
 import (
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"ikik-api/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
@@ -1163,6 +1163,29 @@ func HasGroup() predicate.APIKey {
 func HasGroupWith(preds ...predicate.Group) predicate.APIKey {
 	return predicate.APIKey(func(s *sql.Selector) {
 		step := newGroupStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasGroupRoutes applies the HasEdge predicate on the "group_routes" edge.
+func HasGroupRoutes() predicate.APIKey {
+	return predicate.APIKey(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, GroupRoutesTable, GroupRoutesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasGroupRoutesWith applies the HasEdge predicate on the "group_routes" edge with a given conditions (other predicates).
+func HasGroupRoutesWith(preds ...predicate.APIKeyGroupRoute) predicate.APIKey {
+	return predicate.APIKey(func(s *sql.Selector) {
+		step := newGroupRoutesStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

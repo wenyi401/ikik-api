@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"ikik-api/internal/pkg/pagination"
@@ -13,6 +14,11 @@ const (
 	UsageCleanupStatusSucceeded = "succeeded"
 	UsageCleanupStatusFailed    = "failed"
 	UsageCleanupStatusCanceled  = "canceled"
+
+	UsageCleanupSystemActor int64 = 0
+
+	UsageCleanupCreatedSourceAdmin         = "admin"
+	UsageCleanupCreatedSourceAutoRetention = "system_auto_retention"
 )
 
 // UsageCleanupFilters 定义清理任务过滤条件
@@ -41,18 +47,19 @@ type UsageCleanupFilters struct {
 // UsageCleanupTask 表示使用记录清理任务
 // 状态包含 pending/running/succeeded/failed/canceled
 type UsageCleanupTask struct {
-	ID          int64
-	Status      string
-	Filters     UsageCleanupFilters
-	CreatedBy   int64
-	DeletedRows int64
-	ErrorMsg    *string
-	CanceledBy  *int64
-	CanceledAt  *time.Time
-	StartedAt   *time.Time
-	FinishedAt  *time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID            int64
+	Status        string
+	Filters       UsageCleanupFilters
+	CreatedBy     int64
+	CreatedSource string
+	DeletedRows   int64
+	ErrorMsg      *string
+	CanceledBy    *int64
+	CanceledAt    *time.Time
+	StartedAt     *time.Time
+	FinishedAt    *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // UsageCleanupRepository 定义清理任务持久层接口
@@ -63,6 +70,9 @@ type UsageCleanupRepository interface {
 	// - 优先 pending
 	// - 若 running 超过 staleRunningAfterSeconds（可能由于进程退出/崩溃/超时），允许重新抢占继续执行
 	ClaimNextPendingTask(ctx context.Context, staleRunningAfterSeconds int64) (*UsageCleanupTask, error)
+	FindOldestUsageLogBefore(ctx context.Context, cutoff time.Time) (*time.Time, error)
+	SnapshotUsageLogs(ctx context.Context, filters UsageCleanupFilters) error
+	ExportUsageLogs(ctx context.Context, filters UsageCleanupFilters) (io.ReadCloser, error)
 	// GetTaskStatus 查询任务状态；若不存在返回 sql.ErrNoRows
 	GetTaskStatus(ctx context.Context, taskID int64) (string, error)
 	// UpdateTaskProgress 更新任务进度（deleted_rows）用于断点续跑/展示

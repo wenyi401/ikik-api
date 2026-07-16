@@ -37,11 +37,10 @@ func NewChannelMonitorHandler(monitorService *service.ChannelMonitorService) *Ch
 
 type channelMonitorCreateRequest struct {
 	Name             string            `json:"name" binding:"required,max=100"`
-	Provider         string            `json:"provider" binding:"required,oneof=openai anthropic gemini grok"`
-	APIMode          string            `json:"api_mode" binding:"omitempty,oneof=chat_completions responses"`
+	Provider         string            `json:"provider" binding:"required,oneof=openai anthropic gemini"`
 	Endpoint         string            `json:"endpoint" binding:"required,max=500"`
 	APIKey           string            `json:"api_key" binding:"required,max=2000"`
-	PrimaryModel     string            `json:"primary_model" binding:"max=200"`
+	PrimaryModel     string            `json:"primary_model" binding:"required,max=200"`
 	ExtraModels      []string          `json:"extra_models"`
 	GroupName        string            `json:"group_name" binding:"max=100"`
 	Enabled          *bool             `json:"enabled"`
@@ -55,8 +54,7 @@ type channelMonitorCreateRequest struct {
 
 type channelMonitorUpdateRequest struct {
 	Name             *string            `json:"name" binding:"omitempty,max=100"`
-	Provider         *string            `json:"provider" binding:"omitempty,oneof=openai anthropic gemini grok"`
-	APIMode          *string            `json:"api_mode" binding:"omitempty,oneof=chat_completions responses"`
+	Provider         *string            `json:"provider" binding:"omitempty,oneof=openai anthropic gemini"`
 	Endpoint         *string            `json:"endpoint" binding:"omitempty,max=500"`
 	APIKey           *string            `json:"api_key" binding:"omitempty,max=2000"`
 	PrimaryModel     *string            `json:"primary_model" binding:"omitempty,max=200"`
@@ -76,7 +74,6 @@ type channelMonitorResponse struct {
 	ID                  int64                                `json:"id"`
 	Name                string                               `json:"name"`
 	Provider            string                               `json:"provider"`
-	APIMode             string                               `json:"api_mode"`
 	Endpoint            string                               `json:"endpoint"`
 	APIKeyMasked        string                               `json:"api_key_masked"`
 	APIKeyDecryptFailed bool                                 `json:"api_key_decrypt_failed"`
@@ -144,7 +141,6 @@ func channelMonitorToResponse(m *service.ChannelMonitor) *channelMonitorResponse
 		ID:                  m.ID,
 		Name:                m.Name,
 		Provider:            m.Provider,
-		APIMode:             m.APIMode,
 		Endpoint:            m.Endpoint,
 		APIKeyMasked:        maskAPIKey(m.APIKey),
 		APIKeyDecryptFailed: m.APIKeyDecryptFailed,
@@ -311,7 +307,6 @@ func (h *ChannelMonitorHandler) Create(c *gin.Context) {
 	m, err := h.monitorService.Create(c.Request.Context(), service.ChannelMonitorCreateParams{
 		Name:             req.Name,
 		Provider:         req.Provider,
-		APIMode:          req.APIMode,
 		Endpoint:         req.Endpoint,
 		APIKey:           req.APIKey,
 		PrimaryModel:     req.PrimaryModel,
@@ -348,7 +343,6 @@ func (h *ChannelMonitorHandler) Update(c *gin.Context) {
 	m, err := h.monitorService.Update(c.Request.Context(), id, service.ChannelMonitorUpdateParams{
 		Name:             req.Name,
 		Provider:         req.Provider,
-		APIMode:          req.APIMode,
 		Endpoint:         req.Endpoint,
 		APIKey:           req.APIKey,
 		PrimaryModel:     req.PrimaryModel,

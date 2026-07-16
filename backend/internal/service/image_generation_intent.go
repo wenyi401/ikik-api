@@ -9,22 +9,8 @@ import (
 const (
 	openAIResponsesEndpoint          = "/v1/responses"
 	openAIResponsesCompactEndpoint   = "/v1/responses/compact"
-	responsesLiteHeader              = "X-OpenAI-Internal-Codex-Responses-Lite"
-	responsesLiteHeaderKey           = "x-openai-internal-codex-responses-lite"
-	responsesLiteWSMetadataKey       = "ws_request_header_x_openai_internal_codex_responses_lite"
 	imageGenerationPermissionMessage = "Image generation is not enabled for this group"
 )
-
-func isOpenAIResponsesLiteHeader(value string) bool {
-	return strings.EqualFold(strings.TrimSpace(value), "true")
-}
-
-func isOpenAIResponsesLiteWebSocketPayload(body []byte) bool {
-	if len(body) == 0 || !gjson.ValidBytes(body) {
-		return false
-	}
-	return isOpenAIResponsesLiteHeader(gjson.GetBytes(body, "client_metadata."+responsesLiteWSMetadataKey).String())
-}
 
 // ImageGenerationPermissionMessage returns the stable end-user error text for disabled groups.
 func ImageGenerationPermissionMessage() string {
@@ -50,13 +36,10 @@ func IsImageGenerationIntent(endpoint string, requestedModel string, body []byte
 	if model := strings.TrimSpace(gjson.GetBytes(body, "model").String()); isOpenAIImageGenerationModel(model) {
 		return true
 	}
-	if openAIJSONToolsContainImageGeneration(gjson.GetBytes(body, "tools")) {
+	if openAIRequestBodyHasImageGenerationDeclaration(body) {
 		return true
 	}
-	if openAIJSONInputContainsImageGenTool(gjson.GetBytes(body, "input")) {
-		return true
-	}
-	return openAIJSONToolChoiceSelectsImageGeneration(gjson.GetBytes(body, "tool_choice"))
+	return false
 }
 
 // IsImageGenerationIntentMap is the map-backed variant used after service-side request mutation.
@@ -107,11 +90,7 @@ func openAIJSONToolsContainImageGeneration(tools gjson.Result) bool {
 	}
 	found := false
 	tools.ForEach(func(_, item gjson.Result) bool {
-		if isOpenAIImageGenerationType(openAIJSONString(item.Get("type"))) {
-			found = true
-			return false
-		}
-		if isImageGenNamespaceTool(item) {
+		if isOpenAIImageGenerationType(openAIJSONString(item.Get("type"))) || isImageGenNamespaceTool(item) {
 			found = true
 			return false
 		}
@@ -128,18 +107,11 @@ func isOpenAIImageGenNamespaceName(value string) bool {
 	return strings.TrimSpace(value) == "image_gen"
 }
 
-// isImageGenNamespaceTool detects the Codex namespace-style image generation
-// tool declaration: { "type": "namespace", "name": "image_gen", ... }.
-// Codex /image uses this instead of the flat { "type": "image_generation" }.
 func isImageGenNamespaceTool(tool gjson.Result) bool {
 	return openAIJSONString(tool.Get("type")) == "namespace" &&
 		isOpenAIImageGenNamespaceName(openAIJSONString(tool.Get("name")))
 }
 
-// openAIJSONInputContainsImageGenTool scans Responses input items for
-// additional_tools entries that declare the image_gen namespace. This covers
-// the "Responses Lite" format where tools are embedded inside input items
-// rather than top-level tools.
 func openAIJSONInputContainsImageGenTool(input gjson.Result) bool {
 	if !input.IsArray() {
 		return false
@@ -215,8 +187,8 @@ func openAIJSONToolChoiceSelectsImageGeneration(choice gjson.Result) bool {
 	return false
 }
 
-func openAIAnyToolChoiceSelectsImageGeneration(choice any) bool {
-	switch v := choice.(type) {
+func openAIAnyToolChoiceSelectsImageGeneration(value any) bool {
+	switch v := value.(type) {
 	case string:
 		return isOpenAIImageGenerationType(v)
 	case map[string]any:
@@ -264,7 +236,7 @@ type OpenAIResponsesImageBillingConfig struct {
 	InputSize string
 }
 
-func resolveOpenAIResponsesImageBillingConfigDetailed(reqBody map[string]any, fallbackModel string) (OpenAIResponsesImageBillingConfig, error) {
+func resolveOpenAIResponsesImageBillingConfig(reqBody map[string]any, fallbackModel string) (string, string, error) {
 	imageModel := ""
 	imageSize := ""
 	hasImageTool := false
@@ -297,19 +269,43 @@ func resolveOpenAIResponsesImageBillingConfigDetailed(reqBody map[string]any, fa
 		imageModel = strings.TrimSpace(fallbackModel)
 	}
 	sizeTier := normalizeOpenAIImageSizeTier(imageSize)
-	return OpenAIResponsesImageBillingConfig{
-		Model:     imageModel,
-		SizeTier:  sizeTier,
-		InputSize: imageSize,
-	}, nil
+	return imageModel, sizeTier, nil
 }
 
 func resolveOpenAIResponsesImageBillingConfigFromBody(body []byte, fallbackModel string) (string, string, error) {
-	cfg, err := resolveOpenAIResponsesImageBillingConfigDetailedFromBody(body, fallbackModel)
-	if err != nil {
-		return "", "", err
+	imageModel := ""
+	imageSize := ""
+	hasImageTool := false
+	if len(body) > 0 && gjson.ValidBytes(body) {
+		tools := gjson.GetBytes(body, "tools")
+		if tools.IsArray() {
+			tools.ForEach(func(_, item gjson.Result) bool {
+				if openAIJSONString(item.Get("type")) != "image_generation" {
+					return true
+				}
+				hasImageTool = true
+				imageModel = openAIJSONString(item.Get("model"))
+				imageSize = openAIJSONString(item.Get("size"))
+				return false
+			})
+		}
+		if imageSize == "" {
+			imageSize = openAIJSONString(gjson.GetBytes(body, "size"))
+		}
+		if imageModel == "" {
+			bodyModel := openAIJSONString(gjson.GetBytes(body, "model"))
+			if isOpenAIImageBillingModelAlias(bodyModel) || !hasImageTool {
+				imageModel = bodyModel
+			}
+		}
 	}
-	return cfg.Model, cfg.SizeTier, nil
+	if imageModel == "" && hasImageTool {
+		imageModel = "gpt-image-2"
+	}
+	if imageModel == "" {
+		imageModel = strings.TrimSpace(fallbackModel)
+	}
+	return imageModel, normalizeOpenAIImageSizeTier(imageSize), nil
 }
 
 func resolveOpenAIResponsesImageBillingConfigDetailedFromBody(body []byte, fallbackModel string) (OpenAIResponsesImageBillingConfig, error) {

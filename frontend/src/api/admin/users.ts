@@ -60,7 +60,7 @@ export async function list(
     role?: 'admin' | 'user'
     search?: string
     group_name?: string         // fuzzy filter by allowed group name
-    api_key_group_id?: number   // filter users by the group their API keys are bound to
+    api_key_group_id?: number | null
     attributes?: Record<number, string>  // attributeId -> value
     include_subscriptions?: boolean
     sort_by?: string
@@ -102,12 +102,10 @@ export async function list(
 /**
  * Get user by ID
  * @param id - User ID
- * @param includeDeleted - Whether to include soft-deleted users
  * @returns User details
  */
-export async function getById(id: number, includeDeleted = false): Promise<AdminUser> {
-  const url = includeDeleted ? `/admin/users/${id}?include_deleted=true` : `/admin/users/${id}`
-  const { data } = await apiClient.get<AdminUser>(url)
+export async function getById(id: number): Promise<AdminUser> {
+  const { data } = await apiClient.get<AdminUser>(`/admin/users/${id}`)
   return data
 }
 
@@ -119,12 +117,8 @@ export async function getById(id: number, includeDeleted = false): Promise<Admin
 export async function create(userData: {
   email: string
   password: string
-  username?: string
-  notes?: string
-  role?: 'admin' | 'user'
   balance?: number
   concurrency?: number
-  rpm_limit?: number
   allowed_groups?: number[] | null
 }): Promise<AdminUser> {
   const { data } = await apiClient.post<AdminUser>('/admin/users', userData)
@@ -158,16 +152,41 @@ export async function deleteUser(id: number): Promise<{ message: string }> {
  * @param balance - New balance
  * @param operation - Operation type ('set', 'add', 'subtract')
  * @param notes - Optional notes for the balance adjustment
+ * @param countAsRevenue - Whether this admin deposit should count as revenue
  * @returns Updated user
  */
 export async function updateBalance(
   id: number,
   balance: number,
   operation: 'set' | 'add' | 'subtract' = 'set',
-  notes?: string
+  notes?: string,
+  countAsRevenue: boolean = false
 ): Promise<AdminUser> {
   const { data } = await apiClient.post<AdminUser>(`/admin/users/${id}/balance`, {
     balance,
+    operation,
+    notes: notes || '',
+    count_as_revenue: countAsRevenue
+  })
+  return data
+}
+
+/**
+ * Update user points
+ * @param id - User ID
+ * @param points - Points amount
+ * @param operation - Operation type ('set', 'add', 'subtract')
+ * @param notes - Optional notes for the points adjustment
+ * @returns Updated user
+ */
+export async function updatePoints(
+  id: number,
+  points: number,
+  operation: 'set' | 'add' | 'subtract' = 'set',
+  notes?: string
+): Promise<AdminUser> {
+  const { data } = await apiClient.post<AdminUser>(`/admin/users/${id}/points`, {
+    points,
     operation,
     notes: notes || ''
   })
@@ -257,7 +276,7 @@ export interface BalanceHistoryResponse extends PaginatedResponse<BalanceHistory
  * @param id - User ID
  * @param page - Page number
  * @param pageSize - Items per page
- * @param type - Optional type filter (balance, affiliate_balance, admin_balance, concurrency, admin_concurrency, subscription)
+ * @param type - Optional type filter (balance, admin_balance, concurrency, admin_concurrency, subscription)
  * @returns Paginated balance history with total_recharged
  */
 export async function getUserBalanceHistory(
@@ -305,78 +324,6 @@ export async function bindUserAuthIdentity(
   return data
 }
 
-/**
- * Platform quota types
- */
-export type PlatformQuotaPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
-export type PlatformQuotaWindow = 'daily' | 'weekly' | 'monthly'
-
-export interface PlatformQuotaItem {
-  platform: PlatformQuotaPlatform
-  daily_limit_usd: number | null
-  weekly_limit_usd: number | null
-  monthly_limit_usd: number | null
-  daily_usage_usd: number
-  weekly_usage_usd: number
-  monthly_usage_usd: number
-  daily_window_start?: string | null
-  weekly_window_start?: string | null
-  monthly_window_start?: string | null
-  daily_window_resets_at?: string | null
-  weekly_window_resets_at?: string | null
-  monthly_window_resets_at?: string | null
-}
-
-export interface PlatformQuotaUpdateItem {
-  platform: PlatformQuotaPlatform
-  daily_limit_usd: number | null
-  weekly_limit_usd: number | null
-  monthly_limit_usd: number | null
-}
-
-export interface PlatformQuotasResponse {
-  platform_quotas: PlatformQuotaItem[]
-}
-
-/**
- * Get user's platform quotas
- */
-export async function getPlatformQuotas(id: number): Promise<PlatformQuotasResponse> {
-  const { data } = await apiClient.get<PlatformQuotasResponse>(
-    `/admin/users/${id}/platform-quotas`
-  )
-  return data
-}
-
-/**
- * Replace user's platform quotas (全量替换)
- */
-export async function updatePlatformQuotas(
-  id: number,
-  quotas: PlatformQuotaUpdateItem[]
-): Promise<PlatformQuotasResponse> {
-  const { data } = await apiClient.put<PlatformQuotasResponse>(
-    `/admin/users/${id}/platform-quotas`,
-    { quotas }
-  )
-  return data
-}
-
-/**
- * Reset a single (platform, window) usage immediately
- */
-export async function resetPlatformQuotaWindow(
-  id: number,
-  platform: PlatformQuotaPlatform,
-  window: PlatformQuotaWindow
-): Promise<PlatformQuotasResponse> {
-  const { data } = await apiClient.post<PlatformQuotasResponse>(
-    `/admin/users/${id}/platform-quotas/reset`,
-    { platform, window }
-  )
-  return data
-}
-
 export const usersAPI = {
   list,
   getById,
@@ -384,16 +331,14 @@ export const usersAPI = {
   update,
   delete: deleteUser,
   updateBalance,
+  updatePoints,
   updateConcurrency,
   toggleStatus,
   getUserApiKeys,
   getUserUsageStats,
   getUserBalanceHistory,
   replaceGroup,
-  bindUserAuthIdentity,
-  getPlatformQuotas,
-  updatePlatformQuotas,
-  resetPlatformQuotaWindow,
+  bindUserAuthIdentity
 }
 
 export default usersAPI

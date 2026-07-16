@@ -6,13 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/securitysecret"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/securitysecret"
 )
 
 // SecuritySecretUpdate is the builder for updating SecuritySecret entities.

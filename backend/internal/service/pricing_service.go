@@ -9,16 +9,15 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/util/urlvalidator"
-	"go.uber.org/zap"
 )
 
 var (
@@ -125,11 +124,6 @@ type LiteLLMModelPricing struct {
 	SupportsPromptCaching               bool    `json:"supports_prompt_caching"`
 	OutputCostPerImage                  float64 `json:"output_cost_per_image"`       // 图片生成模型每张图片价格
 	OutputCostPerImageToken             float64 `json:"output_cost_per_image_token"` // 图片输出 token 价格
-
-	// TokenPricingAbsent 表示源数据中 input/output token 价格均缺失（仅有图片价）。
-	// 此类条目只可用于图片计费，token 计费必须回退到 fallback 或 fail-closed，
-	// 否则 token 流量会被按 $0 计费。零值（false）表示条目具备 token 价格。
-	TokenPricingAbsent bool `json:"-"`
 }
 
 // PricingRemoteClient 远程价格数据获取接口
@@ -380,7 +374,6 @@ func (s *PricingService) downloadPricingData() error {
 	if err != nil {
 		return fmt.Errorf("parse pricing data: %w", err)
 	}
-	data = s.mergeFallbackPricingData(data)
 
 	// 保存到本地文件
 	pricingFile := s.getPricingFilePath()
@@ -435,7 +428,7 @@ func (s *PricingService) parsePricingData(body []byte) (map[string]*LiteLLMModel
 		}
 
 		// 只保留有有效价格的条目
-		if entry.InputCostPerToken == nil && entry.OutputCostPerToken == nil && entry.OutputCostPerImage == nil && entry.OutputCostPerImageToken == nil {
+		if entry.InputCostPerToken == nil && entry.OutputCostPerToken == nil {
 			continue
 		}
 
@@ -444,7 +437,6 @@ func (s *PricingService) parsePricingData(body []byte) (map[string]*LiteLLMModel
 			Mode:                  entry.Mode,
 			SupportsPromptCaching: entry.SupportsPromptCaching,
 			SupportsServiceTier:   entry.SupportsServiceTier,
-			TokenPricingAbsent:    entry.InputCostPerToken == nil && entry.OutputCostPerToken == nil,
 		}
 
 		if entry.InputCostPerToken != nil {
@@ -516,7 +508,6 @@ func (s *PricingService) loadPricingData(filePath string) error {
 	if err != nil {
 		return fmt.Errorf("parse pricing data: %w", err)
 	}
-	pricingData = s.mergeFallbackPricingData(pricingData)
 
 	// 计算哈希
 	hash := sha256.Sum256(data)
@@ -536,37 +527,6 @@ func (s *PricingService) loadPricingData(filePath string) error {
 
 	logger.LegacyPrintf("service.pricing", "[Pricing] Loaded %d models from %s", len(pricingData), filePath)
 	return nil
-}
-
-func (s *PricingService) mergeFallbackPricingData(data map[string]*LiteLLMModelPricing) map[string]*LiteLLMModelPricing {
-	if data == nil {
-		data = make(map[string]*LiteLLMModelPricing)
-	}
-	if s == nil || s.cfg == nil || strings.TrimSpace(s.cfg.Pricing.FallbackFile) == "" {
-		return data
-	}
-	fallbackBody, err := os.ReadFile(s.cfg.Pricing.FallbackFile)
-	if err != nil {
-		logger.LegacyPrintf("service.pricing", "[Pricing] Fallback merge skipped: %v", err)
-		return data
-	}
-	fallbackData, err := s.parsePricingData(fallbackBody)
-	if err != nil {
-		logger.LegacyPrintf("service.pricing", "[Pricing] Fallback merge parse skipped: %v", err)
-		return data
-	}
-	merged := 0
-	for modelName, pricing := range fallbackData {
-		if _, ok := data[modelName]; ok {
-			continue
-		}
-		data[modelName] = pricing
-		merged++
-	}
-	if merged > 0 {
-		logger.LegacyPrintf("service.pricing", "[Pricing] Merged %d fallback-only models", merged)
-	}
-	return data
 }
 
 // useFallbackPricing 使用回退价格文件
@@ -911,6 +871,7 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 		}
 	}
 
+	// GPT-5.6（sol / terra / luna）回退到 GPT-5.4 定价
 	if strings.HasPrefix(model, "gpt-5.6-sol") {
 		logger.With(zap.String("component", "service.pricing")).
 			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.6-sol(static)"))
@@ -1031,24 +992,6 @@ func (s *PricingService) getPricingFilePath() string {
 // getHashFilePath 获取哈希文件路径
 func (s *PricingService) getHashFilePath() string {
 	return filepath.Join(s.cfg.Pricing.DataDir, "model_pricing.sha256")
-}
-
-// ListModelNamesByProvider returns all model names in the catalog whose
-// LiteLLMProvider matches the given provider string (case-insensitive).
-// The returned slice is sorted alphabetically.
-func (s *PricingService) ListModelNamesByProvider(provider string) []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	provider = strings.ToLower(strings.TrimSpace(provider))
-	names := make([]string, 0)
-	for name, p := range s.pricingData {
-		if strings.ToLower(p.LiteLLMProvider) == provider {
-			names = append(names, name)
-		}
-	}
-	sort.Strings(names)
-	return names
 }
 
 // isNumeric 检查字符串是否为纯数字

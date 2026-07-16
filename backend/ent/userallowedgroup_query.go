@@ -5,16 +5,16 @@ package ent
 import (
 	"context"
 	"fmt"
+	"ikik-api/ent/group"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/user"
+	"ikik-api/ent/userallowedgroup"
 	"math"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"ikik-api/ent/group"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/user"
-	"ikik-api/ent/userallowedgroup"
 )
 
 // UserAllowedGroupQuery is the builder for querying UserAllowedGroup entities.

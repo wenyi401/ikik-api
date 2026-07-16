@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestOpenAIWSStateStore_BindGetDeleteResponseAccount(t *testing.T) {
@@ -73,6 +74,88 @@ func TestOpenAIWSStateStore_SessionConnTTL(t *testing.T) {
 	time.Sleep(60 * time.Millisecond)
 	_, ok = store.GetSessionConn(9, "session_hash_conn_1")
 	require.False(t, ok)
+}
+
+func TestOpenAIWSStateStore_BindSessionResponse(t *testing.T) {
+	cache := &stubGatewayCache{stringBindings: map[string]string{}}
+	store := NewOpenAIWSStateStore(cache)
+	ctx := context.Background()
+	groupID := int64(19)
+	sessionHash := "session_hash_chain_1"
+	responseID := "resp_chain_5"
+
+	require.NoError(t, store.BindSessionResponse(ctx, groupID, sessionHash, responseID, time.Minute))
+
+	latest, err := store.GetSessionLatestResponse(ctx, groupID, sessionHash)
+	require.NoError(t, err)
+	require.Equal(t, responseID, latest)
+
+	ownerSession, err := store.GetResponseSession(ctx, groupID, responseID)
+	require.NoError(t, err)
+	require.Equal(t, sessionHash, ownerSession)
+
+	cachedLatest := cache.stringBindings[openAIWSSessionLatestResponseCacheKey(sessionHash)]
+	cachedOwner := cache.stringBindings[openAIWSResponseSessionCacheKey(responseID)]
+	require.Equal(t, responseID, cachedLatest)
+	require.Equal(t, sessionHash, cachedOwner)
+}
+
+func TestOpenAIWSStateStore_GetSessionLatestResponse_NoStaleAfterCacheMiss(t *testing.T) {
+	cache := &stubGatewayCache{stringBindings: map[string]string{}}
+	store := NewOpenAIWSStateStore(cache)
+	ctx := context.Background()
+	groupID := int64(22)
+	sessionHash := "session_hash_latest_stale"
+
+	require.NoError(t, store.BindSessionResponse(ctx, groupID, sessionHash, "resp_latest_1", time.Minute))
+	latest, err := store.GetSessionLatestResponse(ctx, groupID, sessionHash)
+	require.NoError(t, err)
+	require.Equal(t, "resp_latest_1", latest)
+
+	delete(cache.stringBindings, openAIWSSessionLatestResponseCacheKey(sessionHash))
+	latest, err = store.GetSessionLatestResponse(ctx, groupID, sessionHash)
+	require.NoError(t, err)
+	require.Empty(t, latest, "多实例 latest_response_id 读取应以 Redis 为准，避免本机旧值误纠偏")
+}
+
+func TestOpenAIWSStateStore_BindSessionResponse_LocalFallback(t *testing.T) {
+	store := NewOpenAIWSStateStore(nil)
+	ctx := context.Background()
+	groupID := int64(20)
+
+	require.NoError(t, store.BindSessionResponse(ctx, groupID, "session_hash_local", "resp_local", time.Minute))
+
+	latest, err := store.GetSessionLatestResponse(ctx, groupID, "session_hash_local")
+	require.NoError(t, err)
+	require.Equal(t, "resp_local", latest)
+
+	ownerSession, err := store.GetResponseSession(ctx, groupID, "resp_local")
+	require.NoError(t, err)
+	require.Equal(t, "session_hash_local", ownerSession)
+}
+
+func TestOpenAIGatewayService_RepairOpenAIWSPreviousResponseIDForSession_UsesPreviousOwnerSession(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(21)
+	cache := &stubGatewayCache{}
+	svc := &OpenAIGatewayService{cache: cache}
+	store := svc.getOpenAIWSStateStore()
+
+	require.NoError(t, store.BindSessionResponse(ctx, groupID, "session_chain_owner", "resp_chain_3", time.Minute))
+	require.NoError(t, store.BindSessionResponse(ctx, groupID, "session_chain_owner", "resp_chain_5", time.Minute))
+
+	payload := []byte(`{"type":"response.create","model":"gpt-5.1","previous_response_id":"resp_chain_3","input":"sixth"}`)
+	repairedPayload, repairedPreviousResponseID, repaired := svc.RepairOpenAIWSPreviousResponseIDForSession(
+		ctx,
+		groupID,
+		"different_content_hash_session",
+		payload,
+		true,
+	)
+
+	require.True(t, repaired)
+	require.Equal(t, "resp_chain_5", repairedPreviousResponseID)
+	require.Equal(t, "resp_chain_5", gjson.GetBytes(repairedPayload, "previous_response_id").String())
 }
 
 func TestOpenAIWSStateStore_GetResponseAccount_NoStaleAfterCacheMiss(t *testing.T) {
@@ -160,6 +243,8 @@ type openAIWSStateStoreTimeoutProbeCache struct {
 	setHasDeadline    bool
 	getHasDeadline    bool
 	deleteHasDeadline bool
+	setStringDeadline bool
+	getStringDeadline bool
 	setDeadlineDelta  time.Duration
 	getDeadlineDelta  time.Duration
 	delDeadlineDelta  time.Duration
@@ -190,6 +275,24 @@ func (c *openAIWSStateStoreTimeoutProbeCache) DeleteSessionAccountID(ctx context
 		c.deleteHasDeadline = true
 		c.delDeadlineDelta = time.Until(deadline)
 	}
+	return nil
+}
+
+func (c *openAIWSStateStoreTimeoutProbeCache) GetSessionString(ctx context.Context, _ int64, _ string) (string, error) {
+	if _, ok := ctx.Deadline(); ok {
+		c.getStringDeadline = true
+	}
+	return "", errors.New("not found")
+}
+
+func (c *openAIWSStateStoreTimeoutProbeCache) SetSessionString(ctx context.Context, _ int64, _ string, _ string, _ time.Duration) error {
+	if _, ok := ctx.Deadline(); ok {
+		c.setStringDeadline = true
+	}
+	return nil
+}
+
+func (c *openAIWSStateStoreTimeoutProbeCache) DeleteSessionString(context.Context, int64, string) error {
 	return nil
 }
 

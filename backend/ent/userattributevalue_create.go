@@ -6,14 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/user"
+	"ikik-api/ent/userattributedefinition"
+	"ikik-api/ent/userattributevalue"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/user"
-	"ikik-api/ent/userattributedefinition"
-	"ikik-api/ent/userattributevalue"
 )
 
 // UserAttributeValueCreate is the builder for creating a UserAttributeValue entity.

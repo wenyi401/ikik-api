@@ -148,7 +148,7 @@ func (h *PromoHandler) Update(c *gin.Context) {
 	if req.ExpiresAt != nil {
 		if *req.ExpiresAt == 0 {
 			// 0 表示清除过期时间
-			input.ExpiresAt = &time.Time{}
+			input.ExpiresAt = nil
 		} else {
 			t := time.Unix(*req.ExpiresAt, 0)
 			input.ExpiresAt = &t

@@ -62,7 +62,7 @@ const APIKeyHaikuBetaHeader = BetaInterleavedThinking
 // 客户端缺省时统一使用 5m"，这样既不浪费 1h 缓存额度，也保留客户端自定义能力。
 const DefaultCacheControlTTL = "5m"
 
-// CLICurrentVersion 是 sub2api 当前对外伪装的 Claude Code CLI 版本号（三段 semver）。
+// CLICurrentVersion 是 ikik-api 当前对外伪装的 Claude Code CLI 版本号（三段 semver）。
 // 用于 billing attribution block 中的 cc_version=X.Y.Z.{fp} 前缀以及 fingerprint 计算。
 // 必须与 DefaultHeaders["User-Agent"] 中的版本号严格一致；不一致会被 Anthropic 判第三方。
 const CLICurrentVersion = "2.1.161"
@@ -75,7 +75,6 @@ const CLICurrentVersion = "2.1.161"
 //   - OAuth 账号 + 非 haiku：追加这整份列表，再按需保留 client 带来的 beta。
 //   - OAuth 账号 + haiku：Anthropic 对 haiku 不做 third-party 判定，使用 HaikuBetaHeader 即可。
 //   - API-key 账号：不要使用本函数，参见 APIKeyBetaHeader。
-//   - 不默认加入 redact-thinking，避免上游抹除 thinking 内容；客户端显式传入时由合并逻辑保留。
 func FullClaudeCodeMimicryBetas() []string {
 	return []string{
 		BetaClaudeCode,
@@ -83,6 +82,7 @@ func FullClaudeCodeMimicryBetas() []string {
 		BetaInterleavedThinking,
 		BetaPromptCachingScope,
 		BetaEffort,
+		BetaRedactThinking,
 		BetaContextManagement,
 		BetaExtendedCacheTTL,
 	}

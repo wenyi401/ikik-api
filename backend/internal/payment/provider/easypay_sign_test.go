@@ -1,7 +1,12 @@
 package provider
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"ikik-api/internal/payment"
 )
 
 func TestEasyPaySignConsistentOutput(t *testing.T) {
@@ -191,5 +196,54 @@ func TestEasyPayMerchantIdentityMetadata(t *testing.T) {
 	metadata := provider.MerchantIdentityMetadata()
 	if metadata["pid"] != "1001" {
 		t.Fatalf("pid = %q, want %q", metadata["pid"], "1001")
+	}
+}
+
+func TestEasyPayQueryOrderUsesGetQuery(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		if r.URL.Path != "/api.php" {
+			t.Fatalf("path = %s, want /api.php", r.URL.Path)
+		}
+		q := r.URL.Query()
+		if q.Get("act") != "order" {
+			t.Fatalf("act = %q, want order", q.Get("act"))
+		}
+		if q.Get("pid") != "1001" {
+			t.Fatalf("pid = %q, want 1001", q.Get("pid"))
+		}
+		if q.Get("key") != "secret" {
+			t.Fatalf("key = %q, want secret", q.Get("key"))
+		}
+		if q.Get("out_trade_no") != "ORDER123" {
+			t.Fatalf("out_trade_no = %q, want ORDER123", q.Get("out_trade_no"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":1,"msg":"succ","status":1,"money":"5.00"}`))
+	}))
+	defer server.Close()
+
+	provider := &EasyPay{
+		config: map[string]string{
+			"pid":     "1001",
+			"pkey":    "secret",
+			"apiBase": server.URL,
+		},
+		httpClient: server.Client(),
+	}
+
+	resp, err := provider.QueryOrder(context.Background(), "ORDER123")
+	if err != nil {
+		t.Fatalf("QueryOrder returned error: %v", err)
+	}
+	if resp.Status != payment.ProviderStatusPaid {
+		t.Fatalf("status = %q, want %q", resp.Status, payment.ProviderStatusPaid)
+	}
+	if resp.Amount != 5 {
+		t.Fatalf("amount = %v, want 5", resp.Amount)
 	}
 }

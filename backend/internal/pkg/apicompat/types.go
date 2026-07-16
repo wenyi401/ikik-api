@@ -53,8 +53,6 @@ type AnthropicMessage struct {
 type AnthropicContentBlock struct {
 	Type string `json:"type"`
 
-	CacheControl *AnthropicCacheControl `json:"cache_control,omitempty"`
-
 	// type=text
 	Text string `json:"text,omitempty"`
 
@@ -73,28 +71,6 @@ type AnthropicContentBlock struct {
 	ToolUseID string          `json:"tool_use_id,omitempty"`
 	Content   json.RawMessage `json:"content,omitempty"` // string or []AnthropicContentBlock
 	IsError   bool            `json:"is_error,omitempty"`
-}
-
-func (b AnthropicContentBlock) MarshalJSON() ([]byte, error) {
-	type anthropicContentBlock AnthropicContentBlock
-	base := struct {
-		anthropicContentBlock
-	}{anthropicContentBlock: anthropicContentBlock(b)}
-
-	switch b.Type {
-	case "text":
-		return json.Marshal(struct {
-			Text string `json:"text"`
-			anthropicContentBlock
-		}{Text: b.Text, anthropicContentBlock: anthropicContentBlock(b)})
-	case "thinking":
-		return json.Marshal(struct {
-			Thinking string `json:"thinking"`
-			anthropicContentBlock
-		}{Thinking: b.Thinking, anthropicContentBlock: anthropicContentBlock(b)})
-	default:
-		return json.Marshal(base)
-	}
 }
 
 // AnthropicImageSource describes the source data for an image content block.
@@ -189,23 +165,20 @@ type AnthropicDelta struct {
 
 // ResponsesRequest is the request body for POST /v1/responses.
 type ResponsesRequest struct {
-	Model              string              `json:"model"`
-	Instructions       string              `json:"instructions,omitempty"`
-	Input              json.RawMessage     `json:"input"` // string or []ResponsesInputItem
-	MaxOutputTokens    *int                `json:"max_output_tokens,omitempty"`
-	Temperature        *float64            `json:"temperature,omitempty"`
-	TopP               *float64            `json:"top_p,omitempty"`
-	Stream             bool                `json:"stream,omitempty"`
-	Tools              []ResponsesTool     `json:"tools,omitempty"`
-	Include            []string            `json:"include,omitempty"`
-	Store              *bool               `json:"store,omitempty"`
-	ParallelToolCalls  *bool               `json:"parallel_tool_calls,omitempty"`
-	Reasoning          *ResponsesReasoning `json:"reasoning,omitempty"`
-	Text               *ResponsesText      `json:"text,omitempty"`
-	ToolChoice         json.RawMessage     `json:"tool_choice,omitempty"`
-	ServiceTier        string              `json:"service_tier,omitempty"`
-	PromptCacheKey     string              `json:"prompt_cache_key,omitempty"`
-	PreviousResponseID string              `json:"previous_response_id,omitempty"`
+	Model             string              `json:"model"`
+	Instructions      string              `json:"instructions,omitempty"`
+	Input             json.RawMessage     `json:"input"` // string or []ResponsesInputItem
+	MaxOutputTokens   *int                `json:"max_output_tokens,omitempty"`
+	Temperature       *float64            `json:"temperature,omitempty"`
+	TopP              *float64            `json:"top_p,omitempty"`
+	Stream            bool                `json:"stream,omitempty"`
+	Tools             []ResponsesTool     `json:"tools,omitempty"`
+	ParallelToolCalls *bool               `json:"parallel_tool_calls,omitempty"`
+	Include           []string            `json:"include,omitempty"`
+	Store             *bool               `json:"store,omitempty"`
+	Reasoning         *ResponsesReasoning `json:"reasoning,omitempty"`
+	ToolChoice        json.RawMessage     `json:"tool_choice,omitempty"`
+	ServiceTier       string              `json:"service_tier,omitempty"`
 }
 
 // ResponsesReasoning configures reasoning effort in the Responses API.
@@ -214,30 +187,39 @@ type ResponsesReasoning struct {
 	Summary string `json:"summary,omitempty"` // "auto" | "concise" | "detailed"
 }
 
-// ResponsesText configures text output options in the Responses API.
-type ResponsesText struct {
-	Format    json.RawMessage `json:"format,omitempty"`
-	Verbosity string          `json:"verbosity,omitempty"` // "low" | "medium" | "high"
-}
-
 // ResponsesInputItem is one item in the Responses API input array.
 // The Type field determines which other fields are populated.
 type ResponsesInputItem struct {
 	// Common
 	Type string `json:"type,omitempty"` // "" for role-based messages
 
-	// Role-based messages (developer/system/user/assistant)
+	// Role-based messages (system/user/assistant)
 	Role    string          `json:"role,omitempty"`
 	Content json.RawMessage `json:"content,omitempty"` // string or []ResponsesContentPart
 
 	// type=function_call
-	CallID    string `json:"call_id,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Arguments string `json:"arguments,omitempty"`
-	ID        string `json:"id,omitempty"`
+	CallID string `json:"call_id,omitempty"`
+	Name   string `json:"name,omitempty"`
+	// Arguments is stringified JSON per the OpenAI spec, but Codex and newer
+	// Responses clients may send a raw JSON object. RawMessage accepts both;
+	// callers normalize via normalizeResponsesArguments.
+	Arguments json.RawMessage `json:"arguments,omitempty"`
+	ID        string          `json:"id,omitempty"`
 
 	// type=function_call_output
-	Output string `json:"output,omitempty"`
+	// Output is a plain string in older clients, but newer Responses clients
+	// may send an array like [{"type":"output_text","text":"..."}].
+	// RawMessage accepts both; callers normalize via extractResponsesOutputText.
+	Output json.RawMessage `json:"output,omitempty"`
+}
+
+// jsonRawString marshals a Go string into a JSON-string RawMessage.
+func jsonRawString(s string) json.RawMessage {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return json.RawMessage(`""`)
+	}
+	return json.RawMessage(b)
 }
 
 // ResponsesContentPart is a typed content part in a Responses message.
@@ -249,31 +231,11 @@ type ResponsesContentPart struct {
 
 // ResponsesTool describes a tool in the Responses API.
 type ResponsesTool struct {
-	Type        string          `json:"type"` // "function" | "custom" | "web_search" | "local_shell" etc.
+	Type        string          `json:"type"` // "function" | "web_search" | "local_shell" etc.
 	Name        string          `json:"name,omitempty"`
 	Description string          `json:"description,omitempty"`
 	Parameters  json.RawMessage `json:"parameters,omitempty"`
 	Strict      *bool           `json:"strict,omitempty"`
-
-	// type=namespace 的子工具列表（tools 与 children 二选一，语义相同）。
-	Tools    []ResponsesTool `json:"tools,omitempty"`
-	Children []ResponsesTool `json:"children,omitempty"`
-}
-
-// UnmarshalJSON 容忍字符串形式的工具声明：codex 会以 "name" 简写声明 custom 工具，
-func (t *ResponsesTool) UnmarshalJSON(data []byte) error {
-	var name string
-	if err := json.Unmarshal(data, &name); err == nil {
-		*t = ResponsesTool{Type: "custom", Name: name}
-		return nil
-	}
-	type alias ResponsesTool
-	var a alias
-	if err := json.Unmarshal(data, &a); err != nil {
-		return err
-	}
-	*t = ResponsesTool(a)
-	return nil
 }
 
 // ResponsesResponse is the non-streaming response from POST /v1/responses.
@@ -321,86 +283,9 @@ type ResponsesOutput struct {
 	CallID    string `json:"call_id,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Arguments string `json:"arguments,omitempty"`
-	// 来源为 namespace 子工具时的归属命名空间（codex 按 namespace+name 路由该调用）。
-	Namespace string `json:"namespace,omitempty"`
-
-	// type=custom_tool_call（custom/freeform 工具，input 为自由文本）
-	Input string `json:"input,omitempty"`
 
 	// type=web_search_call
 	Action *WebSearchAction `json:"action,omitempty"`
-}
-
-// MarshalJSON 处理 tool_search_call 项的线上形态（复用 CallID/Arguments 字段）：
-// execution 固定为 "client"（codex 的必填字段，非 client 的调用会被静默忽略），
-// arguments 是 JSON 对象而非 function_call 语义下的字符串。其余类型走默认结构体
-// 序列化，输出逐字节不变。
-func (o ResponsesOutput) MarshalJSON() ([]byte, error) {
-	type responsesOutputAlias ResponsesOutput
-	if o.Type != "tool_search_call" {
-		return json.Marshal(responsesOutputAlias(o))
-	}
-	m := map[string]any{
-		"type":      o.Type,
-		"id":        o.ID,
-		"call_id":   o.CallID,
-		"execution": "client",
-		"arguments": toolSearchCallArgumentsJSON(o.Arguments),
-	}
-	if o.Status != "" {
-		m["status"] = o.Status
-	}
-	return json.Marshal(m)
-}
-
-// UnmarshalJSON accepts both the Responses function-call string form and the
-// tool_search_call object form for arguments. The bridge stores arguments as a
-// string internally, so object arguments are retained as their raw JSON.
-func (o *ResponsesOutput) UnmarshalJSON(data []byte) error {
-	type responsesOutputAlias ResponsesOutput
-
-	var kind struct {
-		Type string `json:"type"`
-	}
-	if err := json.Unmarshal(data, &kind); err != nil {
-		return err
-	}
-	if kind.Type != "tool_search_call" {
-		var decoded responsesOutputAlias
-		if err := json.Unmarshal(data, &decoded); err != nil {
-			return err
-		}
-		*o = ResponsesOutput(decoded)
-		return nil
-	}
-
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return err
-	}
-	arguments, hasArguments := fields["arguments"]
-	delete(fields, "arguments")
-	normalized, err := json.Marshal(fields)
-	if err != nil {
-		return err
-	}
-
-	var decoded responsesOutputAlias
-	if err := json.Unmarshal(normalized, &decoded); err != nil {
-		return err
-	}
-	*o = ResponsesOutput(decoded)
-	if !hasArguments || string(arguments) == "null" {
-		return nil
-	}
-
-	var argumentString string
-	if err := json.Unmarshal(arguments, &argumentString); err == nil {
-		o.Arguments = argumentString
-	} else {
-		o.Arguments = string(arguments)
-	}
-	return nil
 }
 
 // WebSearchAction describes the search action in a web_search_call output item.
@@ -521,13 +406,15 @@ type ResponsesOutputTokensDetails struct {
 type ResponsesStreamEvent struct {
 	Type string `json:"type"`
 
-	// response.created / response.completed / response.done / response.failed / response.incomplete
+	// response.created / response.completed / response.failed / response.incomplete
 	Response *ResponsesResponse `json:"response,omitempty"`
-	// 部分 OpenAI 兼容上游会把 usage 放在终止事件顶层，而不是 response.usage。
-	Usage *ResponsesUsage `json:"usage,omitempty"`
+	Usage    *ResponsesUsage    `json:"usage,omitempty"`
 
 	// response.output_item.added / response.output_item.done
 	Item *ResponsesOutput `json:"item,omitempty"`
+
+	// response.content_part.added / response.content_part.done
+	Part *ResponsesContentPart `json:"part,omitempty"`
 
 	// response.output_text.delta / response.output_text.done
 	OutputIndex  int    `json:"output_index,omitempty"`
@@ -541,16 +428,9 @@ type ResponsesStreamEvent struct {
 	Name      string `json:"name,omitempty"`
 	Arguments string `json:"arguments,omitempty"`
 
-	// response.custom_tool_call_input.done
-	Input string `json:"input,omitempty"`
-
 	// response.reasoning_summary_text.delta / done
 	// Reuses Text/Delta fields above, SummaryIndex identifies which summary part
 	SummaryIndex int `json:"summary_index,omitempty"`
-
-	// response.content_part.added / done and
-	// response.reasoning_summary_part.added / done
-	Part *ResponsesContentPart `json:"part,omitempty"`
 
 	// error event fields
 	Code  string `json:"code,omitempty"`
@@ -581,7 +461,6 @@ type ChatCompletionsRequest struct {
 	ReasoningEffort     string             `json:"reasoning_effort,omitempty"` // "low" | "medium" | "high" | "xhigh"
 	ServiceTier         string             `json:"service_tier,omitempty"`
 	Stop                json.RawMessage    `json:"stop,omitempty"` // string or []string
-	ResponseFormat      json.RawMessage    `json:"response_format,omitempty"`
 
 	// Legacy function calling (deprecated but still supported)
 	Functions    []ChatFunction  `json:"functions,omitempty"`
@@ -676,14 +555,7 @@ type ChatUsage struct {
 	CompletionTokensDetails *ChatTokenDetails `json:"completion_tokens_details,omitempty"`
 }
 
-// ChatTokenDetails provides a breakdown of token usage. The same type is
-// reused for both prompt_tokens_details and completion_tokens_details;
-// unset fields are omitted so each side only emits the fields that apply.
-//
-// Field set mirrors OpenAI's official CompletionUsage schema:
-//   - prompt_tokens_details: cached_tokens, audio_tokens
-//   - completion_tokens_details: reasoning_tokens, audio_tokens,
-//     accepted_prediction_tokens, rejected_prediction_tokens
+// ChatTokenDetails provides a breakdown of token usage.
 type ChatTokenDetails struct {
 	CachedTokens             int `json:"cached_tokens,omitempty"`
 	AudioTokens              int `json:"audio_tokens,omitempty"`

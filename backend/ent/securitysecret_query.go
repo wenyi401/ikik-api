@@ -5,6 +5,8 @@ package ent
 import (
 	"context"
 	"fmt"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/securitysecret"
 	"math"
 
 	"entgo.io/ent"
@@ -12,8 +14,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/securitysecret"
 )
 
 // SecuritySecretQuery is the builder for querying SecuritySecret entities.

@@ -54,6 +54,150 @@
         </div>
       </div>
 
+      <!-- Store File Card Object Storage -->
+      <div class="card p-6">
+        <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.backup.storage.storeFile.title') }}
+            </h3>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.backup.storage.storeFile.description') }}
+            </p>
+          </div>
+          <span class="badge badge-primary">
+            {{ t('admin.backup.storage.storeFile.maxSize', { size: formatStorageBytes(storeFileForm.max_size_bytes) }) }}
+          </span>
+        </div>
+        <div v-if="loadingStoreFileStorage" class="flex min-h-24 items-center justify-center">
+          <div class="h-5 w-5 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+        </div>
+        <div v-else class="space-y-4">
+          <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="storeFileForm.enabled" type="checkbox" />
+            <span>{{ t('admin.backup.storage.storeFile.enabled') }}</span>
+          </label>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.endpoint') }}</label>
+              <input v-model.trim="storeFileForm.endpoint" class="input w-full" placeholder="https://oss-cn-hangzhou.aliyuncs.com" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.region') }}</label>
+              <input v-model.trim="storeFileForm.region" class="input w-full" placeholder="oss-cn-hangzhou" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.bucket') }}</label>
+              <input v-model.trim="storeFileForm.bucket" class="input w-full" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.prefix') }}</label>
+              <input v-model.trim="storeFileForm.prefix" class="input w-full" placeholder="shop-file-cards/" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.accessKeyId') }}</label>
+              <input v-model.trim="storeFileForm.access_key_id" class="input w-full" autocomplete="off" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.secretAccessKey') }}</label>
+              <input
+                v-model="storeFileForm.secret_access_key"
+                type="password"
+                class="input w-full"
+                autocomplete="new-password"
+                :placeholder="storeFileForm.secret_access_key_configured ? t('admin.backup.storage.secretConfigured') : ''"
+              />
+            </div>
+            <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
+              <input v-model="storeFileForm.force_path_style" type="checkbox" />
+              <span>{{ t('admin.backup.storage.forcePathStyle') }}</span>
+            </label>
+          </div>
+          <div class="flex flex-wrap justify-end gap-2">
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="testingStoreFileStorage || savingStoreFileStorage" @click="testStoreFileStorageConfig">
+              {{ testingStoreFileStorage ? t('common.loading') : t('admin.backup.storage.testConnection') }}
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" :disabled="savingStoreFileStorage || testingStoreFileStorage" @click="saveStoreFileStorageConfig">
+              {{ savingStoreFileStorage ? t('common.saving') : t('common.save') }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Receipt Code Object Storage -->
+      <div class="card p-6">
+        <div class="mb-4">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+            {{ t('admin.backup.storage.receiptCode.title') }}
+          </h3>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {{ t('admin.backup.storage.receiptCode.description') }}
+          </p>
+        </div>
+        <div v-if="loadingReceiptStorage" class="flex min-h-24 items-center justify-center">
+          <div class="h-5 w-5 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+        </div>
+        <div v-else class="space-y-4">
+          <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="receiptStorageForm.enabled" type="checkbox" />
+            <span>{{ t('admin.backup.storage.receiptCode.enabled') }}</span>
+          </label>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.endpoint') }}</label>
+              <input v-model.trim="receiptStorageForm.endpoint" class="input w-full" placeholder="https://oss-cn-hangzhou.aliyuncs.com" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.region') }}</label>
+              <input v-model.trim="receiptStorageForm.region" class="input w-full" placeholder="oss-cn-hangzhou" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.bucket') }}</label>
+              <input v-model.trim="receiptStorageForm.bucket" class="input w-full" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.accessKeyId') }}</label>
+              <input v-model.trim="receiptStorageForm.access_key_id" class="input w-full" autocomplete="off" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.secretAccessKey') }}</label>
+              <input
+                v-model="receiptStorageForm.secret_access_key"
+                type="password"
+                class="input w-full"
+                autocomplete="new-password"
+                :placeholder="receiptStorageForm.secret_access_key_configured ? t('admin.backup.storage.secretConfigured') : ''"
+              />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.prefix') }}</label>
+              <input v-model.trim="receiptStorageForm.prefix" class="input w-full" placeholder="receipt-codes/" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.receiptCode.publicBaseUrl') }}</label>
+              <input v-model.trim="receiptStorageForm.public_base_url" type="url" class="input w-full" placeholder="https://cdn.example.com/receipt-codes" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.receiptCode.maxSize') }}</label>
+              <input v-model.number="receiptStorageForm.max_size_bytes" type="number" min="1" max="5242880" class="input w-full" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.storage.receiptCode.presignExpire') }}</label>
+              <input v-model.number="receiptStorageForm.presign_expire_seconds" type="number" min="1" max="3600" class="input w-full" />
+            </div>
+            <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2 lg:col-span-3">
+              <input v-model="receiptStorageForm.force_path_style" type="checkbox" />
+              <span>{{ t('admin.backup.storage.forcePathStyle') }}</span>
+            </label>
+          </div>
+          <div class="flex justify-end">
+            <button type="button" class="btn btn-primary btn-sm" :disabled="savingReceiptStorage" @click="saveReceiptStorageConfig">
+              {{ savingReceiptStorage ? t('common.saving') : t('common.save') }}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Schedule Config -->
       <div class="card p-6">
         <div class="mb-4">
@@ -88,6 +232,49 @@
         <div class="mt-4">
           <button type="button" class="btn btn-primary btn-sm" :disabled="savingSchedule" @click="saveSchedule">
             {{ savingSchedule ? t('common.loading') : t('common.save') }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Usage Retention Config -->
+      <div class="card p-6">
+        <div class="mb-4">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+            {{ t('admin.backup.usageRetention.title') }}
+          </h3>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {{ t('admin.backup.usageRetention.description') }}
+          </p>
+        </div>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-2">
+            <input v-model="usageRetentionForm.enabled" type="checkbox" />
+            <span>{{ t('admin.backup.usageRetention.enabled') }}</span>
+          </label>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.usageRetention.retainDays') }}</label>
+            <input v-model.number="usageRetentionForm.retain_days" type="number" min="1" class="input w-full" />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.usageRetention.retainDaysHint') }}</p>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.usageRetention.runIntervalHours') }}</label>
+            <input v-model.number="usageRetentionForm.run_interval_hours" type="number" min="1" class="input w-full" />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.usageRetention.runIntervalHint') }}</p>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.usageRetention.windowDays') }}</label>
+            <input v-model.number="usageRetentionForm.window_days" type="number" min="1" class="input w-full" />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.usageRetention.windowDaysHint') }}</p>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.backup.usageRetention.backupExpireDays') }}</label>
+            <input v-model.number="usageRetentionForm.backup_expire_days" type="number" min="0" class="input w-full" />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.backup.usageRetention.backupExpireDaysHint') }}</p>
+          </div>
+        </div>
+        <div class="mt-4">
+          <button type="button" class="btn btn-primary btn-sm" :disabled="savingUsageRetention" @click="saveUsageRetention">
+            {{ savingUsageRetention ? t('common.loading') : t('common.save') }}
           </button>
         </div>
       </div>
@@ -279,11 +466,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api'
+import { adminStoreAPI } from '@/api/admin/store'
 import { useAppStore } from '@/stores'
-import type { BackupS3Config, BackupScheduleConfig, BackupRecord } from '@/api/admin/backup'
+import { extractApiErrorMessage } from '@/utils/apiError'
+import type { BackupS3Config, BackupScheduleConfig, BackupRecord, UsageRetentionConfig } from '@/api/admin/backup'
+import type { SystemSettings, UpdateSettingsRequest } from '@/api/admin/settings'
+import type { StoreFileCardStorageConfig, UpdateStoreFileCardStorageConfigRequest } from '@/types/store'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -302,6 +493,39 @@ const s3SecretConfigured = ref(false)
 const savingS3 = ref(false)
 const testingS3 = ref(false)
 
+const storeFileForm = reactive<StoreFileCardStorageConfig>({
+  enabled: false,
+  endpoint: '',
+  region: 'oss-cn-hangzhou',
+  bucket: '',
+  access_key_id: '',
+  secret_access_key: '',
+  secret_access_key_configured: false,
+  prefix: 'shop-file-cards/',
+  force_path_style: false,
+  max_size_bytes: 200 * 1024,
+})
+const loadingStoreFileStorage = ref(false)
+const savingStoreFileStorage = ref(false)
+const testingStoreFileStorage = ref(false)
+
+const receiptStorageForm = reactive({
+  enabled: false,
+  endpoint: 'https://oss-cn-hangzhou.aliyuncs.com',
+  region: 'oss-cn-hangzhou',
+  bucket: '',
+  access_key_id: '',
+  secret_access_key: '',
+  secret_access_key_configured: false,
+  prefix: 'receipt-codes/',
+  public_base_url: '',
+  force_path_style: false,
+  max_size_bytes: 1024 * 1024,
+  presign_expire_seconds: 300,
+})
+const loadingReceiptStorage = ref(false)
+const savingReceiptStorage = ref(false)
+
 // Schedule config
 const scheduleForm = ref<BackupScheduleConfig>({
   enabled: false,
@@ -310,6 +534,16 @@ const scheduleForm = ref<BackupScheduleConfig>({
   retain_count: 10,
 })
 const savingSchedule = ref(false)
+
+// Usage retention config
+const usageRetentionForm = ref<UsageRetentionConfig>({
+  enabled: false,
+  retain_days: 3,
+  run_interval_hours: 24,
+  window_days: 1,
+  backup_expire_days: 14,
+})
+const savingUsageRetention = ref(false)
 
 // Backups
 const backups = ref<BackupRecord[]>([])
@@ -482,6 +716,125 @@ async function testS3() {
   }
 }
 
+function applyStoreFileStorageConfig(config: StoreFileCardStorageConfig) {
+  storeFileForm.enabled = config.enabled
+  storeFileForm.endpoint = config.endpoint || ''
+  storeFileForm.region = config.region || 'oss-cn-hangzhou'
+  storeFileForm.bucket = config.bucket || ''
+  storeFileForm.access_key_id = config.access_key_id || ''
+  storeFileForm.secret_access_key = ''
+  storeFileForm.secret_access_key_configured = Boolean(config.secret_access_key_configured)
+  storeFileForm.prefix = config.prefix || 'shop-file-cards/'
+  storeFileForm.force_path_style = Boolean(config.force_path_style)
+  storeFileForm.max_size_bytes = config.max_size_bytes || 200 * 1024
+}
+
+function buildStoreFileStoragePayload(): UpdateStoreFileCardStorageConfigRequest {
+  return {
+    enabled: storeFileForm.enabled,
+    endpoint: storeFileForm.endpoint.trim(),
+    region: storeFileForm.region.trim(),
+    bucket: storeFileForm.bucket.trim(),
+    access_key_id: storeFileForm.access_key_id.trim(),
+    secret_access_key: (storeFileForm.secret_access_key || '').trim(),
+    prefix: storeFileForm.prefix.trim(),
+    force_path_style: storeFileForm.force_path_style,
+  }
+}
+
+async function loadStoreFileStorageConfig() {
+  loadingStoreFileStorage.value = true
+  try {
+    const { data } = await adminStoreAPI.getFileCardStorage()
+    applyStoreFileStorageConfig(data)
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.backup.storage.storeFile.loadFailed')))
+  } finally {
+    loadingStoreFileStorage.value = false
+  }
+}
+
+async function saveStoreFileStorageConfig() {
+  savingStoreFileStorage.value = true
+  try {
+    const { data } = await adminStoreAPI.updateFileCardStorage(buildStoreFileStoragePayload())
+    applyStoreFileStorageConfig(data)
+    appStore.showSuccess(t('admin.backup.storage.storeFile.saved'))
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('common.error')))
+  } finally {
+    savingStoreFileStorage.value = false
+  }
+}
+
+async function testStoreFileStorageConfig() {
+  testingStoreFileStorage.value = true
+  try {
+    await adminStoreAPI.testFileCardStorage(buildStoreFileStoragePayload())
+    appStore.showSuccess(t('admin.backup.storage.storeFile.testSuccess'))
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('common.error')))
+  } finally {
+    testingStoreFileStorage.value = false
+  }
+}
+
+function applyReceiptStorageConfig(settings: SystemSettings) {
+  receiptStorageForm.enabled = Boolean(settings.payment_receipt_code_oss_enabled)
+  receiptStorageForm.endpoint = settings.payment_receipt_code_oss_endpoint || 'https://oss-cn-hangzhou.aliyuncs.com'
+  receiptStorageForm.region = settings.payment_receipt_code_oss_region || 'oss-cn-hangzhou'
+  receiptStorageForm.bucket = settings.payment_receipt_code_oss_bucket || ''
+  receiptStorageForm.access_key_id = settings.payment_receipt_code_oss_access_key_id || ''
+  receiptStorageForm.secret_access_key = ''
+  receiptStorageForm.secret_access_key_configured = Boolean(settings.payment_receipt_code_oss_secret_access_key_configured)
+  receiptStorageForm.prefix = settings.payment_receipt_code_oss_prefix || 'receipt-codes/'
+  receiptStorageForm.public_base_url = settings.payment_receipt_code_oss_public_base_url || ''
+  receiptStorageForm.force_path_style = Boolean(settings.payment_receipt_code_oss_force_path_style)
+  receiptStorageForm.max_size_bytes = settings.payment_receipt_code_oss_max_size_bytes || 1024 * 1024
+  receiptStorageForm.presign_expire_seconds = settings.payment_receipt_code_oss_presign_expire_seconds || 300
+}
+
+function buildReceiptStoragePayload(): UpdateSettingsRequest {
+  return {
+    payment_receipt_code_oss_enabled: receiptStorageForm.enabled,
+    payment_receipt_code_oss_endpoint: receiptStorageForm.endpoint.trim(),
+    payment_receipt_code_oss_region: receiptStorageForm.region.trim(),
+    payment_receipt_code_oss_bucket: receiptStorageForm.bucket.trim(),
+    payment_receipt_code_oss_access_key_id: receiptStorageForm.access_key_id.trim(),
+    payment_receipt_code_oss_secret_access_key: receiptStorageForm.secret_access_key.trim(),
+    payment_receipt_code_oss_prefix: receiptStorageForm.prefix.trim(),
+    payment_receipt_code_oss_public_base_url: receiptStorageForm.public_base_url.trim(),
+    payment_receipt_code_oss_force_path_style: receiptStorageForm.force_path_style,
+    payment_receipt_code_oss_max_size_bytes: Number(receiptStorageForm.max_size_bytes) || 1024 * 1024,
+    payment_receipt_code_oss_presign_expire_seconds: Number(receiptStorageForm.presign_expire_seconds) || 300,
+  }
+}
+
+async function loadReceiptStorageConfig() {
+  loadingReceiptStorage.value = true
+  try {
+    const settings = await adminAPI.settings.getSettings()
+    applyReceiptStorageConfig(settings)
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.backup.storage.receiptCode.loadFailed')))
+  } finally {
+    loadingReceiptStorage.value = false
+  }
+}
+
+async function saveReceiptStorageConfig() {
+  savingReceiptStorage.value = true
+  try {
+    const updated = await adminAPI.settings.updateSettings(buildReceiptStoragePayload())
+    applyReceiptStorageConfig(updated)
+    appStore.showSuccess(t('admin.backup.storage.receiptCode.saved'))
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('common.error')))
+  } finally {
+    savingReceiptStorage.value = false
+  }
+}
+
 async function loadSchedule() {
   try {
     const cfg = await adminAPI.backup.getSchedule()
@@ -505,6 +858,33 @@ async function saveSchedule() {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   } finally {
     savingSchedule.value = false
+  }
+}
+
+async function loadUsageRetention() {
+  try {
+    const cfg = await adminAPI.backup.getUsageRetention()
+    usageRetentionForm.value = {
+      enabled: cfg.enabled,
+      retain_days: cfg.retain_days || 3,
+      run_interval_hours: cfg.run_interval_hours || 24,
+      window_days: cfg.window_days || 1,
+      backup_expire_days: cfg.backup_expire_days ?? 14,
+    }
+  } catch (error) {
+    appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
+  }
+}
+
+async function saveUsageRetention() {
+  savingUsageRetention.value = true
+  try {
+    await adminAPI.backup.updateUsageRetention(usageRetentionForm.value)
+    appStore.showSuccess(t('admin.backup.usageRetention.saved'))
+  } catch (error) {
+    appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
+  } finally {
+    savingUsageRetention.value = false
   }
 }
 
@@ -596,6 +976,13 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function formatStorageBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function formatDate(value?: string): string {
   if (!value) return '-'
   const date = new Date(value)
@@ -605,7 +992,14 @@ function formatDate(value?: string): string {
 
 onMounted(async () => {
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  await Promise.all([loadS3Config(), loadSchedule(), loadBackups()])
+  await Promise.all([
+    loadS3Config(),
+    loadStoreFileStorageConfig(),
+    loadReceiptStorageConfig(),
+    loadSchedule(),
+    loadUsageRetention(),
+    loadBackups(),
+  ])
 
   // 如果有正在 running 的备份，恢复轮询
   const runningBackup = backups.value.find(r => r.status === 'running')

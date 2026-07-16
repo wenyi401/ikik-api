@@ -2,7 +2,6 @@ package admin
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,20 +17,12 @@ import (
 
 // SystemHandler handles system-related operations
 type SystemHandler struct {
-	updateSvc systemUpdateService
+	updateSvc *service.UpdateService
 	lockSvc   *service.SystemOperationLockService
 }
 
-type systemUpdateService interface {
-	CheckUpdate(ctx context.Context, force bool) (*service.UpdateInfo, error)
-	PerformUpdate(ctx context.Context) error
-	Rollback() error
-	ListRollbackVersions(ctx context.Context) ([]service.RollbackVersion, error)
-	RollbackToVersion(ctx context.Context, version string) error
-}
-
 // NewSystemHandler creates a new SystemHandler
-func NewSystemHandler(updateSvc systemUpdateService, lockSvc *service.SystemOperationLockService) *SystemHandler {
+func NewSystemHandler(updateSvc *service.UpdateService, lockSvc *service.SystemOperationLockService) *SystemHandler {
 	return &SystemHandler{
 		updateSvc: updateSvc,
 		lockSvc:   lockSvc,
@@ -76,21 +67,6 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 		}()
 
 		if err := h.updateSvc.PerformUpdate(ctx); err != nil {
-			if errors.Is(err, service.ErrNoUpdateAvailable) {
-				info, checkErr := h.updateSvc.CheckUpdate(ctx, false)
-				if checkErr != nil {
-					releaseReason = "SYSTEM_UPDATE_FAILED"
-					return nil, checkErr
-				}
-				succeeded = true
-				return gin.H{
-					"message":            "Already up to date",
-					"already_up_to_date": true,
-					"current_version":    info.CurrentVersion,
-					"latest_version":     info.LatestVersion,
-					"operation_id":       lock.OperationID(),
-				}, nil
-			}
 			releaseReason = "SYSTEM_UPDATE_FAILED"
 			return nil, err
 		}
@@ -104,42 +80,11 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 	})
 }
 
-// GetRollbackVersions lists versions available for rollback
-// GET /api/v1/admin/system/rollback-versions
-func (h *SystemHandler) GetRollbackVersions(c *gin.Context) {
-	versions, err := h.updateSvc.ListRollbackVersions(c.Request.Context())
-	if err != nil {
-		response.Error(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-	response.Success(c, gin.H{
-		"versions": versions,
-	})
-}
-
-// Rollback restores a previous version.
-// Without a body (or with an empty version) it restores the local .backup binary
-// left by the last in-place update. With {"version": "x.y.z"} it downloads and
-// installs that specific release (must be one of the recent rollback versions).
+// Rollback restores the previous version
 // POST /api/v1/admin/system/rollback
 func (h *SystemHandler) Rollback(c *gin.Context) {
-	var req struct {
-		Version string `json:"version"`
-	}
-	if c.Request.Body != nil && c.Request.ContentLength > 0 {
-		if err := c.ShouldBindJSON(&req); err != nil {
-			response.Error(c, http.StatusBadRequest, "invalid request body")
-			return
-		}
-	}
-	targetVersion := strings.TrimSpace(req.Version)
-
-	operation := "rollback"
-	if targetVersion != "" {
-		operation = "rollback:" + targetVersion
-	}
-	operationID := buildSystemOperationID(c, operation)
-	payload := gin.H{"operation_id": operationID, "version": targetVersion}
+	operationID := buildSystemOperationID(c, "rollback")
+	payload := gin.H{"operation_id": operationID}
 	executeAdminIdempotentJSON(c, "admin.system.rollback", payload, service.DefaultSystemOperationIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		lock, release, err := h.acquireSystemLock(ctx, operationID)
 		if err != nil {
@@ -151,12 +96,7 @@ func (h *SystemHandler) Rollback(c *gin.Context) {
 			release(releaseReason, succeeded)
 		}()
 
-		if targetVersion != "" {
-			err = h.updateSvc.RollbackToVersion(ctx, targetVersion)
-		} else {
-			err = h.updateSvc.Rollback()
-		}
-		if err != nil {
+		if err := h.updateSvc.Rollback(); err != nil {
 			releaseReason = "SYSTEM_ROLLBACK_FAILED"
 			return nil, err
 		}
@@ -165,7 +105,6 @@ func (h *SystemHandler) Rollback(c *gin.Context) {
 		return gin.H{
 			"message":      "Rollback completed. Please restart the service.",
 			"need_restart": true,
-			"version":      targetVersion,
 			"operation_id": lock.OperationID(),
 		}, nil
 	})

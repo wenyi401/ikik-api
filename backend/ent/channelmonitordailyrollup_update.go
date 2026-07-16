@@ -6,14 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/channelmonitor"
+	"ikik-api/ent/channelmonitordailyrollup"
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/channelmonitor"
-	"ikik-api/ent/channelmonitordailyrollup"
-	"ikik-api/ent/predicate"
 )
 
 // ChannelMonitorDailyRollupUpdate is the builder for updating ChannelMonitorDailyRollup entities.

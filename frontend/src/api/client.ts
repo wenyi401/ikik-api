@@ -6,14 +6,42 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import type { ApiResponse } from '@/types'
 import { getLocale } from '@/i18n'
-import { ADMIN_UI_REQUEST_HEADER, shouldMarkAdminUIRequest } from './adminUIRequest'
-import { getAPIBaseURL } from './url'
-export { buildApiUrl, buildGatewayUrl } from './url'
 
 // ==================== Axios Instance Configuration ====================
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
+function normalizePath(path: string): string {
+  return path.startsWith('/') ? path : `/${path}`
+}
+
+export function buildApiUrl(path: string): string {
+  const base = String(API_BASE_URL || '/api/v1').replace(/\/+$/, '')
+  let suffix = normalizePath(path)
+  if (suffix === '/api/v1') {
+    suffix = ''
+  } else if (suffix.startsWith('/api/v1/')) {
+    suffix = suffix.slice('/api/v1'.length)
+  }
+  return `${base}${suffix}`
+}
+
+export function buildGatewayUrl(path: string): string {
+  const suffix = normalizePath(path)
+  const base = String(API_BASE_URL || '/api/v1')
+  try {
+    const origin =
+      typeof window === 'undefined'
+        ? new URL(base).origin
+        : new URL(base, window.location.origin).origin
+    return `${origin}${suffix}`
+  } catch {
+    return suffix
+  }
+}
+
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: getAPIBaseURL(),
+  baseURL: API_BASE_URL,
   withCredentials: true,
   timeout: 30000,
   headers: {
@@ -27,6 +55,8 @@ export const apiClient: AxiosInstance = axios.create({
 let isRefreshing = false
 // Queue of requests waiting for token refresh
 let refreshSubscribers: Array<(token: string) => void> = []
+const REFRESH_RACE_SETTLE_MS = 500
+const TRANSIENT_REFRESH_FAILURE_STATUSES = new Set([429, 503])
 
 /**
  * Subscribe to token refresh completion
@@ -41,6 +71,32 @@ function subscribeTokenRefresh(callback: (token: string) => void): void {
 function onTokenRefreshed(token: string): void {
   refreshSubscribers.forEach((callback) => callback(token))
   refreshSubscribers = []
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function getTokenRefreshedByAnotherContext(previousRefreshToken: string | null): string | null {
+  const latestAccessToken = localStorage.getItem('auth_token')
+  const latestRefreshToken = localStorage.getItem('refresh_token')
+  if (
+    latestAccessToken &&
+    latestRefreshToken &&
+    previousRefreshToken &&
+    latestRefreshToken !== previousRefreshToken
+  ) {
+    return latestAccessToken
+  }
+  return null
+}
+
+function getAxiosResponseStatus(error: unknown): number | null {
+  if (axios.isAxiosError(error)) {
+    return error.response?.status ?? null
+  }
+  const response = (error as { response?: { status?: unknown } } | null)?.response
+  return typeof response?.status === 'number' ? response.status : null
 }
 
 // ==================== Request Interceptor ====================
@@ -75,13 +131,9 @@ apiClient.interceptors.request.use(
       config.params.timezone = getUserTimezone()
     }
 
-    if (config.headers && shouldMarkAdminUIRequest(String(config.url || ''))) {
-      config.headers[ADMIN_UI_REQUEST_HEADER] = '1'
-    }
-
     return config
   },
-  (error) => {
+  (error: AxiosError) => {
     return Promise.reject(error)
   }
 )
@@ -153,29 +205,27 @@ apiClient.interceptors.response.use(
         })
       }
 
-      if (status === 423 && apiData.code === 'ADMIN_COMPLIANCE_ACK_REQUIRED') {
-        try {
-          window.dispatchEvent(new CustomEvent('admin-compliance-required', {
-            detail: apiData.metadata || {}
-          }))
-        } catch {
-          // ignore event failures
-        }
-
-        return Promise.reject({
-          status,
-          code: apiData.code,
-          message: apiData.message || error.message,
-          metadata: apiData.metadata,
-        })
-      }
-
       // 401: Try to refresh the token if we have a refresh token
       // This handles TOKEN_EXPIRED, INVALID_TOKEN, TOKEN_REVOKED, etc.
       if (status === 401 && !originalRequest._retry) {
         const refreshToken = localStorage.getItem('refresh_token')
         const isAuthEndpoint =
-          url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh')
+          url.includes('/auth/login') ||
+          url.includes('/auth/register') ||
+          url.includes('/auth/refresh') ||
+          url.includes('/auth/session')
+        const isSessionResumeEndpoint = url.includes('/auth/session')
+
+        if (isSessionResumeEndpoint) {
+          return Promise.reject({
+            status,
+            code: apiData.code,
+            reason: apiData.reason,
+            error: apiData.error,
+            message: apiData.message || apiData.detail || error.message,
+            metadata: apiData.metadata,
+          })
+        }
 
         // If we have a refresh token and this is not an auth endpoint, try to refresh
         if (refreshToken && !isAuthEndpoint) {
@@ -208,11 +258,9 @@ apiClient.interceptors.response.use(
           try {
             // Call refresh endpoint directly to avoid circular dependency
             const refreshResponse = await axios.post(
-              `${getAPIBaseURL()}/auth/refresh`,
+              `${API_BASE_URL}/auth/refresh`,
               { refresh_token: refreshToken },
-              // 显式设置超时：裸 axios 默认无限等待，若刷新请求挂起会导致 isRefreshing
-              // 永远为 true，所有排队的 401 重试请求永久卡死，页面 loading 无法恢复。
-              { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
+              { headers: { 'Content-Type': 'application/json' } }
             )
 
             const refreshData = refreshResponse.data as ApiResponse<{
@@ -244,6 +292,35 @@ apiClient.interceptors.response.use(
             // Refresh response was not successful, fall through to clear auth
             throw new Error('Token refresh failed')
           } catch (refreshError) {
+            let recoveredToken = getTokenRefreshedByAnotherContext(refreshToken)
+            if (!recoveredToken) {
+              await delay(REFRESH_RACE_SETTLE_MS)
+              recoveredToken = getTokenRefreshedByAnotherContext(refreshToken)
+            }
+
+            if (recoveredToken) {
+              onTokenRefreshed(recoveredToken)
+              isRefreshing = false
+
+              if (originalRequest.headers) {
+                originalRequest.headers.Authorization = `Bearer ${recoveredToken}`
+              }
+
+              return apiClient(originalRequest)
+            }
+
+            const refreshStatus = getAxiosResponseStatus(refreshError)
+            if (refreshStatus && TRANSIENT_REFRESH_FAILURE_STATUSES.has(refreshStatus)) {
+              onTokenRefreshed('')
+              isRefreshing = false
+
+              return Promise.reject({
+                status: refreshStatus,
+                code: 'TOKEN_REFRESH_DEFERRED',
+                message: 'Token refresh is temporarily unavailable. Please retry shortly.'
+              })
+            }
+
             // Refresh failed - notify subscribers with empty token
             onTokenRefreshed('')
             isRefreshing = false
@@ -299,6 +376,14 @@ apiClient.interceptors.response.use(
         error: apiData.error,
         message: apiData.message || apiData.detail || error.message,
         metadata: apiData.metadata,
+      })
+    }
+
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      return Promise.reject({
+        status: 0,
+        code: error.code,
+        message: 'Request timed out. Please try again later.'
       })
     }
 

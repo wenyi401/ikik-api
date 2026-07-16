@@ -35,6 +35,8 @@ const (
 	FieldPassword = "password"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldOwnerUserID holds the string denoting the owner_user_id field in the database.
+	FieldOwnerUserID = "owner_user_id"
 	// FieldExpiresAt holds the string denoting the expires_at field in the database.
 	FieldExpiresAt = "expires_at"
 	// FieldFallbackMode holds the string denoting the fallback_mode field in the database.
@@ -75,6 +77,7 @@ var Columns = []string{
 	FieldUsername,
 	FieldPassword,
 	FieldStatus,
+	FieldOwnerUserID,
 	FieldExpiresAt,
 	FieldFallbackMode,
 	FieldBackupProxyID,
@@ -183,6 +186,11 @@ func ByPassword(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByOwnerUserID orders the results by the owner_user_id field.
+func ByOwnerUserID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOwnerUserID, opts...).ToFunc()
 }
 
 // ByExpiresAt orders the results by the expires_at field.

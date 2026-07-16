@@ -6,6 +6,9 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
+	"ikik-api/ent/channelmonitor"
+	"ikik-api/ent/channelmonitorrequesttemplate"
+	"ikik-api/ent/predicate"
 	"math"
 
 	"entgo.io/ent"
@@ -13,9 +16,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/channelmonitor"
-	"ikik-api/ent/channelmonitorrequesttemplate"
-	"ikik-api/ent/predicate"
 )
 
 // ChannelMonitorRequestTemplateQuery is the builder for querying ChannelMonitorRequestTemplate entities.

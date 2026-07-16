@@ -21,6 +21,16 @@ func newTestBillingServiceForResolver() *BillingService {
 		CacheReadPricePerToken:     0.3e-6,
 		SupportsCacheBreakdown:     false,
 	}
+	bs.fallbackPrices["gpt-5.5"] = &ModelPricing{
+		InputPricePerToken:             2.5e-6,
+		InputPricePerTokenPriority:     5e-6,
+		OutputPricePerToken:            15e-6,
+		OutputPricePerTokenPriority:    30e-6,
+		CacheCreationPricePerToken:     2.5e-6,
+		CacheReadPricePerToken:         0.25e-6,
+		CacheReadPricePerTokenPriority: 0.5e-6,
+		SupportsCacheBreakdown:         false,
+	}
 	return bs
 }
 
@@ -114,52 +124,6 @@ func TestGetIntervalPricing_NoMatch_FallsBackToBase(t *testing.T) {
 	require.Equal(t, basePricing, result)
 }
 
-func TestGPT56ExplicitZeroCacheWritePriceIsPreserved(t *testing.T) {
-	bs := &BillingService{}
-	resolver := NewModelPricingResolver(nil, bs)
-	zero := 0.0
-
-	t.Run("flat channel price", func(t *testing.T) {
-		resolved := &ResolvedPricing{
-			Mode: BillingModeToken,
-			BasePricing: &ModelPricing{
-				InputPricePerToken:  5e-6,
-				OutputPricePerToken: 30e-6,
-			},
-		}
-		resolver.applyTokenOverrides(&ChannelModelPricing{CacheWritePrice: &zero}, resolved)
-
-		require.True(t, resolved.BasePricing.CacheCreationPriceExplicit)
-		cost, err := bs.CalculateCostUnified(CostInput{
-			Model:          "gpt-5.6-sol",
-			Tokens:         UsageTokens{CacheCreationTokens: 100},
-			RateMultiplier: 1,
-			Resolver:       resolver,
-			Resolved:       resolved,
-		})
-		require.NoError(t, err)
-		require.Zero(t, cost.CacheCreationCost)
-	})
-
-	t.Run("interval price", func(t *testing.T) {
-		pricing := intervalToModelPricing(&PricingInterval{CacheWritePrice: &zero}, false, nil)
-		require.True(t, pricing.CacheCreationPriceExplicit)
-
-		cost, err := bs.CalculateCostUnified(CostInput{
-			Model:          "gpt-5.6-sol",
-			Tokens:         UsageTokens{CacheCreationTokens: 100},
-			RateMultiplier: 1,
-			Resolver:       resolver,
-			Resolved: &ResolvedPricing{
-				Mode:        BillingModeToken,
-				BasePricing: pricing,
-			},
-		})
-		require.NoError(t, err)
-		require.Zero(t, cost.CacheCreationCost)
-	})
-}
-
 func TestGetRequestTierPrice(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
 	r := NewModelPricingResolver(&ChannelService{}, bs)
@@ -230,7 +194,7 @@ func newResolverWithChannel(t *testing.T, pricing []ChannelModelPricing) *ModelP
 			return map[int64]string{groupID: "anthropic"}, nil
 		},
 	}
-	cs := NewChannelService(repo, nil, nil, nil)
+	cs := NewChannelService(repo, nil, nil, nil, nil)
 	bs := newTestBillingServiceForResolver()
 	return NewModelPricingResolver(cs, bs)
 }
@@ -264,6 +228,40 @@ func TestResolve_WithChannelOverride_TokenFlat(t *testing.T) {
 	require.InDelta(t, 10e-6, resolved.BasePricing.InputPricePerTokenPriority, 1e-12)
 	require.InDelta(t, 50e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
 	require.InDelta(t, 50e-6, resolved.BasePricing.OutputPricePerTokenPriority, 1e-12)
+}
+
+func TestResolve_WithChannelOverride_PriorityUsesChannelPriceWithoutExtraMultiplier(t *testing.T) {
+	r := newResolverWithChannel(t, []ChannelModelPricing{{
+		Platform:       "anthropic",
+		Models:         []string{"gpt-5.5"},
+		BillingMode:    BillingModeToken,
+		InputPrice:     testPtrFloat64(5e-6),
+		OutputPrice:    testPtrFloat64(30e-6),
+		CacheReadPrice: testPtrFloat64(0.5e-6),
+	}})
+	gid := groupIDPtr()
+	bs := newTestBillingServiceForResolver()
+
+	cost, err := bs.CalculateCostUnified(CostInput{
+		Ctx:     context.Background(),
+		Model:   "gpt-5.5",
+		GroupID: gid,
+		Tokens: UsageTokens{
+			InputTokens:     100_000,
+			OutputTokens:    100_000,
+			CacheReadTokens: 10_000,
+		},
+		RateMultiplier: 0.06,
+		ServiceTier:    "priority",
+		Resolver:       r,
+	})
+
+	require.NoError(t, err)
+	require.InDelta(t, 0.5, cost.InputCost, 1e-12)
+	require.InDelta(t, 3, cost.OutputCost, 1e-12)
+	require.InDelta(t, 0.005, cost.CacheReadCost, 1e-12)
+	require.InDelta(t, 3.505, cost.TotalCost, 1e-12)
+	require.InDelta(t, 0.2103, cost.ActualCost, 1e-12)
 }
 
 func TestResolve_WithChannelOverride_TokenPartialOverride(t *testing.T) {
@@ -563,7 +561,7 @@ func TestResolve_WithChannelOverride_CacheError(t *testing.T) {
 			return nil, errors.New("database unavailable")
 		},
 	}
-	cs := NewChannelService(repo, nil, nil, nil)
+	cs := NewChannelService(repo, nil, nil, nil, nil)
 	bs := newTestBillingServiceForResolver()
 	r := NewModelPricingResolver(cs, bs)
 
@@ -708,10 +706,6 @@ func TestFilterValidIntervals(t *testing.T) {
 	}
 }
 
-// ===========================================================================
-// 9. ImageOutputPriceExplicit tests
-// ===========================================================================
-
 func TestApplyTokenOverrides_FlatSetsImageOutputPriceExplicit(t *testing.T) {
 	r := newResolverWithChannel(t, []ChannelModelPricing{{
 		Platform:    "anthropic",
@@ -719,7 +713,6 @@ func TestApplyTokenOverrides_FlatSetsImageOutputPriceExplicit(t *testing.T) {
 		BillingMode: BillingModeToken,
 		InputPrice:  testPtrFloat64(3e-6),
 		OutputPrice: testPtrFloat64(15e-6),
-		// ImageOutputPrice intentionally nil
 	}})
 	resolved := r.Resolve(context.Background(), PricingInput{
 		Model:   "claude-sonnet-4",
@@ -754,7 +747,6 @@ func TestApplyTokenOverrides_IntervalSetsImageOutputPriceExplicit(t *testing.T) 
 		Platform:    "anthropic",
 		Models:      []string{"claude-sonnet-4"},
 		BillingMode: BillingModeToken,
-		// No ImageOutputPrice
 		Intervals: []PricingInterval{
 			{MinTokens: 0, MaxTokens: testPtrInt(100000), InputPrice: testPtrFloat64(3e-6), OutputPrice: testPtrFloat64(15e-6)},
 		},
@@ -764,72 +756,10 @@ func TestApplyTokenOverrides_IntervalSetsImageOutputPriceExplicit(t *testing.T) 
 		GroupID: groupIDPtr(),
 	})
 
-	// BasePricing should have explicit mark (for interval fallback)
 	require.True(t, resolved.BasePricing.ImageOutputPriceExplicit)
 	require.Equal(t, 0.0, resolved.BasePricing.ImageOutputPricePerToken)
 
-	// intervalToModelPricing should also have explicit mark
 	pricing := r.GetIntervalPricing(resolved, 50000)
 	require.True(t, pricing.ImageOutputPriceExplicit)
 	require.Equal(t, 0.0, pricing.ImageOutputPricePerToken)
-}
-
-// ===========================================================================
-// 10. Regression: channel overrides must not pollute fallbackPrices
-// ===========================================================================
-
-// TestApplyTokenOverrides_FlatDoesNotPolluteFallbackPrices verifies that the
-// flat-override path in applyTokenOverrides clones the BasePricing struct
-// before mutation, so the shared fallbackPrices map entry is not written through.
-func TestApplyTokenOverrides_FlatDoesNotPolluteFallbackPrices(t *testing.T) {
-	r := newResolverWithChannel(t, []ChannelModelPricing{{
-		Platform:    "anthropic",
-		Models:      []string{"claude-sonnet-4"},
-		BillingMode: BillingModeToken,
-		InputPrice:  testPtrFloat64(10e-6), // base is 3e-6
-		OutputPrice: testPtrFloat64(50e-6), // base is 15e-6
-	}})
-
-	resolved := r.Resolve(context.Background(), PricingInput{
-		Model:   "claude-sonnet-4",
-		GroupID: groupIDPtr(),
-	})
-
-	// Resolved pricing should reflect the channel override
-	require.NotNil(t, resolved)
-	require.InDelta(t, 10e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
-	require.InDelta(t, 50e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
-
-	// Global fallbackPrices must NOT be polluted
-	fp := r.billingService.fallbackPrices["claude-sonnet-4"]
-	require.InDelta(t, 3e-6, fp.InputPricePerToken, 1e-12, "fallback InputPricePerToken polluted")
-	require.InDelta(t, 15e-6, fp.OutputPricePerToken, 1e-12, "fallback OutputPricePerToken polluted")
-	require.False(t, fp.ImageOutputPriceExplicit, "fallback ImageOutputPriceExplicit polluted")
-}
-
-// TestApplyTokenOverrides_IntervalDoesNotPolluteFallbackPrices verifies that
-// the interval-override path also clones before mutation.
-func TestApplyTokenOverrides_IntervalDoesNotPolluteFallbackPrices(t *testing.T) {
-	r := newResolverWithChannel(t, []ChannelModelPricing{{
-		Platform:    "anthropic",
-		Models:      []string{"claude-sonnet-4"},
-		BillingMode: BillingModeToken,
-		Intervals: []PricingInterval{
-			{MinTokens: 0, MaxTokens: testPtrInt(100000), InputPrice: testPtrFloat64(2e-6), OutputPrice: testPtrFloat64(8e-6)},
-		},
-	}})
-
-	resolved := r.Resolve(context.Background(), PricingInput{
-		Model:   "claude-sonnet-4",
-		GroupID: groupIDPtr(),
-	})
-
-	require.NotNil(t, resolved)
-	require.True(t, resolved.BasePricing.ImageOutputPriceExplicit)
-
-	// Global fallbackPrices must NOT be polluted
-	fp := r.billingService.fallbackPrices["claude-sonnet-4"]
-	require.InDelta(t, 3e-6, fp.InputPricePerToken, 1e-12, "fallback InputPricePerToken polluted")
-	require.InDelta(t, 15e-6, fp.OutputPricePerToken, 1e-12, "fallback OutputPricePerToken polluted")
-	require.False(t, fp.ImageOutputPriceExplicit, "fallback ImageOutputPriceExplicit polluted")
 }

@@ -170,6 +170,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { accountsAPI } from '@/api'
 import { adminAPI } from '@/api/admin'
 import Icon from '@/components/icons/Icon.vue'
 import type { Proxy } from '@/types'
@@ -190,10 +191,12 @@ interface Props {
   modelValue: number | null
   proxies: Proxy[]
   disabled?: boolean
+  scope?: 'admin' | 'user'
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  disabled: false
+  disabled: false,
+  scope: 'admin'
 })
 
 const emit = defineEmits<{
@@ -251,12 +254,16 @@ const selectOption = (value: number | null) => {
   searchQuery.value = ''
 }
 
+const testProxy = (id: number) => {
+  return props.scope === 'user' ? accountsAPI.testProxy(id) : adminAPI.proxies.testProxy(id)
+}
+
 const handleTestProxy = async (proxy: Proxy) => {
   if (testingProxyIds.has(proxy.id)) return
 
   testingProxyIds.add(proxy.id)
   try {
-    const result = await adminAPI.proxies.testProxy(proxy.id)
+    const result = await testProxy(proxy.id)
     testResults[proxy.id] = result
   } catch (error: any) {
     testResults[proxy.id] = {
@@ -277,7 +284,7 @@ const handleBatchTest = async () => {
   const testPromises = props.proxies.map(async (proxy) => {
     testingProxyIds.add(proxy.id)
     try {
-      const result = await adminAPI.proxies.testProxy(proxy.id)
+      const result = await testProxy(proxy.id)
       testResults[proxy.id] = result
     } catch (error: any) {
       testResults[proxy.id] = {

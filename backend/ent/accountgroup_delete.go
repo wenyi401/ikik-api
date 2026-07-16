@@ -4,11 +4,11 @@ package ent
 
 import (
 	"context"
+	"ikik-api/ent/accountgroup"
+	"ikik-api/ent/predicate"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"ikik-api/ent/accountgroup"
-	"ikik-api/ent/predicate"
 )
 
 // AccountGroupDelete is the builder for deleting a AccountGroup entity.

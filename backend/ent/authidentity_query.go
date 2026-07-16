@@ -6,6 +6,11 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
+	"ikik-api/ent/authidentity"
+	"ikik-api/ent/authidentitychannel"
+	"ikik-api/ent/identityadoptiondecision"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/user"
 	"math"
 
 	"entgo.io/ent"
@@ -13,11 +18,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/authidentity"
-	"ikik-api/ent/authidentitychannel"
-	"ikik-api/ent/identityadoptiondecision"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/user"
 )
 
 // AuthIdentityQuery is the builder for querying AuthIdentity entities.

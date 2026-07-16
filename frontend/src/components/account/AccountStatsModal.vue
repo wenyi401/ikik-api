@@ -486,6 +486,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useDarkMode } from '@/composables/useDarkMode'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -522,6 +523,7 @@ const { t } = useI18n()
 const props = defineProps<{
   show: boolean
   account: Account | null
+  statsLoader?: (id: number, days?: number) => Promise<AccountUsageStatsResponse>
 }>()
 
 const emit = defineEmits<{
@@ -531,10 +533,7 @@ const emit = defineEmits<{
 const loading = ref(false)
 const stats = ref<AccountUsageStatsResponse | null>(null)
 
-// Dark mode detection
-const isDarkMode = computed(() => {
-  return document.documentElement.classList.contains('dark')
-})
+const isDarkMode = useDarkMode()
 
 // Chart colors
 const chartColors = computed(() => ({
@@ -695,7 +694,8 @@ const loadStats = async () => {
 
   loading.value = true
   try {
-    stats.value = await adminAPI.accounts.getStats(props.account.id, 30)
+    const loader = props.statsLoader ?? adminAPI.accounts.getStats
+    stats.value = await loader(props.account.id, 30)
   } catch (error) {
     console.error('Failed to load account stats:', error)
     stats.value = null

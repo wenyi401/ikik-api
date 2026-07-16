@@ -5,6 +5,7 @@ import Select from '@/components/common/Select.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { UiIconButton } from '@/ui'
 import { adminAPI } from '@/api'
 import { opsAPI, type OpsDashboardOverview, type OpsMetricThresholds, type OpsRealtimeTrafficSummary } from '@/api/admin/ops'
 import type { OpsRequestDetailsPreset } from './OpsRequestDetailsModal.vue'
@@ -112,7 +113,8 @@ const platformOptions = computed(() => [
   { value: 'anthropic', label: 'Anthropic' },
   { value: 'gemini', label: 'Gemini' },
   { value: 'antigravity', label: 'Antigravity' },
-  { value: 'grok', label: 'Grok' }
+  { value: 'grok', label: 'Grok' },
+  { value: 'kiro', label: 'Kiro' }
 ])
 
 const timeRangeOptions = computed(() => [
@@ -860,23 +862,10 @@ function handleToolbarRefresh() {
 </script>
 
 <template>
-  <div :class="['flex flex-col gap-4 rounded-3xl bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700', props.fullscreen ? 'p-8' : 'p-6']">
+  <div :class="['ops-dashboard-header', { 'ops-dashboard-header--fullscreen': props.fullscreen }]">
     <!-- Top Toolbar -->
-    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-4 dark:border-dark-700">
-      <div>
-        <h1 class="flex items-center gap-2 text-xl font-black text-gray-900 dark:text-white">
-          <svg class="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-            />
-          </svg>
-          {{ t('admin.ops.title') }}
-        </h1>
-
-        <div v-if="!props.fullscreen" class="mt-1 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+    <div class="ops-dashboard-toolbar">
+      <div v-if="!props.fullscreen" class="flex min-w-0 flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
           <span class="flex items-center gap-1.5" :title="props.loading ? t('admin.ops.loadingText') : t('admin.ops.ready')">
             <span class="relative flex h-2 w-2">
               <span class="relative inline-flex h-2 w-2 rounded-full" :class="props.loading ? 'bg-gray-400' : 'bg-green-500'"></span>
@@ -884,17 +873,14 @@ function handleToolbarRefresh() {
             {{ props.loading ? t('admin.ops.loadingText') : t('admin.ops.ready') }}
           </span>
 
-          <span>·</span>
           <span>{{ t('common.refresh') }}: {{ props.lastUpdated ? props.lastUpdated.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\//g, '-') : t('common.unknown') }}</span>
 
           <template v-if="props.autoRefreshEnabled && props.autoRefreshCountdown !== undefined">
-            <span>·</span>
-            <span>{{ t('admin.ops.autoRefreshRemaining', { seconds: props.autoRefreshCountdown }) }}</span>
+            <span>{{ props.autoRefreshCountdown }}s</span>
           </template>
-        </div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3">
+      <div class="ops-dashboard-actions">
         <template v-if="!props.fullscreen">
           <Select
             :model-value="platform"
@@ -928,23 +914,14 @@ function handleToolbarRefresh() {
           @update:model-value="handleQueryModeChange"
         />
 
-        <button
+        <UiIconButton
           v-if="!props.fullscreen"
-          type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600"
+          :label="t('common.refresh')"
           :disabled="loading"
-          :title="t('common.refresh')"
           @click="handleToolbarRefresh"
         >
-          <svg class="h-4 w-4" :class="{ 'animate-spin': loading }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-        </button>
+          <Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" />
+        </UiIconButton>
 
         <div v-if="!props.fullscreen" class="mx-1 hidden h-4 w-[1px] bg-gray-200 dark:bg-dark-700 sm:block"></div>
 
@@ -952,49 +929,39 @@ function handleToolbarRefresh() {
         <button
           v-if="!props.fullscreen"
           type="button"
-          class="flex h-8 items-center gap-1.5 rounded-lg bg-blue-100 px-3 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
+          class="btn btn-secondary btn-sm"
           :title="t('admin.ops.alertRules.title')"
           @click="emit('openAlertRules')"
         >
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-          </svg>
+          <Icon name="bell" size="sm" />
           <span class="hidden sm:inline">{{ t('admin.ops.alertRules.manage') }}</span>
         </button>
 
         <!-- Settings Button (hidden in fullscreen) -->
-        <button
+        <UiIconButton
           v-if="!props.fullscreen"
-          type="button"
-          class="flex h-8 items-center gap-1.5 rounded-lg bg-gray-100 px-3 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
-          :title="t('admin.ops.settings.title')"
+          :label="t('admin.ops.settings.title')"
           @click="emit('openSettings')"
         >
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <span class="hidden sm:inline">{{ t('common.settings') }}</span>
-        </button>
+          <Icon name="cog" size="sm" />
+        </UiIconButton>
 
         <!-- Enter Fullscreen Button (hidden in fullscreen mode) -->
-        <button
+        <UiIconButton
           v-if="!props.fullscreen"
-          type="button"
-          class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
-          :title="t('admin.ops.fullscreen.enter')"
+          :label="t('admin.ops.fullscreen.enter')"
           @click="emit('enterFullscreen')"
         >
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
           </svg>
-        </button>
+        </UiIconButton>
       </div>
     </div>
 
     <div v-if="overview" class="grid grid-cols-1 gap-6 lg:grid-cols-12">
       <!-- Left: Health + Realtime -->
-      <div :class="['rounded-2xl bg-gray-50 dark:bg-dark-900 lg:col-span-5', props.fullscreen ? 'p-6' : 'p-4']">
+      <div :class="['ops-overview-panel lg:col-span-5', props.fullscreen ? 'p-6' : 'p-4']">
         <div class="grid h-full grid-cols-1 gap-6 md:grid-cols-[200px_1fr] md:items-center">
           <!-- 1) Health Score -->
           <div
@@ -1603,20 +1570,20 @@ function handleToolbarRefresh() {
           <input
             v-model="customEndTimeInput"
             type="datetime-local"
-            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-dark-600 dark:bg-dark-800 dark:text-white"
+            class="input"
           />
         </div>
         <div class="flex justify-end gap-3 pt-2">
           <button
             type="button"
-            class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
+            class="btn btn-secondary"
             @click="handleCustomTimeRangeCancel"
           >
             {{ t('common.cancel') }}
           </button>
           <button
             type="button"
-            class="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600"
+            class="btn btn-primary"
             @click="handleCustomTimeRangeConfirm"
           >
             {{ t('common.confirm') }}
@@ -1626,3 +1593,64 @@ function handleToolbarRefresh() {
     </BaseDialog>
   </div>
 </template>
+
+<style scoped>
+.ops-dashboard-header {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ops-dashboard-header--fullscreen {
+  padding: 2rem;
+}
+
+.ops-dashboard-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.ops-dashboard-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.ops-overview-panel {
+  min-width: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: transparent;
+}
+
+.ops-dashboard-header :deep(.uppercase) {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.ops-dashboard-header :deep(.font-black) {
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .ops-dashboard-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ops-dashboard-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+</style>

@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"ikik-api/internal/pkg/ctxkey"
-	"ikik-api/internal/pkg/ip"
 	"ikik-api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -32,7 +31,7 @@ func Logger() gin.HandlerFunc {
 
 		method := c.Request.Method
 		statusCode := c.Writer.Status()
-		clientIP := ip.GetClientIP(c)
+		clientIP := c.ClientIP()
 		protocol := c.Request.Proto
 		accountID, hasAccountID := c.Request.Context().Value(ctxkey.AccountID).(int64)
 		platform, _ := c.Request.Context().Value(ctxkey.Platform).(string)

@@ -102,3 +102,57 @@ func TestSchedulerCacheSnapshotUsesSlimMetadataButKeepsFullAccount(t *testing.T)
 	require.Len(t, full.AccountGroups, 1)
 	require.NotNil(t, full.AccountGroups[0].Group)
 }
+
+func TestSchedulerCacheEmptySnapshotEvictsBucket(t *testing.T) {
+	ctx := context.Background()
+	rdb := testRedis(t)
+	cache := NewSchedulerCache(rdb)
+
+	bucket := service.SchedulerBucket{GroupID: 77, Platform: service.PlatformOpenAI, Mode: service.SchedulerModeSingle}
+	account := service.Account{
+		ID:          202,
+		Name:        "openai-cache-entry",
+		Platform:    service.PlatformOpenAI,
+		Type:        service.AccountTypeOAuth,
+		Status:      service.StatusActive,
+		Schedulable: true,
+		Priority:    1,
+		GroupIDs:    []int64{bucket.GroupID},
+	}
+
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, []service.Account{account}))
+	buckets, err := cache.ListBuckets(ctx)
+	require.NoError(t, err)
+	require.Contains(t, schedulerBucketStrings(buckets), bucket.String())
+
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, nil))
+
+	snapshot, hit, err := cache.GetSnapshot(ctx, bucket)
+	require.NoError(t, err)
+	require.False(t, hit)
+	require.Nil(t, snapshot)
+
+	buckets, err = cache.ListBuckets(ctx)
+	require.NoError(t, err)
+	require.NotContains(t, schedulerBucketStrings(buckets), bucket.String())
+
+	exists, err := rdb.Exists(
+		ctx,
+		schedulerBucketKey(schedulerActivePrefix, bucket),
+		schedulerBucketKey(schedulerReadyPrefix, bucket),
+	).Result()
+	require.NoError(t, err)
+	require.Zero(t, exists)
+
+	isMember, err := rdb.SIsMember(ctx, schedulerBucketSetKey, bucket.String()).Result()
+	require.NoError(t, err)
+	require.False(t, isMember)
+}
+
+func schedulerBucketStrings(buckets []service.SchedulerBucket) []string {
+	out := make([]string, 0, len(buckets))
+	for _, bucket := range buckets {
+		out = append(out, bucket.String())
+	}
+	return out
+}

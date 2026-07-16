@@ -6,14 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/promocode"
+	"ikik-api/ent/promocodeusage"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/promocode"
-	"ikik-api/ent/promocodeusage"
 )
 
 // PromoCodeUpdate is the builder for updating PromoCode entities.

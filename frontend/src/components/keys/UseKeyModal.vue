@@ -7,7 +7,7 @@
   >
     <div class="space-y-4">
       <!-- No Group Assigned Warning -->
-      <div v-if="!platform" class="flex items-start gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+      <div v-if="!platform" class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/20">
         <svg class="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
         </svg>
@@ -24,12 +24,43 @@
       <!-- Platform-specific content -->
       <template v-else>
         <!-- Description -->
-        <p class="text-sm text-gray-600 dark:text-gray-400">
+        <p class="text-sm text-[var(--app-muted-strong)]">
           {{ platformDescription }}
         </p>
 
+        <div class="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <label class="text-sm font-medium text-[var(--app-text)]">
+                {{ t('keys.useKeyModal.endpointLabel') }}
+              </label>
+              <p class="mt-0.5 text-xs text-[var(--app-muted)]">
+                {{ t('keys.useKeyModal.endpointHint') }}
+              </p>
+            </div>
+            <select
+              v-model="selectedBaseUrl"
+              class="min-h-[2.25rem] w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-1.5 text-sm text-[var(--app-text)] shadow-none transition-colors focus:border-[var(--app-primary)] focus:outline-none focus:ring-2 focus:ring-[rgba(16,163,127,0.18)] sm:w-[22rem]"
+            >
+              <option
+                v-for="endpoint in endpointOptions"
+                :key="endpoint.endpoint"
+                :value="endpoint.endpoint"
+              >
+                {{ endpoint.name }} - {{ endpoint.endpoint }}
+              </option>
+            </select>
+          </div>
+          <p
+            v-if="selectedEndpointDescription"
+            class="mt-2 text-xs leading-5 text-[var(--app-muted)]"
+          >
+            {{ selectedEndpointDescription }}
+          </p>
+        </div>
+
         <!-- Client Tabs -->
-        <div v-if="clientTabs.length" class="border-b border-gray-200 dark:border-dark-700">
+        <div v-if="clientTabs.length" class="border-b border-[var(--app-border)]">
           <nav class="-mb-px flex space-x-6" aria-label="Client">
             <button
               v-for="tab in clientTabs"
@@ -38,8 +69,8 @@
               :class="[
                 'whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm transition-colors',
                 activeClientTab === tab.id
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  ? 'border-[var(--app-primary)] text-[var(--app-primary-hover)]'
+                  : 'border-transparent text-[var(--app-muted)] hover:border-[var(--app-border-strong)] hover:text-[var(--app-text)]'
               ]"
             >
               <span class="flex items-center gap-2">
@@ -51,7 +82,7 @@
         </div>
 
         <!-- OS/Shell Tabs -->
-        <div v-if="showShellTabs" class="border-b border-gray-200 dark:border-dark-700">
+        <div v-if="showShellTabs" class="border-b border-[var(--app-border)]">
           <nav class="-mb-px flex space-x-4" aria-label="Tabs">
             <button
               v-for="tab in currentTabs"
@@ -60,8 +91,8 @@
               :class="[
                 'whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm transition-colors',
                 activeTab === tab.id
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  ? 'border-[var(--app-primary)] text-[var(--app-primary-hover)]'
+                  : 'border-transparent text-[var(--app-muted)] hover:border-[var(--app-border-strong)] hover:text-[var(--app-text)]'
               ]"
             >
               <span class="flex items-center gap-2">
@@ -111,9 +142,9 @@
         </div>
 
         <!-- Usage Note -->
-        <div v-if="showPlatformNote" class="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
-          <Icon name="infoCircle" size="md" class="text-blue-500 flex-shrink-0 mt-0.5" />
-          <p class="text-sm text-blue-700 dark:text-blue-300">
+        <div v-if="showPlatformNote" class="flex items-start gap-3 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-muted)] p-3">
+          <Icon name="infoCircle" size="md" class="mt-0.5 flex-shrink-0 text-[var(--app-primary)]" />
+          <p class="text-sm text-[var(--app-muted-strong)]">
             {{ platformNote }}
           </p>
         </div>
@@ -139,7 +170,8 @@ import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
-import type { GroupPlatform } from '@/types'
+import { endpointKey, normalizeEndpointUrl } from '@/utils/apiEndpoints'
+import type { CustomEndpoint, GroupPlatform } from '@/types'
 
 interface Props {
   show: boolean
@@ -147,6 +179,7 @@ interface Props {
   baseUrl: string
   platform: GroupPlatform | null
   allowMessagesDispatch?: boolean
+  customEndpoints?: CustomEndpoint[]
 }
 
 interface Emits {
@@ -166,6 +199,12 @@ interface FileConfig {
   highlighted?: string
 }
 
+interface EndpointOption {
+  name: string
+  endpoint: string
+  description: string
+}
+
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
@@ -175,14 +214,13 @@ const { copyToClipboard: clipboardCopy } = useClipboard()
 const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
 const activeClientTab = ref<string>('claude')
+const selectedBaseUrl = ref<string>('')
 
 // Reset tabs when platform changes
 const defaultClientTab = computed(() => {
   switch (props.platform) {
     case 'openai':
       return 'codex'
-    case 'grok':
-      return 'grok'
     case 'gemini':
       return 'gemini'
     case 'antigravity':
@@ -196,6 +234,57 @@ watch(() => props.platform, () => {
   activeTab.value = 'unix'
   activeClientTab.value = defaultClientTab.value
 }, { immediate: true })
+
+const fallbackBaseUrl = computed(() => props.baseUrl || (typeof window !== 'undefined' ? window.location.origin : ''))
+
+const endpointOptions = computed<EndpointOption[]>(() => {
+  const items: EndpointOption[] = []
+  const seen = new Set<string>()
+  const push = (item: EndpointOption) => {
+    const endpoint = normalizeEndpointUrl(item.endpoint)
+    if (!endpoint) return
+    const key = endpointKey(endpoint)
+    if (seen.has(key)) return
+    seen.add(key)
+    items.push({ ...item, endpoint })
+  }
+
+  push({
+    name: t('keys.endpoints.default'),
+    endpoint: fallbackBaseUrl.value,
+    description: ''
+  })
+  for (const endpoint of props.customEndpoints || []) {
+    push({
+      name: endpoint.name,
+      endpoint: endpoint.endpoint,
+      description: endpoint.description
+    })
+  }
+  return items
+})
+
+watch(
+  endpointOptions,
+  (items) => {
+    if (!items.length) {
+      selectedBaseUrl.value = ''
+      return
+    }
+    const currentKey = endpointKey(selectedBaseUrl.value)
+    if (!currentKey || !items.some(item => endpointKey(item.endpoint) === currentKey)) {
+      selectedBaseUrl.value = items[0].endpoint
+    }
+  },
+  { immediate: true }
+)
+
+const activeBaseUrl = computed(() => selectedBaseUrl.value || fallbackBaseUrl.value)
+
+const selectedEndpointDescription = computed(() => {
+  const currentKey = endpointKey(activeBaseUrl.value)
+  return endpointOptions.value.find(item => endpointKey(item.endpoint) === currentKey)?.description || ''
+})
 
 // Reset shell tab when client changes
 watch(activeClientTab, () => {
@@ -290,11 +379,6 @@ const clientTabs = computed((): TabConfig[] => {
         { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
         { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
       ]
-    case 'grok':
-      return [
-        { id: 'grok', label: t('keys.useKeyModal.cliTabs.grokCli'), icon: TerminalIcon },
-        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
-      ]
     default:
       return [
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
@@ -320,7 +404,7 @@ const showShellTabs = computed(() => activeClientTab.value !== 'opencode')
 
 const currentTabs = computed(() => {
   if (!showShellTabs.value) return []
-  if (activeClientTab.value === 'codex' || activeClientTab.value === 'codex-ws' || activeClientTab.value === 'grok') {
+  if (activeClientTab.value === 'codex' || activeClientTab.value === 'codex-ws') {
     return openaiTabs
   }
   return shellTabs
@@ -337,8 +421,6 @@ const platformDescription = computed(() => {
       return t('keys.useKeyModal.gemini.description')
     case 'antigravity':
       return t('keys.useKeyModal.antigravity.description')
-    case 'grok':
-      return t('keys.useKeyModal.grok.description')
     default:
       return t('keys.useKeyModal.description')
   }
@@ -359,10 +441,6 @@ const platformNote = computed(() => {
       return activeClientTab.value === 'claude'
         ? t('keys.useKeyModal.antigravity.claudeNote')
         : t('keys.useKeyModal.antigravity.geminiNote')
-    case 'grok':
-      return activeTab.value === 'windows'
-        ? t('keys.useKeyModal.grok.noteWindows')
-        : t('keys.useKeyModal.grok.note')
     default:
       return t('keys.useKeyModal.note')
   }
@@ -389,7 +467,7 @@ const comment = (value: string) => wrapToken('text-slate-500', value)
 // Syntax highlighting helpers
 // Generate file configs based on platform and active tab
 const currentFiles = computed((): FileConfig[] => {
-  const baseUrl = props.baseUrl || window.location.origin
+  const baseUrl = activeBaseUrl.value
   const apiKey = props.apiKey
   const baseRoot = baseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, '')
   const ensureV1 = (value: string) => {
@@ -420,8 +498,6 @@ const currentFiles = computed((): FileConfig[] => {
           generateOpenCodeConfig('antigravity-claude', antigravityBase, apiKey, 'opencode.json (Claude)'),
           generateOpenCodeConfig('antigravity-gemini', antigravityGeminiBase, apiKey, 'opencode.json (Gemini)')
         ]
-      case 'grok':
-        return [generateOpenCodeConfig('grok', apiBase, apiKey)]
       default:
         return [generateOpenCodeConfig('openai', apiBase, apiKey)]
     }
@@ -443,8 +519,6 @@ const currentFiles = computed((): FileConfig[] => {
         return [generateGeminiCliContent(`${baseUrl}/antigravity`, apiKey)]
       }
       return generateAnthropicFiles(`${baseUrl}/antigravity`, apiKey)
-    case 'grok':
-      return generateGrokFiles(apiBase, apiKey)
     default:
       return generateAnthropicFiles(baseUrl, apiKey)
   }
@@ -459,22 +533,19 @@ function generateAnthropicFiles(baseUrl: string, apiKey: string): FileConfig[] {
       path = 'Terminal'
       content = `export ANTHROPIC_BASE_URL="${baseUrl}"
 export ANTHROPIC_AUTH_TOKEN="${apiKey}"
-export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-export CLAUDE_CODE_ATTRIBUTION_HEADER=0`
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
       break
     case 'cmd':
       path = 'Command Prompt'
       content = `set ANTHROPIC_BASE_URL=${baseUrl}
 set ANTHROPIC_AUTH_TOKEN=${apiKey}
-set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-set CLAUDE_CODE_ATTRIBUTION_HEADER=0`
+set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
       break
     case 'powershell':
       path = 'PowerShell'
       content = `$env:ANTHROPIC_BASE_URL="${baseUrl}"
 $env:ANTHROPIC_AUTH_TOKEN="${apiKey}"
-$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-$env:CLAUDE_CODE_ATTRIBUTION_HEADER=0`
+$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
       break
     default:
       path = 'Terminal'
@@ -550,22 +621,7 @@ function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
 
   // config.toml content
-  const configContent = `model_provider = "OpenAI"
-model = "gpt-5.5"
-review_model = "gpt-5.5"
-model_reasoning_effort = "xhigh"
-disable_response_storage = true
-network_access = "enabled"
-windows_wsl_setup_acknowledged = true
-
-[model_providers.OpenAI]
-name = "OpenAI"
-base_url = "${baseUrl}"
-wire_api = "responses"
-requires_openai_auth = true
-
-[features]
-goals = true`
+  const configContent = generateCodexConfigContent(baseUrl)
 
   // auth.json content
   const authContent = `{
@@ -583,30 +639,6 @@ goals = true`
       content: authContent
     }
   ]
-}
-
-function generateGrokFiles(baseUrl: string, apiKey: string): FileConfig[] {
-  const isWindows = activeTab.value === 'windows'
-  const configDir = isWindows ? '%userprofile%\\.grok' : '~/.grok'
-  const configContent = `[models]
-default = "sub2api-grok"
-web_search = "sub2api-grok"
-
-[model."sub2api-grok"]
-model = "grok-4.5"
-base_url = "${baseUrl}"
-name = "Grok 4.5 via Sub2API"
-description = "Grok 4.5 through a Sub2API Grok group"
-api_key = "${apiKey}"
-api_backend = "responses"
-context_window = 1000000
-supports_backend_search = true`
-
-  return [{
-    path: `${configDir}/config.toml`,
-    content: configContent,
-    hint: t('keys.useKeyModal.grok.configTomlHint')
-  }]
 }
 
 function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
@@ -614,24 +646,7 @@ function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
 
   // config.toml content with WebSocket v2
-  const configContent = `model_provider = "OpenAI"
-model = "gpt-5.5"
-review_model = "gpt-5.5"
-model_reasoning_effort = "xhigh"
-disable_response_storage = true
-network_access = "enabled"
-windows_wsl_setup_acknowledged = true
-
-[model_providers.OpenAI]
-name = "OpenAI"
-base_url = "${baseUrl}"
-wire_api = "responses"
-supports_websockets = true
-requires_openai_auth = true
-
-[features]
-responses_websockets_v2 = true
-goals = true`
+  const configContent = generateCodexConfigContent(baseUrl, { supportsWebsockets: true })
 
   // auth.json content
   const authContent = `{
@@ -649,6 +664,43 @@ goals = true`
       content: authContent
     }
   ]
+}
+
+function generateCodexConfigContent(
+  baseUrl: string,
+  options: { supportsWebsockets?: boolean } = {}
+): string {
+  const providerConfig = generateCodexProviderConfig(baseUrl, options)
+  const featureConfig = options.supportsWebsockets
+    ? `
+[features]
+responses_websockets_v2 = true`
+    : ''
+
+  return `model_provider = "OpenAI"
+model = "gpt-5.5"
+review_model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
+disable_response_storage = true
+network_access = "enabled"
+windows_wsl_setup_acknowledged = true
+model_context_window = 1000000
+model_auto_compact_token_limit = 900000
+
+[model_providers.OpenAI]
+${providerConfig}${featureConfig}`
+}
+
+function generateCodexProviderConfig(
+  baseUrl: string,
+  options: { supportsWebsockets?: boolean } = {}
+): string {
+  const websocketConfig = options.supportsWebsockets ? '\nsupports_websockets = true' : ''
+
+  return `name = "OpenAI"
+base_url = "${baseUrl}"
+wire_api = "responses"${websocketConfig}
+requires_openai_auth = true`
 }
 
 function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: string, pathLabel?: string): FileConfig {
@@ -665,6 +717,22 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
       name: 'GPT-5.2',
       limit: {
         context: 400000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {}
+      }
+    },
+    'gpt-5.5': {
+      name: 'GPT-5.5',
+      limit: {
+        context: 1050000,
         output: 128000
       },
       options: {
@@ -745,22 +813,6 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         max: {}
       }
     },
-    'gpt-5.5': {
-      name: 'GPT-5.5',
-      limit: {
-        context: 1050000,
-        output: 128000
-      },
-      options: {
-        store: false
-      },
-      variants: {
-        low: {},
-        medium: {},
-        high: {},
-        xhigh: {}
-      }
-    },
     'gpt-5.4': {
       name: 'GPT-5.4',
       limit: {
@@ -798,6 +850,22 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
       limit: {
         context: 128000,
         output: 32000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {}
+      }
+    },
+    'gpt-5.3-codex': {
+      name: 'GPT-5.3 Codex',
+      limit: {
+        context: 400000,
+        output: 128000
       },
       options: {
         store: false
@@ -863,17 +931,6 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
           budgetTokens: 24576,
           type: 'enabled'
         }
-      }
-    },
-    'gemini-3.5-flash': {
-      name: 'Gemini 3.5 Flash',
-      limit: {
-        context: 1048576,
-        output: 65536
-      },
-      modalities: {
-        input: ['text', 'image', 'pdf'],
-        output: ['text']
       }
     },
     'gemini-3-flash-preview': {
@@ -1026,58 +1083,8 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         }
       }
     },
-    'gemini-2.5-flash-image': {
-      name: 'Gemini 2.5 Flash Image',
-      limit: {
-        context: 1048576,
-        output: 65536
-      },
-      modalities: {
-        input: ['text', 'image'],
-        output: ['image']
-      },
-      options: {
-        thinking: {
-          budgetTokens: 24576,
-          type: 'enabled'
-        }
-      }
-    },
-    'gemini-3.1-flash-image': {
-      name: 'Gemini 3.1 Flash Image',
-      limit: {
-        context: 1048576,
-        output: 65536
-      },
-      modalities: {
-        input: ['text', 'image'],
-        output: ['image']
-      },
-      options: {
-        thinking: {
-          budgetTokens: 24576,
-          type: 'enabled'
-        }
-      }
-    }
   }
   const claudeModels = {
-    'claude-fable-5': {
-      name: 'Claude Fable 5',
-      limit: {
-        context: 1048576,
-        output: 128000
-      },
-      modalities: {
-        input: ['text', 'image', 'pdf'],
-        output: ['text']
-      },
-      options: {
-        thinking: {
-          type: 'adaptive'
-        }
-      }
-    },
     'claude-opus-4-6-thinking': {
       name: 'Claude 4.6 Opus (Thinking)',
       limit: {
@@ -1113,24 +1120,6 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
       }
     }
   }
-  const grokModels = {
-    'grok-4.5': {
-      name: 'Grok 4.5',
-      limit: { context: 1000000, output: 128000 }
-    },
-    'grok-4.3': {
-      name: 'Grok 4.3',
-      limit: { context: 1000000, output: 128000 }
-    },
-    'grok-build-0.1': {
-      name: 'Grok Build 0.1',
-      limit: { context: 256000, output: 128000 }
-    },
-    'grok-composer-2.5-fast': {
-      name: 'Grok Composer 2.5 Fast',
-      limit: { context: 500000, output: 128000 }
-    }
-  }
 
   if (platform === 'gemini') {
     provider[platform].npm = '@ai-sdk/google'
@@ -1147,10 +1136,6 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     provider[platform].models = antigravityGeminiModels
   } else if (platform === 'openai') {
     provider[platform].models = openaiModels
-  } else if (platform === 'grok') {
-    provider[platform].npm = '@ai-sdk/openai'
-    provider[platform].name = 'Grok via Sub2API'
-    provider[platform].models = grokModels
   }
 
   const agent =

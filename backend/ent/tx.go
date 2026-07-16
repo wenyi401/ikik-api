@@ -16,6 +16,8 @@ type Tx struct {
 	config
 	// APIKey is the client for interacting with the APIKey builders.
 	APIKey *APIKeyClient
+	// APIKeyGroupRoute is the client for interacting with the APIKeyGroupRoute builders.
+	APIKeyGroupRoute *APIKeyGroupRouteClient
 	// Account is the client for interacting with the Account builders.
 	Account *AccountClient
 	// AccountGroup is the client for interacting with the AccountGroup builders.
@@ -28,12 +30,6 @@ type Tx struct {
 	AuthIdentity *AuthIdentityClient
 	// AuthIdentityChannel is the client for interacting with the AuthIdentityChannel builders.
 	AuthIdentityChannel *AuthIdentityChannelClient
-	// BatchImageEvent is the client for interacting with the BatchImageEvent builders.
-	BatchImageEvent *BatchImageEventClient
-	// BatchImageItem is the client for interacting with the BatchImageItem builders.
-	BatchImageItem *BatchImageItemClient
-	// BatchImageJob is the client for interacting with the BatchImageJob builders.
-	BatchImageJob *BatchImageJobClient
 	// ChannelMonitor is the client for interacting with the ChannelMonitor builders.
 	ChannelMonitor *ChannelMonitorClient
 	// ChannelMonitorDailyRollup is the client for interacting with the ChannelMonitorDailyRollup builders.
@@ -42,6 +38,8 @@ type Tx struct {
 	ChannelMonitorHistory *ChannelMonitorHistoryClient
 	// ChannelMonitorRequestTemplate is the client for interacting with the ChannelMonitorRequestTemplate builders.
 	ChannelMonitorRequestTemplate *ChannelMonitorRequestTemplateClient
+	// EmailBroadcast is the client for interacting with the EmailBroadcast builders.
+	EmailBroadcast *EmailBroadcastClient
 	// ErrorPassthroughRule is the client for interacting with the ErrorPassthroughRule builders.
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
 	// Group is the client for interacting with the Group builders.
@@ -70,6 +68,18 @@ type Tx struct {
 	SecuritySecret *SecuritySecretClient
 	// Setting is the client for interacting with the Setting builders.
 	Setting *SettingClient
+	// ShopBalanceLedger is the client for interacting with the ShopBalanceLedger builders.
+	ShopBalanceLedger *ShopBalanceLedgerClient
+	// ShopCardKey is the client for interacting with the ShopCardKey builders.
+	ShopCardKey *ShopCardKeyClient
+	// ShopCategory is the client for interacting with the ShopCategory builders.
+	ShopCategory *ShopCategoryClient
+	// ShopDrawCycle is the client for interacting with the ShopDrawCycle builders.
+	ShopDrawCycle *ShopDrawCycleClient
+	// ShopOrder is the client for interacting with the ShopOrder builders.
+	ShopOrder *ShopOrderClient
+	// ShopProduct is the client for interacting with the ShopProduct builders.
+	ShopProduct *ShopProductClient
 	// SubscriptionPlan is the client for interacting with the SubscriptionPlan builders.
 	SubscriptionPlan *SubscriptionPlanClient
 	// TLSFingerprintProfile is the client for interacting with the TLSFingerprintProfile builders.
@@ -86,8 +96,6 @@ type Tx struct {
 	UserAttributeDefinition *UserAttributeDefinitionClient
 	// UserAttributeValue is the client for interacting with the UserAttributeValue builders.
 	UserAttributeValue *UserAttributeValueClient
-	// UserPlatformQuota is the client for interacting with the UserPlatformQuota builders.
-	UserPlatformQuota *UserPlatformQuotaClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
 
@@ -222,19 +230,18 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.APIKey = NewAPIKeyClient(tx.config)
+	tx.APIKeyGroupRoute = NewAPIKeyGroupRouteClient(tx.config)
 	tx.Account = NewAccountClient(tx.config)
 	tx.AccountGroup = NewAccountGroupClient(tx.config)
 	tx.Announcement = NewAnnouncementClient(tx.config)
 	tx.AnnouncementRead = NewAnnouncementReadClient(tx.config)
 	tx.AuthIdentity = NewAuthIdentityClient(tx.config)
 	tx.AuthIdentityChannel = NewAuthIdentityChannelClient(tx.config)
-	tx.BatchImageEvent = NewBatchImageEventClient(tx.config)
-	tx.BatchImageItem = NewBatchImageItemClient(tx.config)
-	tx.BatchImageJob = NewBatchImageJobClient(tx.config)
 	tx.ChannelMonitor = NewChannelMonitorClient(tx.config)
 	tx.ChannelMonitorDailyRollup = NewChannelMonitorDailyRollupClient(tx.config)
 	tx.ChannelMonitorHistory = NewChannelMonitorHistoryClient(tx.config)
 	tx.ChannelMonitorRequestTemplate = NewChannelMonitorRequestTemplateClient(tx.config)
+	tx.EmailBroadcast = NewEmailBroadcastClient(tx.config)
 	tx.ErrorPassthroughRule = NewErrorPassthroughRuleClient(tx.config)
 	tx.Group = NewGroupClient(tx.config)
 	tx.IdempotencyRecord = NewIdempotencyRecordClient(tx.config)
@@ -249,6 +256,12 @@ func (tx *Tx) init() {
 	tx.RedeemCode = NewRedeemCodeClient(tx.config)
 	tx.SecuritySecret = NewSecuritySecretClient(tx.config)
 	tx.Setting = NewSettingClient(tx.config)
+	tx.ShopBalanceLedger = NewShopBalanceLedgerClient(tx.config)
+	tx.ShopCardKey = NewShopCardKeyClient(tx.config)
+	tx.ShopCategory = NewShopCategoryClient(tx.config)
+	tx.ShopDrawCycle = NewShopDrawCycleClient(tx.config)
+	tx.ShopOrder = NewShopOrderClient(tx.config)
+	tx.ShopProduct = NewShopProductClient(tx.config)
 	tx.SubscriptionPlan = NewSubscriptionPlanClient(tx.config)
 	tx.TLSFingerprintProfile = NewTLSFingerprintProfileClient(tx.config)
 	tx.UsageCleanupTask = NewUsageCleanupTaskClient(tx.config)
@@ -257,7 +270,6 @@ func (tx *Tx) init() {
 	tx.UserAllowedGroup = NewUserAllowedGroupClient(tx.config)
 	tx.UserAttributeDefinition = NewUserAttributeDefinitionClient(tx.config)
 	tx.UserAttributeValue = NewUserAttributeValueClient(tx.config)
-	tx.UserPlatformQuota = NewUserPlatformQuotaClient(tx.config)
 	tx.UserSubscription = NewUserSubscriptionClient(tx.config)
 }
 

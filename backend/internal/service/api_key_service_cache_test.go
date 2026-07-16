@@ -53,10 +53,6 @@ func (s *authRepoStub) Delete(ctx context.Context, id int64) error {
 	panic("unexpected Delete call")
 }
 
-func (s *authRepoStub) DeleteWithAudit(ctx context.Context, id int64) error {
-	panic("unexpected DeleteWithAudit call")
-}
-
 func (s *authRepoStub) ListByUserID(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {
 	panic("unexpected ListByUserID call")
 }
@@ -209,6 +205,7 @@ func TestAPIKeyService_GetByKey_UsesL2Cache(t *testing.T) {
 				Name:                "g",
 				Platform:            PlatformAnthropic,
 				Status:              StatusActive,
+				Scope:               GroupScopeUserPrivate,
 				SubscriptionType:    SubscriptionTypeStandard,
 				RateMultiplier:      1,
 				ModelRoutingEnabled: true,
@@ -227,6 +224,8 @@ func TestAPIKeyService_GetByKey_UsesL2Cache(t *testing.T) {
 	require.Equal(t, int64(1), apiKey.ID)
 	require.Equal(t, int64(2), apiKey.User.ID)
 	require.Equal(t, groupID, apiKey.Group.ID)
+	require.Equal(t, GroupScopeUserPrivate, apiKey.Group.Scope)
+	require.True(t, apiKey.Group.IsUserPrivateScope())
 	require.True(t, apiKey.Group.ModelRoutingEnabled)
 	require.Equal(t, map[string][]int64{"claude-opus-*": {1, 2}}, apiKey.Group.ModelRouting)
 }
@@ -234,25 +233,29 @@ func TestAPIKeyService_GetByKey_UsesL2Cache(t *testing.T) {
 func TestAPIKeyService_SnapshotRoundTrip_PreservesMessagesDispatchModelConfig(t *testing.T) {
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
 	groupID := int64(9)
+	ownerUserID := int64(2)
 	apiKey := &APIKey{
 		ID:      1,
 		UserID:  2,
 		GroupID: &groupID,
 		Key:     "k-roundtrip",
-		Name:    "Audit Key",
 		Status:  StatusActive,
 		User: &User{
-			ID:          2,
-			Status:      StatusActive,
-			Role:        RoleUser,
-			Balance:     10,
-			Concurrency: 3,
+			ID:            2,
+			Status:        StatusActive,
+			Role:          RoleUser,
+			Balance:       10,
+			Concurrency:   3,
+			AllowedGroups: []int64{groupID},
 		},
 		Group: &Group{
 			ID:                    groupID,
 			Name:                  "openai",
 			Platform:              PlatformOpenAI,
 			Status:                StatusActive,
+			IsExclusive:           true,
+			OwnerUserID:           &ownerUserID,
+			Scope:                 GroupScopeUserPrivate,
 			SubscriptionType:      SubscriptionTypeStandard,
 			RateMultiplier:        1,
 			AllowMessagesDispatch: true,
@@ -266,15 +269,38 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesMessagesDispatchModelConfig(t 
 				},
 			},
 		},
+		GroupRoutes: []APIKeyGroupRoute{
+			{
+				GroupID: groupID,
+				Enabled: true,
+				Group: &Group{
+					ID:          groupID,
+					Name:        "private-openai",
+					Platform:    PlatformOpenAI,
+					Status:      StatusActive,
+					Hydrated:    true,
+					OwnerUserID: &ownerUserID,
+					Scope:       GroupScopeUserPrivate,
+				},
+			},
+		},
 	}
 
 	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
 	roundTrip := svc.snapshotToAPIKey(apiKey.Key, snapshot)
 
 	require.NotNil(t, roundTrip)
-	require.Equal(t, apiKey.Name, roundTrip.Name)
 	require.NotNil(t, roundTrip.Group)
 	require.Equal(t, apiKey.Group.MessagesDispatchModelConfig, roundTrip.Group.MessagesDispatchModelConfig)
+	require.Equal(t, apiKey.Group.Scope, roundTrip.Group.Scope)
+	require.Equal(t, apiKey.User.AllowedGroups, roundTrip.User.AllowedGroups)
+	require.True(t, roundTrip.Group.IsExclusive)
+	require.NotNil(t, roundTrip.Group.OwnerUserID)
+	require.Equal(t, *apiKey.Group.OwnerUserID, *roundTrip.Group.OwnerUserID)
+	require.Len(t, roundTrip.GroupRoutes, 1)
+	require.NotNil(t, roundTrip.GroupRoutes[0].Group)
+	require.NotNil(t, roundTrip.GroupRoutes[0].Group.OwnerUserID)
+	require.Equal(t, ownerUserID, *roundTrip.GroupRoutes[0].Group.OwnerUserID)
 }
 
 func TestAPIKeyService_GetByKey_IgnoresLegacyAuthCacheSnapshotWithoutMessagesDispatchConfig(t *testing.T) {

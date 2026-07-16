@@ -7,12 +7,14 @@ const {
   listAccounts,
   listWithEtag,
   getBatchTodayStats,
+  listProxies,
   getAllProxies,
   getAllGroups
 } = vi.hoisted(() => ({
   listAccounts: vi.fn(),
   listWithEtag: vi.fn(),
   getBatchTodayStats: vi.fn(),
+  listProxies: vi.fn(),
   getAllProxies: vi.fn(),
   getAllGroups: vi.fn()
 }))
@@ -29,6 +31,7 @@ vi.mock('@/api/admin', () => ({
       toggleSchedulable: vi.fn()
     },
     proxies: {
+      list: listProxies,
       getAll: getAllProxies
     },
     groups: {
@@ -61,7 +64,6 @@ vi.mock('vue-i18n', async () => {
   }
 })
 
-// Render the per-column header slots so we can assert the usage-window header hint.
 const DataTableStub = {
   props: ['columns', 'data'],
   template: `
@@ -75,7 +77,6 @@ const DataTableStub = {
   `
 }
 
-// Expose the content passed to HelpTooltip without dealing with its <Teleport>.
 const HelpTooltipStub = {
   props: ['content', 'widthClass'],
   template: '<span data-test="usage-windows-hint">{{ content }}</span>'
@@ -128,6 +129,7 @@ describe('admin AccountsView usage windows hint', () => {
     listAccounts.mockReset()
     listWithEtag.mockReset()
     getBatchTodayStats.mockReset()
+    listProxies.mockReset()
     getAllProxies.mockReset()
     getAllGroups.mockReset()
 
@@ -144,6 +146,7 @@ describe('admin AccountsView usage windows hint', () => {
       data: null
     })
     getBatchTodayStats.mockResolvedValue({ stats: {} })
+    listProxies.mockResolvedValue({ items: [], total: 0 })
     getAllProxies.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
   })
@@ -154,7 +157,6 @@ describe('admin AccountsView usage windows hint', () => {
 
     const header = wrapper.find('[data-test="usage-header"]')
     expect(header.exists()).toBe(true)
-    // Column label is still shown alongside the help icon.
     expect(header.text()).toContain('admin.accounts.columns.usageWindows')
 
     const hint = wrapper.find('[data-test="usage-windows-hint"]')

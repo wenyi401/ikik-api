@@ -9,7 +9,7 @@
               <Icon
                 name="search"
                 size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--app-muted)]"
               />
               <input
                 v-model="searchQuery"
@@ -30,16 +30,15 @@
           </div>
 
           <!-- Right: Actions -->
-          <div class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
-            <button
+          <div class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-1 lg:w-auto">
+            <UiIconButton
+              :label="t('common.refresh', 'Refresh')"
               @click="loadChannels"
               :disabled="loading"
-              class="btn btn-secondary"
-              :title="t('common.refresh', 'Refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
-            <button @click="openCreateDialog" class="btn btn-primary">
+            </UiIconButton>
+            <button @click="openCreateDialog" class="btn btn-primary ml-1">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.channels.createChannel', 'Create Channel') }}
             </button>
@@ -58,11 +57,11 @@
           @sort="handleSort"
         >
           <template #cell-name="{ value }">
-            <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+            <span class="font-medium text-[var(--app-text)]">{{ value }}</span>
           </template>
 
           <template #cell-description="{ value }">
-            <span class="text-sm text-gray-600 dark:text-gray-400">{{ value || '-' }}</span>
+            <span class="text-sm text-[var(--app-muted-strong)]">{{ value || '-' }}</span>
           </template>
 
           <template #cell-status="{ row }">
@@ -74,7 +73,7 @@
 
           <template #cell-group_count="{ row }">
             <span
-              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+	              class="inline-flex items-center rounded-full bg-[var(--app-surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--app-muted-strong)]"
             >
               {{ (row.group_ids || []).length }}
               {{ t('admin.channels.groupsUnit', 'groups') }}
@@ -83,7 +82,7 @@
 
           <template #cell-pricing_count="{ row }">
             <span
-              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+	              class="inline-flex items-center rounded-full bg-[var(--app-surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--app-muted-strong)]"
             >
               {{ (row.model_pricing || []).length }}
               {{ t('admin.channels.pricingUnit', 'pricing rules') }}
@@ -91,7 +90,7 @@
           </template>
 
           <template #cell-created_at="{ value }">
-            <span class="text-sm text-gray-600 dark:text-gray-400">
+	            <span class="text-sm text-[var(--app-muted-strong)]">
               {{ formatDate(value) }}
             </span>
           </template>
@@ -100,14 +99,14 @@
             <div class="flex items-center gap-1">
               <button
                 @click="openEditDialog(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+	                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-[var(--app-muted)] transition-colors hover:bg-[var(--app-surface-muted)] hover:text-[var(--app-primary-hover)]"
               >
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t('common.edit', 'Edit') }}</span>
               </button>
               <button
                 @click="handleDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+	                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-[var(--app-muted)] transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 dark:hover:text-red-300"
               >
                 <Icon name="trash" size="sm" />
                 <span class="text-xs">{{ t('common.delete', 'Delete') }}</span>
@@ -119,8 +118,6 @@
             <EmptyState
               :title="t('admin.channels.noChannelsYet', 'No Channels Yet')"
               :description="t('admin.channels.createFirstChannel', 'Create your first channel to manage model pricing')"
-              :action-text="t('admin.channels.createChannel', 'Create Channel')"
-              @action="openCreateDialog"
             />
           </template>
         </DataTable>
@@ -147,7 +144,7 @@
     >
       <div class="channel-dialog-body">
         <!-- Tab Bar -->
-        <div class="flex items-center border-b border-gray-200 dark:border-dark-700 flex-shrink-0 -mx-4 sm:-mx-6 px-4 sm:px-6 -mt-3 sm:-mt-4">
+	        <div class="-mx-4 -mt-3 flex flex-shrink-0 items-center border-b border-[var(--app-border)] px-4 sm:-mx-6 sm:-mt-4 sm:px-6">
           <!-- Basic Settings Tab -->
           <button
             type="button"
@@ -155,7 +152,7 @@
             class="channel-tab"
             :class="activeTab === 'basic' ? 'channel-tab-active' : 'channel-tab-inactive'"
           >
-            {{ t('admin.channels.form.basicSettings') }}
+            {{ t('admin.channels.form.basicSettings', '基础设置') }}
           </button>
           <!-- Platform Tabs (only enabled) -->
           <button
@@ -214,7 +211,7 @@
                 />
                 <span class="input-label mb-0">{{ t('admin.channels.form.restrictModels', 'Restrict Models') }}</span>
               </label>
-              <p class="mt-1 ml-6 text-xs text-gray-400">
+	              <p class="ml-6 mt-1 text-xs text-[var(--app-muted)]">
                 {{ t('admin.channels.form.restrictModelsHint', 'When enabled, only models in the pricing list are allowed. Others will be rejected.') }}
               </p>
             </div>
@@ -223,22 +220,22 @@
             <div>
               <label class="input-label">{{ t('admin.channels.form.billingModelSource', 'Billing Basis') }}</label>
               <Select v-model="form.billing_model_source" :options="billingModelSourceOptions" />
-              <p class="mt-1 text-xs text-gray-400">
+	              <p class="mt-1 text-xs text-[var(--app-muted)]">
                 {{ t('admin.channels.form.billingModelSourceHint', 'Controls which model name is used for pricing lookup') }}
               </p>
             </div>
 
             <!-- Platform Management -->
             <div class="space-y-3">
-              <label class="input-label mb-0">{{ t('admin.channels.form.platformConfig') }}</label>
+              <label class="input-label mb-0">{{ t('admin.channels.form.platformConfig', '平台配置') }}</label>
               <div class="flex flex-wrap gap-2">
                 <label
                   v-for="p in platformOrder"
                   :key="p"
                   class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors"
                   :class="activePlatforms.includes(p)
-                    ? 'bg-primary-50 border-primary-300 dark:bg-primary-900/20 dark:border-primary-700'
-                    : 'border-gray-200 hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700'"
+	                    ? 'border-[var(--app-primary)] bg-[var(--app-primary-soft)]'
+	                    : 'border-[var(--app-border)] hover:bg-[var(--app-surface-muted)]'"
                 >
                   <input
                     type="checkbox"
@@ -253,13 +250,13 @@
             </div>
 
             <!-- Apply Pricing to Account Stats (toggle only in basic settings) -->
-            <div class="border-t border-gray-200 pt-4 dark:border-dark-700">
+            <div class="border-t border-[var(--app-border)] pt-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+	                  <label class="text-sm font-medium text-[var(--app-text)]">
                     {{ t('admin.channels.form.applyPricingToAccountStats') }}
                   </label>
-                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+	                  <p class="mt-0.5 text-xs text-[var(--app-muted)]">
                     {{ t('admin.channels.form.applyPricingToAccountStatsDesc') }}
                   </p>
                 </div>
@@ -282,24 +279,24 @@
             <div>
               <label class="input-label text-xs">
                 {{ t('admin.channels.form.groups', 'Associated Groups') }} <span class="text-red-500">*</span>
-                <span v-if="section.group_ids.length > 0" class="ml-1 font-normal text-gray-400">
-                  ({{ t('admin.channels.form.selectedCount', { count: section.group_ids.length }) }})
+	                <span v-if="section.group_ids.length > 0" class="ml-1 font-normal text-[var(--app-muted)]">
+                  ({{ t('admin.channels.form.selectedCount', { count: section.group_ids.length }, `已选 ${section.group_ids.length} 个`) }})
                 </span>
               </label>
-              <div class="max-h-40 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-dark-600 dark:bg-dark-900">
-                <div v-if="groupsLoading" class="py-2 text-center text-xs text-gray-500">
+	              <div class="max-h-40 overflow-auto rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-2">
+	                <div v-if="groupsLoading" class="py-2 text-center text-xs text-[var(--app-muted)]">
                   {{ t('common.loading', 'Loading...') }}
                 </div>
-                <div v-else-if="getGroupsForPlatform(section.platform).length === 0" class="py-2 text-center text-xs text-gray-500">
+	                <div v-else-if="getGroupsForPlatform(section.platform).length === 0" class="py-2 text-center text-xs text-[var(--app-muted)]">
                   {{ t('admin.channels.form.noGroupsAvailable', 'No groups available') }}
                 </div>
                 <div v-else class="flex flex-wrap gap-1">
                   <label
                     v-for="group in getGroupsForPlatform(section.platform)"
                     :key="group.id"
-                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1 text-xs transition-colors hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700"
+	                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--app-border)] px-2 py-1 text-xs transition-colors hover:bg-[var(--app-surface-muted)]"
                     :class="[
-                      section.group_ids.includes(group.id) ? 'bg-primary-50 border-primary-300 dark:bg-primary-900/20 dark:border-primary-700' : '',
+	                      section.group_ids.includes(group.id) ? 'border-[var(--app-primary)] bg-[var(--app-primary-soft)]' : '',
                       isGroupInOtherChannel(group.id, section.platform) ? 'opacity-40' : ''
                     ]"
                   >
@@ -314,10 +311,10 @@
                     <span
                       :class="['rounded-full px-1 py-0 text-[10px]', platformBadgeLightClass(group.platform)]"
                     >{{ group.rate_multiplier }}x</span>
-                    <span class="text-[10px] text-gray-400">{{ group.account_count || 0 }}</span>
+	                    <span class="text-[10px] text-[var(--app-muted)]">{{ group.account_count || 0 }}</span>
                     <span
                       v-if="isGroupInOtherChannel(group.id, section.platform)"
-                      class="text-[10px] text-gray-400"
+	                      class="text-[10px] text-[var(--app-muted)]"
                     >{{ getGroupInOtherChannelLabel(group.id) }}</span>
                   </label>
                 </div>
@@ -325,10 +322,10 @@
             </div>
 
             <!-- Web Search Emulation (Anthropic only, hidden when global disabled) -->
-            <div v-if="section.platform === 'anthropic' && webSearchGlobalEnabled" class="border-t border-gray-200 pt-3 dark:border-dark-600">
+            <div v-if="section.platform === 'anthropic' && webSearchGlobalEnabled" class="border-t border-[var(--app-border)] pt-3">
               <div class="flex items-center justify-between">
                 <div>
-                  <label class="text-xs font-medium text-gray-700 dark:text-gray-300">
+	                  <label class="text-xs font-medium text-[var(--app-text)]">
                     {{ t('admin.channels.form.webSearchEmulation') }}
                   </label>
                   <p class="mt-0.5 text-[11px] text-red-500 dark:text-red-400">
@@ -336,36 +333,6 @@
                   </p>
                 </div>
                 <Toggle v-model="section.web_search_emulation" />
-              </div>
-            </div>
-
-            <!-- Codex Image Generation Bridge (OpenAI only) -->
-            <div v-if="section.platform === 'openai'" class="border-t border-gray-200 pt-3 dark:border-dark-600">
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <label class="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.channels.form.codexImageGenerationBridge') }}
-                  </label>
-                  <p class="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
-                    {{ t('admin.channels.form.codexImageGenerationBridgeHint') }}
-                  </p>
-                </div>
-                <Toggle v-model="section.codex_image_generation_bridge" />
-              </div>
-            </div>
-
-            <!-- Bedrock CC Compatibility (Anthropic only) -->
-            <div v-if="section.platform === 'anthropic'" class="border-t border-gray-200 pt-3 dark:border-dark-600">
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <label class="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.channels.form.bedrockCCCompat') }}
-                  </label>
-                  <p class="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
-                    {{ t('admin.channels.form.bedrockCCCompatHint') }}
-                  </p>
-                </div>
-                <Toggle v-model="section.bedrock_cc_compat" />
               </div>
             </div>
 
@@ -379,7 +346,7 @@
               </div>
               <div
                 v-if="Object.keys(section.model_mapping).length === 0"
-                class="rounded border border-dashed border-gray-300 p-2 text-center text-xs text-gray-400 dark:border-dark-500"
+	                class="rounded-xl border border-dashed border-[var(--app-border-strong)] p-2 text-center text-xs text-[var(--app-muted)]"
               >
                 {{ t('admin.channels.form.noMappingRules', 'No mapping rules. Click "Add" to create one.') }}
               </div>
@@ -397,7 +364,7 @@
                     :placeholder="t('admin.channels.form.mappingSource', 'Source model')"
                     @change="renameMappingKey(sIdx, srcModel, ($event.target as HTMLInputElement).value)"
                   />
-                  <span class="text-gray-400 text-xs">→</span>
+	                  <span class="text-xs text-[var(--app-muted)]">→</span>
                   <input
                     :value="section.model_mapping[srcModel]"
                     type="text"
@@ -421,19 +388,9 @@
             <div>
               <div class="mb-1 flex items-center justify-between">
                 <label class="input-label text-xs mb-0">{{ t('admin.channels.form.modelPricing', 'Model Pricing') }}</label>
-                <div class="flex items-center gap-2">
-                  <button
-                    type="button"
-                    @click="syncLatestModels(sIdx)"
-                    :disabled="syncingPlatform === section.platform"
-                    class="text-xs text-gray-500 hover:text-primary-600 disabled:opacity-50"
-                  >
-                    {{ syncingPlatform === section.platform ? t('admin.channels.form.syncingModels') : t('admin.channels.form.syncLatestModels') }}
-                  </button>
-                  <button type="button" @click="addPricingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
-                    + {{ t('common.add', 'Add') }}
-                  </button>
-                </div>
+                <button type="button" @click="addPricingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
+                  + {{ t('common.add', 'Add') }}
+                </button>
               </div>
               <div
                 v-if="section.model_pricing.length === 0"
@@ -647,6 +604,7 @@ import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Toggle from '@/components/common/Toggle.vue'
+import { UiIconButton } from '@/ui'
 import PricingEntryCard from '@/components/admin/channel/PricingEntryCard.vue'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useKeyedDebouncedSearch } from '@/composables/useKeyedDebouncedSearch'
@@ -683,8 +641,6 @@ interface PlatformSection {
   model_mapping: Record<string, string>
   model_pricing: PricingFormEntry[]
   web_search_emulation: boolean
-  codex_image_generation_bridge: boolean
-  bedrock_cc_compat: boolean
   account_stats_pricing_rules: FormPricingRule[]
 }
 
@@ -760,7 +716,7 @@ const form = reactive({
 let abortController: AbortController | null = null
 
 // ── Platform config ──
-const platformOrder: GroupPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok']
+const platformOrder: GroupPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kiro']
 
 // ── Helpers ──
 function formatDate(value: string): string {
@@ -780,8 +736,6 @@ function addPlatformSection(platform: GroupPlatform) {
     model_mapping: {},
     model_pricing: [],
     web_search_emulation: false,
-    codex_image_generation_bridge: false,
-    bedrock_cc_compat: false,
     account_stats_pricing_rules: [],
   })
 }
@@ -859,44 +813,6 @@ function addPricingEntry(sectionIdx: number) {
     per_request_price: null,
     intervals: []
   })
-}
-
-const syncingPlatform = ref<string | null>(null)
-
-async function syncLatestModels(sectionIdx: number) {
-  const platform = form.platforms[sectionIdx].platform
-  if (syncingPlatform.value) return
-  syncingPlatform.value = platform
-  try {
-    const result = await adminAPI.channels.syncPricingModels(platform)
-    // Collect all model names already present in this platform's pricing entries
-    const existingModels = new Set<string>()
-    for (const entry of form.platforms[sectionIdx].model_pricing) {
-      for (const m of entry.models) existingModels.add(m)
-    }
-    const newModels = result.models.filter(m => !existingModels.has(m))
-    if (newModels.length === 0) {
-      appStore.showSuccess(t('admin.channels.form.syncModelsAlreadyUpToDate'))
-      return
-    }
-    // Add new models as a single new pricing entry (user fills in prices)
-    form.platforms[sectionIdx].model_pricing.push({
-      models: newModels,
-      billing_mode: 'token',
-      input_price: null,
-      output_price: null,
-      cache_write_price: null,
-      cache_read_price: null,
-      image_output_price: null,
-      per_request_price: null,
-      intervals: []
-    })
-    appStore.showSuccess(t('admin.channels.form.syncModelsSuccess', { count: newModels.length }))
-  } catch (error) {
-    appStore.showError(extractApiErrorMessage(error, t('admin.channels.form.syncModelsError')))
-  } finally {
-    syncingPlatform.value = null
-  }
 }
 
 function updatePricingEntry(sectionIdx: number, idx: number, updated: PricingFormEntry) {
@@ -1129,32 +1045,6 @@ function formToAPI(): { group_ids: number[], model_pricing: ChannelModelPricing[
     delete featuresConfig.web_search_emulation
   }
 
-  const codexImageGenerationBridge: Record<string, boolean> = {}
-  for (const section of form.platforms) {
-    if (!section.enabled) continue
-    if (section.platform === 'openai') {
-      codexImageGenerationBridge[section.platform] = !!section.codex_image_generation_bridge
-    }
-  }
-  if (Object.keys(codexImageGenerationBridge).length > 0) {
-    featuresConfig.codex_image_generation_bridge = codexImageGenerationBridge
-  } else {
-    delete featuresConfig.codex_image_generation_bridge
-  }
-
-  const bedrockCCCompat: Record<string, boolean> = {}
-  for (const section of form.platforms) {
-    if (!section.enabled) continue
-    if (section.platform === 'anthropic') {
-      bedrockCCCompat[section.platform] = !!section.bedrock_cc_compat
-    }
-  }
-  if (Object.keys(bedrockCCCompat).length > 0) {
-    featuresConfig.bedrock_cc_compat = bedrockCCCompat
-  } else {
-    delete featuresConfig.bedrock_cc_compat
-  }
-
   return { group_ids, model_pricing, model_mapping, features_config: featuresConfig }
 }
 
@@ -1203,9 +1093,6 @@ function apiToForm(channel: Channel): PlatformSection[] {
     const fc = channel.features_config
     const wsEmulation = fc?.web_search_emulation as Record<string, boolean> | undefined
     const webSearchEnabled = wsEmulation?.[platform] === true
-    const codexImageGenerationBridge = fc?.codex_image_generation_bridge as Record<string, boolean> | undefined
-    const codexImageGenerationBridgeEnabled = codexImageGenerationBridge?.[platform] === true
-    const bedrockCCCompatEnabled = fc?.bedrock_cc_compat === true
 
     sections.push({
       platform,
@@ -1215,8 +1102,6 @@ function apiToForm(channel: Channel): PlatformSection[] {
       model_mapping: { ...mapping },
       model_pricing: pricing,
       web_search_emulation: webSearchEnabled,
-      codex_image_generation_bridge: codexImageGenerationBridgeEnabled,
-      bedrock_cc_compat: bedrockCCCompatEnabled,
       account_stats_pricing_rules: [],
     })
   }
@@ -1434,14 +1319,14 @@ async function handleSubmit() {
   for (const section of form.platforms.filter(s => s.enabled)) {
     if (section.group_ids.length === 0) {
       const platformLabel = t('admin.groups.platforms.' + section.platform, section.platform)
-      appStore.showError(t('admin.channels.noGroupsSelected', { platform: platformLabel }))
+      appStore.showError(t('admin.channels.noGroupsSelected', { platform: platformLabel }, `${platformLabel} 平台未选择分组，请至少选择一个分组或禁用该平台`))
       activeTab.value = section.platform
       return
     }
     for (const entry of section.model_pricing) {
       if (entry.models.length === 0) {
         const platformLabel = t('admin.groups.platforms.' + section.platform, section.platform)
-        appStore.showError(t('admin.channels.emptyModelsInPricing', { platform: platformLabel }))
+        appStore.showError(t('admin.channels.emptyModelsInPricing', { platform: platformLabel }, `${platformLabel} 平台下有定价条目未添加模型，请添加模型或删除该条目`))
         activeTab.value = section.platform
         return
       }
@@ -1459,7 +1344,8 @@ async function handleSubmit() {
     if (pricingConflict) {
       appStore.showError(
         t('admin.channels.modelConflict',
-          { model1: pricingConflict[0], model2: pricingConflict[1] })
+          { model1: pricingConflict[0], model2: pricingConflict[1] },
+          `模型模式 '${pricingConflict[0]}' 和 '${pricingConflict[1]}' 冲突：匹配范围重叠`)
       )
       activeTab.value = section.platform
       return
@@ -1471,7 +1357,8 @@ async function handleSubmit() {
       if (mappingConflict) {
         appStore.showError(
           t('admin.channels.mappingConflict',
-            { model1: mappingConflict[0], model2: mappingConflict[1] })
+            { model1: mappingConflict[0], model2: mappingConflict[1] },
+            `模型映射源 '${mappingConflict[0]}' 和 '${mappingConflict[1]}' 冲突：匹配范围重叠`)
         )
         activeTab.value = section.platform
         return
@@ -1486,7 +1373,7 @@ async function handleSubmit() {
       if ((entry.billing_mode === 'per_request' || entry.billing_mode === 'image') &&
           (entry.per_request_price == null || entry.per_request_price === '') &&
           (!entry.intervals || entry.intervals.length === 0)) {
-        appStore.showError(t('admin.channels.form.perRequestPriceRequired'))
+        appStore.showError(t('admin.channels.form.perRequestPriceRequired', '按次/图片计费模式必须设置默认价格或至少一个计费层级'))
         return
       }
     }
@@ -1496,7 +1383,7 @@ async function handleSubmit() {
   for (const section of form.platforms.filter(s => s.enabled)) {
     for (const entry of section.model_pricing) {
       if (!entry.intervals || entry.intervals.length === 0) continue
-      const intervalErr = validateIntervals(entry.intervals, entry.billing_mode, t)
+      const intervalErr = validateIntervals(entry.intervals)
       if (intervalErr) {
         const platformLabel = t('admin.groups.platforms.' + section.platform, section.platform)
         const modelLabel = entry.models.join(', ') || t('admin.channels.form.unnamed')
@@ -1621,10 +1508,17 @@ onUnmounted(() => {
 }
 
 .channel-tab-active {
-  @apply border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400;
+  border-color: var(--app-primary);
+  color: var(--app-primary-hover);
 }
 
 .channel-tab-inactive {
-  @apply border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300;
+  border-color: transparent;
+  color: var(--app-muted);
+}
+
+.channel-tab-inactive:hover {
+  border-color: var(--app-border-strong);
+  color: var(--app-text);
 }
 </style>

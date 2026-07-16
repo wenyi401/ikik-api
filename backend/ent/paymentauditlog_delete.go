@@ -4,12 +4,12 @@ package ent
 
 import (
 	"context"
+	"ikik-api/ent/paymentauditlog"
+	"ikik-api/ent/predicate"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/paymentauditlog"
-	"ikik-api/ent/predicate"
 )
 
 // PaymentAuditLogDelete is the builder for deleting a PaymentAuditLog entity.

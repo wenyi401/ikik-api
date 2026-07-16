@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"net/http"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -46,25 +46,46 @@ type userGroupStat struct {
 
 // UsageHandler handles usage-related requests
 type UsageHandler struct {
-	usageService   *service.UsageService
-	apiKeyService  *service.APIKeyService
-	opsService     *service.OpsService
-	settingService *service.SettingService
+	usageService  *service.UsageService
+	apiKeyService *service.APIKeyService
 }
 
 // NewUsageHandler creates a new UsageHandler
-func NewUsageHandler(
-	usageService *service.UsageService,
-	apiKeyService *service.APIKeyService,
-	opsService *service.OpsService,
-	settingService *service.SettingService,
-) *UsageHandler {
+func NewUsageHandler(usageService *service.UsageService, apiKeyService *service.APIKeyService) *UsageHandler {
 	return &UsageHandler{
-		usageService:   usageService,
-		apiKeyService:  apiKeyService,
-		opsService:     opsService,
-		settingService: settingService,
+		usageService:  usageService,
+		apiKeyService: apiKeyService,
 	}
+}
+
+// PublicTodayStats handles public homepage usage counters.
+// GET /api/v1/public/usage/today
+func (h *UsageHandler) PublicTodayStats(c *gin.Context) {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		response.InternalError(c, "Failed to load timezone")
+		return
+	}
+
+	now := time.Now().In(loc)
+	startTime := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+
+	stats, err := h.usageService.GetPublicTodayStats(c.Request.Context(), startTime, now)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"today_requests":         stats.TodayRequests,
+		"today_tokens":           stats.TodayTokens,
+		"success_count":          stats.SuccessCount,
+		"error_count":            stats.ErrorCount,
+		"success_rate":           stats.SuccessRate,
+		"average_duration_ms":    stats.AverageDurationMs,
+		"average_first_token_ms": stats.AverageFirstTokenMs,
+		"timezone":               "Asia/Shanghai",
+	})
 }
 
 func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) (*userUsageFilters, bool) {
@@ -138,7 +159,7 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 	}
 
 	billingMode := strings.TrimSpace(c.Query("billing_mode"))
-	if billingMode != "" && !service.BillingMode(billingMode).IsValidUsageFilter() {
+	if billingMode != "" && !service.BillingMode(billingMode).IsValid() {
 		response.BadRequest(c, "Invalid billing_mode")
 		return nil, false
 	}
@@ -195,17 +216,16 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 
 	return &userUsageFilters{
 		Filters: usagestats.UsageLogFilters{
-			UserID:            subject.UserID,
-			APIKeyID:          apiKeyID,
-			GroupID:           groupID,
-			Model:             strings.TrimSpace(c.Query("model")),
-			ModelFilterSource: usagestats.ModelSourceRequested,
-			RequestType:       requestType,
-			Stream:            stream,
-			BillingType:       billingType,
-			BillingMode:       billingMode,
-			StartTime:         startPtr,
-			EndTime:           endPtr,
+			UserID:      subject.UserID,
+			APIKeyID:    apiKeyID,
+			GroupID:     groupID,
+			Model:       strings.TrimSpace(c.Query("model")),
+			RequestType: requestType,
+			Stream:      stream,
+			BillingType: billingType,
+			BillingMode: billingMode,
+			StartTime:   startPtr,
+			EndTime:     endPtr,
 		},
 		StartTime: derefTime(startPtr),
 		EndTime:   derefTime(endPtr),
@@ -246,120 +266,6 @@ func (h *UsageHandler) List(c *gin.Context) {
 		out = append(out, *dto.UsageLogFromService(&records[i]))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
-}
-
-// ListErrors handles listing the current user's failed requests (redacted).
-// GET /api/v1/usage/errors
-func (h *UsageHandler) ListErrors(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
-	if !ok {
-		response.Unauthorized(c, "User not authenticated")
-		return
-	}
-
-	// Visibility switch (fail-closed). Defense-in-depth: frontend also hides the tab.
-	if h.settingService == nil || !h.settingService.IsUserErrorViewAllowed(c.Request.Context()) {
-		response.Forbidden(c, "Error requests view is disabled")
-		return
-	}
-	if h.opsService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
-		return
-	}
-
-	page, pageSize := response.ParsePagination(c)
-	if pageSize > 100 {
-		pageSize = 100
-	}
-
-	filter := &service.OpsErrorLogFilter{Page: page, PageSize: pageSize}
-
-	// Date range (half-open [start, end)), reuse usage-list semantics.
-	userTZ := c.Query("timezone")
-	if startDateStr := c.Query("start_date"); startDateStr != "" {
-		t, err := timezone.ParseInUserLocation("2006-01-02", startDateStr, userTZ)
-		if err != nil {
-			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
-			return
-		}
-		filter.StartTime = &t
-	}
-	if endDateStr := c.Query("end_date"); endDateStr != "" {
-		t, err := timezone.ParseInUserLocation("2006-01-02", endDateStr, userTZ)
-		if err != nil {
-			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
-			return
-		}
-		t = t.AddDate(0, 0, 1)
-		filter.EndTime = &t
-	}
-
-	filter.Model = strings.TrimSpace(c.Query("model"))
-
-	if k := strings.TrimSpace(c.Query("api_key_id")); k != "" {
-		n, err := strconv.ParseInt(k, 10, 64)
-		if err != nil || n < 0 {
-			response.BadRequest(c, "Invalid api_key_id")
-			return
-		}
-		if n > 0 {
-			filter.APIKeyID = &n
-		}
-	}
-
-	if sc := strings.TrimSpace(c.Query("status_code")); sc != "" {
-		n, err := strconv.Atoi(sc)
-		if err != nil || n < 0 {
-			response.BadRequest(c, "Invalid status_code")
-			return
-		}
-		filter.StatusCodes = []int{n}
-	}
-
-	if cat := strings.TrimSpace(c.Query("category")); cat != "" {
-		phases, types := service.CategoryToFilter(cat)
-		filter.ErrorPhasesAny = phases
-		filter.ErrorTypesAny = types
-	}
-
-	// 排序对齐用量明细:列白名单与方向归一在 repo 层,非法值回退 created_at DESC。
-	filter.SetSort(c.Query("sort_by"), c.Query("sort_order"))
-
-	result, err := h.opsService.ListUserErrorRequests(c.Request.Context(), subject.UserID, filter)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Paginated(c, result.Items, int64(result.Total), result.Page, result.PageSize)
-}
-
-// GetErrorDetail handles fetching one of the current user's failed-request details (redacted).
-// GET /api/v1/usage/errors/:id
-func (h *UsageHandler) GetErrorDetail(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
-	if !ok {
-		response.Unauthorized(c, "User not authenticated")
-		return
-	}
-	if h.settingService == nil || !h.settingService.IsUserErrorViewAllowed(c.Request.Context()) {
-		response.Forbidden(c, "Error requests view is disabled")
-		return
-	}
-	if h.opsService == nil {
-		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
-		return
-	}
-	id, err := strconv.ParseInt(strings.TrimSpace(c.Param("id")), 10, 64)
-	if err != nil || id <= 0 {
-		response.BadRequest(c, "Invalid id")
-		return
-	}
-	detail, err := h.opsService.GetUserErrorRequestDetail(c.Request.Context(), subject.UserID, id)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, detail)
 }
 
 // GetByID handles getting a single usage record
@@ -412,27 +318,30 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 	response.Success(c, stats)
 }
 
-const (
-	defaultAPIKeyDailyUsageDays = 30
-	maxAPIKeyDailyUsageDays     = 90
-)
-
-func parseAPIKeyDailyUsageDays(raw string) (int, bool) {
-	if strings.TrimSpace(raw) == "" {
-		return defaultAPIKeyDailyUsageDays, true
-	}
-	days, err := strconv.Atoi(raw)
-	if err != nil || days <= 0 || days > maxAPIKeyDailyUsageDays {
-		return 0, false
-	}
-	return days, true
-}
-
-func apiKeyDailyUsageRange(days int, userTZ string) (time.Time, time.Time) {
+func parseUserDashboardTimeRangeStrict(c *gin.Context) (time.Time, time.Time, error) {
+	userTZ := c.Query("timezone")
 	now := timezone.NowInUserLocation(userTZ)
-	startTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -(days-1)), userTZ)
+	startTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -7), userTZ)
 	endTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
-	return startTime, endTime
+
+	if startDate := strings.TrimSpace(c.Query("start_date")); startDate != "" {
+		t, err := timezone.ParseInUserLocation("2006-01-02", startDate, userTZ)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid start_date format, use YYYY-MM-DD")
+		}
+		startTime = t
+	}
+	if endDate := strings.TrimSpace(c.Query("end_date")); endDate != "" {
+		t, err := timezone.ParseInUserLocation("2006-01-02", endDate, userTZ)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid end_date format, use YYYY-MM-DD")
+		}
+		endTime = t.AddDate(0, 0, 1)
+	}
+	if !endTime.After(startTime) {
+		return time.Time{}, time.Time{}, fmt.Errorf("end_date must be greater than or equal to start_date")
+	}
+	return startTime, endTime, nil
 }
 
 // DashboardStats handles getting user dashboard statistics
@@ -503,66 +412,6 @@ func (h *UsageHandler) DashboardModels(c *gin.Context) {
 	})
 }
 
-// DashboardSnapshotV2 returns usage-page chart data scoped to the current user.
-// GET /api/v1/usage/dashboard/snapshot-v2
-func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
-	parsed, ok := h.parseUserUsageFilters(c, true)
-	if !ok {
-		return
-	}
-
-	granularity := strings.TrimSpace(c.DefaultQuery("granularity", "day"))
-	if granularity != "hour" {
-		granularity = "day"
-	}
-	includeTrend, ok := parseBoolQueryWithDefault(c, "include_trend", true)
-	if !ok {
-		return
-	}
-	includeModels, ok := parseBoolQueryWithDefault(c, "include_model_stats", true)
-	if !ok {
-		return
-	}
-	includeGroups, ok := parseBoolQueryWithDefault(c, "include_group_stats", false)
-	if !ok {
-		return
-	}
-
-	resp := gin.H{
-		"generated_at": time.Now().UTC().Format(time.RFC3339),
-		"start_date":   parsed.StartTime.Format("2006-01-02"),
-		"end_date":     parsed.EndTime.Add(-24 * time.Hour).Format("2006-01-02"),
-		"granularity":  granularity,
-	}
-
-	if includeTrend {
-		trend, err := h.usageService.GetUsageTrendWithFilters(c.Request.Context(), parsed.StartTime, parsed.EndTime, granularity, parsed.Filters)
-		if err != nil {
-			response.ErrorFrom(c, err)
-			return
-		}
-		resp["trend"] = trend
-	}
-	if includeModels {
-		models, err := h.usageService.GetModelStatsWithFiltersBySource(c.Request.Context(), parsed.StartTime, parsed.EndTime, parsed.Filters, usagestats.ModelSourceRequested)
-		if err != nil {
-			response.ErrorFrom(c, err)
-			return
-		}
-		resp["models"] = userModelStatsFromUsageStats(models)
-	}
-	if includeGroups {
-		groups, err := h.usageService.GetGroupStatsWithFilters(c.Request.Context(), parsed.StartTime, parsed.EndTime, parsed.Filters)
-		if err != nil {
-			response.ErrorFrom(c, err)
-			return
-		}
-		resp["groups"] = userGroupStatsFromUsageStats(groups)
-	}
-
-	response.Success(c, resp)
-}
-
 func userModelStatsFromUsageStats(stats []usagestats.ModelStat) []userModelStat {
 	out := make([]userModelStat, 0, len(stats))
 	for _, stat := range stats {
@@ -594,19 +443,6 @@ func userGroupStatsFromUsageStats(stats []usagestats.GroupStat) []userGroupStat 
 		})
 	}
 	return out
-}
-
-func parseBoolQueryWithDefault(c *gin.Context, key string, fallback bool) (bool, bool) {
-	raw := c.Query(key)
-	if strings.TrimSpace(raw) == "" {
-		return fallback, true
-	}
-	parsed, err := strconv.ParseBool(raw)
-	if err != nil {
-		response.BadRequest(c, "Invalid "+key+" value, use true or false")
-		return false, false
-	}
-	return parsed, true
 }
 
 // BatchAPIKeysUsageRequest represents the request for batch API keys usage
@@ -660,54 +496,60 @@ func (h *UsageHandler) DashboardAPIKeysUsage(c *gin.Context) {
 	response.Success(c, gin.H{"stats": stats})
 }
 
-// GetMyAPIKeyDailyUsage handles getting daily usage details for the current user's API key.
-// GET /api/v1/user/api-keys/:id/usage/daily?days=30
-func (h *UsageHandler) GetMyAPIKeyDailyUsage(c *gin.Context) {
+// DashboardAccountSharing handles owned-account self usage and public-share settlement statistics.
+// GET /api/v1/usage/dashboard/account-sharing
+func (h *UsageHandler) DashboardAccountSharing(c *gin.Context) {
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
 	}
 
-	apiKeyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	startTime, endTime, err := parseUserDashboardTimeRangeStrict(c)
 	if err != nil {
-		response.BadRequest(c, "Invalid API key ID")
+		response.BadRequest(c, err.Error())
+		return
+	}
+	granularity := strings.TrimSpace(c.DefaultQuery("granularity", "day"))
+	switch granularity {
+	case "hour", "day", "week", "month":
+	default:
+		response.BadRequest(c, "Invalid granularity, use hour, day, week, or month")
 		return
 	}
 
-	days, ok := parseAPIKeyDailyUsageDays(c.DefaultQuery("days", ""))
-	if !ok {
-		response.BadRequest(c, "Invalid days, allowed range is 1-90")
-		return
-	}
-
-	if h.apiKeyService == nil {
-		response.InternalError(c, "API key service is not configured")
-		return
-	}
-
-	apiKey, err := h.apiKeyService.GetByID(c.Request.Context(), apiKeyID)
+	accountPage, accountPageSize, err := parseAccountSharingPagination(c)
 	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	if apiKey.UserID != subject.UserID {
-		response.Forbidden(c, "Not authorized to access this API key's usage")
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	userTZ := c.Query("timezone")
-	startTime, endTime := apiKeyDailyUsageRange(days, userTZ)
-	items, err := h.usageService.GetAPIKeyDailyUsage(c.Request.Context(), subject.UserID, apiKeyID, startTime, endTime)
+	stats, err := h.usageService.GetUserAccountSharingDashboard(c.Request.Context(), subject.UserID, startTime, endTime, granularity, accountPage, accountPageSize)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	response.Success(c, gin.H{
-		"items":      items,
-		"days":       days,
-		"start_date": startTime.Format("2006-01-02"),
-		"end_date":   endTime.AddDate(0, 0, -1).Format("2006-01-02"),
-	})
+	response.Success(c, stats)
+}
+
+func parseAccountSharingPagination(c *gin.Context) (page, pageSize int, err error) {
+	page = 1
+	pageSize = 20
+
+	if raw := strings.TrimSpace(c.Query("account_page")); raw != "" {
+		page, err = strconv.Atoi(raw)
+		if err != nil || page < 1 {
+			return 0, 0, fmt.Errorf("invalid account_page")
+		}
+	}
+
+	if raw := strings.TrimSpace(c.Query("account_page_size")); raw != "" {
+		pageSize, err = strconv.Atoi(raw)
+		if err != nil || pageSize < 1 || pageSize > 1000 {
+			return 0, 0, fmt.Errorf("invalid account_page_size, use 1-1000")
+		}
+	}
+
+	return page, pageSize, nil
 }

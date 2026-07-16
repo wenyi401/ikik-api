@@ -4,12 +4,12 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/subscriptionplan"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/subscriptionplan"
 )
 
 // SubscriptionPlan is the model entity for the SubscriptionPlan schema.

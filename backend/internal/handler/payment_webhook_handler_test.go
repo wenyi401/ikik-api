@@ -48,13 +48,6 @@ func TestWriteSuccessResponse(t *testing.T) {
 			wantBody:        "",
 		},
 		{
-			name:            "airwallex returns empty 200",
-			providerKey:     payment.TypeAirwallex,
-			wantCode:        http.StatusOK,
-			wantContentType: "text/plain",
-			wantBody:        "",
-		},
-		{
 			name:            "easypay returns plain text success",
 			providerKey:     "easypay",
 			wantCode:        http.StatusOK,
@@ -172,12 +165,6 @@ func TestExtractOutTradeNo(t *testing.T) {
 			rawBody:     "{}",
 			want:        "",
 		},
-		{
-			name:        "airwallex payment intent payload",
-			providerKey: payment.TypeAirwallex,
-			rawBody:     `{"name":"payment_intent.succeeded","data":{"object":{"merchant_order_id":"sub2_awx_123"}}}`,
-			want:        "sub2_awx_123",
-		},
 	}
 
 	for _, tt := range tests {
@@ -233,7 +220,7 @@ type webhookHandlerProviderStub struct {
 	verifyErr    error
 }
 
-func (p webhookHandlerProviderStub) Name() string        { return p.key }
+func (p webhookHandlerProviderStub) Name() string { return p.key }
 func (p webhookHandlerProviderStub) ProviderKey() string { return p.key }
 func (p webhookHandlerProviderStub) SupportedTypes() []payment.PaymentType {
 	return []payment.PaymentType{payment.PaymentType(p.key)}

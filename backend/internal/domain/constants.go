@@ -23,6 +23,8 @@ const (
 	PlatformGemini      = "gemini"
 	PlatformAntigravity = "antigravity"
 	PlatformGrok        = "grok"
+	PlatformKiro        = "kiro"
+	PlatformCustom      = "custom"
 )
 
 // Account type constants
@@ -35,9 +37,20 @@ const (
 	AccountTypeServiceAccount = "service_account" // Google Service Account 类型账号（用于 Vertex AI）
 )
 
+// Account level constants
+const (
+	AccountLevelUnknown = "unknown"
+	AccountLevelFree    = "free"
+	AccountLevelPlus    = "plus"
+	AccountLevelPro     = "pro"
+	AccountLevelTeam    = "team"
+	AccountLevelK12     = "k12"
+)
+
 // Redeem type constants
 const (
 	RedeemTypeBalance      = "balance"
+	RedeemTypePoints       = "points"
 	RedeemTypeConcurrency  = "concurrency"
 	RedeemTypeSubscription = "subscription"
 	RedeemTypeInvitation   = "invitation"
@@ -52,6 +65,7 @@ const (
 // Admin adjustment type constants
 const (
 	AdjustmentTypeAdminBalance     = "admin_balance"     // 管理员调整余额
+	AdjustmentTypeAdminPoints      = "admin_points"      // 管理员调整积分
 	AdjustmentTypeAdminConcurrency = "admin_concurrency" // 管理员调整并发数
 )
 
@@ -61,10 +75,18 @@ const (
 	SubscriptionTypeSubscription = "subscription" // 订阅模式（按限额控制）
 )
 
+// Group scope constants
+const (
+	GroupScopePublic      = "public"
+	GroupScopeUserPrivate = "user_private"
+	GroupScopeUserCarpool = "user_carpool"
+)
+
 // Subscription status constants
 const (
 	SubscriptionStatusActive    = "active"
 	SubscriptionStatusExpired   = "expired"
+	SubscriptionStatusRevoked   = "revoked"
 	SubscriptionStatusSuspended = "suspended"
 )
 

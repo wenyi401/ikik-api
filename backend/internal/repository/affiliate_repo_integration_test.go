@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 func querySingleFloat(t *testing.T, ctx context.Context, client *dbent.Client, query string, args ...any) float64 {
@@ -34,6 +34,19 @@ func querySingleInt(t *testing.T, ctx context.Context, client *dbent.Client, que
 
 	require.True(t, rows.Next(), "expected one row")
 	var value int
+	require.NoError(t, rows.Scan(&value))
+	require.NoError(t, rows.Err())
+	return value
+}
+
+func querySingleTime(t *testing.T, ctx context.Context, client *dbent.Client, query string, args ...any) time.Time {
+	t.Helper()
+	rows, err := client.QueryContext(ctx, query, args...)
+	require.NoError(t, err)
+	defer func() { _ = rows.Close() }()
+
+	require.True(t, rows.Next(), "expected one row")
+	var value time.Time
 	require.NoError(t, rows.Scan(&value))
 	require.NoError(t, rows.Err())
 	return value
@@ -78,26 +91,6 @@ VALUES ($1, $2, $3, $3, NOW(), NOW())`, u.ID, affCode, 12.34)
 	ledgerCount := querySingleInt(t, txCtx, client,
 		"SELECT COUNT(*) FROM user_affiliate_ledger WHERE user_id = $1 AND action = 'transfer'", u.ID)
 	require.Equal(t, 1, ledgerCount)
-
-	rows, err := client.QueryContext(txCtx, `
-SELECT amount::double precision,
-       balance_after::double precision,
-       aff_quota_after::double precision,
-       aff_frozen_quota_after::double precision,
-       aff_history_quota_after::double precision
-FROM user_affiliate_ledger
-WHERE user_id = $1 AND action = 'transfer'
-LIMIT 1`, u.ID)
-	require.NoError(t, err)
-	defer func() { _ = rows.Close() }()
-	require.True(t, rows.Next(), "expected transfer ledger")
-	var amount, balanceAfter, quotaAfter, frozenAfter, historyAfter float64
-	require.NoError(t, rows.Scan(&amount, &balanceAfter, &quotaAfter, &frozenAfter, &historyAfter))
-	require.InDelta(t, 12.34, amount, 1e-9)
-	require.InDelta(t, 17.84, balanceAfter, 1e-9)
-	require.InDelta(t, 0.0, quotaAfter, 1e-9)
-	require.InDelta(t, 0.0, frozenAfter, 1e-9)
-	require.InDelta(t, 12.34, historyAfter, 1e-9)
 }
 
 // TestAffiliateRepository_AccrueQuota_ReusesOuterTransaction guards the
@@ -416,4 +409,93 @@ func TestAffiliateRepository_ListUsersWithCustomSettings(t *testing.T) {
 	require.InDelta(t, 33.3, *rateEntry.AffRebateRatePercent, 1e-9)
 
 	require.GreaterOrEqual(t, total, int64(2), "total must include at least our 2 custom rows")
+}
+
+func TestAffiliateRepository_AdminExtendInviteRewards_OnlyActiveNonPermanent(t *testing.T) {
+	ctx := context.Background()
+	tx := testEntTx(t)
+	txCtx := dbent.NewTxContext(ctx, tx)
+	client := tx.Client()
+
+	repo := NewAffiliateRepository(client, integrationDB)
+
+	inviter := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("affiliate-extend-inviter-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Role:         service.RoleUser,
+		Status:       service.StatusActive,
+	})
+	activeInvitee := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("affiliate-extend-active-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Role:         service.RoleUser,
+		Status:       service.StatusActive,
+	})
+	expiredInvitee := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("affiliate-extend-expired-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Role:         service.RoleUser,
+		Status:       service.StatusActive,
+	})
+	permanentInvitee := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("affiliate-extend-permanent-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Role:         service.RoleUser,
+		Status:       service.StatusActive,
+	})
+	unboundUser := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("affiliate-extend-unbound-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Role:         service.RoleUser,
+		Status:       service.StatusActive,
+	})
+
+	activeExpiresAt := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Microsecond)
+	expiredExpiresAt := time.Now().Add(-24 * time.Hour).UTC().Truncate(time.Microsecond)
+
+	for _, uid := range []int64{inviter.ID, activeInvitee.ID, expiredInvitee.ID, permanentInvitee.ID, unboundUser.ID} {
+		_, err := repo.EnsureUserAffiliate(txCtx, uid)
+		require.NoError(t, err)
+	}
+
+	_, err := client.ExecContext(txCtx, `
+UPDATE user_affiliates
+SET inviter_id = $1,
+    inviter_bound_at = NOW(),
+    invite_reward_expires_at = CASE user_id
+        WHEN $2 THEN $5::timestamptz
+        WHEN $3 THEN $6::timestamptz
+        WHEN $4 THEN NULL
+        ELSE invite_reward_expires_at
+    END,
+    updated_at = NOW()
+WHERE user_id IN ($2, $3, $4)`,
+		inviter.ID, activeInvitee.ID, expiredInvitee.ID, permanentInvitee.ID, activeExpiresAt, expiredExpiresAt)
+	require.NoError(t, err)
+
+	result, err := repo.AdminExtendInviteRewards(txCtx, service.AffiliateInviteRewardExtensionRequest{
+		Scope:          service.AffiliateInviteRewardExtensionScopeInviter,
+		InviterUserID:  inviter.ID,
+		AllInvitees:    false,
+		InviteeUserIDs: []int64{activeInvitee.ID, expiredInvitee.ID, permanentInvitee.ID, unboundUser.ID},
+		ExtendDays:     7,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.Affected)
+
+	gotActive := querySingleTime(t, txCtx, client,
+		"SELECT invite_reward_expires_at FROM user_affiliates WHERE user_id = $1", activeInvitee.ID)
+	require.WithinDuration(t, activeExpiresAt.AddDate(0, 0, 7), gotActive, time.Second)
+
+	gotExpired := querySingleTime(t, txCtx, client,
+		"SELECT invite_reward_expires_at FROM user_affiliates WHERE user_id = $1", expiredInvitee.ID)
+	require.WithinDuration(t, expiredExpiresAt, gotExpired, time.Second)
+
+	permanentCount := querySingleInt(t, txCtx, client,
+		"SELECT COUNT(*) FROM user_affiliates WHERE user_id = $1 AND invite_reward_expires_at IS NULL", permanentInvitee.ID)
+	require.Equal(t, 1, permanentCount)
+
+	unboundCount := querySingleInt(t, txCtx, client,
+		"SELECT COUNT(*) FROM user_affiliates WHERE user_id = $1 AND invite_reward_expires_at IS NULL", unboundUser.ID)
+	require.Equal(t, 1, unboundCount)
 }

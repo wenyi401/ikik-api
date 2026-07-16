@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strconv"
 	"time"
 
@@ -65,6 +64,24 @@ redis.call('SADD', KEYS[3], ARGV[2])
 if currentActive ~= false and currentActive ~= ARGV[1] then
 	redis.call('EXPIRE', ARGV[3] .. currentActive, tonumber(ARGV[4]))
 end
+
+return 1
+`)
+	clearEmptySnapshotScript = redis.NewScript(`
+local currentActive = redis.call('GET', KEYS[1])
+local newVersion = tonumber(ARGV[1])
+
+if currentActive ~= false then
+	local curVersion = tonumber(currentActive)
+	if curVersion and newVersion < curVersion then
+		return 0
+	end
+	redis.call('EXPIRE', ARGV[3] .. currentActive, tonumber(ARGV[4]))
+end
+
+redis.call('DEL', KEYS[1])
+redis.call('DEL', KEYS[2])
+redis.call('SREM', KEYS[3], ARGV[2])
 
 return 1
 `)
@@ -164,31 +181,32 @@ func (c *schedulerCache) SetSnapshot(ctx context.Context, bucket service.Schedul
 	versionStr := strconv.FormatInt(version, 10)
 	snapshotKey := schedulerSnapshotKey(bucket, versionStr)
 
-	cacheableAccounts, err := c.writeAccounts(ctx, accounts)
-	if err != nil {
+	if err := c.writeAccounts(ctx, accounts); err != nil {
 		return err
 	}
 
-	if len(cacheableAccounts) > 0 {
-		// 使用序号作为 score，保持数据库返回的排序语义。
-		members := make([]redis.Z, 0, len(cacheableAccounts))
-		for idx, account := range cacheableAccounts {
-			members = append(members, redis.Z{
-				Score:  float64(idx),
-				Member: strconv.FormatInt(account.ID, 10),
-			})
+	if len(accounts) == 0 {
+		return c.clearEmptySnapshot(ctx, bucket, versionStr)
+	}
+
+	// 使用序号作为 score，保持数据库返回的排序语义。
+	members := make([]redis.Z, 0, len(accounts))
+	for idx, account := range accounts {
+		members = append(members, redis.Z{
+			Score:  float64(idx),
+			Member: strconv.FormatInt(account.ID, 10),
+		})
+	}
+	pipe := c.rdb.Pipeline()
+	for start := 0; start < len(members); start += c.writeChunkSize {
+		end := start + c.writeChunkSize
+		if end > len(members) {
+			end = len(members)
 		}
-		pipe := c.rdb.Pipeline()
-		for start := 0; start < len(members); start += c.writeChunkSize {
-			end := start + c.writeChunkSize
-			if end > len(members) {
-				end = len(members)
-			}
-			pipe.ZAdd(ctx, snapshotKey, members[start:end]...)
-		}
-		if _, err := pipe.Exec(ctx); err != nil {
-			return err
-		}
+		pipe.ZAdd(ctx, snapshotKey, members[start:end]...)
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		return err
 	}
 
 	// Phase 2: 原子 CAS 激活版本。
@@ -210,6 +228,18 @@ func (c *schedulerCache) SetSnapshot(ctx context.Context, bucket service.Schedul
 	return nil
 }
 
+func (c *schedulerCache) clearEmptySnapshot(ctx context.Context, bucket service.SchedulerBucket, versionStr string) error {
+	activeKey := schedulerBucketKey(schedulerActivePrefix, bucket)
+	readyKey := schedulerBucketKey(schedulerReadyPrefix, bucket)
+	snapshotKeyPrefix := fmt.Sprintf("%s%d:%s:%s:v", schedulerSnapshotPrefix, bucket.GroupID, bucket.Platform, bucket.Mode)
+
+	keys := []string{activeKey, readyKey, schedulerBucketSetKey}
+	args := []any{versionStr, bucket.String(), snapshotKeyPrefix, snapshotGraceTTLSeconds}
+
+	_, err := clearEmptySnapshotScript.Run(ctx, c.rdb, keys, args...).Result()
+	return err
+}
+
 func (c *schedulerCache) GetAccount(ctx context.Context, accountID int64) (*service.Account, error) {
 	key := schedulerAccountKey(strconv.FormatInt(accountID, 10))
 	val, err := c.rdb.Get(ctx, key).Result()
@@ -226,14 +256,7 @@ func (c *schedulerCache) SetAccount(ctx context.Context, account *service.Accoun
 	if account == nil || account.ID <= 0 {
 		return nil
 	}
-	cacheableAccounts, err := c.writeAccounts(ctx, []service.Account{*account})
-	if err != nil {
-		return err
-	}
-	if len(cacheableAccounts) == 0 {
-		return c.DeleteAccount(ctx, account.ID)
-	}
-	return nil
+	return c.writeAccounts(ctx, []service.Account{*account})
 }
 
 func (c *schedulerCache) DeleteAccount(ctx context.Context, accountID int64) error {
@@ -271,14 +294,13 @@ func (c *schedulerCache) UpdateLastUsed(ctx context.Context, updates map[int64]t
 			return err
 		}
 		account.LastUsedAt = ptrTime(updates[ids[i]])
-		updated, metaPayload, err := marshalSchedulerCacheAccount(*account)
+		updated, err := json.Marshal(account)
 		if err != nil {
-			slog.Warn("scheduler cache removes account with unencodable payload",
-				"account_id", ids[i],
-				"error", err,
-			)
-			pipe.Del(ctx, keys[i], schedulerAccountMetaKey(strconv.FormatInt(ids[i], 10)))
-			continue
+			return err
+		}
+		metaPayload, err := json.Marshal(buildSchedulerMetadataAccount(*account))
+		if err != nil {
+			return err
 		}
 		pipe.Set(ctx, keys[i], updated, 0)
 		pipe.Set(ctx, schedulerAccountMetaKey(strconv.FormatInt(ids[i], 10)), metaPayload, 0)
@@ -369,13 +391,12 @@ func decodeCachedAccount(val any) (*service.Account, error) {
 	return &account, nil
 }
 
-func (c *schedulerCache) writeAccounts(ctx context.Context, accounts []service.Account) ([]service.Account, error) {
+func (c *schedulerCache) writeAccounts(ctx context.Context, accounts []service.Account) error {
 	if len(accounts) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	pipe := c.rdb.Pipeline()
-	cacheableAccounts := make([]service.Account, 0, len(accounts))
 	pending := 0
 	flush := func() error {
 		if pending == 0 {
@@ -390,43 +411,27 @@ func (c *schedulerCache) writeAccounts(ctx context.Context, accounts []service.A
 	}
 
 	for _, account := range accounts {
-		fullPayload, metaPayload, err := marshalSchedulerCacheAccount(account)
+		fullPayload, err := json.Marshal(account)
 		if err != nil {
-			slog.Warn("scheduler cache skips account with unencodable payload",
-				"account_id", account.ID,
-				"error", err,
-			)
-			continue
+			return err
+		}
+		metaPayload, err := json.Marshal(buildSchedulerMetadataAccount(account))
+		if err != nil {
+			return err
 		}
 
 		id := strconv.FormatInt(account.ID, 10)
 		pipe.Set(ctx, schedulerAccountKey(id), fullPayload, 0)
 		pipe.Set(ctx, schedulerAccountMetaKey(id), metaPayload, 0)
-		cacheableAccounts = append(cacheableAccounts, account)
 		pending++
 		if pending >= c.writeChunkSize {
 			if err := flush(); err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
 
-	if err := flush(); err != nil {
-		return nil, err
-	}
-	return cacheableAccounts, nil
-}
-
-func marshalSchedulerCacheAccount(account service.Account) ([]byte, []byte, error) {
-	fullPayload, err := json.Marshal(account)
-	if err != nil {
-		return nil, nil, fmt.Errorf("marshal account: %w", err)
-	}
-	metaPayload, err := json.Marshal(buildSchedulerMetadataAccount(account))
-	if err != nil {
-		return nil, nil, fmt.Errorf("marshal account metadata: %w", err)
-	}
-	return fullPayload, metaPayload, nil
+	return flush()
 }
 
 func (c *schedulerCache) mgetChunked(ctx context.Context, keys []string) ([]any, error) {
@@ -476,8 +481,6 @@ func buildSchedulerMetadataAccount(account service.Account) service.Account {
 		SessionWindowStart:      account.SessionWindowStart,
 		SessionWindowEnd:        account.SessionWindowEnd,
 		SessionWindowStatus:     account.SessionWindowStatus,
-		ParentAccountID:         account.ParentAccountID,
-		QuotaDimension:          account.QuotaDimension,
 		AccountGroups:           filterSchedulerAccountGroups(account.AccountGroups),
 		GroupIDs:                filterSchedulerGroupIDs(account.GroupIDs, account.AccountGroups),
 		Credentials:             filterSchedulerCredentials(account.Credentials),
@@ -545,7 +548,7 @@ func filterSchedulerCredentials(credentials map[string]any) map[string]any {
 	if len(credentials) == 0 {
 		return nil
 	}
-	keys := []string{"model_mapping", "compact_model_mapping", "api_key", "project_id", "oauth_type", "plan_type"}
+	keys := []string{"model_mapping", "api_key", "project_id", "oauth_type"}
 	filtered := make(map[string]any)
 	for _, key := range keys {
 		if value, ok := credentials[key]; ok && value != nil {
@@ -575,20 +578,6 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"responses_websockets_v2_enabled",
 		"openai_ws_enabled",
 		"openai_ws_force_http",
-		"openai_responses_mode",
-		"openai_responses_supported",
-		"codex_5h_used_percent",
-		"codex_7d_used_percent",
-		"codex_5h_reset_at",
-		"codex_7d_reset_at",
-		"codex_5h_reset_after_seconds",
-		"codex_7d_reset_after_seconds",
-		"codex_usage_updated_at",
-		"auto_pause_5h_threshold",
-		"auto_pause_7d_threshold",
-		"auto_pause_5h_disabled",
-		"auto_pause_7d_disabled",
-		"model_rate_limits",
 	}
 	filtered := make(map[string]any)
 	for _, key := range keys {

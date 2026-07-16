@@ -21,7 +21,7 @@ export interface IpGeoEntry {
 }
 
 const IDLE_ENTRY: IpGeoEntry = { status: 'idle' }
-const CACHE_STORAGE_KEY = 'sub2api:ip-geo-cache:v1'
+const CACHE_STORAGE_KEY = 'ikik-api:ip-geo-cache:v1'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const BATCH_CHUNK_SIZE = 50
 const GEO_SINGLE_URL = 'https://get.geojs.io/v1/ip/geo'
@@ -81,7 +81,7 @@ function loadFromStorage(): void {
       cache.set(ip, { status: 'success', label: stored.label, detail: stored.detail, fetchedAt: stored.fetchedAt })
     }
   } catch {
-    // 忽略损坏的本地缓存
+    // Ignore broken local cache.
   }
 }
 
@@ -95,7 +95,7 @@ function persistToStorage(): void {
     }
     localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(toStore))
   } catch {
-    // 存储写入失败（如隐私模式禁用 localStorage）不影响功能
+    // Storage may be unavailable in private mode.
   }
 }
 

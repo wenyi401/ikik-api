@@ -13,15 +13,15 @@
         <button class="btn btn-primary mt-6" @click="router.push('/purchase')">{{ t('payment.result.backToRecharge') }}</button>
       </div>
       <template v-else>
-        <!-- 金额头部 -->
+        <!-- Amount header -->
         <div v-if="order" class="card overflow-hidden">
           <div class="bg-gradient-to-br from-[#635bff] to-[#4f46e5] px-6 py-6 text-center">
             <p class="text-sm font-medium text-indigo-200">{{ t('payment.actualPay') }}</p>
-            <p class="mt-1 text-3xl font-bold text-white">{{ formatGatewayAmount(order.pay_amount) }}</p>
+            <p class="mt-1 text-3xl font-bold text-white">&#165;{{ order.pay_amount.toFixed(2) }}</p>
           </div>
         </div>
 
-        <!-- 微信二维码展示 -->
+        <!-- WeChat QR Code display -->
         <template v-if="wechatQrUrl">
           <div class="card p-6">
             <div class="flex flex-col items-center space-y-4">
@@ -42,7 +42,7 @@
           </div>
         </template>
 
-        <!-- 支付宝跳转状态 -->
+        <!-- Alipay redirecting state -->
         <template v-else-if="redirecting">
           <div class="card p-6">
             <div class="flex flex-col items-center space-y-4 py-4">
@@ -52,7 +52,7 @@
           </div>
         </template>
 
-        <!-- 成功状态 -->
+        <!-- Success state -->
         <template v-else-if="stripeSuccess">
           <div class="card p-6 text-center">
             <div class="flex flex-col items-center gap-3 py-4">
@@ -65,7 +65,7 @@
           </div>
         </template>
 
-        <!-- 无指定方式或未知方式时展示完整 Payment Element -->
+        <!-- Fallback: full Payment Element (no method param or unknown method) -->
         <template v-else-if="showPaymentElement">
           <div class="card p-6">
             <div id="stripe-payment-element" class="min-h-[200px]"></div>
@@ -83,7 +83,7 @@
           </div>
         </template>
 
-        <!-- 错误状态 -->
+        <!-- Error -->
         <div v-if="stripeError && !showPaymentElement" class="card p-4">
           <p class="text-sm text-red-600 dark:text-red-400">{{ stripeError }}</p>
           <button class="btn btn-secondary mt-3 w-full" @click="router.push('/purchase')">{{ t('payment.result.backToRecharge') }}</button>
@@ -101,20 +101,17 @@ import { usePaymentStore } from '@/stores/payment'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
-import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
-import { PAYMENT_RECOVERY_STORAGE_KEY, readPaymentRecoverySnapshot } from '@/components/payment/paymentFlow'
 import type { PaymentOrder } from '@/types/payment'
 import type { Stripe, StripeElements } from '@stripe/stripe-js'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 
-const i18n = useI18n()
-const { t } = i18n
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const paymentStore = usePaymentStore()
 
-// 弹窗模式：指定支付宝或微信方式时跳过 AppLayout
+// Popup mode: skip AppLayout when opened with a specific method (alipay/wechat_pay)
 const isPopup = computed(() => !!route.query.method)
 
 const loading = ref(true)
@@ -124,7 +121,6 @@ const stripeSubmitting = ref(false)
 const stripeSuccess = ref(false)
 const stripeReady = ref(false)
 const order = ref<PaymentOrder | null>(null)
-const currency = ref('CNY')
 const wechatQrUrl = ref('')
 const redirecting = ref(false)
 const showPaymentElement = ref(false)
@@ -137,7 +133,6 @@ onMounted(async () => {
   const orderId = Number(route.query.order_id)
   const clientSecret = String(route.query.client_secret || '')
   const method = String(route.query.method || '')
-  const resumeToken = typeof route.query.resume_token === 'string' ? route.query.resume_token : undefined
 
   if (!orderId || !clientSecret) {
     loading.value = false
@@ -146,20 +141,8 @@ onMounted(async () => {
   }
 
   try {
-    if (typeof window !== 'undefined') {
-      const restored = readPaymentRecoverySnapshot(
-        window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY),
-        { resumeToken },
-      )
-      if (restored?.orderId === orderId) {
-        currency.value = normalizePaymentCurrency(restored.currency)
-      }
-    }
     const res = await paymentAPI.getOrder(orderId)
     order.value = res.data
-    if (res.data.currency) {
-      currency.value = normalizePaymentCurrency(res.data.currency)
-    }
 
     await paymentStore.fetchConfig()
     const publishableKey = paymentStore.config?.stripe_publishable_key
@@ -172,13 +155,13 @@ onMounted(async () => {
     stripeInstance = stripe
     loading.value = false
 
-    // 指定方式直接确认，无需渲染完整 Payment Element
+    // Direct confirm for specific methods (no Payment Element needed)
     if (method === 'alipay') {
       await confirmAlipay(stripe, clientSecret, orderId)
     } else if (method === 'wechat_pay') {
       await confirmWechatPay(stripe, clientSecret)
     } else {
-      // 未指定方式时渲染完整 Payment Element
+      // Fallback: render full Payment Element
       showPaymentElement.value = true
       await nextTick()
       mountPaymentElement(stripe, clientSecret)
@@ -190,18 +173,9 @@ onMounted(async () => {
   }
 })
 
-const localeCode = computed(() => {
-  const raw = i18n.locale as unknown
-  if (typeof raw === 'string') return raw
-  if (raw && typeof raw === 'object' && 'value' in raw) {
-    return String((raw as { value?: string }).value || '')
-  }
-  return undefined
+onUnmounted(() => {
+  if (redirectTimer) clearTimeout(redirectTimer)
 })
-
-function formatGatewayAmount(value: number): string {
-  return formatPaymentAmount(value, currency.value, localeCode.value)
-}
 
 async function confirmAlipay(stripe: Stripe, clientSecret: string, orderId: number) {
   redirecting.value = true
@@ -211,7 +185,7 @@ async function confirmAlipay(stripe: Stripe, clientSecret: string, orderId: numb
     redirecting.value = false
     stripeError.value = error.message || t('payment.result.failed')
   }
-  // 无错误时 Stripe 会自动跳转
+  // If no error, Stripe redirects automatically — nothing else to do
 }
 
 async function confirmWechatPay(stripe: Stripe, clientSecret: string) {
@@ -226,11 +200,11 @@ async function confirmWechatPay(stripe: Stripe, clientSecret: string) {
     return
   }
 
-  // 从 next_action 中提取二维码
+  // Extract QR code image from next_action
   const qrData = paymentIntent?.next_action?.wechat_pay_display_qr_code?.image_data_url
   if (qrData) {
     wechatQrUrl.value = qrData
-    // 轮询支付完成状态
+    // Poll for completion
     startPolling()
   } else if (paymentIntent?.status === 'succeeded') {
     stripeSuccess.value = true

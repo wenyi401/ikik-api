@@ -4,12 +4,12 @@ package ent
 
 import (
 	"context"
+	"ikik-api/ent/authidentity"
+	"ikik-api/ent/predicate"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/authidentity"
-	"ikik-api/ent/predicate"
 )
 
 // AuthIdentityDelete is the builder for deleting a AuthIdentity entity.

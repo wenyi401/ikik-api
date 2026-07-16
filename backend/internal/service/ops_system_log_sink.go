@@ -27,7 +27,6 @@ type OpsSystemLogSinkHealth struct {
 
 type OpsSystemLogSink struct {
 	opsRepo OpsRepository
-	host    string
 
 	queue chan *logger.LogEvent
 
@@ -46,14 +45,10 @@ type OpsSystemLogSink struct {
 	lastError atomic.Value
 }
 
-const maxSystemLogHostLength = 255
-
 func NewOpsSystemLogSink(opsRepo OpsRepository) *OpsSystemLogSink {
 	ctx, cancel := context.WithCancel(context.Background())
-	rawHost, err := os.Hostname()
 	s := &OpsSystemLogSink{
 		opsRepo:       opsRepo,
-		host:          normalizeSystemLogHost(rawHost, err),
 		queue:         make(chan *logger.LogEvent, 5000),
 		batchSize:     200,
 		flushInterval: time.Second,
@@ -62,18 +57,6 @@ func NewOpsSystemLogSink(opsRepo OpsRepository) *OpsSystemLogSink {
 	}
 	s.lastError.Store("")
 	return s
-}
-
-func normalizeSystemLogHost(host string, err error) string {
-	host = strings.TrimSpace(host)
-	if err != nil || host == "" {
-		return "unknown"
-	}
-	runes := []rune(host)
-	if len(runes) > maxSystemLogHostLength {
-		return string(runes[:maxSystemLogHostLength])
-	}
-	return host
 }
 
 func (s *OpsSystemLogSink) Start() {
@@ -223,7 +206,6 @@ func (s *OpsSystemLogSink) flushBatch(baseCtx context.Context, batch []*logger.L
 		}
 
 		userID := asInt64Ptr(fields["user_id"])
-		apiKeyID := asInt64Ptr(fields["api_key_id"])
 		accountID := asInt64Ptr(fields["account_id"])
 
 		// 统一脱敏后写入索引。
@@ -237,14 +219,12 @@ func (s *OpsSystemLogSink) flushBatch(baseCtx context.Context, batch []*logger.L
 
 		inputs = append(inputs, &OpsInsertSystemLogInput{
 			CreatedAt:       createdAt,
-			Host:            s.host,
 			Level:           strings.ToLower(strings.TrimSpace(event.Level)),
 			Component:       component,
 			Message:         message,
 			RequestID:       requestID,
 			ClientRequestID: clientRequestID,
 			UserID:          userID,
-			APIKeyID:        apiKeyID,
 			AccountID:       accountID,
 			Platform:        platform,
 			Model:           model,

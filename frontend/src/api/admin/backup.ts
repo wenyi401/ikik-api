@@ -17,6 +17,14 @@ export interface BackupScheduleConfig {
   retain_count: number
 }
 
+export interface UsageRetentionConfig {
+  enabled: boolean
+  retain_days: number
+  run_interval_hours: number
+  window_days: number
+  backup_expire_days: number
+}
+
 export interface BackupRecord {
   id: string
   status: 'pending' | 'running' | 'completed' | 'failed'
@@ -71,6 +79,17 @@ export async function updateSchedule(config: BackupScheduleConfig): Promise<Back
   return data
 }
 
+// Usage retention
+export async function getUsageRetention(): Promise<UsageRetentionConfig> {
+  const { data } = await apiClient.get<UsageRetentionConfig>('/admin/backups/usage-retention')
+  return data
+}
+
+export async function updateUsageRetention(config: UsageRetentionConfig): Promise<UsageRetentionConfig> {
+  const { data } = await apiClient.put<UsageRetentionConfig>('/admin/backups/usage-retention', config)
+  return data
+}
+
 // Backup operations
 export async function createBackup(req?: CreateBackupRequest): Promise<BackupRecord> {
   const { data } = await apiClient.post<BackupRecord>('/admin/backups', req || {})
@@ -108,6 +127,8 @@ export const backupAPI = {
   testS3Connection,
   getSchedule,
   updateSchedule,
+  getUsageRetention,
+  updateUsageRetention,
   createBackup,
   listBackups,
   getBackup,

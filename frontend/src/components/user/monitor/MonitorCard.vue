@@ -1,96 +1,64 @@
 <template>
-  <button
-    type="button"
-    class="group text-left p-5 rounded-2xl min-h-[280px] w-full bg-white/70 backdrop-blur-xl border border-gray-200/80 shadow-card dark:bg-dark-800/60 dark:border-dark-700/70 hover:-translate-y-1 hover:shadow-card-hover dark:hover:border-primary-500/30 hover:border-gray-300 transition-all duration-300 ease-out flex flex-col"
-    @click="emit('click')"
-  >
-    <!-- Header: icon + name/model + status chip -->
-    <div class="flex items-start gap-3">
-      <span
-        class="w-9 h-9 rounded-xl ring-1 ring-black/5 dark:ring-white/10 grid place-items-center flex-shrink-0"
-        :class="[providerGradient(item.provider), providerTintClass]"
-      >
-        <ProviderIcon :provider="item.provider" :size="20" />
+  <button type="button" class="monitor-row" @click="emit('click')">
+    <div class="monitor-identity">
+      <span class="monitor-provider-icon">
+        <ProviderIcon :provider="item.provider" :size="18" />
       </span>
-      <div class="flex-1 min-w-0">
-        <div class="text-base font-semibold truncate text-gray-900 dark:text-gray-100">
-          {{ item.name }}
-        </div>
-        <div class="mt-0.5 flex items-center gap-1.5 min-w-0">
-          <span
-            class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium flex-shrink-0"
-            :class="providerBadgeClass(item.provider)"
-          >
-            {{ providerLabel(item.provider) }}
-          </span>
-          <span class="font-mono text-xs truncate text-gray-500 dark:text-gray-400">
-            {{ item.primary_model }}
-          </span>
-          <span
-            v-if="item.group_name"
-            class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300 flex-shrink-0"
-          >
+      <div class="min-w-0">
+        <h3>{{ item.name }}</h3>
+        <p>
+          {{ providerLabel(item.provider) }}
+          <span aria-hidden="true">·</span>
+          <span class="font-mono">{{ item.primary_model }}</span>
+          <template v-if="item.group_name">
+            <span aria-hidden="true">·</span>
             {{ item.group_name }}
-          </span>
-        </div>
+          </template>
+        </p>
       </div>
-      <span
-        class="px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0"
-        :class="statusBadgeClass(item.primary_status)"
-      >
-        {{ statusLabel(item.primary_status) }}
-      </span>
     </div>
 
-    <!-- Metrics -->
-    <MonitorMetricPair
-      primary-icon="bolt"
-      :primary-label="t('monitorCommon.dialogLatency')"
-      :primary-value="formatLatency(item.primary_latency_ms)"
-      primary-unit="ms"
-      secondary-icon="globe"
-      :secondary-label="t('monitorCommon.endpointPing')"
-      :secondary-value="formatLatency(item.primary_ping_latency_ms)"
-      secondary-unit="ms"
-    />
+    <div class="monitor-metrics">
+      <div class="monitor-metric">
+        <span>{{ t('monitorCommon.dialogLatency') }}</span>
+        <strong>{{ formatLatency(item.primary_latency_ms) }} <small>ms</small></strong>
+      </div>
+      <div class="monitor-metric">
+        <span>{{ t('monitorCommon.endpointPing') }}</span>
+        <strong>{{ formatLatency(item.primary_ping_latency_ms) }} <small>ms</small></strong>
+      </div>
+      <div class="monitor-metric">
+        <span>{{ availabilityLabel }}</span>
+        <strong>{{ availabilityDisplay }}<small v-if="availabilityValue != null">%</small></strong>
+      </div>
+    </div>
 
-    <!-- Divider -->
-    <div class="mt-4 border-t border-gray-100 dark:border-dark-700/60"></div>
+    <div class="monitor-row-timeline">
+      <MonitorTimeline
+        :buckets="item.timeline"
+        :countdown-seconds="countdownSeconds"
+        :length="30"
+        compact
+      />
+    </div>
 
-    <!-- Availability row -->
-    <MonitorAvailabilityRow
-      :window-label="availabilityLabel"
-      :value="availabilityValue"
-      :samples-label="extraModelsCountLabel"
-    />
+    <span :class="['monitor-status', statusToneClass]">
+      <i />
+      {{ statusLabel(item.primary_status) }}
+    </span>
 
-    <!-- Timeline -->
-    <MonitorTimeline
-      :buckets="item.timeline"
-      :countdown-seconds="countdownSeconds"
-    />
+    <Icon name="chevronRight" size="sm" class="monitor-chevron" />
   </button>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import Icon from '@/components/icons/Icon.vue'
 import type { UserMonitorView } from '@/api/channelMonitor'
-import {
-  useChannelMonitorFormat,
-  providerGradient,
-} from '@/composables/useChannelMonitorFormat'
+import { useChannelMonitorFormat } from '@/composables/useChannelMonitorFormat'
 import ProviderIcon from './ProviderIcon.vue'
-import MonitorMetricPair from './MonitorMetricPair.vue'
-import MonitorAvailabilityRow from './MonitorAvailabilityRow.vue'
 import MonitorTimeline from './MonitorTimeline.vue'
-
-const PROVIDER_TINT: Record<string, string> = {
-  openai: 'text-emerald-600 dark:text-emerald-300',
-  anthropic: 'text-orange-600 dark:text-orange-300',
-  gemini: 'text-sky-600 dark:text-sky-300',
-  grok: 'text-zinc-700 dark:text-zinc-200',
-}
 
 const props = defineProps<{
   item: UserMonitorView
@@ -98,32 +66,198 @@ const props = defineProps<{
   availabilityValue: number | null
   countdownSeconds: number
 }>()
-
-const emit = defineEmits<{
-  (e: 'click'): void
-}>()
-
+const emit = defineEmits<{ (event: 'click'): void }>()
 const { t } = useI18n()
-const {
-  statusLabel,
-  statusBadgeClass,
-  providerLabel,
-  providerBadgeClass,
-  formatLatency,
-} = useChannelMonitorFormat()
+const { statusLabel, providerLabel, formatLatency } = useChannelMonitorFormat()
 
-const providerTintClass = computed(() =>
-  PROVIDER_TINT[props.item.provider] ?? 'text-gray-500 dark:text-gray-300'
-)
-
-const availabilityLabel = computed(() => {
-  const win = t(`channelStatus.windowTab.${props.window}`)
-  return `${t('monitorCommon.availabilityPrefix')} · ${win}`
-})
-
-const extraModelsCountLabel = computed(() => {
-  const count = props.item.extra_models?.length ?? 0
-  if (count === 0) return undefined
-  return t('monitorCommon.extraModelsCount', { n: count })
+const availabilityLabel = computed(() => (
+  `${t('monitorCommon.availabilityPrefix')} · ${t(`channelStatus.windowTab.${props.window}`)}`
+))
+const availabilityDisplay = computed(() => (
+  props.availabilityValue == null || Number.isNaN(props.availabilityValue)
+    ? t('monitorCommon.latencyEmpty')
+    : props.availabilityValue.toFixed(2)
+))
+const statusToneClass = computed(() => {
+  if (props.item.primary_status === 'operational') return 'monitor-status--success'
+  if (props.item.primary_status === 'degraded') return 'monitor-status--warning'
+  return 'monitor-status--danger'
 })
 </script>
+
+<style scoped>
+.monitor-row {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(16rem, 1fr) minmax(18rem, 0.9fr) minmax(14rem, 0.7fr) auto 1rem;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.875rem 1rem;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  text-align: left;
+  transition: background-color 140ms ease;
+}
+
+.monitor-row:not(:last-child) {
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.monitor-row:hover {
+  background: var(--ui-surface-subtle);
+}
+
+.monitor-row:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--ui-text);
+  outline-offset: -2px;
+}
+
+.monitor-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.monitor-provider-icon {
+  display: flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+}
+
+.monitor-identity h3 {
+  overflow: hidden;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-identity p {
+  display: flex;
+  min-width: 0;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-metrics {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.monitor-metric {
+  min-width: 0;
+}
+
+.monitor-metric span {
+  display: block;
+  overflow: hidden;
+  color: var(--ui-text-tertiary);
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-metric strong {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--ui-text);
+  font-family: var(--ui-font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.monitor-metric small {
+  color: var(--ui-text-tertiary);
+  font-size: 0.625rem;
+  font-weight: 400;
+}
+
+.monitor-row-timeline {
+  min-width: 0;
+}
+
+.monitor-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.monitor-status i {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.monitor-status--success {
+  color: var(--ui-success);
+}
+
+.monitor-status--warning {
+  color: var(--ui-warning);
+}
+
+.monitor-status--danger {
+  color: var(--ui-danger);
+}
+
+.monitor-chevron {
+  color: var(--ui-text-tertiary);
+}
+
+@media (max-width: 1100px) {
+  .monitor-row {
+    grid-template-columns: minmax(15rem, 1fr) minmax(18rem, 1fr) auto 1rem;
+  }
+
+  .monitor-row-timeline {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .monitor-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    padding: 0.875rem;
+  }
+
+  .monitor-metrics,
+  .monitor-row-timeline {
+    grid-column: 1 / -1;
+  }
+
+  .monitor-row-timeline {
+    display: block;
+  }
+
+  .monitor-status {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .monitor-chevron {
+    display: none;
+  }
+}
+</style>

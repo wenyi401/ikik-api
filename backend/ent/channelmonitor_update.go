@@ -6,17 +6,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/channelmonitor"
+	"ikik-api/ent/channelmonitordailyrollup"
+	"ikik-api/ent/channelmonitorhistory"
+	"ikik-api/ent/channelmonitorrequesttemplate"
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/channelmonitor"
-	"ikik-api/ent/channelmonitordailyrollup"
-	"ikik-api/ent/channelmonitorhistory"
-	"ikik-api/ent/channelmonitorrequesttemplate"
-	"ikik-api/ent/predicate"
 )
 
 // ChannelMonitorUpdate is the builder for updating ChannelMonitor entities.
@@ -62,20 +62,6 @@ func (_u *ChannelMonitorUpdate) SetProvider(v channelmonitor.Provider) *ChannelM
 func (_u *ChannelMonitorUpdate) SetNillableProvider(v *channelmonitor.Provider) *ChannelMonitorUpdate {
 	if v != nil {
 		_u.SetProvider(*v)
-	}
-	return _u
-}
-
-// SetAPIMode sets the "api_mode" field.
-func (_u *ChannelMonitorUpdate) SetAPIMode(v string) *ChannelMonitorUpdate {
-	_u.mutation.SetAPIMode(v)
-	return _u
-}
-
-// SetNillableAPIMode sets the "api_mode" field if the given value is not nil.
-func (_u *ChannelMonitorUpdate) SetNillableAPIMode(v *string) *ChannelMonitorUpdate {
-	if v != nil {
-		_u.SetAPIMode(*v)
 	}
 	return _u
 }
@@ -453,11 +439,6 @@ func (_u *ChannelMonitorUpdate) check() error {
 			return &ValidationError{Name: "provider", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.provider": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.APIMode(); ok {
-		if err := channelmonitor.APIModeValidator(v); err != nil {
-			return &ValidationError{Name: "api_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.api_mode": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.Endpoint(); ok {
 		if err := channelmonitor.EndpointValidator(v); err != nil {
 			return &ValidationError{Name: "endpoint", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.endpoint": %w`, err)}
@@ -516,9 +497,6 @@ func (_u *ChannelMonitorUpdate) sqlSave(ctx context.Context) (_node int, err err
 	}
 	if value, ok := _u.mutation.Provider(); ok {
 		_spec.SetField(channelmonitor.FieldProvider, field.TypeEnum, value)
-	}
-	if value, ok := _u.mutation.APIMode(); ok {
-		_spec.SetField(channelmonitor.FieldAPIMode, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Endpoint(); ok {
 		_spec.SetField(channelmonitor.FieldEndpoint, field.TypeString, value)
@@ -751,20 +729,6 @@ func (_u *ChannelMonitorUpdateOne) SetProvider(v channelmonitor.Provider) *Chann
 func (_u *ChannelMonitorUpdateOne) SetNillableProvider(v *channelmonitor.Provider) *ChannelMonitorUpdateOne {
 	if v != nil {
 		_u.SetProvider(*v)
-	}
-	return _u
-}
-
-// SetAPIMode sets the "api_mode" field.
-func (_u *ChannelMonitorUpdateOne) SetAPIMode(v string) *ChannelMonitorUpdateOne {
-	_u.mutation.SetAPIMode(v)
-	return _u
-}
-
-// SetNillableAPIMode sets the "api_mode" field if the given value is not nil.
-func (_u *ChannelMonitorUpdateOne) SetNillableAPIMode(v *string) *ChannelMonitorUpdateOne {
-	if v != nil {
-		_u.SetAPIMode(*v)
 	}
 	return _u
 }
@@ -1155,11 +1119,6 @@ func (_u *ChannelMonitorUpdateOne) check() error {
 			return &ValidationError{Name: "provider", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.provider": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.APIMode(); ok {
-		if err := channelmonitor.APIModeValidator(v); err != nil {
-			return &ValidationError{Name: "api_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.api_mode": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.Endpoint(); ok {
 		if err := channelmonitor.EndpointValidator(v); err != nil {
 			return &ValidationError{Name: "endpoint", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.endpoint": %w`, err)}
@@ -1235,9 +1194,6 @@ func (_u *ChannelMonitorUpdateOne) sqlSave(ctx context.Context) (_node *ChannelM
 	}
 	if value, ok := _u.mutation.Provider(); ok {
 		_spec.SetField(channelmonitor.FieldProvider, field.TypeEnum, value)
-	}
-	if value, ok := _u.mutation.APIMode(); ok {
-		_spec.SetField(channelmonitor.FieldAPIMode, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Endpoint(); ok {
 		_spec.SetField(channelmonitor.FieldEndpoint, field.TypeString, value)

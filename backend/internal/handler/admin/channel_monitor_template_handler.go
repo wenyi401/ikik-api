@@ -26,8 +26,7 @@ func NewChannelMonitorRequestTemplateHandler(templateService *service.ChannelMon
 
 type channelMonitorTemplateCreateRequest struct {
 	Name             string            `json:"name" binding:"required,max=100"`
-	Provider         string            `json:"provider" binding:"required,oneof=openai anthropic gemini grok"`
-	APIMode          string            `json:"api_mode" binding:"omitempty,oneof=chat_completions responses"`
+	Provider         string            `json:"provider" binding:"required,oneof=openai anthropic gemini"`
 	Description      string            `json:"description" binding:"max=500"`
 	ExtraHeaders     map[string]string `json:"extra_headers"`
 	BodyOverrideMode string            `json:"body_override_mode" binding:"omitempty,oneof=off merge replace"`
@@ -36,7 +35,6 @@ type channelMonitorTemplateCreateRequest struct {
 
 type channelMonitorTemplateUpdateRequest struct {
 	Name             *string            `json:"name" binding:"omitempty,max=100"`
-	APIMode          *string            `json:"api_mode" binding:"omitempty,oneof=chat_completions responses"`
 	Description      *string            `json:"description" binding:"omitempty,max=500"`
 	ExtraHeaders     *map[string]string `json:"extra_headers"`
 	BodyOverrideMode *string            `json:"body_override_mode" binding:"omitempty,oneof=off merge replace"`
@@ -47,7 +45,6 @@ type channelMonitorTemplateResponse struct {
 	ID                 int64             `json:"id"`
 	Name               string            `json:"name"`
 	Provider           string            `json:"provider"`
-	APIMode            string            `json:"api_mode"`
 	Description        string            `json:"description"`
 	ExtraHeaders       map[string]string `json:"extra_headers"`
 	BodyOverrideMode   string            `json:"body_override_mode"`
@@ -70,7 +67,6 @@ func (h *ChannelMonitorRequestTemplateHandler) toResponse(c *gin.Context, t *ser
 		ID:                 t.ID,
 		Name:               t.Name,
 		Provider:           t.Provider,
-		APIMode:            t.APIMode,
 		Description:        t.Description,
 		ExtraHeaders:       headers,
 		BodyOverrideMode:   t.BodyOverrideMode,
@@ -97,7 +93,6 @@ func parseTemplateID(c *gin.Context) (int64, bool) {
 func (h *ChannelMonitorRequestTemplateHandler) List(c *gin.Context) {
 	items, err := h.templateService.List(c.Request.Context(), service.ChannelMonitorRequestTemplateListParams{
 		Provider: strings.TrimSpace(c.Query("provider")),
-		APIMode:  strings.TrimSpace(c.Query("api_mode")),
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -134,7 +129,6 @@ func (h *ChannelMonitorRequestTemplateHandler) Create(c *gin.Context) {
 	t, err := h.templateService.Create(c.Request.Context(), service.ChannelMonitorRequestTemplateCreateParams{
 		Name:             req.Name,
 		Provider:         req.Provider,
-		APIMode:          req.APIMode,
 		Description:      req.Description,
 		ExtraHeaders:     req.ExtraHeaders,
 		BodyOverrideMode: req.BodyOverrideMode,
@@ -160,7 +154,6 @@ func (h *ChannelMonitorRequestTemplateHandler) Update(c *gin.Context) {
 	}
 	t, err := h.templateService.Update(c.Request.Context(), id, service.ChannelMonitorRequestTemplateUpdateParams{
 		Name:             req.Name,
-		APIMode:          req.APIMode,
 		Description:      req.Description,
 		ExtraHeaders:     req.ExtraHeaders,
 		BodyOverrideMode: req.BodyOverrideMode,
@@ -216,7 +209,6 @@ type associatedMonitorBriefResponse struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
 	Provider string `json:"provider"`
-	APIMode  string `json:"api_mode"`
 	Enabled  bool   `json:"enabled"`
 }
 
@@ -235,7 +227,7 @@ func (h *ChannelMonitorRequestTemplateHandler) AssociatedMonitors(c *gin.Context
 	out := make([]associatedMonitorBriefResponse, 0, len(items))
 	for _, m := range items {
 		out = append(out, associatedMonitorBriefResponse{
-			ID: m.ID, Name: m.Name, Provider: m.Provider, APIMode: m.APIMode, Enabled: m.Enabled,
+			ID: m.ID, Name: m.Name, Provider: m.Provider, Enabled: m.Enabled,
 		})
 	}
 	response.Success(c, gin.H{"items": out})

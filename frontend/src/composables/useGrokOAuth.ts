@@ -2,10 +2,11 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
+import { accountsAPI } from '@/api/accounts'
 import type { GrokTokenInfo } from '@/api/admin/grok'
-import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
+import type { AccountApiScope } from '@/composables/useAccountOAuth'
 
-export function useGrokOAuth() {
+export function useGrokOAuth(scope: AccountApiScope = 'admin') {
   const appStore = useAppStore()
   const { t } = useI18n()
 
@@ -34,13 +35,16 @@ export function useGrokOAuth() {
       const payload: Record<string, unknown> = {}
       if (proxyId) payload.proxy_id = proxyId
 
-      const response = await adminAPI.grok.generateAuthUrl(payload)
+      const response =
+        scope === 'user'
+          ? await accountsAPI.generateGrokOAuthUrl(payload)
+          : await adminAPI.grok.generateAuthUrl(payload)
       authUrl.value = response.auth_url
       sessionId.value = response.session_id
-      state.value = response.state
+      state.value = response.state || ''
       return true
     } catch (err: any) {
-      error.value = extractApiErrorMessage(err, t('admin.accounts.oauth.grok.failedToGenerateUrl'))
+      error.value = err.response?.data?.detail || t('admin.accounts.oauth.grok.failedToGenerateUrl')
       appStore.showError(error.value)
       return false
     } finally {
@@ -71,14 +75,13 @@ export function useGrokOAuth() {
       }
       if (params.proxyId) payload.proxy_id = params.proxyId
 
-      return await adminAPI.grok.exchangeCode(payload as any)
+      const tokenInfo =
+        scope === 'user'
+          ? await accountsAPI.exchangeGrokOAuthCode(payload as any)
+          : await adminAPI.grok.exchangeCode(payload as any)
+      return tokenInfo as GrokTokenInfo
     } catch (err: any) {
-      error.value = extractI18nErrorMessage(
-        err,
-        t,
-        'admin.accounts.oauth.grok.errors',
-        t('admin.accounts.oauth.grok.failedToExchangeCode')
-      )
+      error.value = err.response?.data?.detail || t('admin.accounts.oauth.grok.failedToExchangeCode')
       appStore.showError(error.value)
       return null
     } finally {
@@ -99,14 +102,13 @@ export function useGrokOAuth() {
     error.value = ''
 
     try {
-      return await adminAPI.grok.refreshGrokToken(refreshToken.trim(), proxyId)
+      const tokenInfo =
+        scope === 'user'
+          ? await accountsAPI.refreshGrokToken(refreshToken.trim(), proxyId)
+          : await adminAPI.grok.refreshGrokToken(refreshToken.trim(), proxyId)
+      return tokenInfo as GrokTokenInfo
     } catch (err: any) {
-      error.value = extractI18nErrorMessage(
-        err,
-        t,
-        'admin.accounts.oauth.grok.errors',
-        t('admin.accounts.oauth.grok.failedToValidateRT')
-      )
+      error.value = err.response?.data?.detail || t('admin.accounts.oauth.grok.failedToValidateRT')
       return null
     } finally {
       loading.value = false
@@ -121,11 +123,8 @@ export function useGrokOAuth() {
       client_id: tokenInfo.client_id,
       scope: tokenInfo.scope,
       email: tokenInfo.email,
-      sub: tokenInfo.sub,
-      team_id: tokenInfo.team_id,
       subscription_tier: tokenInfo.subscription_tier,
-      entitlement_status: tokenInfo.entitlement_status,
-      base_url: 'https://cli-chat-proxy.grok.com/v1'
+      entitlement_status: tokenInfo.entitlement_status
     }
     if (tokenInfo.refresh_token) credentials.refresh_token = tokenInfo.refresh_token
     if (tokenInfo.id_token) credentials.id_token = tokenInfo.id_token

@@ -29,8 +29,14 @@ func TestExtractCCReasoningEffortFromBody(t *testing.T) {
 		require.Equal(t, "xhigh", *got)
 	})
 
-	t.Run("DeepSeek max", func(t *testing.T) {
-		got := extractCCReasoningEffortFromBody([]byte(`{"reasoning_effort":"Max"}`))
+	t.Run("providerOptions reasoningEffort", func(t *testing.T) {
+		got := extractCCReasoningEffortFromBody([]byte(`{"providerOptions":{"openai":{"reasoningEffort":"HIGH"}}}`))
+		require.NotNil(t, got)
+		require.Equal(t, "high", *got)
+	})
+
+	t.Run("provider_options extra_body reasoning_effort", func(t *testing.T) {
+		got := extractCCReasoningEffortFromBody([]byte(`{"provider_options":{"openai":{"extra_body":{"reasoning_effort":"x-high"}}}}`))
 		require.NotNil(t, got)
 		require.Equal(t, "xhigh", *got)
 	})

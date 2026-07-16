@@ -6,3 +6,9 @@ import "entgo.io/ent/dialect"
 func (c *Client) Driver() dialect.Driver {
 	return c.driver
 }
+
+// Driver exposes the transactional driver for integration code that needs
+// dialect-specific behavior.
+func (tx *Tx) Driver() dialect.Driver {
+	return tx.driver
+}

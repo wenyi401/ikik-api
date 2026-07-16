@@ -8,17 +8,20 @@
       <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
     </div>
 
-    <div :class="providerGridClass">
+    <div class="grid grid-cols-1 gap-3">
       <button
         v-for="provider in visibleProviders"
         :key="provider"
         type="button"
         :disabled="disabled"
-        class="btn btn-secondary h-12 w-full justify-center gap-2"
+        class="btn btn-secondary auth-provider-button relative h-12 w-full justify-center"
         @click="startLogin(provider)"
       >
-        <GitHubMark v-if="provider === 'github'" class="h-5 w-5 text-gray-800 dark:text-gray-100" />
-        <GoogleMark v-else class="h-5 w-5" />
+        <GitHubMark
+          v-if="provider === 'github'"
+          class="auth-provider-mark h-5 w-5 text-gray-800 dark:text-gray-100"
+        />
+        <GoogleMark v-else class="auth-provider-mark h-5 w-5" />
         <span class="font-medium">{{ providerLabel(provider) }}</span>
       </button>
     </div>
@@ -39,9 +42,11 @@ const EMAIL_OAUTH_PENDING_PROVIDER_KEY = 'email_oauth_pending_provider'
 const props = withDefaults(defineProps<{
   disabled?: boolean
   affCode?: string
+  loginAgreementRevision?: string
   githubEnabled?: boolean
   googleEnabled?: boolean
   showDivider?: boolean
+  beforeStart?: () => boolean
 }>(), {
   showDivider: true
 })
@@ -51,26 +56,21 @@ const { t } = useI18n()
 
 const visibleProviders = computed<EmailOAuthProvider[]>(() => {
   const providers: EmailOAuthProvider[] = []
-  if (props.githubEnabled) providers.push('github')
   if (props.googleEnabled) providers.push('google')
+  if (props.githubEnabled) providers.push('github')
   return providers
 })
 
 const hasProviders = computed(() => visibleProviders.value.length > 0)
-const hasMultipleProviders = computed(() => visibleProviders.value.length > 1)
-const providerGridClass = computed(() => [
-  'grid',
-  'grid-cols-1',
-  'gap-3',
-  hasMultipleProviders.value ? 'sm:grid-cols-2' : ''
-])
-
 function providerLabel(provider: EmailOAuthProvider): string {
   const name = provider === 'github' ? 'GitHub' : 'Google'
-  return hasMultipleProviders.value ? name : t('auth.emailOAuth.signIn', { providerName: name })
+  return t('auth.emailOAuth.signIn', { providerName: name })
 }
 
 function startLogin(provider: EmailOAuthProvider): void {
+  if (props.beforeStart && !props.beforeStart()) {
+    return
+  }
   const redirectTo = (route.query.redirect as string) || '/dashboard'
   const affiliateCode = resolveAffiliateReferralCode(props.affCode, route.query.aff, route.query.aff_code)
   storeOAuthAffiliateCode(affiliateCode)
@@ -81,7 +81,21 @@ function startLogin(provider: EmailOAuthProvider): void {
   if (affiliateCode) {
     params.set('aff_code', affiliateCode)
   }
+  if (props.loginAgreementRevision?.trim()) {
+    params.set('login_agreement_revision', props.loginAgreementRevision.trim())
+  }
   const startURL = `${normalized}/auth/oauth/${provider}/start?${params.toString()}`
   window.location.href = startURL
 }
 </script>
+
+<style scoped>
+.auth-provider-button {
+  padding-inline: 3rem;
+}
+
+.auth-provider-mark {
+  position: absolute;
+  left: 1rem;
+}
+</style>

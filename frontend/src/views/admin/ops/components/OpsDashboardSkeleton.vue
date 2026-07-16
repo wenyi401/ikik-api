@@ -51,15 +51,15 @@ const props = withDefaults(defineProps<Props>(), {
 
     <!-- Row: Concurrency + Throughput (matches OpsDashboard.vue) -->
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-4">
-      <div :class="['min-h-[360px] rounded-3xl bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700 lg:col-span-1', props.fullscreen ? 'p-8' : 'p-6']">
+      <div :class="['h-[360px] rounded-3xl bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700 lg:col-span-1', props.fullscreen ? 'p-8' : 'p-6']">
         <div class="h-4 w-44 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
         <div class="mt-6 h-72 animate-pulse rounded-2xl bg-gray-100 dark:bg-dark-700/70"></div>
       </div>
-      <div :class="['min-h-[360px] rounded-3xl bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700 lg:col-span-1', props.fullscreen ? 'p-8' : 'p-6']">
+      <div :class="['h-[360px] rounded-3xl bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700 lg:col-span-1', props.fullscreen ? 'p-8' : 'p-6']">
         <div class="h-4 w-44 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
         <div class="mt-6 h-72 animate-pulse rounded-2xl bg-gray-100 dark:bg-dark-700/70"></div>
       </div>
-      <div :class="['min-h-[360px] rounded-3xl bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700 lg:col-span-2', props.fullscreen ? 'p-8' : 'p-6']">
+      <div :class="['h-[360px] rounded-3xl bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700 lg:col-span-2', props.fullscreen ? 'p-8' : 'p-6']">
         <div class="h-4 w-56 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
         <div class="mt-6 h-72 animate-pulse rounded-2xl bg-gray-100 dark:bg-dark-700/70"></div>
       </div>

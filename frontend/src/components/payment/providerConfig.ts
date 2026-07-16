@@ -21,12 +21,6 @@ export interface TypeOption {
   [key: string]: unknown
 }
 
-export interface EasyPayCustomMethod {
-  type: string
-  upstreamType: string
-  displayName: string
-}
-
 /** Callback URL paths for a provider. */
 export interface CallbackPaths {
   notifyUrl?: string
@@ -50,22 +44,9 @@ export const EASYPAY_PAYMENT_MODES = ['qrcode', 'popup'] as const
 /** Fixed display order for user-facing payment methods */
 export const METHOD_ORDER = ['alipay', 'alipay_direct', 'wxpay', 'wxpay_direct', 'stripe', 'airwallex'] as const
 
-export function isBuiltInAlipayMethod(type: string): boolean {
-  return type === 'alipay' || type === 'alipay_direct'
-}
-
-export function isBuiltInWxpayMethod(type: string): boolean {
-  return type === 'wxpay' || type === 'wxpay_direct'
-}
-
 /** Payment mode constants */
 export const PAYMENT_MODE_QRCODE = 'qrcode'
 export const PAYMENT_MODE_POPUP = 'popup'
-/** Alipay-only: skip FACE_TO_FACE_PAYMENT precreate and open the Alipay
- * checkout page in a new tab instead. Backend `alipay.go` matches on this
- * literal (case-insensitive); other values fall back to the default
- * precreate→pagepay flow. */
-export const PAYMENT_MODE_REDIRECT = 'redirect'
 
 export const PAYMENT_CURRENCY_OPTIONS: TypeOption[] = [
   { value: 'CNY', label: 'CNY' },
@@ -80,9 +61,6 @@ export const PAYMENT_CURRENCY_OPTIONS: TypeOption[] = [
   { value: 'KRW', label: 'KRW' },
   { value: 'NZD', label: 'NZD' },
 ]
-
-// 与后端当前集成的 stripe-go v85.0.0 的 stripe.APIVersion 保持一致。
-export const STRIPE_SDK_API_VERSION = '2026-03-25.dahlia'
 
 /** Preferred popup size for payment gateways. Alipay's standard checkout
  * (QR + account login panel) needs ~1200×900 to render without any scrolling. */
@@ -119,8 +97,7 @@ export const PROVIDER_CALLBACK_PATHS: Record<string, CallbackPaths> = {
   easypay: { notifyUrl: WEBHOOK_PATHS.easypay, returnUrl: RETURN_PATH },
   alipay: { notifyUrl: WEBHOOK_PATHS.alipay, returnUrl: RETURN_PATH },
   wxpay: { notifyUrl: WEBHOOK_PATHS.wxpay },
-  // stripe: 不需要回调 URL 配置，Webhook 单独配置。
-  // airwallex: 不需要回调 URL 配置，Webhook 在空中云汇后台配置。
+  // stripe: no callback URL config needed (webhook is separate)
 }
 
 /** Per-provider config fields (excludes notifyUrl/returnUrl which are handled separately). */
@@ -183,34 +160,6 @@ export function getAvailableTypes(
 ): TypeOption[] {
   const types = PROVIDER_SUPPORTED_TYPES[providerKey] || []
   return types.map(t => resolveTypeLabel(t, providerKey, allTypes, redirectLabel))
-}
-
-export function parseEasyPayCustomMethods(raw: string | undefined): EasyPayCustomMethod[] {
-  if (!raw || !raw.trim()) return []
-  try {
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .map(item => ({
-        type: String(item?.type || '').trim(),
-        upstreamType: String(item?.upstreamType || '').trim(),
-        displayName: String(item?.displayName || '').trim(),
-      }))
-      .filter(item => item.type && item.upstreamType)
-  } catch {
-    return []
-  }
-}
-
-export function serializeEasyPayCustomMethods(methods: EasyPayCustomMethod[]): string {
-  const clean = methods
-    .map(method => ({
-      type: method.type.trim(),
-      upstreamType: method.upstreamType.trim(),
-      displayName: method.displayName.trim(),
-    }))
-    .filter(method => method.type && method.upstreamType)
-  return clean.length ? JSON.stringify(clean) : ''
 }
 
 /** Extract base URL from a full callback URL by removing the known path suffix. */

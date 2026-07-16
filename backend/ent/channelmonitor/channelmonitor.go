@@ -23,8 +23,6 @@ const (
 	FieldName = "name"
 	// FieldProvider holds the string denoting the provider field in the database.
 	FieldProvider = "provider"
-	// FieldAPIMode holds the string denoting the api_mode field in the database.
-	FieldAPIMode = "api_mode"
 	// FieldEndpoint holds the string denoting the endpoint field in the database.
 	FieldEndpoint = "endpoint"
 	// FieldAPIKeyEncrypted holds the string denoting the api_key_encrypted field in the database.
@@ -91,7 +89,6 @@ var Columns = []string{
 	FieldUpdatedAt,
 	FieldName,
 	FieldProvider,
-	FieldAPIMode,
 	FieldEndpoint,
 	FieldAPIKeyEncrypted,
 	FieldPrimaryModel,
@@ -127,10 +124,6 @@ var (
 	UpdateDefaultUpdatedAt func() time.Time
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
 	NameValidator func(string) error
-	// DefaultAPIMode holds the default value on creation for the "api_mode" field.
-	DefaultAPIMode string
-	// APIModeValidator is a validator for the "api_mode" field. It is called by the builders before save.
-	APIModeValidator func(string) error
 	// EndpointValidator is a validator for the "endpoint" field. It is called by the builders before save.
 	EndpointValidator func(string) error
 	// APIKeyEncryptedValidator is a validator for the "api_key_encrypted" field. It is called by the builders before save.
@@ -167,7 +160,6 @@ const (
 	ProviderOpenai    Provider = "openai"
 	ProviderAnthropic Provider = "anthropic"
 	ProviderGemini    Provider = "gemini"
-	ProviderGrok      Provider = "grok"
 )
 
 func (pr Provider) String() string {
@@ -177,7 +169,7 @@ func (pr Provider) String() string {
 // ProviderValidator is a validator for the "provider" field enum values. It is called by the builders before save.
 func ProviderValidator(pr Provider) error {
 	switch pr {
-	case ProviderOpenai, ProviderAnthropic, ProviderGemini, ProviderGrok:
+	case ProviderOpenai, ProviderAnthropic, ProviderGemini:
 		return nil
 	default:
 		return fmt.Errorf("channelmonitor: invalid enum value for provider field: %q", pr)
@@ -210,11 +202,6 @@ func ByName(opts ...sql.OrderTermOption) OrderOption {
 // ByProvider orders the results by the provider field.
 func ByProvider(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldProvider, opts...).ToFunc()
-}
-
-// ByAPIMode orders the results by the api_mode field.
-func ByAPIMode(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldAPIMode, opts...).ToFunc()
 }
 
 // ByEndpoint orders the results by the endpoint field.

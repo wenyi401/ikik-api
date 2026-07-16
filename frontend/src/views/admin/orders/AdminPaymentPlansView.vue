@@ -3,9 +3,9 @@
     <div class="space-y-4">
       <!-- Actions -->
       <div class="flex items-center justify-end gap-2">
-        <button @click="loadPlans" :disabled="plansLoading" class="btn btn-secondary" :title="t('common.refresh')">
+        <UiIconButton :label="t('common.refresh')" @click="loadPlans" :disabled="plansLoading">
           <Icon name="refresh" size="md" :class="plansLoading ? 'animate-spin' : ''" />
-        </button>
+        </UiIconButton>
         <button @click="openPlanEdit(null)" class="btn btn-primary">{{ t('payment.admin.createPlan') }}</button>
       </div>
 
@@ -88,6 +88,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { UiIconButton } from '@/ui'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import PlanEditDialog from './PlanEditDialog.vue'
 import { platformTextClass } from '@/utils/platformColors'

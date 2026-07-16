@@ -4,16 +4,16 @@ import "time"
 
 // APIKeyAuthSnapshot API Key 认证缓存快照（仅包含认证所需字段）
 type APIKeyAuthSnapshot struct {
-	Version     int                      `json:"version"`
-	APIKeyID    int64                    `json:"api_key_id"`
-	UserID      int64                    `json:"user_id"`
-	GroupID     *int64                   `json:"group_id,omitempty"`
-	Name        string                   `json:"name"`
-	Status      string                   `json:"status"`
-	IPWhitelist []string                 `json:"ip_whitelist,omitempty"`
-	IPBlacklist []string                 `json:"ip_blacklist,omitempty"`
-	User        APIKeyAuthUserSnapshot   `json:"user"`
-	Group       *APIKeyAuthGroupSnapshot `json:"group,omitempty"`
+	Version     int                            `json:"version"`
+	APIKeyID    int64                          `json:"api_key_id"`
+	UserID      int64                          `json:"user_id"`
+	GroupID     *int64                         `json:"group_id,omitempty"`
+	Status      string                         `json:"status"`
+	IPWhitelist []string                       `json:"ip_whitelist,omitempty"`
+	IPBlacklist []string                       `json:"ip_blacklist,omitempty"`
+	User        APIKeyAuthUserSnapshot         `json:"user"`
+	Group       *APIKeyAuthGroupSnapshot       `json:"group,omitempty"`
+	GroupRoutes []APIKeyAuthGroupRouteSnapshot `json:"group_routes,omitempty"`
 
 	// Quota fields for API Key independent quota feature
 	Quota     float64 `json:"quota"`      // Quota limit in USD (0 = unlimited)
@@ -28,14 +28,27 @@ type APIKeyAuthSnapshot struct {
 	RateLimit7d float64 `json:"rate_limit_7d"`
 }
 
+type APIKeyAuthGroupRouteSnapshot struct {
+	ID              int64                    `json:"id"`
+	APIKeyID        int64                    `json:"api_key_id"`
+	GroupID         int64                    `json:"group_id"`
+	Priority        int                      `json:"priority"`
+	Weight          int                      `json:"weight"`
+	Enabled         bool                     `json:"enabled"`
+	CooldownSeconds int                      `json:"cooldown_seconds"`
+	Group           *APIKeyAuthGroupSnapshot `json:"group,omitempty"`
+}
+
 // APIKeyAuthUserSnapshot 用户快照
 type APIKeyAuthUserSnapshot struct {
-	ID            int64   `json:"id"`
-	Status        string  `json:"status"`
-	Role          string  `json:"role"`
-	Balance       float64 `json:"balance"`
-	Concurrency   int     `json:"concurrency"`
-	AllowedGroups []int64 `json:"allowed_groups,omitempty"`
+	ID                  int64   `json:"id"`
+	Status              string  `json:"status"`
+	Role                string  `json:"role"`
+	Balance             float64 `json:"balance"`
+	PointsBalance       float64 `json:"points_balance"`
+	PreferPointsBilling bool    `json:"prefer_points_billing"`
+	Concurrency         int     `json:"concurrency"`
+	AllowedGroups       []int64 `json:"allowed_groups,omitempty"`
 
 	// Balance notification fields (required for CheckBalanceAfterDeduction)
 	Email                      string             `json:"email"`
@@ -59,26 +72,21 @@ type APIKeyAuthGroupSnapshot struct {
 	ID                              int64    `json:"id"`
 	Name                            string   `json:"name"`
 	Platform                        string   `json:"platform"`
-	IsExclusive                     bool     `json:"is_exclusive"`
 	Status                          string   `json:"status"`
+	IsExclusive                     bool     `json:"is_exclusive"`
+	OwnerUserID                     *int64   `json:"owner_user_id,omitempty"`
+	Scope                           string   `json:"scope,omitempty"`
 	SubscriptionType                string   `json:"subscription_type"`
 	RateMultiplier                  float64  `json:"rate_multiplier"`
 	DailyLimitUSD                   *float64 `json:"daily_limit_usd,omitempty"`
 	WeeklyLimitUSD                  *float64 `json:"weekly_limit_usd,omitempty"`
 	MonthlyLimitUSD                 *float64 `json:"monthly_limit_usd,omitempty"`
 	AllowImageGeneration            bool     `json:"allow_image_generation"`
-	AllowBatchImageGeneration       bool     `json:"allow_batch_image_generation"`
 	ImageRateIndependent            bool     `json:"image_rate_independent"`
 	ImageRateMultiplier             float64  `json:"image_rate_multiplier"`
 	ImagePrice1K                    *float64 `json:"image_price_1k,omitempty"`
 	ImagePrice2K                    *float64 `json:"image_price_2k,omitempty"`
 	ImagePrice4K                    *float64 `json:"image_price_4k,omitempty"`
-	VideoRateIndependent            bool     `json:"video_rate_independent"`
-	VideoRateMultiplier             float64  `json:"video_rate_multiplier"`
-	VideoPrice480P                  *float64 `json:"video_price_480p,omitempty"`
-	VideoPrice720P                  *float64 `json:"video_price_720p,omitempty"`
-	VideoPrice1080P                 *float64 `json:"video_price_1080p,omitempty"`
-	WebSearchPricePerCall           *float64 `json:"web_search_price_per_call,omitempty"`
 	ClaudeCodeOnly                  bool     `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id,omitempty"`
 	FallbackGroupIDOnInvalidRequest *int64   `json:"fallback_group_id_on_invalid_request,omitempty"`
@@ -101,13 +109,12 @@ type APIKeyAuthGroupSnapshot struct {
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）；用于 billing_cache_service.checkRPM 级联判断。
 	RPMLimit int `json:"rpm_limit"`
 
-	// 高峰时段倍率：PeakRateEnabled 为 true 且请求时刻处于 [PeakStart, PeakEnd) 时，
-	// token 计费倍率额外乘以 PeakRateMultiplier（详见 Group.PeakMultiplierAt）。
-	// 必须随快照缓存，否则扣费路径拿到的 apiKey.Group 缺字段、高峰倍率失效。
-	PeakRateEnabled    bool    `json:"peak_rate_enabled"`
-	PeakStart          string  `json:"peak_start"`
-	PeakEnd            string  `json:"peak_end"`
-	PeakRateMultiplier float64 `json:"peak_rate_multiplier"`
+	// Kiro 模拟缓存配置（仅 Kiro 分组生效）
+	KiroCacheEmulationEnabled   bool    `json:"kiro_cache_emulation_enabled"`
+	KiroAutoStickyEnabled       bool    `json:"kiro_auto_sticky_enabled"`
+	KiroStickySessionTTLSeconds int     `json:"kiro_sticky_session_ttl_seconds"`
+	KiroCacheEmulationRatio     float64 `json:"kiro_cache_emulation_ratio"`
+	KiroEndpointMode            string  `json:"kiro_endpoint_mode"`
 }
 
 // APIKeyAuthCacheEntry 缓存条目，支持负缓存

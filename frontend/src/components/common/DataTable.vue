@@ -1,29 +1,28 @@
 <template>
-  <div v-if="!isDesktopViewport" class="space-y-3">
+  <div
+    v-if="!isDesktopViewport"
+    class="space-y-3"
+    :class="{ 'mobile-card-rows': cardRows }"
+  >
     <template v-if="loading">
-      <div v-for="i in 5" :key="i" class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+      <div v-for="i in 5" :key="i" class="mobile-data-card">
         <div class="space-y-3">
           <div v-for="column in dataColumns" :key="column.key" class="flex justify-between">
-            <div class="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
-            <div class="h-4 w-32 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
+            <div class="h-4 w-20 animate-pulse rounded bg-[var(--app-surface-muted)]"></div>
+            <div class="h-4 w-32 animate-pulse rounded bg-[var(--app-surface-muted)]"></div>
           </div>
-          <div v-if="hasActionsColumn" class="border-t border-gray-200 pt-3 dark:border-dark-700">
-            <div class="h-8 w-full animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
+          <div v-if="hasActionsColumn" class="border-t border-[var(--app-border)] pt-3">
+            <div class="h-8 w-full animate-pulse rounded bg-[var(--app-surface-muted)]"></div>
           </div>
         </div>
       </div>
     </template>
 
     <template v-else-if="!data || data.length === 0">
-      <div class="rounded-lg border border-gray-200 bg-white p-12 text-center dark:border-dark-700 dark:bg-dark-900">
+      <div class="mobile-data-empty">
         <slot name="empty">
           <div class="flex flex-col items-center">
-            <Icon
-              name="inbox"
-              size="xl"
-              class="mb-4 h-12 w-12 text-gray-400 dark:text-dark-500"
-            />
-            <p class="text-lg font-medium text-gray-900 dark:text-gray-100">
+            <p class="text-lg font-medium text-[var(--app-text)]">
               {{ t('empty.noData') }}
             </p>
           </div>
@@ -35,9 +34,7 @@
       <div
         v-for="(row, index) in sortedData"
         :key="resolveRowKey(row, index)"
-        class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
-        :class="{ 'cursor-pointer': clickableRows }"
-        @click="clickableRows && emit('rowClick', row)"
+        class="mobile-data-card"
       >
         <div class="space-y-3">
           <div
@@ -45,16 +42,16 @@
             :key="column.key"
             class="flex items-start justify-between gap-4"
           >
-            <span class="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400">
+            <span class="text-xs font-medium text-[var(--app-muted)]">
               {{ column.label }}
             </span>
-            <div class="text-right text-sm text-gray-900 dark:text-gray-100">
+            <div class="min-w-0 text-right text-sm text-[var(--app-text)]">
               <slot :name="`cell-${column.key}`" :row="row" :value="row[column.key]" :expanded="actionsExpanded">
                 {{ column.formatter ? column.formatter(row[column.key], row) : row[column.key] }}
               </slot>
             </div>
           </div>
-          <div v-if="hasActionsColumn" class="border-t border-gray-200 pt-3 dark:border-dark-700">
+          <div v-if="hasActionsColumn" class="border-t border-[var(--app-border)] pt-3">
             <slot name="cell-actions" :row="row" :value="row['actions']" :expanded="actionsExpanded"></slot>
           </div>
         </div>
@@ -68,11 +65,12 @@
     class="table-wrapper"
     :class="{
       'actions-expanded': actionsExpanded,
-      'is-scrollable': isScrollable
+      'is-scrollable': isScrollable,
+      'card-rows': cardRows
     }"
   >
-    <table class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700">
-      <thead class="table-header bg-gray-50 dark:bg-dark-800">
+    <table class="app-data-table w-full min-w-max">
+      <thead class="table-header">
         <tr>
           <th
             v-for="(column, index) in columns"
@@ -80,9 +78,9 @@
             scope="col"
             :aria-sort="column.sortable ? getColumnAriaSort(column.key) : undefined"
             :class="[
-              'sticky-header-cell py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400',
+              'sticky-header-cell data-table-header-cell py-3 text-left text-xs font-medium',
               getAdaptivePaddingClass(),
-              { 'cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-700': column.sortable },
+              { 'cursor-pointer data-table-sortable': column.sortable },
               getStickyColumnClass(column, index),
               column.class
             ]"
@@ -94,7 +92,7 @@
               :sort-key="sortKey"
               :sort-order="sortOrder"
             >
-              <div :class="['flex items-center space-x-1', getHeaderContentAlignmentClass(column)]">
+              <div class="flex items-center space-x-1">
                 <span>{{ column.label }}</span>
                 <span
                   v-if="column.sortable"
@@ -123,12 +121,12 @@
           </th>
         </tr>
       </thead>
-      <tbody class="table-body divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
+      <tbody class="table-body">
         <!-- Loading skeleton -->
         <tr v-if="loading" v-for="i in 5" :key="i">
           <td v-for="column in columns" :key="column.key" :class="['whitespace-nowrap py-4', getAdaptivePaddingClass()]">
             <div class="animate-pulse">
-              <div class="h-4 w-3/4 rounded bg-gray-200 dark:bg-dark-700"></div>
+              <div class="h-4 w-3/4 rounded bg-[var(--app-surface-muted)]"></div>
             </div>
           </td>
         </tr>
@@ -137,16 +135,11 @@
         <tr v-else-if="!data || data.length === 0">
           <td
             :colspan="columns.length"
-            :class="['py-12 text-center text-gray-500 dark:text-dark-400', getAdaptivePaddingClass()]"
+            :class="['py-12 text-center text-[var(--app-muted)]', getAdaptivePaddingClass()]"
           >
             <slot name="empty">
               <div class="flex flex-col items-center">
-                <Icon
-                  name="inbox"
-                  size="xl"
-                  class="mb-4 h-12 w-12 text-gray-400 dark:text-dark-500"
-                />
-                <p class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                <p class="text-lg font-medium text-[var(--app-text)]">
                   {{ t('empty.noData') }}
                 </p>
               </div>
@@ -154,7 +147,7 @@
           </td>
         </tr>
 
-        <!-- Data rows: windowed when large, fully rendered when small (shared row/cell template) -->
+        <!-- Data rows (virtual scroll) -->
         <template v-else>
           <tr v-if="virtualPaddingTop > 0" aria-hidden="true">
             <td :colspan="columns.length"
@@ -162,32 +155,30 @@
             </td>
           </tr>
           <tr
-            v-for="item in renderRows"
-            :key="resolveRowKey(item.row, item.index)"
-            :data-row-id="resolveRowKey(item.row, item.index)"
-            :data-index="item.index"
-            :ref="item.measure ? measureElement : undefined"
-            class="hover:bg-gray-50 dark:hover:bg-dark-800"
-            :class="{ 'cursor-pointer': clickableRows }"
-            @click="clickableRows && emit('rowClick', item.row)"
+            v-for="virtualRow in virtualItems"
+            :key="resolveRowKey(sortedData[virtualRow.index], virtualRow.index)"
+            :data-row-id="resolveRowKey(sortedData[virtualRow.index], virtualRow.index)"
+            :data-index="virtualRow.index"
+            :ref="measureElement"
+            class="data-table-row"
           >
             <td
               v-for="(column, colIndex) in columns"
               :key="column.key"
               :class="[
-                'whitespace-nowrap py-4 text-sm text-gray-900 dark:text-gray-100',
+                'data-table-cell whitespace-nowrap py-4 text-sm',
                 getAdaptivePaddingClass(),
                 getStickyColumnClass(column, colIndex),
                 column.class
               ]"
             >
               <slot :name="`cell-${column.key}`"
-                    :row="item.row"
-                    :value="item.row[column.key]"
+                    :row="sortedData[virtualRow.index]"
+                    :value="sortedData[virtualRow.index][column.key]"
                     :expanded="actionsExpanded">
                 {{ column.formatter
-                   ? column.formatter(item.row[column.key], item.row)
-                   : item.row[column.key] }}
+                   ? column.formatter(sortedData[virtualRow.index][column.key], sortedData[virtualRow.index])
+                   : sortedData[virtualRow.index][column.key] }}
               </slot>
             </td>
           </tr>
@@ -204,10 +195,9 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useVirtualizer, observeElementRect as observeElementRectDefault } from '@tanstack/vue-virtual'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import { useI18n } from 'vue-i18n'
 import type { Column } from './types'
-import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
 
@@ -218,34 +208,12 @@ const isDesktopViewport = ref(
 
 const emit = defineEmits<{
   sort: [key: string, order: 'asc' | 'desc']
-  rowClick: [row: any]
 }>()
 
 // 表格容器引用
 const tableWrapperRef = ref<HTMLElement | null>(null)
 const isScrollable = ref(false)
 const actionsColumnNeedsExpanding = ref(false)
-
-// --- 虚拟滚动「整表空白」根治 ---
-// 根因:本组件根 .table-wrapper 为 flex:1 / min-h-0,高度由父级 flex 链决定。@tanstack 虚拟化器
-// 仅在 observeElementRect 回调里写 scrollRect;一旦该回调读到 0 高度(加载瞬间 flex 未结算,或
-// 滚动中动态行高校正触发的 reflow),scrollRect 被钉死为 0 → calculateRange 返回 null → 整表空白。
-// 对策(见下方 virtualizer 选项):
-//   1) 覆写 observeElementRect,直接丢弃 height<=0 的读数,scrollRect 永不被钉成 0;
-//   2) initialRect 给一屏兜底高度,首个有效读数到来前也有行可渲染,绝不空白。
-// 兜底高度:表格区域大致 = 视口高度 - 顶栏/外边距/筛选/分页 ≈ 320px
-const estimatedViewportHeight = () => {
-  if (typeof window === 'undefined') return 600
-  return Math.max(window.innerHeight - 320, 400)
-}
-
-// 覆写默认 observeElementRect:过滤掉 0 高度读数(根治整表空白的关键)
-const observeElementRectNonZero = (
-  instance: any,
-  cb: (rect: { width: number; height: number }) => void
-) => observeElementRectDefault(instance, (rect) => {
-  if (rect.height > 0) cb(rect)
-})
 
 // 检查是否可滚动
 const checkScrollable = () => {
@@ -256,11 +224,6 @@ const checkScrollable = () => {
 
 // 检查操作列是否需要展开
 const checkActionsColumnWidth = () => {
-  if (!props.expandableActions) {
-    actionsColumnNeedsExpanding.value = false
-    actionsExpanded.value = false
-    return
-  }
   if (!tableWrapperRef.value) return
 
   // 查找第一行的操作列单元格
@@ -391,18 +354,12 @@ interface Props {
    * will emit 'sort' events instead of performing client-side sorting.
    */
   serverSideSort?: boolean
-  /** Emit 'rowClick' on row/card click and show pointer cursor (interactive cells should @click.stop) */
-  clickableRows?: boolean
   /** Estimated row height in px for the virtualizer (default 56) */
   estimateRowHeight?: number
   /** Number of rows to render beyond the visible area (default 5) */
   overscan?: number
-  /**
-   * Only virtualize when the row count exceeds this threshold (default 100).
-   * Smaller lists render in full, avoiding the scroll-compensation jank caused by
-   * estimated-vs-actual row heights when rows have variable height.
-   */
-  virtualizeThreshold?: number
+  /** Render each row as an independent card while preserving table semantics. */
+  cardRows?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -411,7 +368,8 @@ const props = withDefaults(defineProps<Props>(), {
   stickyActionsColumn: true,
   expandableActions: true,
   defaultSortOrder: 'asc',
-  serverSideSort: false
+  serverSideSort: false,
+  cardRows: false
 })
 
 const sortKey = ref<string>('')
@@ -494,13 +452,6 @@ const getSortIndicatorClass = (key: string, order: 'asc' | 'desc') => {
 const getColumnAriaSort = (key: string) => {
   if (sortKey.value !== key) return 'none'
   return sortOrder.value === 'asc' ? 'ascending' : 'descending'
-}
-
-const getHeaderContentAlignmentClass = (column: Column) => {
-  const className = column.class || ''
-  if (className.includes('text-center')) return 'justify-center'
-  if (className.includes('text-right')) return 'justify-end'
-  return 'justify-start'
 }
 
 const isNullishOrEmpty = (value: any) => value === null || value === undefined || value === ''
@@ -633,29 +584,11 @@ const sortedData = computed(() => {
 })
 
 // --- Virtual scrolling ---
-// 是否启用虚拟化:仅桌面端且行数超过阈值时开启。小列表全量渲染,彻底绕开虚拟器的
-// 估算/测量/滚动补偿链路,消除可变行高导致的滚动抖动。
-const shouldVirtualize = computed(() =>
-  isDesktopViewport.value && (sortedData.value?.length ?? 0) > (props.virtualizeThreshold ?? 100)
-)
-
 const rowVirtualizer = useVirtualizer(computed(() => ({
-  count: shouldVirtualize.value ? (sortedData.value?.length ?? 0) : 0,
+  count: isDesktopViewport.value ? (sortedData.value?.length ?? 0) : 0,
   getScrollElement: () => tableWrapperRef.value,
-  // 用行主键(与模板 :key 一致)而非默认的 index 作为 itemSizeCache 键,
-  // 这样排序/筛选/跨阈值来回都能复用正确的已测行高,而不是残留的按 index 缓存 → 消除高度校正抖动。
-  getItemKey: (index: number) => {
-    const row = sortedData.value?.[index]
-    return row != null ? resolveRowKey(row, index) : index
-  },
   estimateSize: () => props.estimateRowHeight ?? 56,
   overscan: props.overscan ?? 5,
-  // 兜底高度:首个有效高度读数到来前,先按一屏渲染,避免空白帧
-  initialRect: { width: 0, height: estimatedViewportHeight() },
-  // 关键:过滤 0 高度读数,杜绝 scrollRect 被钉成 0 → calculateRange 返回 null → 整表空白
-  observeElementRect: observeElementRectNonZero,
-  // 把测量类 ResizeObserver 回调批到 rAF,避免滚动中同步 reflow 风暴导致的校正抖动/空白
-  useAnimationFrameWithResizeObserver: true,
 })))
 
 const virtualItems = computed(() => rowVirtualizer.value.getVirtualItems())
@@ -676,16 +609,6 @@ const measureElement = (el: any) => {
     rowVirtualizer.value.measureElement(el as Element)
   }
 }
-
-// 统一的渲染行列表:虚拟化开启时只取窗口内的行(需 measure 交给虚拟器测量),
-// 关闭时取全部行(无需测量)。模板据此渲染,两种模式共用同一套单元格结构。
-const renderRows = computed<Array<{ index: number; row: any; measure: boolean }>>(() => {
-  const data = sortedData.value ?? []
-  if (shouldVirtualize.value) {
-    return virtualItems.value.map(vr => ({ index: vr.index, row: data[vr.index], measure: true }))
-  }
-  return data.map((row, index) => ({ index, row, measure: false }))
-})
 
 const hasActionsColumn = computed(() => {
   return props.columns.some(column => column.key === 'actions')
@@ -786,7 +709,6 @@ watch(
 
 defineExpose({
   virtualizer: rowVirtualizer,
-  shouldVirtualize,
   sortedData,
   resolveRowKey,
   tableWrapperEl: tableWrapperRef,
@@ -803,6 +725,7 @@ defineExpose({
   flex: 1;
   min-height: 0;
   isolation: isolate;
+  border-radius: 0;
 }
 
 /* 表头容器，确保在滚动时覆盖表体内容 */
@@ -810,11 +733,11 @@ defineExpose({
   position: sticky;
   top: 0;
   z-index: 200;
-  background-color: rgb(249 250 251);
+  background-color: var(--table-header-surface);
 }
 
 .dark .table-wrapper .table-header {
-  background-color: rgb(31 41 55);
+  background-color: var(--table-header-surface);
 }
 
 /* 表体保持在表头下方 */
@@ -828,11 +751,11 @@ defineExpose({
   position: sticky;
   top: 0;
   z-index: 210; /* 必须高于所有表体内容 */
-  background-color: rgb(249 250 251);
+  background-color: var(--table-header-surface);
 }
 
 .dark .sticky-header-cell {
-  background-color: rgb(31 41 55);
+  background-color: var(--table-header-surface);
 }
 
 /* Sticky 列基础样式 */
@@ -868,20 +791,20 @@ defineExpose({
 
 /* 表体 sticky 列背景 */
 tbody .sticky-col {
-  background-color: white;
+  background-color: var(--table-surface);
 }
 
 .dark tbody .sticky-col {
-  background-color: rgb(17 24 39);
+  background-color: var(--table-surface);
 }
 
 /* hover 状态保持 */
 tbody tr:hover .sticky-col {
-  background-color: rgb(249 250 251);
+  background-color: var(--app-surface-muted);
 }
 
 .dark tbody tr:hover .sticky-col {
-  background-color: rgb(31 41 55);
+  background-color: var(--app-surface-muted);
 }
 
 /* 阴影只在可滚动时显示 */
@@ -933,63 +856,217 @@ tbody tr:hover .sticky-col {
 .dark .is-scrollable .sticky-col-right::before {
   background: linear-gradient(to left, rgba(0, 0, 0, 0.2), transparent);
 }
+.table-wrapper {
+  --table-surface: var(--app-bg);
+  --table-header-surface: var(--app-bg);
+  --table-hover-surface: var(--app-surface-muted);
+  --table-border: var(--app-border);
+  --table-header-border: var(--app-border);
+  --table-shadow: rgba(0, 0, 0, 0.08);
+  background: var(--table-surface);
+  border: 0;
+  border-top: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.dark .table-wrapper {
+  --table-surface: var(--app-bg);
+  --table-header-surface: var(--app-bg);
+  --table-hover-surface: var(--app-surface-muted);
+  --table-border: var(--app-border);
+  --table-header-border: var(--app-border);
+  --table-shadow: rgba(0, 0, 0, 0.24);
+}
+
+.app-data-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table-wrapper .table-header,
+.sticky-header-cell {
+  background-color: var(--table-header-surface);
+}
+
+.sticky-header-cell {
+  border-bottom: 1px solid var(--table-header-border);
+}
+
+.data-table-header-cell {
+  color: var(--app-muted);
+  letter-spacing: 0;
+}
+
+.dark .data-table-header-cell {
+  color: var(--app-muted);
+}
+
+.data-table-sortable:hover {
+  background: var(--app-surface-muted);
+}
+
+.dark .data-table-sortable:hover {
+  background: var(--app-surface-muted);
+}
+
+.data-table-cell {
+  border-bottom: 1px solid var(--table-border);
+  color: var(--app-text);
+}
+
+.dark .data-table-cell {
+  color: var(--app-text);
+}
+
+.data-table-row {
+  transition: background-color 150ms ease;
+}
+
+.data-table-row:hover,
+.data-table-row:hover .sticky-col {
+  background: var(--table-hover-surface);
+}
+
+.table-wrapper.card-rows {
+  border-top: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.card-rows .app-data-table {
+  border-spacing: 0 0.5rem;
+}
+
+.card-rows .sticky-header-cell {
+  border-bottom: 0;
+}
+
+.card-rows .data-table-cell {
+  border-top: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
+}
+
+.card-rows .data-table-cell:first-child {
+  border-left: 1px solid var(--app-border);
+  border-radius: 8px 0 0 8px;
+}
+
+.card-rows .data-table-cell:last-child {
+  border-right: 1px solid var(--app-border);
+  border-radius: 0 8px 8px 0;
+}
+
+.card-rows tbody .sticky-col,
+.dark .card-rows tbody .sticky-col {
+  background: var(--app-surface);
+}
+
+.card-rows .data-table-row:hover .data-table-cell,
+.card-rows .data-table-row:hover .sticky-col {
+  background: var(--table-hover-surface);
+}
+
+tbody .sticky-col,
+.dark tbody .sticky-col {
+  background-color: var(--table-surface);
+}
+
+.is-scrollable .sticky-col-left::after,
+.is-scrollable .sticky-col-left-second::after,
+.dark .is-scrollable .sticky-col-left::after,
+.dark .is-scrollable .sticky-col-left-second::after {
+  background: linear-gradient(to right, var(--table-shadow), transparent);
+}
+
+.is-scrollable .sticky-col-right::before,
+.dark .is-scrollable .sticky-col-right::before {
+  background: linear-gradient(to left, var(--table-shadow), transparent);
+}
+
+.mobile-data-card,
+.mobile-data-empty {
+  border: 0;
+  border-bottom: 1px solid var(--app-border);
+  background: transparent;
+  border-radius: 0;
+  color: var(--app-text);
+  box-shadow: none;
+}
+
+.mobile-data-card {
+  padding: 0.875rem 0;
+}
+
+.mobile-card-rows .mobile-data-card {
+  padding: 1rem;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.035);
+}
+
+.mobile-data-empty {
+  border-bottom: 0;
+  padding: 3rem;
+  text-align: center;
+}
+
+.dark .mobile-data-card,
+.dark .mobile-data-empty {
+  border-bottom-color: var(--app-border);
+  background: transparent;
+  color: var(--app-text);
+  box-shadow: none;
+}
 </style>
 
 <style>
-/* ==========================================================================
-   终极悬浮滚动条防丢器 (Sledgehammer Override)
-   绕过 style.css 中 `* { scrollbar-color: transparent }` 的全局悬停隐身诅咒！
-   ========================================================================== */
-
-/* 1. 废除全局针对所有元素的 scrollbar-width 设定，拿回 Chrome/Safari 下 Webkit 滚动条规则的控制权！ */
 .table-wrapper {
-  scrollbar-width: auto !important; /* 阻止 Chrome 121 退化到原生 Mac 闪隐滚动条 */
+  scrollbar-width: thin !important;
 }
 
-/* 2. 重写 Webkit 滚动层，全部加上 !important 强制覆盖透明悬停陷阱 */
 .table-wrapper::-webkit-scrollbar {
-  height: 12px !important;
-  width: 12px !important;
+  height: 10px !important;
+  width: 10px !important;
   display: block !important;
   background-color: transparent !important;
 }
 
 .table-wrapper::-webkit-scrollbar-track {
-  background-color: rgba(0, 0, 0, 0.03) !important;
+  background-color: transparent !important;
   border-radius: 6px !important;
   margin: 0 4px !important;
 }
 .dark .table-wrapper::-webkit-scrollbar-track {
-  background-color: rgba(255, 255, 255, 0.05) !important;
+  background-color: transparent !important;
 }
 
-/* 常驻、不透明的滑块，无视鼠标是否 hover 都在那！ */
 .table-wrapper::-webkit-scrollbar-thumb {
-  background-color: rgba(107, 114, 128, 0.75) !important; 
+  background-color: rgba(107, 114, 128, 0.34) !important;
   border-radius: 6px !important;
   border: 2px solid transparent !important;
   background-clip: padding-box !important;
   -webkit-appearance: none !important;
 }
 .table-wrapper::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(75, 85, 99, 0.9) !important;
+  background-color: rgba(75, 85, 99, 0.55) !important;
 }
 
 .dark .table-wrapper::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.75) !important;
+  background-color: rgba(156, 163, 175, 0.34) !important;
 }
 .dark .table-wrapper::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(209, 213, 219, 0.9) !important;
+  background-color: rgba(209, 213, 219, 0.55) !important;
 }
 
-/* 3. 仅给真正的 Firefox 留的后路 */
 @supports (-moz-appearance:none) {
   .table-wrapper {
-    scrollbar-width: thin !important;
-    scrollbar-color: rgba(156, 163, 175, 0.5) rgba(0, 0, 0, 0.03) !important;
+    scrollbar-color: rgba(156, 163, 175, 0.45) transparent !important;
   }
   .dark .table-wrapper {
-    scrollbar-color: rgba(75, 85, 99, 0.5) rgba(255, 255, 255, 0.05) !important;
+    scrollbar-color: rgba(156, 163, 175, 0.42) transparent !important;
   }
 }
 </style>

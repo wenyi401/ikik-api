@@ -3,6 +3,7 @@
     <!-- Anthropic OAuth and Setup Token accounts: fetch real usage data -->
     <template
       v-if="
+        !isClaudeWebSession &&
         account.platform === 'anthropic' &&
         (account.type === 'oauth' || account.type === 'setup-token')
       "
@@ -68,7 +69,7 @@
           color="purple"
         />
 
-        <!-- 7d Fable Window (7d_oi) -->
+        <!-- 7d Fable Window (OAuth only) -->
         <UsageProgressBar
           v-if="usageInfo.seven_day_fable"
           label="7d F"
@@ -111,11 +112,7 @@
       </div>
 
       <!-- No data yet -->
-      <div v-else class="space-y-1">
-        <div class="text-xs text-gray-400">-</div>
-        <!-- Always allow on-demand upstream quota probe, even before passive headers exist. -->
-        <GrokQuotaProbeCell :account="account" />
-      </div>
+      <div v-else class="text-xs text-gray-400">-</div>
     </template>
 
     <!-- OpenAI OAuth accounts: single source from /usage API -->
@@ -139,11 +136,6 @@
           :show-now-when-idle="true"
           color="emerald"
         />
-        <!--
-          Upstream codex /wham/usage quota query + reset. The local active-sampling
-          refresh button is rendered via the pre-actions slot so the user sees a
-          single row of related buttons instead of two stacked rows.
-        -->
         <OpenAIQuotaResetCell :account="account">
           <template #pre-actions>
             <button
@@ -185,7 +177,6 @@
       </div>
       <div v-else>
         <div class="text-xs text-gray-400">-</div>
-        <!-- Always allow on-demand upstream quota query, even before local data exists. -->
         <OpenAIQuotaResetCell :account="account" class="mt-1" />
       </div>
     </template>
@@ -305,15 +296,6 @@
           color="emerald"
         />
 
-        <!-- Gemini 3 Image -->
-        <UsageProgressBar
-          v-if="antigravity3ImageUsageFromAPI !== null"
-          :label="t('admin.accounts.usageWindow.gemini3Image')"
-          :utilization="antigravity3ImageUsageFromAPI.utilization"
-          :resets-at="antigravity3ImageUsageFromAPI.resetTime"
-          color="purple"
-        />
-
         <!-- Claude -->
         <UsageProgressBar
           v-if="antigravityClaudeUsageFromAPI !== null"
@@ -333,7 +315,7 @@
       <div v-else class="text-xs text-gray-400">-</div>
     </template>
 
-    <!-- Grok OAuth accounts: passive xAI quota headers + local Sub2API usage -->
+    <!-- Grok OAuth accounts: passive xAI quota headers + local usage -->
     <template v-else-if="account.platform === 'grok' && account.type === 'oauth'">
       <div v-if="loading" class="space-y-1.5">
         <div class="flex items-center gap-1">
@@ -357,7 +339,7 @@
       </div>
       <div v-else-if="usageInfo" class="space-y-1">
         <div v-if="grokEntitlementLabel" class="mb-0.5">
-          <span class="inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
+          <span class="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
             {{ grokEntitlementLabel }}
           </span>
         </div>
@@ -372,45 +354,20 @@
             <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
               A ${{ formatWindowCost(grokLocalUsage) }}
             </span>
-            <span
-              v-if="grokLocalUsage.user_cost != null"
-              class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
-              :title="t('usage.userBilled')"
-            >
-              U ${{ formatWindowUserCost(grokLocalUsage) }}
-            </span>
           </div>
         </div>
         <UsageProgressBar
-          v-if="grokWeeklyBillingBar"
-          label="7d"
-          :utilization="grokWeeklyBillingBar.utilization"
-          :resets-at="grokWeeklyBillingBar.resetsAt"
-          :show-now-when-idle="true"
-          color="indigo"
-        />
-        <UsageProgressBar
-          v-if="!grokWeeklyBillingBar && !grokIsFree && grokRequestQuotaBar"
+          v-if="grokRequestQuotaBar"
           :label="t('admin.accounts.usageWindow.grokRequests')"
           :utilization="grokRequestQuotaBar.utilization"
           :resets-at="grokRequestQuotaBar.resetsAt"
-          :remaining-capacity="true"
           color="indigo"
         />
         <UsageProgressBar
-          v-if="!grokWeeklyBillingBar && !grokIsFree && grokTokenQuotaBar"
+          v-if="grokTokenQuotaBar"
           :label="t('admin.accounts.usageWindow.grokTokens')"
           :utilization="grokTokenQuotaBar.utilization"
           :resets-at="grokTokenQuotaBar.resetsAt"
-          :remaining-capacity="true"
-          color="emerald"
-        />
-        <UsageProgressBar
-          v-if="grokFreeTokenBar"
-          label="24h"
-          :title="t('admin.accounts.usageWindow.grokFreeQuota24hHint')"
-          :utilization="grokFreeTokenBar.utilization"
-          :show-now-when-idle="true"
           color="emerald"
         />
         <div v-if="grokRetryAfterLabel" class="text-[10px] text-amber-600 dark:text-amber-400">
@@ -425,9 +382,12 @@
         <div v-if="grokQuotaStatusLine" class="text-[10px] text-gray-500 dark:text-gray-400">
           {{ grokQuotaStatusLine }}
         </div>
-        <GrokQuotaProbeCell :account="account" @probed="handleGrokProbed" />
+        <GrokQuotaProbeCell v-if="usageCacheScope !== 'user'" :account="account" />
       </div>
-      <div v-else class="text-xs text-gray-400">-</div>
+      <div v-else class="space-y-1">
+        <div class="text-xs text-gray-400">-</div>
+        <GrokQuotaProbeCell v-if="usageCacheScope !== 'user'" :account="account" />
+      </div>
     </template>
 
     <!-- Gemini platform: show quota + local usage window -->
@@ -618,7 +578,6 @@
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
-import type { GrokQuotaProbeResult } from '@/api/admin/grok'
 import type { Account, AccountUsageInfo, GeminiCredentials, WindowStats } from '@/types'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
@@ -628,11 +587,11 @@ import AccountQuotaInfo from './AccountQuotaInfo.vue'
 import OpenAIQuotaResetCell from './OpenAIQuotaResetCell.vue'
 import GrokQuotaProbeCell from './GrokQuotaProbeCell.vue'
 
+type UsageLoader = (id: number, source?: 'passive' | 'active') => Promise<AccountUsageInfo>
+
 // Module-level cache shared across all AccountUsageCell instances
-const _usageCache = new Map<number, { data: AccountUsageInfo; ts: number }>()
+const _usageCache = new Map<string, { data: AccountUsageInfo; ts: number }>()
 const USAGE_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-// xAI Free billing exposes a window without usage_percent, so estimate it from local tokens.
-const GROK_FREE_TOKEN_LIMIT = 2_000_000
 
 const props = withDefaults(
   defineProps<{
@@ -640,11 +599,14 @@ const props = withDefaults(
     todayStats?: WindowStats | null
     todayStatsLoading?: boolean
     manualRefreshToken?: number
+    usageLoader?: UsageLoader
+    usageCacheScope?: string
   }>(),
   {
     todayStats: null,
     todayStatsLoading: false,
-    manualRefreshToken: 0
+    manualRefreshToken: 0,
+    usageCacheScope: 'admin'
   }
 )
 
@@ -659,6 +621,7 @@ const activeQueryLoading = ref(false)
 const error = ref<string | null>(null)
 const usageInfo = ref<AccountUsageInfo | null>(null)
 const rootRef = ref<HTMLElement | null>(null)
+const usageCacheKey = computed(() => `${props.usageCacheScope}:${props.account.id}`)
 const isDesktopViewport = ref(
   typeof window === 'undefined' ? true : window.matchMedia(desktopViewportQuery).matches
 )
@@ -670,6 +633,12 @@ let desktopViewportMediaQuery: MediaQueryList | null = null
 let desktopViewportListener: ((event: MediaQueryListEvent) => void) | null = null
 let visibilityObserver: IntersectionObserver | null = null
 
+const isClaudeWebSession = computed(() => {
+  if (props.account.platform !== 'anthropic' || props.account.type !== 'oauth') return false
+  const marker = props.account.extra?.claude_web_session
+  return marker === true || (typeof marker === 'string' && marker.trim().toLowerCase() === 'true')
+})
+
 // Show usage windows for OAuth and Setup Token accounts
 const showUsageWindows = computed(() => {
   // Gemini: we can always compute local usage windows from DB logs (simulated quotas).
@@ -678,6 +647,7 @@ const showUsageWindows = computed(() => {
 })
 
 const shouldFetchUsage = computed(() => {
+  if (isClaudeWebSession.value) return false
   if (props.account.platform === 'anthropic') {
     return props.account.type === 'oauth' || props.account.type === 'setup-token'
   }
@@ -783,15 +753,9 @@ const antigravity3ProUsageFromAPI = computed(() =>
 // Gemini 3 Flash from API
 const antigravity3FlashUsageFromAPI = computed(() => getAntigravityUsageFromAPI(['gemini-3-flash']))
 
-// Gemini Image from API
-const antigravity3ImageUsageFromAPI = computed(() =>
-  getAntigravityUsageFromAPI(['gemini-2.5-flash-image', 'gemini-3.1-flash-image', 'gemini-3-pro-image'])
-)
-
 // Claude from API (all Claude model variants)
 const antigravityClaudeUsageFromAPI = computed(() =>
   getAntigravityUsageFromAPI([
-    'claude-fable-5',
     'claude-sonnet-4-5', 'claude-opus-4-5-thinking',
     'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-6-thinking',
     'claude-opus-4-7', 'claude-opus-4-8',
@@ -1055,69 +1019,22 @@ interface GrokQuotaBarInfo {
   resetsAt: string | null
 }
 
-const makeGrokQuotaBar = (quota?: { limit?: number | null; remaining?: number | null; reset_at?: string | null } | null): GrokQuotaBarInfo | null => {
+const makeGrokQuotaBar = (
+  quota?: { limit?: number | null; remaining?: number | null; reset_at?: string | null } | null
+): GrokQuotaBarInfo | null => {
   if (!quota || quota.limit == null || quota.remaining == null || quota.limit <= 0) return null
-  const remaining = Math.min(quota.limit, Math.max(0, quota.remaining))
+  const used = Math.max(0, quota.limit - quota.remaining)
   return {
-    utilization: (remaining / quota.limit) * 100,
+    utilization: Math.min(100, (used / quota.limit) * 100),
     resetsAt: quota.reset_at || null
   }
 }
 
 const grokRequestQuotaBar = computed(() => makeGrokQuotaBar(usageInfo.value?.grok_request_quota))
 const grokTokenQuotaBar = computed(() => makeGrokQuotaBar(usageInfo.value?.grok_token_quota))
-const grokBilling = computed(() => usageInfo.value?.grok_billing || null)
-const grokWeeklyBillingBar = computed((): GrokQuotaBarInfo | null => {
-  const billing = grokBilling.value
-  if (billing?.period_type?.toLowerCase() !== 'weekly' || billing.usage_percent == null) {
-    return null
-  }
-  return {
-    utilization: Math.min(100, Math.max(0, billing.usage_percent)),
-    resetsAt: billing.period_end || null
-  }
-})
-const grokPlanLabelIsFree = (value: string) => value.includes('free') || value.includes('basic')
-const grokPlanLabelIsPaid = (value: string) => {
-  return value !== '' && !grokPlanLabelIsFree(value) && !value.includes('unknown')
-}
-const grokIsFree = computed(() => {
-  if (props.account.platform !== 'grok' || props.account.type !== 'oauth') return false
-  const billing = grokBilling.value
-  if (
-    billing?.usage_percent != null ||
-    billing?.used_percent != null ||
-    (billing?.monthly_limit_cents != null && billing.monthly_limit_cents > 0)
-  ) return false
-
-  const plan = (billing?.plan || '').trim().toLowerCase()
-  const tier = (usageInfo.value?.subscription_tier || '').trim().toLowerCase()
-  const entitlement = (usageInfo.value?.grok_entitlement_status || '').toLowerCase()
-  if (grokPlanLabelIsPaid(plan) || grokPlanLabelIsPaid(tier)) return false
-  if (
-    grokPlanLabelIsFree(plan) ||
-    grokPlanLabelIsFree(tier) ||
-    grokPlanLabelIsFree(entitlement)
-  ) return true
-  return billing != null
-})
-const grokFreeQuotaUsage = computed(() => usageInfo.value?.grok_local_usage_24h || null)
-const grokLocalUsage = computed(() => {
-  if (grokIsFree.value) return grokFreeQuotaUsage.value
-  return props.todayStats ||
-    usageInfo.value?.grok_local_usage ||
-    usageInfo.value?.grok_local_usage_7d ||
-    usageInfo.value?.grok_local_usage_monthly ||
-    null
-})
-const grokFreeTokenBar = computed(() => {
-  if (!grokIsFree.value || !grokFreeQuotaUsage.value) return null
-  const used = Math.max(0, grokFreeQuotaUsage.value.tokens || 0)
-  return { utilization: Math.min(100, (used / GROK_FREE_TOKEN_LIMIT) * 100) }
-})
 const grokQuotaUnknown = computed(() => {
   if (props.account.platform !== 'grok') return false
-  if (grokBilling.value || grokFreeTokenBar.value || grokRequestQuotaBar.value || grokTokenQuotaBar.value) return false
+  if (grokRequestQuotaBar.value || grokTokenQuotaBar.value) return false
   return usageInfo.value?.grok_quota_snapshot_state !== 'observed'
 })
 const grokQuotaUnknownLabel = computed(() => {
@@ -1148,6 +1065,7 @@ const grokQuotaStatusLine = computed(() => {
   }
   return parts.length > 0 ? parts.join(' | ') : null
 })
+const grokLocalUsage = computed(() => usageInfo.value?.grok_local_usage || props.todayStats || null)
 const grokEntitlementLabel = computed(() => {
   const status = (usageInfo.value?.grok_entitlement_status || '').trim()
   return status || null
@@ -1156,14 +1074,8 @@ const grokRetryAfterLabel = computed(() => {
   const seconds = usageInfo.value?.grok_retry_after_seconds
   if (seconds == null || seconds <= 0) return null
   if (seconds < 60) return `${seconds}s`
-  const minutes = Math.ceil(seconds / 60)
-  return `${minutes}m`
+  return `${Math.ceil(seconds / 60)}m`
 })
-
-const formatWindowRequests = (stats: WindowStats) => formatCompactNumber(stats.requests, { allowBillions: false })
-const formatWindowTokens = (stats: WindowStats) => formatCompactNumber(stats.tokens)
-const formatWindowCost = (stats: WindowStats) => stats.cost.toFixed(2)
-const formatWindowUserCost = (stats: WindowStats) => (stats.user_cost ?? 0).toFixed(2)
 
 // 账户类型显示标签
 const antigravityTierLabel = computed(() => {
@@ -1251,7 +1163,7 @@ const copyValidationURL = async () => {
 }
 
 const isAnthropicOAuthOrSetupToken = computed(() => {
-  return props.account.platform === 'anthropic' && (props.account.type === 'oauth' || props.account.type === 'setup-token')
+  return !isClaudeWebSession.value && props.account.platform === 'anthropic' && (props.account.type === 'oauth' || props.account.type === 'setup-token')
 })
 
 const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?: boolean }) => {
@@ -1259,7 +1171,7 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
 
   // Check cache
   if (!options?.bypassCache) {
-    const cached = _usageCache.get(props.account.id)
+    const cached = _usageCache.get(usageCacheKey.value)
     if (cached && Date.now() - cached.ts < USAGE_CACHE_TTL) {
       usageInfo.value = cached.data
       loading.value = false
@@ -1271,13 +1183,14 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
   error.value = null
 
   try {
+    const loader = props.usageLoader ?? adminAPI.accounts.getUsage
     const fetchFn = () => options?.source
-      ? adminAPI.accounts.getUsage(props.account.id, options.source)
-      : adminAPI.accounts.getUsage(props.account.id)
+      ? loader(props.account.id, options.source)
+      : loader(props.account.id)
     const result = await enqueueUsageRequest(props.account, fetchFn)
     if (!unmounted.value) {
       usageInfo.value = result
-      _usageCache.set(props.account.id, { data: result, ts: Date.now() })
+      _usageCache.set(usageCacheKey.value, { data: result, ts: Date.now() })
     }
   } catch (e: any) {
     if (!unmounted.value) {
@@ -1342,41 +1255,13 @@ const attachVisibilityObserver = () => {
 const loadActiveUsage = async () => {
   activeQueryLoading.value = true
   try {
-    usageInfo.value = await adminAPI.accounts.getUsage(props.account.id, 'active', true)
+    const loader = props.usageLoader ?? adminAPI.accounts.getUsage
+    usageInfo.value = await loader(props.account.id, 'active')
   } catch (e: any) {
     console.error('Failed to load active usage:', e)
   } finally {
     activeQueryLoading.value = false
   }
-}
-
-const handleGrokProbed = (result: GrokQuotaProbeResult) => {
-  const current = usageInfo.value
-  if (!current) return
-  const snapshot = result.snapshot
-  const merged: AccountUsageInfo = {
-    ...current,
-    grok_billing: result.billing ?? current.grok_billing,
-    grok_local_usage_24h: result.local_usage_24h ?? current.grok_local_usage_24h,
-    grok_local_usage_7d: result.local_usage_7d ?? current.grok_local_usage_7d,
-    grok_local_usage_monthly: result.local_usage_monthly ?? current.grok_local_usage_monthly,
-    grok_request_quota: snapshot?.requests ?? current.grok_request_quota,
-    grok_token_quota: snapshot?.tokens ?? current.grok_token_quota,
-    grok_retry_after_seconds: snapshot?.retry_after_seconds ?? current.grok_retry_after_seconds,
-    grok_entitlement_status: snapshot?.entitlement_status || current.grok_entitlement_status,
-    grok_quota_snapshot_state: result.billing
-      ? 'billing_observed'
-      : snapshot?.headers_observed
-        ? 'observed'
-        : current.grok_quota_snapshot_state,
-    grok_last_quota_probe_at: result.billing?.fetched_at ?? snapshot?.last_probe_at ?? current.grok_last_quota_probe_at,
-    grok_last_headers_seen_at: snapshot?.last_headers_seen_at ?? current.grok_last_headers_seen_at,
-    grok_last_status_code: result.status_code ?? snapshot?.status_code ?? current.grok_last_status_code,
-    error: result.billing || snapshot ? undefined : current.error,
-    error_code: result.billing || snapshot ? undefined : current.error_code
-  }
-  usageInfo.value = merged
-  _usageCache.set(props.account.id, { data: merged, ts: Date.now() })
 }
 
 // ===== API Key quota progress bars =====
@@ -1466,6 +1351,10 @@ const formatKeyUserCost = computed(() => {
   return props.todayStats.user_cost.toFixed(2)
 })
 
+const formatWindowRequests = (stats: WindowStats) => formatCompactNumber(stats.requests, { allowBillions: false })
+const formatWindowTokens = (stats: WindowStats) => formatCompactNumber(stats.tokens)
+const formatWindowCost = (stats: WindowStats) => stats.cost.toFixed(2)
+
 onMounted(() => {
   if (typeof window !== 'undefined') {
     desktopViewportMediaQuery = window.matchMedia(desktopViewportQuery)
@@ -1489,8 +1378,10 @@ watch(openAIUsageRefreshKey, (nextKey, prevKey) => {
   if (!prevKey || nextKey === prevKey) return
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return
 
-  _usageCache.delete(props.account.id)
-  requestAutoLoad()
+  _usageCache.delete(usageCacheKey.value)
+  loadUsage({ bypassCache: true }).catch((e) => {
+    console.error('Failed to refresh OpenAI usage after account update:', e)
+  })
 })
 
 watch(
@@ -1500,7 +1391,7 @@ watch(
     if (!shouldFetchUsage.value) return
 
     const source = isAnthropicOAuthOrSetupToken.value ? 'passive' : undefined
-    _usageCache.delete(props.account.id)
+    _usageCache.delete(usageCacheKey.value)
     loadUsage({ source, bypassCache: true }).catch((e) => {
       console.error('Failed to refresh usage after manual refresh:', e)
     })

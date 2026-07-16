@@ -114,7 +114,7 @@ export async function deleteProxy(id: number): Promise<{ message: string }> {
  * @param status - New status
  * @returns Updated proxy
  */
-export async function toggleStatus(id: number, status: 'active' | 'inactive'): Promise<Proxy> {
+export async function toggleStatus(id: number, status: 'active' | 'inactive' | 'expired'): Promise<Proxy> {
   return update(id, { status })
 }
 

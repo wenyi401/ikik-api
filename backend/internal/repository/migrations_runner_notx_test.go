@@ -116,45 +116,6 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_t_b ON t(b);
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestApplyMigrationsFS_NonTransactionalMigration_LatestAPIKeyIPIndexDropsInvalidIndexBeforeRetry(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
-
-	prepareMigrationsBootstrapExpectations(mock)
-	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
-		WithArgs(latestAPIKeyIPIndexMigration).
-		WillReturnError(sql.ErrNoRows)
-	mock.ExpectQuery("SELECT EXISTS \\(").
-		WithArgs(latestAPIKeyIPIndex).
-		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
-	mock.ExpectExec("DROP INDEX CONCURRENTLY IF EXISTS idx_usage_logs_api_key_latest_ip").
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_usage_logs_api_key_latest_ip").
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("INSERT INTO schema_migrations \\(filename, checksum\\) VALUES \\(\\$1, \\$2\\)").
-		WithArgs(latestAPIKeyIPIndexMigration, sqlmock.AnyArg()).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
-		WithArgs(migrationsAdvisoryLockID).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-
-	fsys := fstest.MapFS{
-		latestAPIKeyIPIndexMigration: &fstest.MapFile{
-			Data: []byte(`
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_usage_logs_api_key_latest_ip
-    ON usage_logs (api_key_id, created_at DESC, id DESC)
-    INCLUDE (ip_address)
-    WHERE ip_address IS NOT NULL AND ip_address <> '';
-`),
-		},
-	}
-
-	err = applyMigrationsFS(context.Background(), db, fsys)
-	require.NoError(t, err)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestApplyMigrationsFS_PaymentOrdersOutTradeNoUniqueMigration_FailsFastOnDuplicatePrecheck(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -233,36 +194,69 @@ DROP INDEX CONCURRENTLY IF EXISTS paymentorder_out_trade_no;
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestApplyMigrationsFS_SchedulerOutboxPendingDedupKeyMigration_DropsInvalidIndexBeforeRetry(t *testing.T) {
+func TestApplyMigrationsFS_OwnedAccountIdentityUniqueMigration_FailsFastOnDuplicatePrecheck(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 
 	prepareMigrationsBootstrapExpectations(mock)
 	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
-		WithArgs("153_scheduler_outbox_pending_dedup_key_index_notx.sql").
+		WithArgs("140_owned_account_identity_unique_notx.sql").
 		WillReturnError(sql.ErrNoRows)
-	mock.ExpectQuery("SELECT EXISTS \\(").
-		WithArgs("idx_scheduler_outbox_pending_dedup_key").
-		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
-	mock.ExpectExec("DROP INDEX CONCURRENTLY IF EXISTS idx_scheduler_outbox_pending_dedup_key").
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_scheduler_outbox_pending_dedup_key").
+	mock.ExpectQuery("WITH identities AS").
+		WillReturnRows(sqlmock.NewRows([]string{"identity_name", "owner_user_id", "duplicate_count", "sample_ids"}).
+			AddRow("openai.chatgpt_account_id", int64(101), 2, "1,2"))
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	fsys := fstest.MapFS{
+		"140_owned_account_identity_unique_notx.sql": &fstest.MapFile{
+			Data: []byte("CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_owned_openai_chatgpt_account_id_uniq ON accounts (owner_user_id, NULLIF(BTRIM(credentials->>'chatgpt_account_id'), '')) WHERE deleted_at IS NULL;"),
+		},
+	}
+
+	err = applyMigrationsFS(context.Background(), db, fsys)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "duplicate owned account identities")
+	require.Contains(t, err.Error(), "openai.chatgpt_account_id")
+	require.Contains(t, err.Error(), "sample_account_ids=1,2")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestApplyMigrationsFS_OwnedAccountIdentityUniqueMigration_DropsInvalidIndexesBeforeRetry(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	prepareMigrationsBootstrapExpectations(mock)
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs("140_owned_account_identity_unique_notx.sql").
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("WITH identities AS").
+		WillReturnRows(sqlmock.NewRows([]string{"identity_name", "owner_user_id", "duplicate_count", "sample_ids"}))
+	for i, indexName := range ownedAccountIdentityUniqueIndexes {
+		invalid := i == 0
+		mock.ExpectQuery("SELECT EXISTS \\(").
+			WithArgs(indexName).
+			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(invalid))
+		if invalid {
+			mock.ExpectExec("DROP INDEX CONCURRENTLY IF EXISTS " + indexName).
+				WillReturnResult(sqlmock.NewResult(0, 0))
+		}
+	}
+	mock.ExpectExec("CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_owned_openai_chatgpt_account_id_uniq").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("INSERT INTO schema_migrations \\(filename, checksum\\) VALUES \\(\\$1, \\$2\\)").
-		WithArgs("153_scheduler_outbox_pending_dedup_key_index_notx.sql", sqlmock.AnyArg()).
+		WithArgs("140_owned_account_identity_unique_notx.sql", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
 		WithArgs(migrationsAdvisoryLockID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	fsys := fstest.MapFS{
-		"153_scheduler_outbox_pending_dedup_key_index_notx.sql": &fstest.MapFile{
-			Data: []byte(`
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_scheduler_outbox_pending_dedup_key
-    ON scheduler_outbox (dedup_key)
-    WHERE dedup_key IS NOT NULL;
-`),
+		"140_owned_account_identity_unique_notx.sql": &fstest.MapFile{
+			Data: []byte("CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_owned_openai_chatgpt_account_id_uniq ON accounts (owner_user_id, NULLIF(BTRIM(credentials->>'chatgpt_account_id'), '')) WHERE deleted_at IS NULL;"),
 		},
 	}
 

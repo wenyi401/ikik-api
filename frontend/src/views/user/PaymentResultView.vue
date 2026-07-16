@@ -40,24 +40,24 @@
               <span class="font-medium text-gray-900 dark:text-white">#{{ order.id }}</span>
             </div>
             <div v-if="order.out_trade_no" class="flex justify-between">
-              <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</span>
+              <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentOrderNo') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ order.out_trade_no }}</span>
             </div>
             <div v-if="hasAmountFields(order)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.baseAmount') }}</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(baseAmount) }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">&#165;{{ baseAmount.toFixed(2) }}</span>
             </div>
             <div v-if="hasAmountFields(order) && order.fee_rate > 0" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.fee') }} ({{ order.fee_rate }}%)</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(feeAmount) }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">&#165;{{ feeAmount.toFixed(2) }}</span>
             </div>
             <div v-if="hasAmountFields(order)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
-              <span class="font-bold text-primary-600 dark:text-primary-400">{{ formatGatewayAmount(order.pay_amount) }}</span>
+              <span class="font-bold text-primary-600 dark:text-primary-400">&#165;{{ order.pay_amount.toFixed(2) }}</span>
             </div>
             <div v-if="hasAmountFields(order) && order.amount !== order.pay_amount" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ order.order_type === 'balance' ? '$' + order.amount.toFixed(2) : formatGatewayAmount(order.amount) }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ order.order_type === 'balance' ? '$' : '¥' }}{{ order.amount.toFixed(2) }}</span>
             </div>
             <div v-if="hasPaymentType(order)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</span>
@@ -69,6 +69,64 @@
             </div>
           </div>
         </div>
+        <!-- Store Delivery -->
+        <div
+          v-if="isShopPayment && (shopOrder || loadingShopOrder)"
+          class="rounded-xl bg-white p-5 shadow-sm dark:bg-dark-800"
+        >
+          <div v-if="loadingShopOrder && !shopOrder" class="flex items-center justify-center py-8">
+            <div class="h-6 w-6 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+          </div>
+          <div v-else-if="shopOrder" class="space-y-4">
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between gap-3">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('store.product') }}</span>
+                <span class="text-right font-medium text-gray-900 dark:text-white">{{ shopOrder.product_name }}</span>
+              </div>
+              <div class="flex justify-between gap-3">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('store.quantity') }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ shopOrder.quantity }}</span>
+              </div>
+            </div>
+
+            <div v-if="shopOrder.draw_reward_amount !== null && shopOrder.draw_reward_amount !== undefined" class="rounded-lg bg-emerald-50 p-4 text-sm dark:bg-emerald-950/30">
+              <div class="flex justify-between gap-3">
+                <span class="text-emerald-700 dark:text-emerald-300">{{ t('store.drawReward') }}</span>
+                <span class="font-semibold text-emerald-800 dark:text-emerald-200">{{ formatStoreDrawReward(shopOrder) }}</span>
+              </div>
+            </div>
+
+            <div v-if="shopOrder.delivered_cards.length > 0 && (shopOrder.draw_reward_amount === null || shopOrder.draw_reward_amount === undefined)">
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('store.deliveredCards') }}</span>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  @click="copyShopDeliveredCards"
+                >
+                  {{ t('common.copy') }}
+                </button>
+              </div>
+              <div class="max-h-72 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-700 dark:bg-dark-900">
+                <code
+                  v-for="(card, index) in shopOrder.delivered_cards"
+                  :key="index"
+                  class="block break-all rounded-md bg-white px-3 py-2 font-mono text-xs text-gray-900 dark:bg-dark-800 dark:text-dark-100"
+                >
+                  {{ card }}
+                </code>
+              </div>
+            </div>
+            <DeliveredFilesList
+              v-if="shopOrder.delivered_files.length > 0"
+              :order-id="shopOrder.id"
+              :files="shopOrder.delivered_files"
+            />
+            <p v-if="shopOrder.delivered_cards.length === 0 && shopOrder.delivered_files.length === 0 && (shopOrder.draw_reward_amount === null || shopOrder.draw_reward_amount === undefined)" class="rounded-lg bg-gray-50 p-4 text-sm text-gray-500 dark:bg-dark-900 dark:text-dark-400">
+              {{ t('store.deliveryPending') }}
+            </p>
+          </div>
+        </div>
         <!-- EasyPay return info (when no order loaded) -->
         <div v-else-if="returnInfo" class="rounded-xl bg-white p-5 shadow-sm dark:bg-dark-800">
           <div class="space-y-3 text-sm">
@@ -78,7 +136,7 @@
             </div>
             <div v-if="returnInfo.money" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(Number(returnInfo.money) || 0) }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">&#165;{{ returnInfo.money }}</span>
             </div>
             <div v-if="returnInfo.type" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</span>
@@ -88,7 +146,7 @@
         </div>
         <!-- Actions -->
         <div class="flex gap-3">
-          <button class="btn btn-secondary flex-1" @click="router.push('/purchase')">{{ t('payment.result.backToRecharge') }}</button>
+          <button class="btn btn-secondary flex-1" @click="router.push(resultBackPath)">{{ resultBackLabel }}</button>
           <button class="btn btn-primary flex-1" @click="router.push('/orders')">{{ t('payment.result.viewOrders') }}</button>
         </div>
       </template>
@@ -101,20 +159,21 @@ import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
+import DeliveredFilesList from '@/components/store/DeliveredFilesList.vue'
 import {
   PAYMENT_RECOVERY_STORAGE_KEY,
   clearPaymentRecoverySnapshot,
-  readPaymentRecoverySnapshot,
+  readPaymentRecoverySnapshotFromStorage,
 } from '@/components/payment/paymentFlow'
 import { usePaymentStore } from '@/stores/payment'
-import { paymentAPI } from '@/api/payment'
-import type { PublicOrderVerifyResult } from '@/api/payment'
+import { paymentAPI, type PublicOrderVerifyResult } from '@/api/payment'
+import { storeAPI } from '@/api/store'
+import { formatStoreDrawReward } from '@/utils/storeRewards'
 import type { OrderStatus, PaymentOrder } from '@/types/payment'
-import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
+import type { StoreOrder } from '@/types/store'
 import { normalizePaymentMethodForDisplay, paymentMethodI18nKey } from './paymentUx'
 
-const i18n = useI18n()
-const { t } = i18n
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const paymentStore = usePaymentStore()
@@ -122,8 +181,9 @@ const paymentStore = usePaymentStore()
 type ResolvedOrder = PaymentOrder | PublicOrderVerifyResult
 
 const order = ref<ResolvedOrder | null>(null)
+const shopOrder = ref<StoreOrder | null>(null)
 const loading = ref(true)
-const currency = ref('CNY')
+const loadingShopOrder = ref(false)
 
 interface ReturnInfo {
   outTradeNo: string
@@ -143,27 +203,14 @@ const refreshAttempts = ref(0)
 
 /** 充值金额 = pay_amount / (1 + fee_rate/100)，fee_rate=0 时等于 pay_amount */
 const baseAmount = computed(() => {
-  if (!hasAmountFields(order.value)) return 0
-  const feeRate = Number(order.value.fee_rate) || 0
-  if (feeRate <= 0) return order.value.pay_amount ?? 0
-  return Math.round((order.value.pay_amount / (1 + feeRate / 100)) * 100) / 100
+  if (!hasAmountFields(order.value) || order.value.fee_rate <= 0) return hasAmountFields(order.value) ? order.value.pay_amount : 0
+  return Math.round((order.value.pay_amount / (1 + order.value.fee_rate / 100)) * 100) / 100
 })
 
 /** 手续费 = pay_amount - baseAmount */
 const feeAmount = computed(() => {
-  if (!hasAmountFields(order.value)) return 0
-  const feeRate = Number(order.value.fee_rate) || 0
-  if (feeRate <= 0) return 0
+  if (!hasAmountFields(order.value) || order.value.fee_rate <= 0) return 0
   return Math.round((order.value.pay_amount - baseAmount.value) * 100) / 100
-})
-
-const localeCode = computed(() => {
-  const raw = i18n.locale as unknown
-  if (typeof raw === 'string') return raw
-  if (raw && typeof raw === 'object' && 'value' in raw) {
-    return String((raw as { value?: string }).value || '')
-  }
-  return undefined
 })
 
 const isSuccess = computed(() => {
@@ -183,20 +230,12 @@ const statusTitle = computed(() => {
   }
   return t('payment.result.failed')
 })
+const isShopPayment = computed(() => hasOrderType(order.value) && order.value.order_type === 'shop')
+const resultBackPath = computed(() => isShopPayment.value ? '/store' : '/purchase')
+const resultBackLabel = computed(() => isShopPayment.value ? t('nav.store') : t('payment.result.backToRecharge'))
 
 function normalizedOrderPaymentType(paymentType: string): string {
   return normalizePaymentMethodForDisplay(paymentType || '') || paymentType || ''
-}
-
-function formatGatewayAmount(value: number): string {
-  return formatPaymentAmount(value, currency.value, localeCode.value)
-}
-
-function setResolvedOrder(nextOrder: ResolvedOrder | null): void {
-  order.value = nextOrder
-  if (nextOrder && 'currency' in nextOrder && nextOrder.currency) {
-    currency.value = normalizePaymentCurrency(nextOrder.currency)
-  }
 }
 
 function hasOrderId(nextOrder: ResolvedOrder | null): nextOrder is PaymentOrder {
@@ -204,11 +243,19 @@ function hasOrderId(nextOrder: ResolvedOrder | null): nextOrder is PaymentOrder 
 }
 
 function hasAmountFields(nextOrder: ResolvedOrder | null): nextOrder is PaymentOrder {
-  return !!nextOrder && 'pay_amount' in nextOrder && typeof nextOrder.pay_amount === 'number' && 'amount' in nextOrder && typeof nextOrder.amount === 'number'
+  return !!nextOrder
+    && 'pay_amount' in nextOrder
+    && typeof nextOrder.pay_amount === 'number'
+    && 'amount' in nextOrder
+    && typeof nextOrder.amount === 'number'
 }
 
 function hasPaymentType(nextOrder: ResolvedOrder | null): nextOrder is PaymentOrder {
   return !!nextOrder && 'payment_type' in nextOrder && typeof nextOrder.payment_type === 'string' && nextOrder.payment_type.trim() !== ''
+}
+
+function hasOrderType(nextOrder: ResolvedOrder | null): nextOrder is PaymentOrder {
+  return !!nextOrder && 'order_type' in nextOrder && typeof nextOrder.order_type === 'string'
 }
 
 function normalizeOrderStatus(status: string | null | undefined): string {
@@ -225,6 +272,77 @@ function isSuccessStatus(status: string | null | undefined): boolean {
 
 function isPendingStatus(status: string | null | undefined): boolean {
   return PENDING_STATUSES.has(normalizeOrderStatus(status))
+}
+
+function hasLocalAuthToken(): boolean {
+  if (typeof window === 'undefined') return false
+  return !!window.localStorage.getItem('auth_token')
+}
+
+function shouldLoadShopOrder(paymentOrder: PaymentOrder | null): paymentOrder is PaymentOrder & { shop_order_id: number } {
+  return hasLocalAuthToken()
+    && paymentOrder?.order_type === 'shop'
+    && typeof paymentOrder.shop_order_id === 'number'
+    && paymentOrder.shop_order_id > 0
+}
+
+function shouldRefreshShopDelivery(): boolean {
+  const currentOrder = hasOrderId(order.value) ? order.value : null
+  if (!shouldLoadShopOrder(currentOrder) || !isSuccessStatus(currentOrder.status)) {
+    return false
+  }
+  if (!shopOrder.value) {
+    return true
+  }
+  return (shopOrder.value.status === 'pending' || shopOrder.value.status === 'paid')
+    && shopOrder.value.delivered_cards.length === 0
+    && shopOrder.value.delivered_files.length === 0
+}
+
+async function loadShopOrder(paymentOrder: PaymentOrder | null = hasOrderId(order.value) ? order.value : null): Promise<void> {
+  if (!shouldLoadShopOrder(paymentOrder)) {
+    shopOrder.value = null
+    return
+  }
+
+  loadingShopOrder.value = true
+  try {
+    const { data } = await storeAPI.getOrder(paymentOrder.shop_order_id)
+    shopOrder.value = data
+  } catch (_err: unknown) {
+    shopOrder.value = null
+  } finally {
+    loadingShopOrder.value = false
+  }
+}
+
+async function copyShopDeliveredCards(): Promise<void> {
+  const cards = shopOrder.value?.delivered_cards || []
+  if (cards.length === 0) return
+  await copyText(cards.join('\n'))
+}
+
+async function copyText(text: string): Promise<void> {
+  if (!text || typeof window === 'undefined') return
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return
+    } catch {
+      // Continue with the DOM copy path below.
+    }
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.cssText = 'position:fixed;left:-9999px;top:-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  try {
+    document.execCommand('copy')
+  } finally {
+    document.body.removeChild(textarea)
+  }
 }
 
 function readRouteQueryString(key: string): string {
@@ -244,22 +362,20 @@ function restoreRecoverySnapshot(context: {
     return null
   }
 
-  const rawSnapshot = window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)
-  if (!rawSnapshot) {
-    return null
-  }
-
   if (context.resumeToken) {
-    return readPaymentRecoverySnapshot(rawSnapshot, {
+    return readPaymentRecoverySnapshotFromStorage(window.localStorage, {
       resumeToken: context.resumeToken,
-    })
+    }, PAYMENT_RECOVERY_STORAGE_KEY)
   }
 
   if (!context.routeOrderId && !context.routeOutTradeNo) {
     return null
   }
 
-  const restored = readPaymentRecoverySnapshot(rawSnapshot)
+  const restored = readPaymentRecoverySnapshotFromStorage(window.localStorage, {
+    orderId: context.routeOrderId,
+    outTradeNo: context.routeOutTradeNo,
+  }, PAYMENT_RECOVERY_STORAGE_KEY)
   if (!restored) {
     return null
   }
@@ -286,15 +402,10 @@ async function resolveOrderFromResumeToken(resumeToken: string): Promise<Resolve
 
 async function resolveOrderFromOutTradeNo(outTradeNo: string): Promise<ResolvedOrder | null> {
   try {
-    const result = await paymentAPI.verifyOrder(outTradeNo)
+    const result = await paymentAPI.verifyOrderPublic(outTradeNo)
     return result.data
   } catch (_err: unknown) {
-    try {
-      const result = await paymentAPI.verifyOrderPublic(outTradeNo)
-      return result.data
-    } catch (_innerErr: unknown) {
-      return null
-    }
+    return null
   }
 }
 
@@ -307,7 +418,12 @@ function clearStatusRefreshTimer(): void {
 
 function clearRecoverySnapshot(): void {
   if (typeof window === 'undefined') return
-  clearPaymentRecoverySnapshot(window.localStorage, PAYMENT_RECOVERY_STORAGE_KEY)
+  const routeOrderId = Number(readRouteQueryString('order_id')) || 0
+  clearPaymentRecoverySnapshot(window.localStorage, PAYMENT_RECOVERY_STORAGE_KEY, {
+    resumeToken: readRouteQueryString('resume_token'),
+    orderId: hasOrderId(order.value) ? order.value.id : routeOrderId,
+    outTradeNo: order.value?.out_trade_no || returnInfo.value?.outTradeNo || readRouteQueryString('out_trade_no'),
+  })
 }
 
 function clearRecoverySnapshotForTerminalStatus(status: string | null | undefined): void {
@@ -319,7 +435,7 @@ function clearRecoverySnapshotForTerminalStatus(status: string | null | undefine
 
 function scheduleStatusRefresh(refreshOrder: (() => Promise<ResolvedOrder | null>) | null): void {
   clearStatusRefreshTimer()
-  if (!refreshOrder || !isPending.value || refreshAttempts.value >= STATUS_REFRESH_MAX_ATTEMPTS) {
+  if (!refreshOrder || (!isPending.value && !shouldRefreshShopDelivery()) || refreshAttempts.value >= STATUS_REFRESH_MAX_ATTEMPTS) {
     return
   }
 
@@ -327,11 +443,12 @@ function scheduleStatusRefresh(refreshOrder: (() => Promise<ResolvedOrder | null
     refreshAttempts.value += 1
     const refreshedOrder = await refreshOrder()
     if (refreshedOrder) {
-      setResolvedOrder(refreshedOrder)
+      order.value = refreshedOrder
+      await loadShopOrder(hasOrderId(refreshedOrder) ? refreshedOrder : null)
       clearRecoverySnapshotForTerminalStatus(refreshedOrder.status)
     }
 
-    if (isPendingStatus(order.value?.status)) {
+    if (isPendingStatus(order.value?.status) || shouldRefreshShopDelivery()) {
       scheduleStatusRefresh(refreshOrder)
     }
   }, STATUS_REFRESH_INTERVAL_MS)
@@ -352,9 +469,6 @@ onMounted(async () => {
   if (restored?.orderId) {
     orderId = restored.orderId
   }
-  if (restored?.currency) {
-    currency.value = normalizePaymentCurrency(restored.currency)
-  }
   if (!outTradeNo && restored?.outTradeNo) {
     outTradeNo = restored.outTradeNo
   }
@@ -362,7 +476,7 @@ onMounted(async () => {
   if (resumeToken) {
     const resolvedOrder = await resolveOrderFromResumeToken(resumeToken)
     if (resolvedOrder) {
-      setResolvedOrder(resolvedOrder)
+      order.value = resolvedOrder
       if (!orderId) {
         orderId = hasOrderId(resolvedOrder) ? resolvedOrder.id : 0
       }
@@ -381,7 +495,7 @@ onMounted(async () => {
 
   if (!order.value && orderId && (!resumeToken || routeOrderId > 0)) {
     try {
-      setResolvedOrder(await paymentStore.pollOrderStatus(orderId))
+      order.value = await paymentStore.pollOrderStatus(orderId)
     } catch (_err: unknown) {
       // Order lookup failed, will try legacy fallback below when possible.
     }
@@ -390,7 +504,7 @@ onMounted(async () => {
   if (!order.value && shouldUsePublicOutTradeNo && (!resumeToken || resumeTokenLookupFailed)) {
     const legacyOrder = await resolveOrderFromOutTradeNo(outTradeNo)
     if (legacyOrder) {
-      setResolvedOrder(legacyOrder)
+      order.value = legacyOrder
       if (!orderId) {
         orderId = hasOrderId(legacyOrder) ? legacyOrder.id : 0
       }
@@ -429,7 +543,8 @@ onMounted(async () => {
     return null
   }
 
-  if (isPendingStatus(order.value?.status)) {
+  await loadShopOrder(hasOrderId(order.value) ? order.value : null)
+  if (isPendingStatus(order.value?.status) || shouldRefreshShopDelivery()) {
     scheduleStatusRefresh(refreshOrder)
   } else if (order.value) {
     clearRecoverySnapshotForTerminalStatus(order.value.status)

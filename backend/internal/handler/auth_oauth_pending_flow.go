@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -32,11 +31,13 @@ const (
 	oauthPendingBrowserCookieName = "oauth_pending_browser_session"
 	oauthPendingSessionCookiePath = "/api/v1/auth/oauth"
 	oauthPendingSessionCookieName = "oauth_pending_session"
+	oauthLoginAgreementCookieName = "oauth_login_agreement_revision"
 	oauthPromoCodeCookieName      = "oauth_promo_code"
 	oauthPendingCookieMaxAgeSec   = 10 * 60
 	oauthPendingChoiceStep        = "choose_account_action_required"
 
 	oauthCompletionResponseKey = "completion_response"
+	oauthLoginAgreementKey     = "login_agreement_revision"
 	oauthPromoCodeStateKey     = "promo_code"
 )
 
@@ -49,30 +50,34 @@ type oauthPendingSessionPayload struct {
 	ResolvedEmail          string
 	RedirectTo             string
 	BrowserSessionKey      string
+	LoginAgreementRevision string
 	UpstreamIdentityClaims map[string]any
 	CompletionResponse     map[string]any
 }
 
 type oauthAdoptionDecisionRequest struct {
-	AdoptDisplayName *bool `json:"adopt_display_name,omitempty"`
-	AdoptAvatar      *bool `json:"adopt_avatar,omitempty"`
+	AdoptDisplayName       *bool  `json:"adopt_display_name,omitempty"`
+	AdoptAvatar            *bool  `json:"adopt_avatar,omitempty"`
+	LoginAgreementRevision string `json:"login_agreement_revision,omitempty"`
 }
 
 type bindPendingOAuthLoginRequest struct {
-	Email            string `json:"email" binding:"required,email"`
-	Password         string `json:"password" binding:"required"`
-	AdoptDisplayName *bool  `json:"adopt_display_name,omitempty"`
-	AdoptAvatar      *bool  `json:"adopt_avatar,omitempty"`
+	Email                  string `json:"email" binding:"required,email"`
+	Password               string `json:"password" binding:"required"`
+	AdoptDisplayName       *bool  `json:"adopt_display_name,omitempty"`
+	AdoptAvatar            *bool  `json:"adopt_avatar,omitempty"`
+	LoginAgreementRevision string `json:"login_agreement_revision,omitempty"`
 }
 
 type createPendingOAuthAccountRequest struct {
-	Email            string `json:"email" binding:"required,email"`
-	VerifyCode       string `json:"verify_code,omitempty"`
-	Password         string `json:"password" binding:"required,min=6"`
-	InvitationCode   string `json:"invitation_code,omitempty"`
-	AffCode          string `json:"aff_code,omitempty"`
-	AdoptDisplayName *bool  `json:"adopt_display_name,omitempty"`
-	AdoptAvatar      *bool  `json:"adopt_avatar,omitempty"`
+	Email                  string `json:"email" binding:"required,email"`
+	VerifyCode             string `json:"verify_code,omitempty"`
+	Password               string `json:"password" binding:"required,min=6"`
+	InvitationCode         string `json:"invitation_code,omitempty"`
+	AffCode                string `json:"aff_code,omitempty"`
+	AdoptDisplayName       *bool  `json:"adopt_display_name,omitempty"`
+	AdoptAvatar            *bool  `json:"adopt_avatar,omitempty"`
+	LoginAgreementRevision string `json:"login_agreement_revision,omitempty"`
 }
 
 type sendPendingOAuthVerifyCodeRequest struct {
@@ -147,6 +152,43 @@ func setOAuthPendingSessionCookie(c *gin.Context, sessionToken string, secure bo
 	})
 }
 
+func setOAuthLoginAgreementCookie(c *gin.Context, revision string, secure bool) {
+	revision = strings.TrimSpace(revision)
+	if revision == "" {
+		clearOAuthLoginAgreementCookie(c, secure)
+		return
+	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     oauthLoginAgreementCookieName,
+		Value:    encodeCookieValue(revision),
+		Path:     oauthPendingBrowserCookiePath,
+		MaxAge:   oauthPendingCookieMaxAgeSec,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func clearOAuthLoginAgreementCookie(c *gin.Context, secure bool) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     oauthLoginAgreementCookieName,
+		Value:    "",
+		Path:     oauthPendingBrowserCookiePath,
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func readOAuthLoginAgreementCookie(c *gin.Context) string {
+	revision, err := readCookieDecoded(c, oauthLoginAgreementCookieName)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(revision)
+}
+
 func clearOAuthPendingSessionCookie(c *gin.Context, secure bool) {
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     oauthPendingSessionCookieName,
@@ -204,7 +246,7 @@ func readOAuthPromoCode(c *gin.Context) string {
 }
 
 func pendingOAuthPromoCode(session *dbent.PendingAuthSession) string {
-	if session == nil {
+	if session == nil || len(session.LocalFlowState) == 0 {
 		return ""
 	}
 	return pendingSessionStringValue(session.LocalFlowState, oauthPromoCodeStateKey)
@@ -235,6 +277,9 @@ func (h *AuthHandler) createOAuthPendingSession(c *gin.Context, payload oauthPen
 	localFlowState := map[string]any{
 		oauthCompletionResponseKey: payload.CompletionResponse,
 	}
+	if revision := strings.TrimSpace(payload.LoginAgreementRevision); revision != "" {
+		localFlowState[oauthLoginAgreementKey] = revision
+	}
 	if promoCode := readOAuthPromoCode(c); promoCode != "" {
 		localFlowState[oauthPromoCodeStateKey] = promoCode
 	}
@@ -250,19 +295,33 @@ func (h *AuthHandler) createOAuthPendingSession(c *gin.Context, payload oauthPen
 		LocalFlowState:         localFlowState,
 	})
 	if err != nil {
-		slog.Error("pending auth session create failed",
-			"intent", strings.TrimSpace(payload.Intent),
-			"provider_type", strings.TrimSpace(payload.Identity.ProviderType),
-			"provider_key", strings.TrimSpace(payload.Identity.ProviderKey),
-			"provider_subject_len", len(strings.TrimSpace(payload.Identity.ProviderSubject)),
-			"resolved_email_len", len(strings.TrimSpace(payload.ResolvedEmail)),
-			"has_target_user", payload.TargetUserID != nil,
-			"error", err.Error())
 		return infraerrors.InternalServer("PENDING_AUTH_SESSION_CREATE_FAILED", "failed to create pending auth session").WithCause(err)
 	}
 
 	setOAuthPendingSessionCookie(c, session.SessionToken, isRequestHTTPS(c))
 	return nil
+}
+
+func pendingOAuthLoginAgreementRevision(session *dbent.PendingAuthSession) string {
+	if session == nil || len(session.LocalFlowState) == 0 {
+		return ""
+	}
+	raw, ok := session.LocalFlowState[oauthLoginAgreementKey]
+	if !ok {
+		return ""
+	}
+	value, ok := raw.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+func requestLoginAgreementRevision(req string, session *dbent.PendingAuthSession) string {
+	if trimmed := strings.TrimSpace(req); trimmed != "" {
+		return trimmed
+	}
+	return pendingOAuthLoginAgreementRevision(session)
 }
 
 func readCompletionResponse(session map[string]any) (map[string]any, bool) {
@@ -329,20 +388,9 @@ func pendingSessionWantsInvitation(payload map[string]any) bool {
 	return strings.EqualFold(strings.TrimSpace(pendingSessionStringValue(payload, "error")), "invitation_required")
 }
 
-// pendingSessionRequiresEmailCompletion 判断 callback 写入的 completion payload 是否处于"补邮箱"状态。
-// 钉钉跨组织/staff 邮箱缺失时进入此状态：前端跳到补邮箱页，exchange 不应走 adoption apply。
-func pendingSessionRequiresEmailCompletion(payload map[string]any) bool {
-	if v, ok := payload["requires_email_completion"].(bool); ok && v {
-		return true
-	}
-	return strings.EqualFold(strings.TrimSpace(pendingSessionStringValue(payload, "step")), "email_completion")
-}
-
-// pendingSessionRequiresBindLogin 判断 callback 写入的 completion payload 是否处于"必须绑定已有账户"状态。
-// 钉钉 signupBlocked=true（注册关 + 钉钉企业豁免关）时进入此状态：前端渲染 bind_login 表单，
-// exchange 不应消费 session，否则后续 /pending/bind-login 找不到 session。
-func pendingSessionRequiresBindLogin(payload map[string]any) bool {
-	return strings.EqualFold(strings.TrimSpace(pendingSessionStringValue(payload, "step")), "bind_login_required")
+func pendingSessionRequiresExistingAccountBinding(payload map[string]any) bool {
+	v, ok := payload["existing_account_bindable"].(bool)
+	return ok && v
 }
 
 func pendingOAuthCompletionCanIssueTokenPair(session *dbent.PendingAuthSession, payload map[string]any) bool {
@@ -599,7 +647,7 @@ func (h *AuthHandler) SendPendingOAuthVerifyCode(c *gin.Context) {
 		return
 	}
 
-	result, err := h.authService.SendPendingOAuthVerifyCode(c.Request.Context(), req.Email, c.GetHeader("Accept-Language"))
+	result, err := h.authService.SendPendingOAuthVerifyCode(c.Request.Context(), req.Email)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -1497,6 +1545,7 @@ func clearOAuthLogoutCookies(c *gin.Context) {
 
 	clearOAuthPendingSessionCookie(c, secureCookie)
 	clearOAuthPendingBrowserCookie(c, secureCookie)
+	clearOAuthLoginAgreementCookie(c, secureCookie)
 	clearOAuthBindAccessTokenCookie(c, secureCookie)
 
 	clearCookie(c, linuxDoOAuthStateCookieName, secureCookie)
@@ -1546,10 +1595,8 @@ func normalizePendingOAuthCompletionResponse(payload map[string]any) map[string]
 		delete(normalized, key)
 	}
 	step := strings.ToLower(strings.TrimSpace(pendingSessionStringValue(normalized, "step")))
-	// 把多种 choice 别名归一为 oauthPendingChoiceStep；bind_login_required 是独立终态
-	// （前端渲染 needsBindLogin 而非 needsChooser），故不能并入归一化列表。
 	switch step {
-	case "choice", "choose_account_action", "choose_account", "choose", "email_required":
+	case "choice", "choose_account_action", "choose_account", "choose", "email_required", "bind_login_required":
 		normalized["step"] = oauthPendingChoiceStep
 	}
 	if strings.EqualFold(strings.TrimSpace(pendingSessionStringValue(normalized, "step")), oauthPendingChoiceStep) {
@@ -1644,6 +1691,10 @@ func (h *AuthHandler) bindPendingOAuthLogin(c *gin.Context, provider string) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	if err := h.ensureLoginAgreementAccepted(c.Request.Context(), requestLoginAgreementRevision(req.LoginAgreementRevision, session)); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 
 	decision, err := h.ensurePendingOAuthAdoptionDecision(c, session.ID, req.adoptionDecision())
 	if err != nil {
@@ -1675,8 +1726,6 @@ func (h *AuthHandler) bindPendingOAuthLogin(c *gin.Context, provider string) {
 	}
 
 	h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
-	// bindPendingOAuthLogin = 绑定已有账户登录，不动 users.username（用户已有自己的名字）
-	h.maybeSyncDingTalkAfterLogin(c.Request.Context(), session, user.ID)
 	tokenPair, err := h.authService.GenerateTokenPair(c.Request.Context(), user, "")
 	if err != nil {
 		response.InternalError(c, "Failed to generate token pair")
@@ -1751,6 +1800,10 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 		return
 	}
 	if err := h.ensureBackendModeAllowsNewUserLogin(c.Request.Context()); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if err := h.ensureLoginAgreementAccepted(c.Request.Context(), requestLoginAgreementRevision(req.LoginAgreementRevision, session)); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
@@ -1876,8 +1929,6 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 
 	h.authService.ApplyOAuthSignupPromoCode(c.Request.Context(), user.ID, pendingOAuthPromoCode(session))
 	h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
-	// createPendingOAuthAccount = 注册新账户，需要把钉钉昵称同步到 users.username 作为初始值
-	h.maybeSyncDingTalkAfterRegistration(c.Request.Context(), session, user.ID)
 	clearCookies()
 	writeOAuthTokenPairResponse(c, tokenPair)
 }
@@ -1956,6 +2007,11 @@ func (h *AuthHandler) ExchangePendingOAuthCompletion(c *gin.Context) {
 			response.ErrorFrom(c, err)
 			return
 		}
+		if err := h.ensureLoginAgreementAccepted(c.Request.Context(), requestLoginAgreementRevision(adoptionDecision.LoginAgreementRevision, session)); err != nil {
+			clearCookies()
+			response.ErrorFrom(c, err)
+			return
+		}
 	}
 	skipAdoptionPrompt, err := h.shouldSkipPendingOAuthAdoptionPrompt(c.Request.Context(), session, payload)
 	if err != nil {
@@ -1979,11 +2035,13 @@ func (h *AuthHandler) ExchangePendingOAuthCompletion(c *gin.Context) {
 		response.Success(c, payload)
 		return
 	}
-	if pendingSessionRequiresEmailCompletion(payload) {
-		response.Success(c, payload)
-		return
-	}
-	if pendingSessionRequiresBindLogin(payload) {
+	if pendingSessionRequiresExistingAccountBinding(payload) {
+		if adoptionDecision.hasDecision() {
+			if _, err := h.upsertPendingOAuthAdoptionDecision(c, session.ID, adoptionDecision); err != nil {
+				response.ErrorFrom(c, err)
+				return
+			}
+		}
 		response.Success(c, payload)
 		return
 	}

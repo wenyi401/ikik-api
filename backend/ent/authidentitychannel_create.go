@@ -6,13 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/authidentity"
+	"ikik-api/ent/authidentitychannel"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/authidentity"
-	"ikik-api/ent/authidentitychannel"
 )
 
 // AuthIdentityChannelCreate is the builder for creating a AuthIdentityChannel entity.

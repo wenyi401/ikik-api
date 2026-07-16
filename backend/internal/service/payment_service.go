@@ -84,7 +84,8 @@ type CreateOrderRequest struct {
 	PaymentSource   string
 	OrderType       string
 	PlanID          int64
-	Locale          string
+	ShopOrderID     int64
+	Subject         string
 }
 
 type CreateOrderResponse struct {
@@ -111,6 +112,20 @@ type CreateOrderResponse struct {
 	ResumeToken  string                          `json:"resume_token,omitempty"`
 }
 
+type createOrderPreparation struct {
+	Request      CreateOrderRequest
+	Config       *PaymentConfig
+	User         *User
+	Plan         *dbent.SubscriptionPlan
+	OrderAmount  float64
+	LimitAmount  float64
+	FeeRate      float64
+	PayAmount    float64
+	PayAmountStr string
+	Selection    *payment.InstanceSelection
+	OAuth        *CreateOrderResponse
+}
+
 type OrderListParams struct {
 	Page        int
 	PageSize    int
@@ -118,6 +133,12 @@ type OrderListParams struct {
 	OrderType   string
 	PaymentType string
 	Keyword     string
+}
+
+type AdminManualFulfillmentRequest struct {
+	PaidAmount *float64 `json:"paid_amount"`
+	TradeNo    string   `json:"trade_no"`
+	Reason     string   `json:"reason"`
 }
 
 type RefundPlan struct {
@@ -173,22 +194,33 @@ type TopUserStat struct {
 	Amount float64 `json:"amount"`
 }
 
+type ShopPaymentFulfillment interface {
+	ConfirmPaidAndDeliver(ctx context.Context, paymentOrderID int64) error
+	CancelPendingPayment(ctx context.Context, paymentOrderID int64, shopStatus string) error
+	CancelPendingPaymentInTx(ctx context.Context, tx *dbent.Tx, paymentOrderID int64, shopStatus string) error
+	ReleaseStalePaymentReservations(ctx context.Context, cutoff time.Time) error
+}
+
+type ShopPaymentDeliveryReader interface {
+	GetOrderForAdmin(ctx context.Context, orderID int64) (*ShopOrderDTO, error)
+}
+
 // --- Service ---
 
 type PaymentService struct {
-	providerMu               sync.Mutex
-	providersLoaded          bool
-	entClient                *dbent.Client
-	registry                 *payment.Registry
-	loadBalancer             payment.LoadBalancer
-	redeemService            *RedeemService
-	subscriptionSvc          *SubscriptionService
-	configService            *PaymentConfigService
-	userRepo                 UserRepository
-	groupRepo                GroupRepository
-	resumeService            *PaymentResumeService
-	affiliateService         *AffiliateService
-	notificationEmailService *NotificationEmailService
+	providerMu       sync.Mutex
+	providersLoaded  bool
+	entClient        *dbent.Client
+	registry         *payment.Registry
+	loadBalancer     payment.LoadBalancer
+	redeemService    *RedeemService
+	subscriptionSvc  *SubscriptionService
+	configService    *PaymentConfigService
+	userRepo         UserRepository
+	groupRepo        GroupRepository
+	resumeService    *PaymentResumeService
+	affiliateService *AffiliateService
+	shopFulfillment  ShopPaymentFulfillment
 }
 
 func NewPaymentService(entClient *dbent.Client, registry *payment.Registry, loadBalancer payment.LoadBalancer, redeemService *RedeemService, subscriptionSvc *SubscriptionService, configService *PaymentConfigService, userRepo UserRepository, groupRepo GroupRepository, affiliateService *AffiliateService) *PaymentService {
@@ -197,8 +229,11 @@ func NewPaymentService(entClient *dbent.Client, registry *payment.Registry, load
 	return svc
 }
 
-func (s *PaymentService) SetNotificationEmailService(notificationEmailService *NotificationEmailService) {
-	s.notificationEmailService = notificationEmailService
+func (s *PaymentService) SetShopFulfillment(fulfillment ShopPaymentFulfillment) {
+	if s == nil {
+		return
+	}
+	s.shopFulfillment = fulfillment
 }
 
 // --- Provider Registry ---

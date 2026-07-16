@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateGeminiTestPayload_ImageModel(t *testing.T) {
+func TestCreateGeminiTestPayload_ImageModelUsesImageGenerationConfig(t *testing.T) {
 	t.Parallel()
 
 	payload := createGeminiTestPayload("gemini-2.5-flash-image", "draw a tiny robot")
@@ -34,7 +34,7 @@ func TestCreateGeminiTestPayload_ImageModel(t *testing.T) {
 	require.Len(t, parsed.Contents, 1)
 	require.Len(t, parsed.Contents[0].Parts, 1)
 	require.Equal(t, "draw a tiny robot", parsed.Contents[0].Parts[0].Text)
-	require.Equal(t, []string{"TEXT", "IMAGE"}, parsed.GenerationConfig.ResponseModalities)
+	require.ElementsMatch(t, []string{"TEXT", "IMAGE"}, parsed.GenerationConfig.ResponseModalities)
 	require.Equal(t, "1:1", parsed.GenerationConfig.ImageConfig.AspectRatio)
 }
 

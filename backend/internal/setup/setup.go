@@ -79,6 +79,7 @@ type SetupConfig struct {
 	Admin                   AdminConfig    `json:"admin" yaml:"-"` // Not stored in config file
 	Server                  ServerConfig   `json:"server" yaml:"server"`
 	JWT                     JWTConfig      `json:"jwt" yaml:"jwt"`
+	Totp                    TotpConfig     `json:"totp" yaml:"totp"`
 	Timezone                string         `json:"timezone" yaml:"timezone"` // e.g. "Asia/Shanghai", "UTC"
 	MigrationTimeoutSeconds int            `json:"migration_timeout_seconds" yaml:"migration_timeout_seconds,omitempty"`
 }
@@ -114,6 +115,10 @@ type ServerConfig struct {
 type JWTConfig struct {
 	Secret     string `json:"secret" yaml:"secret"`
 	ExpireHour int    `json:"expire_hour" yaml:"expire_hour"`
+}
+
+type TotpConfig struct {
+	EncryptionKey string `json:"encryption_key" yaml:"encryption_key"`
 }
 
 const (
@@ -162,23 +167,13 @@ func NeedsSetup() bool {
 	return true
 }
 
-func buildPostgresDSN(cfg *DatabaseConfig, dbName string) string {
-	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, dbName, cfg.SSLMode,
-	)
-}
-
-func buildDatabaseConnectionDSNs(cfg *DatabaseConfig) (bootstrapDSN, targetDSN string) {
-	return buildPostgresDSN(cfg, "postgres"), buildPostgresDSN(cfg, cfg.DBName)
-}
-
 // TestDatabaseConnection tests the database connection and creates database if not exists
 func TestDatabaseConnection(cfg *DatabaseConfig) error {
-	// First, connect to the default 'postgres' database to check/create target database.
-	// Connecting to cfg.DBName here fails when the target database has not been
-	// created yet, so the bootstrap connection must use PostgreSQL's maintenance DB.
-	defaultDSN, targetDSN := buildDatabaseConnectionDSNs(cfg)
+	// First, connect to the default 'postgres' database to check/create target database
+	defaultDSN := fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
+	)
 
 	db, err := sql.Open("postgres", defaultDSN)
 	if err != nil {
@@ -225,6 +220,11 @@ func TestDatabaseConnection(cfg *DatabaseConfig) error {
 		logger.LegacyPrintf("setup", "failed to close postgres connection: %v", err)
 	}
 	db = nil
+
+	targetDSN := fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
+	)
 
 	targetDB, err := sql.Open("postgres", targetDSN)
 	if err != nil {
@@ -294,6 +294,13 @@ func Install(cfg *SetupConfig) error {
 		}
 		cfg.JWT.Secret = secret
 		logger.LegacyPrintf("setup", "%s", "Warning: JWT secret auto-generated. Consider setting a fixed secret for production.")
+	}
+	if cfg.Totp.EncryptionKey == "" {
+		key, err := generateSecret(32)
+		if err != nil {
+			return fmt.Errorf("failed to generate totp encryption key: %w", err)
+		}
+		cfg.Totp.EncryptionKey = key
 	}
 
 	// Test connections
@@ -458,6 +465,9 @@ func writeConfigFile(cfg *SetupConfig) error {
 			Secret     string `yaml:"secret"`
 			ExpireHour int    `yaml:"expire_hour"`
 		} `yaml:"jwt"`
+		Totp struct {
+			EncryptionKey string `yaml:"encryption_key"`
+		} `yaml:"totp"`
 		Default struct {
 			UserConcurrency int     `yaml:"user_concurrency"`
 			UserBalance     float64 `yaml:"user_balance"`
@@ -479,6 +489,11 @@ func writeConfigFile(cfg *SetupConfig) error {
 		}{
 			Secret:     cfg.JWT.Secret,
 			ExpireHour: cfg.JWT.ExpireHour,
+		},
+		Totp: struct {
+			EncryptionKey string `yaml:"encryption_key"`
+		}{
+			EncryptionKey: cfg.Totp.EncryptionKey,
 		},
 		Default: struct {
 			UserConcurrency int     `yaml:"user_concurrency"`
@@ -564,7 +579,7 @@ func AutoSetupFromEnv() error {
 			Port:     getEnvIntOrDefault("DATABASE_PORT", 5432),
 			User:     getEnvOrDefault("DATABASE_USER", "postgres"),
 			Password: getEnvOrDefault("DATABASE_PASSWORD", ""),
-			DBName:   getEnvOrDefault("DATABASE_DBNAME", "sub2api"),
+			DBName:   getEnvOrDefault("DATABASE_DBNAME", "ikik_api"),
 			SSLMode:  getEnvOrDefault("DATABASE_SSLMODE", "disable"),
 		},
 		Redis: RedisConfig{
@@ -575,7 +590,7 @@ func AutoSetupFromEnv() error {
 			EnableTLS: getEnvOrDefault("REDIS_ENABLE_TLS", "false") == "true",
 		},
 		Admin: AdminConfig{
-			Email:    getEnvOrDefault("ADMIN_EMAIL", "admin@sub2api.local"),
+			Email:    getEnvOrDefault("ADMIN_EMAIL", "admin@ikik-api.local"),
 			Password: getEnvOrDefault("ADMIN_PASSWORD", ""),
 		},
 		Server: ServerConfig{
@@ -586,6 +601,9 @@ func AutoSetupFromEnv() error {
 		JWT: JWTConfig{
 			Secret:     getEnvOrDefault("JWT_SECRET", ""),
 			ExpireHour: getEnvIntOrDefault("JWT_EXPIRE_HOUR", 24),
+		},
+		Totp: TotpConfig{
+			EncryptionKey: getEnvOrDefault("TOTP_ENCRYPTION_KEY", ""),
 		},
 		Timezone:                tz,
 		MigrationTimeoutSeconds: getEnvIntOrDefault("SETUP_MIGRATION_TIMEOUT_SECONDS", 0),
@@ -599,6 +617,13 @@ func AutoSetupFromEnv() error {
 		}
 		cfg.JWT.Secret = secret
 		logger.LegacyPrintf("setup", "%s", "Warning: JWT secret auto-generated. Consider setting a fixed secret for production.")
+	}
+	if cfg.Totp.EncryptionKey == "" {
+		key, err := generateSecret(32)
+		if err != nil {
+			return fmt.Errorf("failed to generate totp encryption key: %w", err)
+		}
+		cfg.Totp.EncryptionKey = key
 	}
 
 	// Test database connection

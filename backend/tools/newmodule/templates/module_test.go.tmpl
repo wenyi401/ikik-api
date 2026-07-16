@@ -1,0 +1,86 @@
+package {{.Package}}
+
+// 本测试文件由 tools/newmodule 生成，基于 plugintest 夹具覆盖注册校验、
+// 默认配置与 Runtime 生命周期冒烟。
+// TODO: 模块实现真实逻辑后请补充对应的行为测试
+// （更多夹具用法参照 internal/modules/hello/hello_test.go）。
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/plugin"
+	"ikik-api/internal/plugin/plugintest"
+)
+
+// TestModuleRegisteredInDefaultRegistry 验证 init() 已向包级默认注册表
+// 注册 {{.ID}}，且默认 disabled（EnabledByDefault=false）。
+func TestModuleRegisteredInDefaultRegistry(t *testing.T) {
+	info, ok := plugin.GetModule(ID)
+	require.True(t, ok, "{{.ID}} should self-register via init()")
+	require.Equal(t, ID, info.ID)
+	require.False(t, info.EnabledByDefault, "new modules must be disabled by default")
+	require.NotNil(t, info.New)
+	require.IsType(t, &Module{}, info.New())
+}
+
+// TestProvisionDefaults 验证未提供私有配置时 Provision 使用默认配置且可通过校验。
+func TestProvisionDefaults(t *testing.T) {
+	m := new(Module)
+	require.NoError(t, m.Provision(plugintest.NewHost(t)))
+	require.Equal(t, defaultConfig(), m.cfg)
+	require.NoError(t, m.Validate())
+
+	// nil host 防御路径：不 panic、使用默认配置。
+	m2 := new(Module)
+	require.NoError(t, m2.Provision(nil))
+	require.Equal(t, defaultConfig(), m2.cfg)
+	require.NoError(t, m2.Validate())
+}
+
+// TestValidateRejectsInvalidConfig 验证非法配置被 Validate 拒绝。
+// TODO: 配置字段变化后同步更新本用例。
+func TestValidateRejectsInvalidConfig(t *testing.T) {
+	m := &Module{cfg: Config{Interval: 0}}
+	err := m.Validate()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "interval must be positive")
+}
+
+// TestRuntimeDefaultConfigIsNoop 验证缺省配置（modules: 子树为空）下，
+// 模块保持 disabled：Build/Start/Stop 全程 no-op，无任何副作用。
+func TestRuntimeDefaultConfigIsNoop(t *testing.T) {
+	logOpt, logs := plugintest.WithObservedLogger()
+	rt := plugintest.RunLifecycle(t, &Module{}, plugintest.NewHost(t, logOpt), nil)
+
+	require.NoError(t, rt.Stop(context.Background()))
+
+	snap := rt.Snapshot()
+	require.Len(t, snap, 1)
+	require.Equal(t, ID, snap[0].ID)
+	require.False(t, snap[0].Enabled)
+	require.Equal(t, plugin.StateRegistered, snap[0].State)
+	require.Zero(t, logs.Len(), "disabled module must not produce any module logs")
+}
+
+// TestRuntimeEnabledLifecycle 验证启用 {{.ID}} 后的完整生命周期：
+// Build（Provision/Validate）→ Start（后台工作运行）→ Stop（优雅退出）。
+func TestRuntimeEnabledLifecycle(t *testing.T) {
+	logOpt, logs := plugintest.WithObservedLogger()
+	rt := plugintest.RunLifecycle(t, &Module{}, plugintest.NewHost(t, logOpt), map[string]map[string]any{
+		"{{.ID}}": {"enabled": true, "interval": "5ms"},
+	})
+
+	require.Eventually(t, func() bool {
+		return logs.FilterMessage("{{.Package}} tick").Len() >= 1
+	}, 2*time.Second, 5*time.Millisecond, "background work should run after Start")
+
+	require.NoError(t, rt.Stop(context.Background()))
+	snap := rt.Snapshot()
+	require.Len(t, snap, 1)
+	require.True(t, snap[0].Enabled)
+	require.Equal(t, plugin.StateStopped, snap[0].State)
+}

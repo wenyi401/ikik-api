@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
+	"go.uber.org/zap"
 	pkghttputil "ikik-api/internal/pkg/httputil"
 	"ikik-api/internal/pkg/ip"
 	"ikik-api/internal/pkg/logger"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
-	"go.uber.org/zap"
 )
 
 // Embeddings handles the OpenAI-compatible Embeddings API.
@@ -60,7 +60,6 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 		return
 	}
 	if !gjson.ValidBytes(body) {
-		logRequestBodyParseFailure(reqLog, body, nil)
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return
 	}
@@ -72,13 +71,14 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 	}
 	reqModel := modelResult.String()
 	reqLog = reqLog.With(zap.String("model", reqModel))
-	setOpsRequestContext(c, reqModel, false)
+	setOpsRequestContext(c, reqModel, false, body)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeSync))
 
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
 
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
+	routeCtx := gatewayRouteContext(c.Request.Context(), apiKey, subject.UserID)
 
 	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, false, &streamStarted, reqLog)
 	if !acquired {
@@ -88,7 +88,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 		defer userReleaseFunc()
 	}
 
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
+	if err := h.billingCacheService.CheckBillingEligibility(routeCtx, apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
 		reqLog.Info("openai_embeddings.billing_check_failed", zap.Error(err))
 		status, code, message, retryAfter := billingErrorDetails(err)
 		if retryAfter > 0 {
@@ -109,7 +109,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 
 	for {
 		selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
-			c.Request.Context(),
+			routeCtx,
 			apiKey.GroupID,
 			"",
 			"",
@@ -118,7 +118,6 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 			service.OpenAIUpstreamTransportHTTPSSE,
 			service.OpenAIEndpointCapabilityEmbeddings,
 			false,
-			false,
 		)
 		if err != nil {
 			reqLog.Warn("openai_embeddings.account_select_failed",
@@ -126,11 +125,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 				zap.Int("excluded_account_count", len(failedAccountIDs)),
 			)
 			if len(failedAccountIDs) == 0 {
-				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, reqModel, reqModel, service.PlatformOpenAI)
-				if !cls.ModelNotFound {
-					markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
-				}
-				h.errorResponse(c, cls.Status, cls.ErrType, cls.Message)
+				h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Service temporarily unavailable")
 				return
 			}
 			if lastFailoverErr != nil {
@@ -141,11 +136,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 			return
 		}
 		if selection == nil || selection.Account == nil {
-			cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, reqModel, reqModel, service.PlatformOpenAI)
-			if !cls.ModelNotFound {
-				markOpsRoutingCapacityLimited(c)
-			}
-			h.errorResponse(c, cls.Status, cls.ErrType, cls.Message)
+			h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "No available accounts")
 			return
 		}
 		account := selection.Account
@@ -170,7 +161,8 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 					accountReleaseFunc()
 				}
 			}()
-			return h.gatewayService.ForwardEmbeddings(c.Request.Context(), c, account, forwardBody, "")
+			forwardCtx := gatewayForwardContext(routeCtx, 0, h.metadataBridgeEnabled())
+			return h.gatewayService.ForwardEmbeddings(forwardCtx, c, account, forwardBody, "")
 		}()
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
@@ -221,9 +213,8 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 		clientIP := ip.GetClientIP(c)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
-		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 
-		h.submitOpenAIUsageRecordTask(c.Request.Context(), result, func(ctx context.Context) {
+		h.submitUsageRecordTask(func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 				Result:             result,
 				APIKey:             apiKey,
@@ -235,7 +226,6 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 				UserAgent:          userAgent,
 				IPAddress:          clientIP,
 				APIKeyService:      h.apiKeyService,
-				QuotaPlatform:      quotaPlatform,
 				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
 			}); err != nil {
 				logger.L().With(

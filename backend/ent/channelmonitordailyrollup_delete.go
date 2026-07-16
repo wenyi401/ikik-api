@@ -4,12 +4,12 @@ package ent
 
 import (
 	"context"
+	"ikik-api/ent/channelmonitordailyrollup"
+	"ikik-api/ent/predicate"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/channelmonitordailyrollup"
-	"ikik-api/ent/predicate"
 )
 
 // ChannelMonitorDailyRollupDelete is the builder for deleting a ChannelMonitorDailyRollup entity.

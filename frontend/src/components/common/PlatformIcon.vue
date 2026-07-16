@@ -15,15 +15,23 @@
   <svg v-else-if="platform === 'gemini'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2l1.89 7.2L21 12l-7.11 2.8L12 22l-1.89-7.2L3 12l7.11-2.8L12 2z" />
   </svg>
+  <!-- Custom Provider logo (cube) -->
+  <svg v-else-if="platform === 'custom'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path
+      d="M12 2 3.5 6.75v10.5L12 22l8.5-4.75V6.75L12 2Zm0 2.3 5.62 3.15L12 10.6 6.38 7.45 12 4.3Zm-6.5 5.08 5.5 3.08v6.58l-5.5-3.08V9.38Zm13 0v6.58l-5.5 3.08v-6.58l5.5-3.08Z"
+    />
+  </svg>
   <!-- Antigravity logo (cloud) -->
   <svg v-else-if="platform === 'antigravity'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
     <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
   </svg>
-  <!-- Grok / xAI logo mark (stylized angular X) -->
+  <!-- xAI / Grok logo mark -->
   <svg v-else-if="platform === 'grok'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
-    <path
-      d="M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815"
-    />
+    <path d="M4.3 3h4.4l3.38 5.1L16.67 3h3.13l-6.18 6.85L20.35 21h-4.4l-3.92-6.05L6.58 21H3.45l7.03-7.8L4.3 3Zm3.02 1.68 9.53 14.64h.84L8.16 4.68h-.84Z" />
+  </svg>
+  <!-- Kiro logo mark -->
+  <svg v-else-if="platform === 'kiro'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2h11A2.5 2.5 0 0 1 20 4.5v15a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 19.5v-15Zm4 2v11h2.15v-3.63l1.19-1.27 3.05 4.9H17l-4.13-6.44L16.72 6.5h-2.74l-3.83 4.64V6.5H8Z" />
   </svg>
   <!-- Fallback: generic platform icon -->
   <svg v-else :class="sizeClass" fill="currentColor" viewBox="0 0 24 24">

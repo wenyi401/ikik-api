@@ -85,6 +85,29 @@ func (h *BackupHandler) UpdateSchedule(c *gin.Context) {
 
 // ─── 备份操作 ───
 
+func (h *BackupHandler) GetUsageRetention(c *gin.Context) {
+	cfg, err := h.backupService.GetUsageRetention(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
+func (h *BackupHandler) UpdateUsageRetention(c *gin.Context) {
+	var req service.UsageRetentionConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	cfg, err := h.backupService.UpdateUsageRetention(c.Request.Context(), req)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
 type CreateBackupRequest struct {
 	ExpireDays *int `json:"expire_days"` // nil=使用默认值14，0=永不过期
 }

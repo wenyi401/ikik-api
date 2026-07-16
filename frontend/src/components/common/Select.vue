@@ -22,18 +22,6 @@
           {{ selectedLabel }}
         </slot>
       </span>
-      <span
-        v-if="clearable && hasValue && !disabled"
-        class="select-clear"
-        role="button"
-        tabindex="-1"
-        aria-label="Clear selection"
-        @click.stop="clearSelection"
-        @mousedown.stop
-        @keydown.enter.stop.prevent="clearSelection"
-      >
-        <Icon name="x" size="sm" />
-      </span>
       <span class="select-icon">
         <Icon
           name="chevronDown"
@@ -58,7 +46,7 @@
           @keydown="onDropdownKeyDown"
         >
           <!-- Search input -->
-          <div v-if="isSearchable" class="select-search">
+          <div v-if="searchable" class="select-search">
             <Icon name="search" size="sm" class="text-gray-400" />
             <input
               ref="searchInputRef"
@@ -140,14 +128,13 @@ interface Props {
   placeholder?: string
   disabled?: boolean
   error?: boolean
-  searchable?: boolean | 'auto'
+  searchable?: boolean
   searchPlaceholder?: string
   emptyText?: string
   valueKey?: string
   labelKey?: string
   creatable?: boolean
   creatablePrefix?: string
-  clearable?: boolean
 }
 
 interface Emits {
@@ -158,10 +145,9 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   error: false,
-  searchable: 'auto',
+  searchable: false,
   creatable: false,
   creatablePrefix: '',
-  clearable: false,
   valueKey: 'value',
   labelKey: 'label'
 })
@@ -184,20 +170,24 @@ const placeholderText = computed(() => props.placeholder ?? t('common.selectOpti
 const searchPlaceholderText = computed(() => props.searchPlaceholder ?? t('common.searchPlaceholder'))
 const emptyTextDisplay = computed(() => props.emptyText ?? t('common.noOptionsFound'))
 
-const isSearchable = computed(() => {
-  if (props.searchable === 'auto') return props.options.length > 5
-  return props.searchable
-})
-
 // Computed style for teleported dropdown
 const dropdownStyle = computed(() => {
   if (!triggerRect.value) return {}
 
   const rect = triggerRect.value
+  const viewportPadding = 8
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || rect.right
+  const availableWidth = Math.max(0, viewportWidth - viewportPadding * 2)
+  const preferredWidth = Math.min(Math.max(rect.width, 320), availableWidth)
+  const left = Math.min(
+    Math.max(rect.left, viewportPadding),
+    Math.max(viewportPadding, viewportWidth - preferredWidth - viewportPadding)
+  )
   const style: Record<string, string> = {
     position: 'fixed',
-    left: `${rect.left}px`,
-    minWidth: `${rect.width}px`,
+    left: `${left}px`,
+    minWidth: `${Math.min(Math.max(rect.width, 200), availableWidth)}px`,
+    maxWidth: `${Math.max(0, viewportWidth - left - viewportPadding)}px`,
     zIndex: '100000020'
   }
 
@@ -253,13 +243,9 @@ const selectedLabel = computed(() => {
   return placeholderText.value
 })
 
-const hasValue = computed(
-  () => props.modelValue !== null && props.modelValue !== undefined && props.modelValue !== ''
-)
-
 const filteredOptions = computed(() => {
   let opts = props.options as any[]
-  if (isSearchable.value && searchQuery.value) {
+  if (props.searchable && searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     opts = opts.filter((opt) => {
       // Match label
@@ -351,7 +337,7 @@ watch(isOpen, (open) => {
         : initialIdx
     }
 
-    if (isSearchable.value) {
+    if (props.searchable) {
       nextTick(() => searchInputRef.value?.focus())
     }
     // Add scroll listener to update position
@@ -371,12 +357,6 @@ const selectOption = (option: any) => {
   emit('change', value, option)
   isOpen.value = false
   triggerRef.value?.focus()
-}
-
-const clearSelection = () => {
-  if (props.disabled) return
-  emit('update:modelValue', null)
-  emit('change', null, null)
 }
 
 // Keyboards
@@ -456,18 +436,40 @@ onUnmounted(() => {
 <style scoped>
 .select-trigger {
   @apply flex w-full items-center justify-between gap-2;
-  @apply rounded-xl px-4 py-2.5 text-sm;
-  @apply bg-white dark:bg-dark-800;
-  @apply border border-gray-200 dark:border-dark-600;
-  @apply text-gray-900 dark:text-gray-100;
-  @apply transition-all duration-200;
-  @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
-  @apply hover:border-gray-300 dark:hover:border-dark-500;
+  @apply px-3 py-2.5 text-sm;
+  @apply transition-colors duration-150;
+  @apply focus:outline-none;
   @apply cursor-pointer;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  color: var(--app-text);
+  box-shadow: none;
+  border-radius: var(--ui-radius-lg);
+}
+
+.select-trigger:hover {
+  border-color: var(--app-border-strong);
+}
+
+.dark .select-trigger {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  color: var(--app-text);
+  box-shadow: none;
+}
+
+.dark .select-trigger:hover {
+  border-color: var(--app-border-strong);
 }
 
 .select-trigger-open {
-  @apply border-primary-500 ring-2 ring-primary-500/30;
+  border-color: var(--ui-text-secondary);
+  box-shadow: 0 0 0 3px var(--ui-focus);
+}
+
+.dark .select-trigger-open {
+  border-color: var(--ui-text-secondary);
+  box-shadow: 0 0 0 3px var(--ui-focus);
 }
 
 .select-trigger-error {
@@ -475,7 +477,12 @@ onUnmounted(() => {
 }
 
 .select-trigger-disabled {
-  @apply cursor-not-allowed bg-gray-100 opacity-60 dark:bg-dark-900;
+  @apply cursor-not-allowed opacity-60;
+  background: var(--app-surface-muted);
+}
+
+.dark .select-trigger-disabled {
+  background: var(--app-surface-muted);
 }
 
 .select-value {
@@ -483,59 +490,104 @@ onUnmounted(() => {
 }
 
 .select-icon {
-  @apply flex-shrink-0 text-gray-400 dark:text-dark-400;
+  @apply flex-shrink-0;
+  color: var(--app-muted);
 }
 
-.select-clear {
-  @apply flex flex-shrink-0 cursor-pointer items-center justify-center;
-  @apply rounded text-gray-400 transition-colors;
-  @apply hover:text-gray-600 dark:hover:text-gray-200;
+.dark .select-icon {
+  color: var(--app-muted);
 }
 </style>
 
 <style>
 .select-dropdown-portal {
-  @apply w-max min-w-[200px];
-  @apply bg-white dark:bg-dark-800;
-  @apply rounded-xl;
-  @apply border border-gray-200 dark:border-dark-700;
-  @apply shadow-lg shadow-black/10 dark:shadow-black/30;
+  @apply min-w-0;
   @apply overflow-hidden;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.14);
+  width: max-content;
+  min-width: min(200px, calc(100vw - 1rem));
+  max-width: calc(100vw - 1rem);
   pointer-events: auto !important;
+  border-radius: var(--ui-radius-lg);
+}
+
+.dark .select-dropdown-portal {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.42);
 }
 
 .select-dropdown-portal .select-search {
   @apply flex items-center gap-2 px-3 py-2;
-  @apply border-b border-gray-100 dark:border-dark-700;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.dark .select-dropdown-portal .select-search {
+  border-bottom-color: var(--app-border);
 }
 
 .select-dropdown-portal .select-search-input {
   @apply flex-1 bg-transparent text-sm;
-  @apply text-gray-900 dark:text-gray-100;
-  @apply placeholder:text-gray-400 dark:placeholder:text-dark-400;
   @apply focus:outline-none;
+  color: var(--app-text);
+}
+
+.select-dropdown-portal .select-search-input::placeholder {
+  color: var(--app-muted);
+}
+
+.dark .select-dropdown-portal .select-search-input {
+  color: var(--app-text);
+}
+
+.dark .select-dropdown-portal .select-search-input::placeholder {
+  color: var(--app-muted);
 }
 
 .select-dropdown-portal .select-options {
-  @apply max-h-80 overflow-y-auto py-1 outline-none;
+  @apply max-h-60 overflow-y-auto py-1 outline-none;
 }
 
 .select-dropdown-portal .select-option {
-  @apply flex items-center justify-between gap-2;
+  @apply flex min-w-0 max-w-full items-center justify-between gap-2;
   @apply px-4 py-2.5 text-sm;
-  @apply text-gray-700 dark:text-gray-300;
   @apply cursor-pointer transition-colors duration-150;
-  @apply hover:bg-gray-50 dark:hover:bg-dark-700;
+  color: var(--app-muted-strong);
   pointer-events: auto !important;
 }
 
+.select-dropdown-portal .select-option:hover {
+  background: var(--app-surface-muted);
+  color: var(--app-text);
+}
+
+.dark .select-dropdown-portal .select-option {
+  color: var(--app-muted-strong);
+}
+
+.dark .select-dropdown-portal .select-option:hover {
+  background: var(--app-surface-muted);
+  color: var(--app-text);
+}
+
 .select-dropdown-portal .select-option-selected {
-  @apply bg-primary-50 dark:bg-primary-900/20;
-  @apply text-primary-700 dark:text-primary-300;
+  background: rgba(16, 163, 127, 0.11);
+  color: var(--app-primary-hover);
+}
+
+.dark .select-dropdown-portal .select-option-selected {
+  background: rgba(16, 163, 127, 0.16);
+  color: #45d09a;
 }
 
 .select-dropdown-portal .select-option-focused {
-  @apply bg-gray-100 dark:bg-dark-700;
+  background: var(--app-surface-muted);
+}
+
+.dark .select-dropdown-portal .select-option-focused {
+  background: var(--app-surface-muted);
 }
 
 .select-dropdown-portal .select-option-disabled {
@@ -544,13 +596,24 @@ onUnmounted(() => {
 
 .select-dropdown-portal .select-option-group {
   @apply cursor-default select-none;
-  @apply bg-gray-50 dark:bg-dark-900;
   @apply text-[11px] font-bold uppercase tracking-wider;
-  @apply text-gray-500 dark:text-gray-400;
+  background: var(--app-surface-muted);
+  color: var(--app-muted);
 }
 
 .select-dropdown-portal .select-option-group:hover {
-  @apply bg-gray-50 dark:bg-dark-900;
+  background: var(--app-surface-muted);
+  color: var(--app-muted);
+}
+
+.dark .select-dropdown-portal .select-option-group {
+  background: var(--app-surface-muted);
+  color: var(--app-muted);
+}
+
+.dark .select-dropdown-portal .select-option-group:hover {
+  background: var(--app-surface-muted);
+  color: var(--app-muted);
 }
 
 .select-dropdown-portal .select-option-label {
@@ -559,7 +622,11 @@ onUnmounted(() => {
 
 .select-dropdown-portal .select-empty {
   @apply px-4 py-8 text-center text-sm;
-  @apply text-gray-500 dark:text-dark-400;
+  color: var(--app-muted);
+}
+
+.dark .select-dropdown-portal .select-empty {
+  color: var(--app-muted);
 }
 
 .select-dropdown-enter-active,

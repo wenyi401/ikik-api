@@ -6,6 +6,11 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
+	"ikik-api/ent/group"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/usagelog"
+	"ikik-api/ent/user"
+	"ikik-api/ent/usersubscription"
 	"math"
 
 	"entgo.io/ent"
@@ -13,11 +18,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/group"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/usagelog"
-	"ikik-api/ent/user"
-	"ikik-api/ent/usersubscription"
 )
 
 // UserSubscriptionQuery is the builder for querying UserSubscription entities.

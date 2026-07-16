@@ -55,28 +55,6 @@
         />
       </div>
 
-      <div v-if="isOpenAIAccount" class="space-y-1.5">
-        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-          {{ t('admin.accounts.openai.testMode') }}
-        </label>
-        <Select
-          v-model="testMode"
-          :options="openAITestModeOptions"
-          :disabled="status === 'connecting'"
-        />
-      </div>
-
-      <div v-if="supportsImageTest" class="space-y-1.5">
-        <TextArea
-          v-model="testPrompt"
-          :label="t('admin.accounts.imagePromptLabel')"
-          :placeholder="t('admin.accounts.imagePromptPlaceholder')"
-          :hint="t('admin.accounts.imageTestHint')"
-          :disabled="status === 'connecting'"
-          rows="3"
-        />
-      </div>
-
       <!-- Terminal Output -->
       <div class="group relative">
         <div
@@ -131,51 +109,6 @@
         </button>
       </div>
 
-      <div v-if="generatedImages.length > 0" class="space-y-2">
-        <div class="text-xs font-medium text-gray-600 dark:text-gray-300">
-          {{ t('admin.accounts.imagePreview') }}
-        </div>
-        <div class="flex flex-wrap justify-center gap-3">
-          <div
-            v-for="(image, index) in generatedImages"
-            :key="`${image.url}-${index}`"
-            class="group/img relative cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:border-primary-300 hover:shadow-md dark:border-dark-500 dark:bg-dark-700"
-            @click="previewImageUrl = image.url"
-          >
-            <img :src="image.url" :alt="`test-image-${index + 1}`" class="max-h-[360px] w-full object-contain" />
-            <div class="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/img:bg-black/20">
-              <Icon name="eye" size="lg" class="text-white opacity-0 drop-shadow-lg transition-opacity group-hover/img:opacity-100" :stroke-width="2" />
-            </div>
-            <div class="border-t border-gray-100 px-3 py-1.5 text-xs text-gray-500 dark:border-dark-500 dark:text-gray-300">
-              {{ image.mimeType || 'image/*' }}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Image Lightbox -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="previewImageUrl"
-            class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
-            @click.self="previewImageUrl = ''"
-          >
-            <button
-              class="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
-              @click="previewImageUrl = ''"
-            >
-              <Icon name="x" size="lg" :stroke-width="2" />
-            </button>
-            <img
-              :src="previewImageUrl"
-              alt="preview"
-              class="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
-            />
-          </div>
-        </Transition>
-      </Teleport>
-
       <!-- Test Info -->
       <div class="flex items-center justify-between px-1 text-xs text-gray-500 dark:text-gray-400">
         <div class="flex items-center gap-3">
@@ -186,11 +119,7 @@
         </div>
         <span class="flex items-center gap-1">
           <Icon name="chat" size="sm" :stroke-width="2" />
-          {{
-            supportsImageTest
-              ? t('admin.accounts.imageTestMode')
-              : t('admin.accounts.testPrompt')
-          }}
+          {{ t('admin.accounts.testPrompt') }}
         </span>
       </div>
     </div>
@@ -246,12 +175,10 @@ import { computed, ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
-import TextArea from '@/components/common/TextArea.vue'
 import { Icon } from '@/components/icons'
 import { useClipboard } from '@/composables/useClipboard'
-import { buildApiUrl } from '@/api/client'
-import { ADMIN_UI_REQUEST_HEADER } from '@/api/adminUIRequest'
 import { adminAPI } from '@/api/admin'
+import { buildApiUrl } from '@/api/client'
 import type { Account, ClaudeModel } from '@/types'
 
 const { t } = useI18n()
@@ -262,14 +189,11 @@ interface OutputLine {
   class: string
 }
 
-interface PreviewImage {
-  url: string
-  mimeType?: string
-}
-
 const props = defineProps<{
   show: boolean
   account: Account | null
+  accountScope?: 'admin' | 'user'
+  testEndpointBase?: string
 }>()
 
 const emit = defineEmits<{
@@ -283,32 +207,21 @@ const streamingContent = ref('')
 const errorMessage = ref('')
 const availableModels = ref<ClaudeModel[]>([])
 const selectedModelId = ref('')
-const testPrompt = ref('')
 const loadingModels = ref(false)
 let abortController: AbortController | null = null
-const generatedImages = ref<PreviewImage[]>([])
-const previewImageUrl = ref('')
-const testMode = ref<'default' | 'compact'>('default')
-const isOpenAIAccount = computed(() => props.account?.platform === 'openai')
-const openAITestModeOptions = computed(() => [
-  { value: 'default', label: t('admin.accounts.openai.testModeDefault') },
-  { value: 'compact', label: t('admin.accounts.openai.testModeCompact') }
-])
-const prioritizedGeminiModels = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-2.0-flash']
-const supportsGeminiImageTest = computed(() => {
-  const modelID = selectedModelId.value.toLowerCase()
-  if (!modelID.startsWith('gemini-') || !modelID.includes('-image')) return false
-
-  return props.account?.platform === 'gemini' || (props.account?.platform === 'antigravity' && props.account?.type === 'apikey')
-})
-
-const supportsOpenAIImageTest = computed(() => {
-  const modelID = selectedModelId.value.toLowerCase()
-  if (!modelID.startsWith('gpt-image-')) return false
-  return props.account?.platform === 'openai'
-})
-
-const supportsImageTest = computed(() => supportsGeminiImageTest.value || supportsOpenAIImageTest.value)
+const prioritizedGeminiModels = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-2.0-flash']
+const isImageGenerationModel = (modelId: string) => {
+  const modelID = modelId.toLowerCase()
+  const generationSegment = 'image'
+  return (
+    modelID.startsWith(['gpt', generationSegment].join('-') + '-') ||
+    (modelID.startsWith('gemini-') && modelID.includes(`-${generationSegment}`)) ||
+    (modelID.startsWith('grok-') && modelID.includes(`-${generationSegment}`)) ||
+    modelID.startsWith('cog' + 'view')
+  )
+}
+const isUserScope = computed(() => props.accountScope === 'user')
+const testEndpointBase = computed(() => props.testEndpointBase ?? '/api/v1/admin/accounts')
 
 const sortTestModels = (models: ClaudeModel[]) => {
   const priorityMap = new Map(prioritizedGeminiModels.map((id, index) => [id, index]))
@@ -326,8 +239,6 @@ watch(
   () => props.show,
   async (newVal) => {
     if (newVal && props.account) {
-      testPrompt.value = ''
-      testMode.value = 'default'
       resetState()
       await loadAvailableModels()
     } else {
@@ -336,22 +247,19 @@ watch(
   }
 )
 
-watch(selectedModelId, () => {
-  if (supportsImageTest.value && !testPrompt.value.trim()) {
-    testPrompt.value = t('admin.accounts.imagePromptDefault')
-  }
-})
-
 const loadAvailableModels = async () => {
   if (!props.account) return
 
   loadingModels.value = true
   selectedModelId.value = '' // Reset selection before loading
   try {
-    const models = await adminAPI.accounts.getAvailableModels(props.account.id)
+    const models = isUserScope.value
+      ? getUserDefaultTestModels(props.account)
+      : await adminAPI.accounts.getAvailableModels(props.account.id)
+    const testModels = models.filter((model) => !isImageGenerationModel(model.id))
     availableModels.value = props.account.platform === 'gemini' || props.account.platform === 'antigravity'
-      ? sortTestModels(models)
-      : models
+      ? sortTestModels(testModels)
+      : testModels
     // Default selection by platform
     if (availableModels.value.length > 0) {
       if (props.account.platform === 'gemini') {
@@ -372,13 +280,29 @@ const loadAvailableModels = async () => {
   }
 }
 
+const getUserDefaultTestModels = (account: Account): ClaudeModel[] => {
+	if (account.extra?.claude_web_session === true) {
+		return [{ id: 'claude-sonnet-5', type: 'model', display_name: 'Claude Sonnet 5', created_at: '' }]
+	}
+	switch (account.platform) {
+    case 'openai':
+      return [{ id: 'gpt-5.5', type: 'model', display_name: 'gpt-5.5', created_at: '' }]
+    case 'gemini':
+      return [{ id: 'gemini-2.5-flash', type: 'model', display_name: 'gemini-2.5-flash', created_at: '' }]
+    case 'antigravity':
+      return [{ id: 'gemini-2.5-flash', type: 'model', display_name: 'gemini-2.5-flash', created_at: '' }]
+    case 'grok':
+      return [{ id: 'grok-4', type: 'model', display_name: 'grok-4', created_at: '' }]
+    default:
+      return [{ id: 'claude-sonnet-4-5-20250929', type: 'model', display_name: 'Claude Sonnet 4.5', created_at: '' }]
+  }
+}
+
 const resetState = () => {
   status.value = 'idle'
   outputLines.value = []
   streamingContent.value = ''
   errorMessage.value = ''
-  generatedImages.value = []
-  previewImageUrl.value = ''
 }
 
 const handleClose = () => {
@@ -419,30 +343,20 @@ const startTest = async () => {
   abortController = new AbortController()
 
   try {
-    const requestBody: {
-      model_id: string
-      prompt: string
-      mode?: 'default' | 'compact'
-    } = {
-      model_id: selectedModelId.value,
-      prompt: supportsImageTest.value ? testPrompt.value.trim() : ''
-    }
-    if (isOpenAIAccount.value) {
-      requestBody.mode = testMode.value
-    }
-
-    // Use the configured API base; EventSource does not support POST.
-    const url = buildApiUrl(`/admin/accounts/${props.account.id}/test`)
+    // Create EventSource for SSE
+    const url = buildApiUrl(`${testEndpointBase.value}/${props.account.id}/test`)
 
     // Use fetch with streaming for SSE since EventSource doesn't support POST
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-        'Content-Type': 'application/json',
-        [ADMIN_UI_REQUEST_HEADER]: '1'
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        model_id: selectedModelId.value,
+        prompt: ''
+      }),
       signal: abortController.signal
     })
 
@@ -498,8 +412,6 @@ const handleEvent = (event: {
   model?: string
   success?: boolean
   error?: string
-  image_url?: string
-  mime_type?: string
 }) => {
   switch (event.type) {
     case 'test_start':
@@ -507,12 +419,7 @@ const handleEvent = (event: {
       if (event.model) {
         addLine(t('admin.accounts.usingModel', { model: event.model }), 'text-cyan-400')
       }
-      addLine(
-        supportsImageTest.value
-            ? t('admin.accounts.sendingImageRequest')
-            : t('admin.accounts.sendingTestMessage'),
-        'text-gray-400'
-      )
+      addLine(t('admin.accounts.sendingTestMessage'), 'text-gray-400')
       addLine('', 'text-gray-300')
       addLine(t('admin.accounts.response'), 'text-yellow-400')
       break
@@ -521,22 +428,6 @@ const handleEvent = (event: {
       if (event.text) {
         streamingContent.value += event.text
         scrollToBottom()
-      }
-      break
-
-    case 'image':
-      if (event.image_url) {
-        generatedImages.value.push({
-          url: event.image_url,
-          mimeType: event.mime_type
-        })
-        addLine(t('admin.accounts.imageReceived', { count: generatedImages.value.length }), 'text-purple-300')
-      }
-      break
-
-    case 'status':
-      if (event.text) {
-        addLine(event.text, 'text-cyan-300')
       }
       break
 
@@ -570,14 +461,3 @@ const copyOutput = () => {
   copyToClipboard(text, t('admin.accounts.outputCopied'))
 }
 </script>
-
-<style>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>

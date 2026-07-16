@@ -88,7 +88,7 @@ func newRuntimeOpsService(t *testing.T) *service.OpsService {
 	if err := logger.Init(logger.InitOptions{
 		Level:       "info",
 		Format:      "json",
-		ServiceName: "sub2api",
+		ServiceName: "ikik-api",
 		Environment: "test",
 		Output: logger.OutputOptions{
 			ToStdout: false,

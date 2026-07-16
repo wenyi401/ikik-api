@@ -1,0 +1,33 @@
+[Unit]
+Description=ikik-api - AI API Gateway Platform
+Documentation=https://github.com/wenyi401/ikik-api
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=ikik-api
+Group=ikik-api
+WorkingDirectory=/opt/ikik-api
+ExecStart=/opt/ikik-api/ikik-api
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ikik-api
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/ikik-api
+
+# Environment - Server configuration
+# Modify these values to change listen address and port
+Environment=GIN_MODE=release
+Environment=SERVER_HOST=0.0.0.0
+Environment=SERVER_PORT=8080
+
+[Install]
+WantedBy=multi-user.target

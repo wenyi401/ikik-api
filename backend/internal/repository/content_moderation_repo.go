@@ -178,11 +178,10 @@ LIMIT $`+fmt.Sprint(len(queryArgs)-1)+` OFFSET $`+fmt.Sprint(len(queryArgs)),
 	return items, paginationResultFromTotal(total, params), nil
 }
 
-func (r *contentModerationRepository) CountFlaggedByUserSince(ctx context.Context, userID int64, since time.Time, excludeCyberPolicy bool) (int, error) {
+func (r *contentModerationRepository) CountFlaggedByUserSince(ctx context.Context, userID int64, since time.Time) (int, error) {
 	if userID <= 0 {
 		return 0, nil
 	}
-	// SQL 中的 'cyber_policy' 字面量须与 service.ContentModerationActionCyberPolicy 保持一致。
 	var count int
 	err := r.db.QueryRowContext(ctx, `
 WITH last_auto_ban AS (
@@ -195,22 +194,13 @@ FROM content_moderation_logs
 WHERE user_id = $1
   AND flagged = TRUE
   AND action <> 'hash_block'
-  AND ($3::bool IS FALSE OR action <> 'cyber_policy')
   AND created_at >= $2
   AND created_at > COALESCE((SELECT at FROM last_auto_ban), '-infinity'::timestamptz)
-`, userID, since, excludeCyberPolicy).Scan(&count)
+`, userID, since).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count user content moderation flagged logs: %w", err)
 	}
 	return count, nil
-}
-
-func (r *contentModerationRepository) UpdateLogEmailSent(ctx context.Context, id int64, sent bool) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE content_moderation_logs SET email_sent = $1 WHERE id = $2`, sent, id)
-	if err != nil {
-		return fmt.Errorf("update content moderation log email_sent: %w", err)
-	}
-	return nil
 }
 
 func (r *contentModerationRepository) CleanupExpiredLogs(ctx context.Context, hitBefore time.Time, nonHitBefore time.Time) (*service.ContentModerationCleanupResult, error) {
@@ -236,8 +226,365 @@ WHERE flagged = FALSE AND created_at < $1
 	}
 	result.DeletedNonHit, _ = nonHitExec.RowsAffected()
 
+	if _, err := r.db.ExecContext(ctx, `
+DELETE FROM content_moderation_request_events
+WHERE created_at < NOW() - INTERVAL '30 days'
+`); err != nil {
+		return nil, fmt.Errorf("delete expired content moderation request events: %w", err)
+	}
+
 	result.FinishedAt = time.Now()
 	return result, nil
+}
+
+func (r *contentModerationRepository) RecordRiskEvent(ctx context.Context, event service.ContentModerationRiskEvent, policy service.ContentModerationAdaptivePolicy) (*service.ContentModerationRiskProfile, bool, error) {
+	if event.UserID <= 0 || strings.TrimSpace(event.RequestID) == "" {
+		return nil, false, fmt.Errorf("invalid content moderation risk event")
+	}
+	policy = normalizedAdaptivePolicy(policy)
+	now := event.CreatedAt
+	if now.IsZero() {
+		now = time.Now()
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, false, fmt.Errorf("begin content moderation risk event: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var apiKeyID any
+	if event.APIKeyID > 0 {
+		apiKeyID = event.APIKeyID
+	}
+	result, err := tx.ExecContext(ctx, `
+INSERT INTO content_moderation_request_events (
+    request_id, user_id, api_key_id, audited, flagged, severity, category,
+    score_delta, sample_rate, created_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+ON CONFLICT (user_id, request_id) DO NOTHING
+`, event.RequestID, event.UserID, apiKeyID, event.Audited, event.Flagged, event.Severity,
+		event.Category, event.ScoreDelta, event.SampleRate, now)
+	if err != nil {
+		return nil, false, fmt.Errorf("insert content moderation risk event: %w", err)
+	}
+	applied, _ := result.RowsAffected()
+	if applied == 0 {
+		profile, getErr := getRiskProfileWithQuery(ctx, tx, event.UserID, false)
+		if getErr != nil {
+			return nil, false, getErr
+		}
+		return profile, false, nil
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO content_moderation_user_risk_profiles (user_id)
+VALUES ($1)
+ON CONFLICT (user_id) DO NOTHING
+`, event.UserID); err != nil {
+		return nil, false, fmt.Errorf("ensure content moderation risk profile: %w", err)
+	}
+
+	profile, err := getRiskProfileWithQuery(ctx, tx, event.UserID, true)
+	if err != nil {
+		return nil, false, err
+	}
+	profile.TotalRequests++
+	if event.Audited {
+		profile.AuditedRequests++
+		profile.LastAuditedAt = timePtr(now)
+	}
+	if event.Flagged {
+		profile.FlaggedRequests++
+		profile.LastHitAt = timePtr(now)
+		profile.LastCategory = event.Category
+	}
+	profile.RiskScore = service.DecayContentModerationRiskScore(profile.RiskScore, profile.ScoreUpdatedAt, now, policy.DailyDecayPercent)
+	profile.RiskScore = clampRiskScore(profile.RiskScore + event.ScoreDelta)
+	profile.LastScoreDelta = event.ScoreDelta
+	profile.ScoreUpdatedAt = now
+	profile.RiskLevel = policy.RiskLevel(profile)
+	profile.CurrentSampleRate = policy.SampleRate(profile)
+	profile.UpdatedAt = now
+
+	if _, err := tx.ExecContext(ctx, `
+UPDATE content_moderation_user_risk_profiles
+SET total_requests = $2,
+    audited_requests = $3,
+    flagged_requests = $4,
+    risk_score = $5,
+    risk_level = $6,
+    manual_level = $7,
+    current_sample_rate = $8,
+    last_category = $9,
+    last_score_delta = $10,
+    last_hit_at = $11,
+    last_audited_at = $12,
+    score_updated_at = $13,
+    updated_at = $14
+WHERE user_id = $1
+`, profile.UserID, profile.TotalRequests, profile.AuditedRequests, profile.FlaggedRequests,
+		profile.RiskScore, profile.RiskLevel, profile.ManualLevel, profile.CurrentSampleRate,
+		profile.LastCategory, profile.LastScoreDelta, nullableRiskTime(profile.LastHitAt),
+		nullableRiskTime(profile.LastAuditedAt), profile.ScoreUpdatedAt, profile.UpdatedAt); err != nil {
+		return nil, false, fmt.Errorf("update content moderation risk profile: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, false, fmt.Errorf("commit content moderation risk event: %w", err)
+	}
+	profile.UserEmail = event.UserEmail
+	return profile, true, nil
+}
+
+func (r *contentModerationRepository) GetRiskProfile(ctx context.Context, userID int64) (*service.ContentModerationRiskProfile, error) {
+	return getRiskProfileWithQuery(ctx, r.db, userID, false)
+}
+
+func (r *contentModerationRepository) ListRiskProfiles(ctx context.Context, filter service.ContentModerationRiskProfileFilter) ([]service.ContentModerationRiskProfile, *pagination.PaginationResult, error) {
+	where := []string{"p.user_id IS NOT NULL"}
+	args := make([]any, 0, 3)
+	if level := strings.ToLower(strings.TrimSpace(filter.Level)); level != "" && level != "all" {
+		args = append(args, level)
+		where = append(where, fmt.Sprintf("p.risk_level = $%d", len(args)))
+	}
+	if search := strings.TrimSpace(filter.Search); search != "" {
+		args = append(args, "%"+search+"%")
+		idx := len(args)
+		where = append(where, fmt.Sprintf("(u.email ILIKE $%d OR CAST(p.user_id AS TEXT) ILIKE $%d)", idx, idx))
+	}
+	whereSQL := "WHERE " + strings.Join(where, " AND ")
+	var total int64
+	if err := r.db.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM content_moderation_user_risk_profiles p
+JOIN users u ON u.id = p.user_id
+`+whereSQL, args...).Scan(&total); err != nil {
+		return nil, nil, fmt.Errorf("count content moderation risk profiles: %w", err)
+	}
+
+	params := filter.Pagination
+	if params.Page <= 0 {
+		params.Page = 1
+	}
+	if params.PageSize <= 0 {
+		params.PageSize = 20
+	}
+	if params.PageSize > 100 {
+		params.PageSize = 100
+	}
+	queryArgs := append([]any{}, args...)
+	queryArgs = append(queryArgs, params.Limit(), params.Offset())
+	rows, err := r.db.QueryContext(ctx, riskProfileSelectSQL()+`
+`+whereSQL+`
+ORDER BY p.risk_score DESC, p.last_hit_at DESC NULLS LAST, p.updated_at DESC
+LIMIT $`+fmt.Sprint(len(queryArgs)-1)+` OFFSET $`+fmt.Sprint(len(queryArgs)), queryArgs...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list content moderation risk profiles: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	items := make([]service.ContentModerationRiskProfile, 0)
+	for rows.Next() {
+		profile, scanErr := scanRiskProfile(rows)
+		if scanErr != nil {
+			return nil, nil, scanErr
+		}
+		items = append(items, *profile)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("iterate content moderation risk profiles: %w", err)
+	}
+	return items, paginationResultFromTotal(total, params), nil
+}
+
+func (r *contentModerationRepository) GetRiskOverview(ctx context.Context) (*service.ContentModerationRiskOverview, error) {
+	var out service.ContentModerationRiskOverview
+	err := r.db.QueryRowContext(ctx, `
+SELECT
+    COUNT(*),
+    COUNT(*) FILTER (WHERE risk_level = 'new'),
+    COUNT(*) FILTER (WHERE risk_level = 'trusted'),
+    COUNT(*) FILTER (WHERE risk_level = 'watch'),
+    COUNT(*) FILTER (WHERE risk_level = 'high'),
+    COUNT(*) FILTER (WHERE risk_level = 'critical'),
+    COALESCE(SUM(audited_requests), 0),
+    COALESCE(SUM(flagged_requests), 0),
+    COALESCE(AVG(risk_score), 0)
+FROM content_moderation_user_risk_profiles
+`).Scan(&out.TotalProfiles, &out.NewProfiles, &out.TrustedProfiles, &out.WatchProfiles,
+		&out.HighProfiles, &out.CriticalProfiles, &out.AuditedRequests, &out.FlaggedRequests, &out.AverageRiskScore)
+	if err != nil {
+		return nil, fmt.Errorf("get content moderation risk overview: %w", err)
+	}
+	return &out, nil
+}
+
+func (r *contentModerationRepository) UpdateRiskProfile(ctx context.Context, userID int64, input service.UpdateContentModerationRiskProfileInput, policy service.ContentModerationAdaptivePolicy) (*service.ContentModerationRiskProfile, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin content moderation risk profile override: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	profile, err := getRiskProfileWithQuery(ctx, tx, userID, true)
+	if err != nil {
+		return nil, err
+	}
+	if input.ManualLevel != nil {
+		profile.ManualLevel = *input.ManualLevel
+	}
+	if input.ResetScore {
+		profile.RiskScore = 0
+		profile.LastScoreDelta = 0
+		profile.ScoreUpdatedAt = time.Now()
+	}
+	profile.RiskLevel = policy.RiskLevel(profile)
+	profile.CurrentSampleRate = policy.SampleRate(profile)
+
+	_, err = tx.ExecContext(ctx, `
+UPDATE content_moderation_user_risk_profiles
+SET risk_score = $2,
+    risk_level = $3,
+    manual_level = $4,
+    current_sample_rate = $5,
+    last_score_delta = $6,
+    score_updated_at = $7,
+    updated_at = NOW()
+WHERE user_id = $1
+`, userID, clampRiskScore(profile.RiskScore), profile.RiskLevel,
+		profile.ManualLevel, profile.CurrentSampleRate, profile.LastScoreDelta, profile.ScoreUpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("update content moderation risk profile override: %w", err)
+	}
+	updated, err := getRiskProfileWithQuery(ctx, tx, userID, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit content moderation risk profile override: %w", err)
+	}
+	return updated, nil
+}
+
+func (r *contentModerationRepository) ReserveRiskNotification(ctx context.Context, userID int64, cooldown time.Duration) (bool, error) {
+	if cooldown <= 0 {
+		cooldown = 24 * time.Hour
+	}
+	result, err := r.db.ExecContext(ctx, `
+UPDATE content_moderation_user_risk_profiles
+SET last_notified_at = NOW(), updated_at = NOW()
+WHERE user_id = $1
+  AND (last_notified_at IS NULL OR last_notified_at <= $2)
+`, userID, time.Now().Add(-cooldown))
+	if err != nil {
+		return false, fmt.Errorf("reserve content moderation risk notification: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	return rows > 0, nil
+}
+
+func (r *contentModerationRepository) DisableAPIKeyForRisk(ctx context.Context, apiKeyID int64, userID int64) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+UPDATE api_keys
+SET status = $3, updated_at = NOW()
+WHERE id = $1 AND user_id = $2 AND status <> $3
+`, apiKeyID, userID, service.StatusDisabled)
+	if err != nil {
+		return false, fmt.Errorf("disable api key for content moderation risk: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	return rows > 0, nil
+}
+
+type riskProfileScanner interface {
+	Scan(dest ...any) error
+}
+
+type riskProfileQueryer interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func getRiskProfileWithQuery(ctx context.Context, queryer riskProfileQueryer, userID int64, forUpdate bool) (*service.ContentModerationRiskProfile, error) {
+	query := riskProfileSelectSQL() + " WHERE p.user_id = $1"
+	if forUpdate {
+		query += " FOR UPDATE OF p"
+	}
+	profile, err := scanRiskProfile(queryer.QueryRowContext(ctx, query, userID))
+	if err != nil {
+		return nil, fmt.Errorf("get content moderation risk profile: %w", err)
+	}
+	return profile, nil
+}
+
+func riskProfileSelectSQL() string {
+	return `
+SELECT
+    p.user_id, COALESCE(u.email, ''), COALESCE(u.status, ''),
+    p.total_requests, p.audited_requests, p.flagged_requests,
+    p.risk_score, p.risk_level, p.manual_level, p.current_sample_rate,
+    p.last_category, p.last_score_delta, p.last_hit_at, p.last_audited_at,
+    p.last_notified_at, p.score_updated_at, p.created_at, p.updated_at
+FROM content_moderation_user_risk_profiles p
+JOIN users u ON u.id = p.user_id`
+}
+
+func scanRiskProfile(scanner riskProfileScanner) (*service.ContentModerationRiskProfile, error) {
+	var profile service.ContentModerationRiskProfile
+	var lastHit, lastAudited, lastNotified sql.NullTime
+	if err := scanner.Scan(
+		&profile.UserID, &profile.UserEmail, &profile.UserStatus,
+		&profile.TotalRequests, &profile.AuditedRequests, &profile.FlaggedRequests,
+		&profile.RiskScore, &profile.RiskLevel, &profile.ManualLevel, &profile.CurrentSampleRate,
+		&profile.LastCategory, &profile.LastScoreDelta, &lastHit, &lastAudited,
+		&lastNotified, &profile.ScoreUpdatedAt, &profile.CreatedAt, &profile.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	if lastHit.Valid {
+		profile.LastHitAt = timePtr(lastHit.Time)
+	}
+	if lastAudited.Valid {
+		profile.LastAuditedAt = timePtr(lastAudited.Time)
+	}
+	if lastNotified.Valid {
+		profile.LastNotifiedAt = timePtr(lastNotified.Time)
+	}
+	return &profile, nil
+}
+
+func normalizedAdaptivePolicy(policy service.ContentModerationAdaptivePolicy) service.ContentModerationAdaptivePolicy {
+	defaults := service.DefaultContentModerationAdaptivePolicy()
+	// JSON round-trips normalize the policy in the service. Repository callers in tests may not.
+	if policy.FullAuditRequests <= 0 {
+		policy.FullAuditRequests = defaults.FullAuditRequests
+	}
+	if policy.RampAuditRequests < policy.FullAuditRequests {
+		policy.RampAuditRequests = defaults.RampAuditRequests
+	}
+	if policy.DailyDecayPercent <= 0 || policy.DailyDecayPercent >= 100 {
+		policy.DailyDecayPercent = defaults.DailyDecayPercent
+	}
+	return policy
+}
+
+func clampRiskScore(value float64) float64 {
+	if value < 0 {
+		return 0
+	}
+	if value > 100 {
+		return 100
+	}
+	return value
+}
+
+func timePtr(value time.Time) *time.Time {
+	copy := value
+	return &copy
+}
+
+func nullableRiskTime(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
 
 func nullableIntPtr(value *int) any {

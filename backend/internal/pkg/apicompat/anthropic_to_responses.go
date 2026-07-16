@@ -22,26 +22,16 @@ func AnthropicToResponses(req *AnthropicRequest) (*ResponsesRequest, error) {
 	}
 
 	out := &ResponsesRequest{
-		Model:   req.Model,
-		Input:   inputJSON,
-		Stream:  req.Stream,
-		Include: []string{"reasoning.encrypted_content"},
-	}
-
-	// Reasoning models (gpt-5.x) served via the Responses API do not accept
-	// sampling parameters. Sending temperature or top_p causes a 400
-	// "Unsupported parameter" error, so we only forward them for non-reasoning
-	// models.
-	if !isReasoningModel(req.Model) {
-		out.Temperature = req.Temperature
-		out.TopP = req.TopP
+		Model:       req.Model,
+		Input:       inputJSON,
+		Temperature: req.Temperature,
+		TopP:        req.TopP,
+		Stream:      req.Stream,
+		Include:     []string{"reasoning.encrypted_content"},
 	}
 
 	storeFalse := false
 	out.Store = &storeFalse
-	parallelToolCalls := true
-	out.ParallelToolCalls = &parallelToolCalls
-	out.Text = &ResponsesText{Verbosity: "medium"}
 
 	if req.MaxTokens > 0 {
 		v := req.MaxTokens
@@ -56,10 +46,10 @@ func AnthropicToResponses(req *AnthropicRequest) (*ResponsesRequest, error) {
 	}
 
 	// Determine reasoning effort: only output_config.effort controls the
-	// level; thinking.type is ignored. Default follows Codex CLI / airgate's
-	// Anthropic bridge shape, which uses medium when unset.
+	// level; thinking.type is ignored. Default is high when unset (both
+	// Anthropic and OpenAI default to high).
 	// Anthropic levels map 1:1 to OpenAI: low→low, medium→medium, high→high, max→xhigh.
-	effort := "medium"
+	effort := "high" // default → both sides' default
 	if req.OutputConfig != nil && req.OutputConfig.Effort != "" {
 		effort = req.OutputConfig.Effort
 	}
@@ -118,19 +108,16 @@ func convertAnthropicToolChoiceToResponses(raw json.RawMessage) (json.RawMessage
 func convertAnthropicToResponsesInput(system json.RawMessage, msgs []AnthropicMessage) ([]ResponsesInputItem, error) {
 	var out []ResponsesInputItem
 
-	// System prompt → developer role input item. ChatGPT Codex SSE behaves like
-	// Codex CLI here: keeping Anthropic system text in input preserves the
-	// conversation/cache shape better than moving it into instructions.
+	// System prompt → system role input item.
 	if len(system) > 0 {
-		sysParts, err := parseAnthropicSystemContentParts(system)
+		sysText, err := parseAnthropicSystemPrompt(system)
 		if err != nil {
 			return nil, err
 		}
-		if len(sysParts) > 0 {
-			content, _ := json.Marshal(sysParts)
+		if sysText != "" {
+			content, _ := json.Marshal(sysText)
 			out = append(out, ResponsesInputItem{
-				Type:    "message",
-				Role:    "developer",
+				Role:    "system",
 				Content: content,
 			})
 		}
@@ -146,32 +133,24 @@ func convertAnthropicToResponsesInput(system json.RawMessage, msgs []AnthropicMe
 	return out, nil
 }
 
-// parseAnthropicSystemContentParts handles the Anthropic system field which can
-// be a plain string or an array of text blocks. Claude Code may include an
-// x-anthropic-billing-header block; airgate drops it before sending to Codex.
-func parseAnthropicSystemContentParts(raw json.RawMessage) ([]ResponsesContentPart, error) {
+// parseAnthropicSystemPrompt handles the Anthropic system field which can be
+// a plain string or an array of text blocks.
+func parseAnthropicSystemPrompt(raw json.RawMessage) (string, error) {
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
-		if isAnthropicBillingHeaderText(s) || s == "" {
-			return nil, nil
-		}
-		return []ResponsesContentPart{{Type: "input_text", Text: s}}, nil
+		return s, nil
 	}
 	var blocks []AnthropicContentBlock
 	if err := json.Unmarshal(raw, &blocks); err != nil {
-		return nil, err
+		return "", err
 	}
-	var parts []ResponsesContentPart
+	var parts []string
 	for _, b := range blocks {
-		if b.Type == "text" && b.Text != "" && !isAnthropicBillingHeaderText(b.Text) {
-			parts = append(parts, ResponsesContentPart{Type: "input_text", Text: b.Text})
+		if b.Type == "text" && b.Text != "" {
+			parts = append(parts, b.Text)
 		}
 	}
-	return parts, nil
-}
-
-func isAnthropicBillingHeaderText(text string) bool {
-	return strings.HasPrefix(text, "x-anthropic-billing-header: ")
+	return strings.Join(parts, "\n\n"), nil
 }
 
 // anthropicMsgToResponsesItems converts a single Anthropic message into one
@@ -194,12 +173,8 @@ func anthropicUserToResponses(raw json.RawMessage) ([]ResponsesInputItem, error)
 	// Try plain string.
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
-		parts := []ResponsesContentPart{{Type: "input_text", Text: s}}
-		partsJSON, err := json.Marshal(parts)
-		if err != nil {
-			return nil, err
-		}
-		return []ResponsesInputItem{{Type: "message", Role: "user", Content: partsJSON}}, nil
+		content, _ := json.Marshal(s)
+		return []ResponsesInputItem{{Role: "user", Content: content}}, nil
 	}
 
 	var blocks []AnthropicContentBlock
@@ -221,7 +196,7 @@ func anthropicUserToResponses(raw json.RawMessage) ([]ResponsesInputItem, error)
 		out = append(out, ResponsesInputItem{
 			Type:   "function_call_output",
 			CallID: toResponsesCallID(b.ToolUseID),
-			Output: outputText,
+			Output: jsonRawString(outputText),
 		})
 		toolResultImageParts = append(toolResultImageParts, imageParts...)
 	}
@@ -248,7 +223,7 @@ func anthropicUserToResponses(raw json.RawMessage) ([]ResponsesInputItem, error)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, ResponsesInputItem{Type: "message", Role: "user", Content: content})
+		out = append(out, ResponsesInputItem{Role: "user", Content: content})
 	}
 
 	return out, nil
@@ -267,7 +242,7 @@ func anthropicAssistantToResponses(raw json.RawMessage) ([]ResponsesInputItem, e
 		if err != nil {
 			return nil, err
 		}
-		return []ResponsesInputItem{{Type: "message", Role: "assistant", Content: partsJSON}}, nil
+		return []ResponsesInputItem{{Role: "assistant", Content: partsJSON}}, nil
 	}
 
 	var blocks []AnthropicContentBlock
@@ -285,7 +260,7 @@ func anthropicAssistantToResponses(raw json.RawMessage) ([]ResponsesInputItem, e
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, ResponsesInputItem{Type: "message", Role: "assistant", Content: partsJSON})
+		items = append(items, ResponsesInputItem{Role: "assistant", Content: partsJSON})
 	}
 
 	// tool_use → function_call items.
@@ -302,21 +277,24 @@ func anthropicAssistantToResponses(raw json.RawMessage) ([]ResponsesInputItem, e
 			Type:      "function_call",
 			CallID:    fcID,
 			Name:      b.Name,
-			Arguments: args,
+			Arguments: jsonRawString(args),
 		})
 	}
 
 	return items, nil
 }
 
-// toResponsesCallID preserves Anthropic tool IDs as Responses call_id values.
-// Claude Code sends tool_result.tool_use_id back verbatim, and ChatGPT Codex
-// continuation expects that call_id to match the original tool_use id.
+// toResponsesCallID converts an Anthropic tool ID (toolu_xxx / call_xxx) to a
+// Responses API function_call ID that starts with "fc_".
 func toResponsesCallID(id string) string {
-	return id
+	if strings.HasPrefix(id, "fc_") {
+		return id
+	}
+	return "fc_" + id
 }
 
-// fromResponsesCallID reverses old prefixed IDs while preserving current IDs.
+// fromResponsesCallID reverses toResponsesCallID, stripping the "fc_" prefix
+// that was added during request conversion.
 func fromResponsesCallID(id string) string {
 	if after, ok := strings.CutPrefix(id, "fc_"); ok {
 		// Only strip if the remainder doesn't look like it was already "fc_" prefixed.
@@ -434,22 +412,9 @@ func convertAnthropicToolsToResponses(tools []AnthropicTool) []ResponsesTool {
 			Name:        t.Name,
 			Description: t.Description,
 			Parameters:  normalizeToolParameters(t.InputSchema),
-			Strict:      boolPtr(false),
 		})
 	}
 	return out
-}
-
-func boolPtr(v bool) *bool {
-	return &v
-}
-
-// isReasoningModel reports whether model is a reasoning model that does not
-// support sampling parameters (temperature, top_p) via the Responses API.
-// All gpt-5.x models are reasoning-only; the Responses API returns
-// "Unsupported parameter: temperature" if these fields are present.
-func isReasoningModel(model string) bool {
-	return strings.HasPrefix(model, "gpt-5")
 }
 
 // normalizeToolParameters ensures the tool parameter schema is valid for

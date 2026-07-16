@@ -5,12 +5,12 @@ package ent
 import (
 	"encoding/json"
 	"fmt"
+	"ikik-api/ent/tlsfingerprintprofile"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/tlsfingerprintprofile"
 )
 
 // TLSFingerprintProfile is the model entity for the TLSFingerprintProfile schema.

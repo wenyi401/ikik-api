@@ -2,41 +2,56 @@
   <aside
     class="sidebar"
     :class="[
-      sidebarCollapsed ? 'w-[72px]' : 'w-64',
+      sidebarCollapsed ? 'w-[64px]' : 'w-[260px]',
       { '-translate-x-full lg:translate-x-0': !mobileOpen }
     ]"
   >
     <!-- Logo/Brand -->
     <div class="sidebar-header" :class="{ 'sidebar-header-collapsed': sidebarCollapsed }">
       <!-- Custom Logo or Default Logo -->
-      <router-link
-        :to="homePath"
-        class="sidebar-logo flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-glow transition-opacity hover:opacity-80"
-        @click="handleMenuItemClick(homePath)"
-      >
-        <img v-if="settingsLoaded" :src="siteLogo || '/logo.png'" alt="Logo" class="h-full w-full object-contain" />
-      </router-link>
+      <div class="sidebar-logo flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] shadow-none">
+        <img v-if="settingsLoaded" :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
+      </div>
       <div class="sidebar-brand" :class="{ 'sidebar-brand-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
-        <router-link
-          :to="homePath"
-          class="sidebar-brand-title text-lg font-bold text-gray-900 transition-colors hover:text-primary-600 dark:text-white dark:hover:text-primary-400"
-          @click="handleMenuItemClick(homePath)"
-        >
+        <span class="sidebar-brand-title text-lg font-semibold text-[var(--app-text)]">
           {{ siteName }}
-        </router-link>
+        </span>
         <!-- Version Badge -->
         <VersionBadge :version="siteVersion" />
       </div>
     </div>
 
+    <div
+      v-if="isAdmin && !authStore.isSimpleMode && !sidebarCollapsed"
+      class="sidebar-workspace-switch"
+      role="tablist"
+      :aria-label="t('nav.workspace')"
+    >
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="!isAdminWorkspace"
+        :class="{ 'sidebar-workspace-active': !isAdminWorkspace }"
+        @click="switchWorkspace('user')"
+      >
+        {{ t('nav.userWorkspace') }}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="isAdminWorkspace"
+        :class="{ 'sidebar-workspace-active': isAdminWorkspace }"
+        @click="switchWorkspace('admin')"
+      >
+        {{ t('nav.adminWorkspace') }}
+      </button>
+    </div>
+
     <!-- Navigation -->
-    <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide">
-      <!-- Admin View: Admin menu first, then personal menu -->
-      <template v-if="isAdmin">
-        <!-- Admin Section -->
+    <nav class="sidebar-nav scrollbar-hide">
+      <template v-if="showNavigation">
         <div class="sidebar-section">
-          <template v-for="item in adminNavItems" :key="item.path">
-            <!-- Collapsible group (has children) -->
+          <template v-for="item in visibleNavItems" :key="item.path">
             <template v-if="item.children?.length">
               <button
                 type="button"
@@ -61,38 +76,29 @@
                   />
                 </span>
               </button>
-              <!-- Children -->
-              <div v-if="!sidebarCollapsed && isGroupExpanded(item)" class="mb-1 ml-4 border-l border-gray-200 pl-2 dark:border-dark-600">
+              <div v-if="!sidebarCollapsed && isGroupExpanded(item)" class="sidebar-child-group">
                 <router-link
                   v-for="child in item.children"
                   :key="child.path"
-                  :to="child.path"
+                  :to="navLinkTo(child)"
                   class="sidebar-link mb-0.5 py-1.5 text-sm"
-                  :class="{ 'sidebar-link-active': route.path === child.path }"
-                  @click="handleMenuItemClick(child.path)"
+                  :class="{ 'sidebar-link-active': isActive(child.path) }"
+                  :id="navItemId(child)"
+                  @click="handleMenuItemClick(child, $event)"
                 >
-                  <component :is="child.icon" class="h-4 w-4 flex-shrink-0" />
-                  <span>{{ child.label }}</span>
+                  <span class="sidebar-child-label">{{ child.label }}</span>
                 </router-link>
               </div>
             </template>
-            <!-- Normal item (no children) -->
             <router-link
               v-else
-              :to="item.path"
+              :to="navLinkTo(item)"
               class="sidebar-link mb-1"
               :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
               :title="sidebarCollapsed ? item.label : undefined"
-              :id="
-                item.path === '/admin/accounts'
-                  ? 'sidebar-channel-manage'
-                  : item.path === '/admin/groups'
-                    ? 'sidebar-group-manage'
-                    : item.path === '/admin/redeem'
-                      ? 'sidebar-wallet'
-                      : undefined
-              "
-              @click="handleMenuItemClick(item.path)"
+              :id="navItemId(item)"
+              :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
+              @click="handleMenuItemClick(item, $event)"
             >
               <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
               <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
@@ -100,55 +106,11 @@
             </router-link>
           </template>
         </div>
-
-        <!-- Personal Section for Admin (hidden in simple mode) -->
-        <div v-if="!authStore.isSimpleMode" class="sidebar-section">
-          <div class="sidebar-section-title" :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
-            <span class="sidebar-section-title-text" :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }">
-              {{ t('nav.myAccount') }}
-            </span>
-          </div>
-
-          <router-link
-            v-for="item in personalNavItems"
-            :key="item.path"
-            :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-            :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
-          >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-            <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
-          </router-link>
-        </div>
-      </template>
-
-      <!-- Regular User View -->
-      <template v-else-if="!appStore.backendModeEnabled">
-        <div class="sidebar-section">
-          <router-link
-            v-for="item in userNavItems"
-            :key="item.path"
-            :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-            :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
-          >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-            <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
-          </router-link>
-        </div>
       </template>
     </nav>
 
     <!-- Bottom Section -->
-    <div class="mt-auto border-t border-gray-100 p-3 dark:border-dark-800">
+    <div class="sidebar-footer mt-auto">
       <!-- Theme Toggle -->
       <button
         @click="toggleTheme"
@@ -188,21 +150,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
-import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
-import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import { buildEmbeddedUrl, detectTheme } from '@/utils/embedded-url'
 
 interface NavItem {
   path: string
   label: string
   icon: unknown
   iconSvg?: string
+  url?: string
+  openInNewWindow?: boolean
   hideInSimpleMode?: boolean
   children?: NavItem[]
   /**
@@ -234,7 +197,7 @@ function applyFeatureFlags(items: NavItem[]): NavItem[] {
   return out
 }
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
@@ -242,22 +205,21 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
-const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
-const sidebarNavRef = ref<HTMLElement | null>(null)
+const isAdminWorkspace = computed(() => authStore.isSimpleMode || route.path.startsWith('/admin'))
+const showNavigation = computed(() => isAdmin.value || !appStore.backendModeEnabled)
 const isDark = ref(document.documentElement.classList.contains('dark'))
-
-const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))
 
 // Track which parent nav groups are expanded
 const expandedGroups = ref<Set<string>>(new Set())
+const collapsedGroups = ref<Set<string>>(new Set())
 
 // Site settings from appStore (cached, no flicker)
 const siteName = computed(() => appStore.siteName)
-const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
+const siteLogo = computed(() => appStore.siteLogo)
 const siteVersion = computed(() => appStore.siteVersion)
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 
@@ -287,26 +249,6 @@ const KeyIcon = {
           'stroke-linecap': 'round',
           'stroke-linejoin': 'round',
           d: 'M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z'
-        })
-      ]
-    )
-}
-
-const BatchImageIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.25 2.25 0 00-1.906-1.059H9.554a2.25 2.25 0 00-1.906 1.059l-.821 1.316z'
-        }),
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z'
         })
       ]
     )
@@ -352,6 +294,21 @@ const UserIcon = {
           'stroke-linecap': 'round',
           'stroke-linejoin': 'round',
           d: 'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z'
+        })
+      ]
+    )
+}
+
+const UserCircleIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.964 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z'
         })
       ]
     )
@@ -627,21 +584,6 @@ const SignalIcon = {
     )
 }
 
-const ShieldIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z'
-        })
-      ]
-    )
-}
-
 const PriceTagIcon = {
   render: () =>
     h(
@@ -657,6 +599,21 @@ const PriceTagIcon = {
           'stroke-linecap': 'round',
           'stroke-linejoin': 'round',
           d: 'M6 6h.008v.008H6V6z'
+        })
+      ]
+    )
+}
+
+const ShieldIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z'
         })
       ]
     )
@@ -681,19 +638,94 @@ const ChevronDownIcon = {
 // which handles the opt-in vs opt-out fallback when settings haven't loaded
 // yet. Admin-only flags (not in public settings) stay inline below.
 const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
-const flagPayment = makeSidebarFlag(FeatureFlags.payment)
+const flagPayment = () => {
+  const settings = appStore.cachedPublicSettings
+  if (!settings) return makeSidebarFlag(FeatureFlags.payment)()
+  const externalPurchaseEnabled =
+    settings.purchase_subscription_enabled === true &&
+    /^https?:\/\//i.test(settings.purchase_subscription_url?.trim() || '')
+  return settings.payment_enabled === true || externalPurchaseEnabled
+}
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
+const flagFreeModels = makeSidebarFlag(FeatureFlags.freeModels)
+const flagCarpool = makeSidebarFlag(FeatureFlags.carpool)
 const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
-const flagBatchImageAccess = () => canUseBatchImage.value
+const MyAccountsIcon = GlobeIcon
+const AccountManagementIcon = FolderIcon
+const PersonalCenterIcon = UserCircleIcon
+const ModelLobbyIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.091-3.091L2.25 12l2.846-.813a4.5 4.5 0 003.091-3.091L9 5.25l.813 2.846a4.5 4.5 0 003.091 3.091L15.75 12l-2.846.813a4.5 4.5 0 00-3.091 3.091z'
+        }),
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.456-2.456L14.25 6l1.035-.259a3.375 3.375 0 002.456-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z'
+        }),
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z'
+        })
+      ]
+    )
+}
+const ModelMarketIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M8.25 7.5h7.5M8.25 16.5h7.5M7.5 8.25l9 8.25M16.5 8.25l-9 8.25'
+        }),
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M6 10.5a3 3 0 100-6 3 3 0 000 6zM18 10.5a3 3 0 100-6 3 3 0 000 6zM6 19.5a3 3 0 100-6 3 3 0 000 6zM18 19.5a3 3 0 100-6 3 3 0 000 6z'
+        }),
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M10.5 12h3'
+        })
+      ]
+    )
+}
+const MoreMenuIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M4.5 6.75A2.25 2.25 0 016.75 4.5h10.5a2.25 2.25 0 012.25 2.25v10.5a2.25 2.25 0 01-2.25 2.25H6.75a2.25 2.25 0 01-2.25-2.25V6.75z'
+        }),
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M8.25 12h.008v.008H8.25V12zm3.75 0h.008v.008H12V12zm3.75 0h.008v.008h-.008V12z'
+        })
+      ]
+    )
+}
 
 // buildSelfNavItems 构造用户自己的导航项（用户端主菜单和管理员的"我的账户"子菜单共享这组声明）。
 // withDashboard=true 时包含仪表盘（用户端），false 时不含（管理员的个人区已经有独立仪表盘入口）。
-//
-// 条目顺序：密钥 → 用量 → 可用渠道 → 渠道状态 → 订阅/支付 → 兑换/资料。
-// 可用渠道紧挨渠道状态之上，让用户"先看自己能用什么、再看对应状态"。
 function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   const items: NavItem[] = []
   if (withDashboard) {
@@ -701,39 +733,87 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   }
   items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-    { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
+    {
+      path: '/self/accounts',
+      label: t('nav.accountManagement'),
+      icon: AccountManagementIcon,
+      expandOnly: true,
+      children: [
+        { path: '/accounts', label: t('nav.myAccounts'), icon: MyAccountsIcon, hideInSimpleMode: true },
+        { path: '/accounts/free-models', label: t('nav.freeModels'), icon: ModelLobbyIcon, hideInSimpleMode: true, featureFlag: flagFreeModels },
+        { path: '/accounts/carpools', label: t('nav.carpools'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagCarpool },
+      ],
+    },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
-    { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
-    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
+    {
+      path: '/self/models',
+      label: t('nav.modelLobby'),
+      icon: ModelLobbyIcon,
+      expandOnly: true,
+      children: [
+        { path: '/models', label: t('nav.modelMarket'), icon: ModelMarketIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
+        { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
+        { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
+      ],
+    },
     { path: '/purchase', label: t('nav.buySubscription'), icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
-    { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
-    { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
-    { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
-    { path: '/profile', label: t('nav.profile'), icon: UserIcon },
-    ...customMenuItemsForUser.value.map((item): NavItem => ({
-      path: `/custom/${item.id}`,
-      label: item.label,
-      icon: null,
-      iconSvg: item.icon_svg,
-    })),
+    {
+      path: '/self/profile-center',
+      label: t('nav.personalCenter'),
+      icon: PersonalCenterIcon,
+      expandOnly: true,
+      children: [
+        { path: '/profile', label: t('nav.profile'), icon: UserIcon },
+        { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
+        { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
+        { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
+        { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
+      ],
+    },
+    {
+      path: '/self/extras',
+      label: t('nav.additionalMenu'),
+      icon: MoreMenuIcon,
+      expandOnly: true,
+      children: [
+        { path: '/store', label: t('nav.store'), icon: GiftIcon, hideInSimpleMode: true },
+        ...customMenuItemsForUser.value.map((item): NavItem => ({
+          path: `/custom/${item.id}`,
+          label: item.label,
+          icon: FolderIcon,
+          iconSvg: item.icon_svg,
+          url: item.url,
+          openInNewWindow: item.open_in_new_window,
+        })),
+      ],
+    },
   )
   return items
 }
 
-// finalizeNav 合并三重过滤：featureFlag 过滤 + simple 模式过滤。
+function pruneNavItems(items: NavItem[], hideSimpleMode: boolean): NavItem[] {
+  const out: NavItem[] = []
+  for (const item of items) {
+    if (hideSimpleMode && item.hideInSimpleMode) continue
+    if (item.children) {
+      const nextChildren = pruneNavItems(item.children, hideSimpleMode)
+      if (nextChildren.length === 0) continue
+      out.push({ ...item, children: nextChildren })
+      continue
+    }
+    out.push(item)
+  }
+  return out
+}
+
+// finalizeNav 合并三重过滤：featureFlag 过滤 + simple 模式递归过滤 + 空分组剔除。
 function finalizeNav(items: NavItem[]): NavItem[] {
   const visible = applyFeatureFlags(items)
-  return authStore.isSimpleMode ? visible.filter(item => !item.hideInSimpleMode) : visible
+  return pruneNavItems(visible, authStore.isSimpleMode)
 }
 
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))
-
-// Personal navigation items (for admin's "My Account" section, without Dashboard).
-// Admins access 可用渠道 from this section just like regular users — there is no
-// separate admin entry, since the page is purely a user-facing view.
-const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(false)))
 
 // Custom menu items filtered by visibility
 const customMenuItemsForUser = computed(() => {
@@ -768,28 +848,36 @@ const adminNavItems = computed((): NavItem[] => {
       ],
     },
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
-    { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
+    {
+      path: '/admin/account-management',
+      label: t('nav.accountManagement'),
+      icon: AccountManagementIcon,
+      expandOnly: true,
+      children: [
+        { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
+        { path: '/admin/carpools', label: t('nav.carpools'), icon: UsersIcon, featureFlag: flagCarpool },
+      ],
+    },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     { path: '/admin/risk-control', label: t('nav.riskControl'), icon: ShieldIcon, hideInSimpleMode: true, featureFlag: flagRiskControl },
     { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: TicketIcon, hideInSimpleMode: true },
     { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: GiftIcon, hideInSimpleMode: true },
     {
-      path: '/admin/affiliates',
-      label: t('nav.affiliateManagement'),
-      icon: UsersIcon,
+      path: '/admin/store',
+      label: t('nav.storeManagement'),
+      icon: GiftIcon,
       hideInSimpleMode: true,
       expandOnly: true,
-      featureFlag: flagAffiliate,
       children: [
-        { path: '/admin/affiliates/invites', label: t('nav.affiliateInviteRecords'), icon: UsersIcon },
-        { path: '/admin/affiliates/rebates', label: t('nav.affiliateRebateRecords'), icon: OrderIcon },
-        { path: '/admin/affiliates/transfers', label: t('nav.affiliateTransferRecords'), icon: CreditCardIcon },
+        { path: '/admin/store/categories', label: t('nav.storeCategories'), icon: FolderIcon },
+        { path: '/admin/store/products', label: t('nav.storeProducts'), icon: GiftIcon },
+        { path: '/admin/store/cards', label: t('nav.storeCards'), icon: TicketIcon },
       ],
     },
     {
       path: '/admin/orders',
-      label: t('nav.orderManagement'),
+      label: t('nav.financeManagement'),
       icon: OrderIcon,
       hideInSimpleMode: true,
       expandOnly: true,
@@ -797,10 +885,13 @@ const adminNavItems = computed((): NavItem[] => {
       children: [
         { path: '/admin/orders/dashboard', label: t('nav.paymentDashboard'), icon: ChartIcon },
         { path: '/admin/orders', label: t('nav.orderManagement'), icon: OrderIcon },
+        { path: '/admin/withdrawals', label: t('nav.withdrawalManagement'), icon: CreditCardIcon },
         { path: '/admin/orders/plans', label: t('nav.paymentPlans'), icon: CreditCardIcon },
+        { path: '/admin/revenue', label: t('nav.revenue'), icon: ChartIcon },
       ],
     },
-    { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon }
+    { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
+    { path: '/admin/token-leaderboard', label: t('nav.tokenLeaderboard'), icon: ChartIcon }
   ]
 
   const visible = applyFeatureFlags(baseItems)
@@ -811,19 +902,57 @@ const adminNavItems = computed((): NavItem[] => {
     filtered.push({ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon })
     filtered.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
     for (const cm of customMenuItemsForAdmin.value) {
-      filtered.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
+      filtered.push({
+        path: `/custom/${cm.id}`,
+        label: cm.label,
+        icon: null,
+        iconSvg: cm.icon_svg,
+        url: cm.url,
+        openInNewWindow: cm.open_in_new_window,
+      })
     }
     return filtered
   }
 
   visible.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
   for (const cm of customMenuItemsForAdmin.value) {
-    visible.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
+    visible.push({
+      path: `/custom/${cm.id}`,
+      label: cm.label,
+      icon: null,
+      iconSvg: cm.icon_svg,
+      url: cm.url,
+      openInNewWindow: cm.open_in_new_window,
+    })
   }
   return visible
 })
 
+const visibleNavItems = computed((): NavItem[] => {
+  if (!isAdmin.value) return userNavItems.value
+  return isAdminWorkspace.value ? adminNavItems.value : userNavItems.value
+})
+
+function switchWorkspace(workspace: 'user' | 'admin') {
+  const destination = workspace === 'admin' ? '/admin/dashboard' : '/dashboard'
+  if (route.path !== destination) {
+    void router.push(destination)
+  }
+}
+
+function navItemId(item: NavItem): string | undefined {
+  if (item.path === '/admin/accounts') return 'sidebar-channel-manage'
+  if (item.path === '/admin/groups') return 'sidebar-group-manage'
+  if (item.path === '/admin/redeem') return 'sidebar-wallet'
+  return undefined
+}
+
 function toggleSidebar() {
+  if (mobileOpen.value) {
+    closeMobile()
+    return
+  }
+
   appStore.toggleSidebar()
 }
 
@@ -837,11 +966,38 @@ function closeMobile() {
   appStore.setMobileOpen(false)
 }
 
-function handleMenuItemClick(itemPath: string) {
+function handleGlobalKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && mobileOpen.value) {
+    closeMobile()
+  }
+}
+
+function navLinkTo(item: NavItem): string {
+  return item.openInNewWindow ? route.fullPath : item.path
+}
+
+function buildNewWindowUrl(item: NavItem): string {
+  if (!item.url) return item.path
+  return buildEmbeddedUrl(
+    item.url,
+    authStore.user?.id,
+    authStore.token,
+    detectTheme(),
+    locale.value,
+  )
+}
+
+function handleMenuItemClick(item: NavItem, event?: MouseEvent) {
   if (mobileOpen.value) {
     setTimeout(() => {
       appStore.setMobileOpen(false)
     }, 150)
+  }
+
+  if (item.openInNewWindow) {
+    event?.preventDefault()
+    window.open(buildNewWindowUrl(item), '_blank', 'noopener,noreferrer')
+    return
   }
 
   // Map paths to tour selectors
@@ -851,29 +1007,35 @@ function handleMenuItemClick(itemPath: string) {
     '/keys': '[data-tour="sidebar-my-keys"]'
   }
 
-  const selector = pathToSelector[itemPath]
+  const selector = pathToSelector[item.path]
   if (selector && onboardingStore.isCurrentStep(selector)) {
     onboardingStore.nextStep(500)
   }
 }
 
 function isActive(path: string): boolean {
+  if (path === '/accounts') {
+    return route.path === path
+  }
   return route.path === path || route.path.startsWith(path + '/')
 }
 
 function isGroupActive(item: NavItem): boolean {
   if (!item.children) return false
-  return item.children.some(child => route.path === child.path)
+  return item.children.some(child => isActive(child.path))
 }
 
 function isGroupExpanded(item: NavItem): boolean {
+  if (collapsedGroups.value.has(item.path)) return false
   return expandedGroups.value.has(item.path) || isGroupActive(item)
 }
 
 function toggleGroup(item: NavItem) {
-  if (expandedGroups.value.has(item.path)) {
+  if (isGroupExpanded(item)) {
     expandedGroups.value.delete(item.path)
+    collapsedGroups.value.add(item.path)
   } else {
+    collapsedGroups.value.delete(item.path)
     expandedGroups.value.add(item.path)
   }
 }
@@ -922,37 +1084,65 @@ watch(
 )
 
 onMounted(() => {
-  void refreshBatchImageAccess()
+  window.addEventListener('keydown', handleGlobalKeydown)
   if (isAdmin.value) {
     adminSettingsStore.fetch()
   }
-  // Restore sidebar scroll position after route change re-mounts the component
-  if (appStore.sidebarScrollTop > 0 && sidebarNavRef.value) {
-    void nextTick(() => {
-      if (sidebarNavRef.value) {
-        sidebarNavRef.value.scrollTop = appStore.sidebarScrollTop
-      }
-    })
-  }
 })
 
-onBeforeUnmount(() => {
-  if (sidebarNavRef.value) {
-    appStore.sidebarScrollTop = sidebarNavRef.value.scrollTop
-  }
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown)
 })
+
+watch(
+  () => route.fullPath,
+  () => {
+    if (mobileOpen.value) {
+      closeMobile()
+    }
+  }
+)
 </script>
 
 <style scoped>
 .sidebar-logo {
-  flex: 0 0 2.25rem;
-  min-width: 2.25rem;
+  flex: 0 0 2rem;
+  min-width: 2rem;
 }
 
 .sidebar-header-collapsed {
   gap: 0;
   padding-left: 1.125rem;
   padding-right: 1.125rem;
+}
+
+.sidebar-workspace-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem;
+  margin: 0.125rem 0.625rem 0.5rem;
+  padding: 0.25rem;
+  border-radius: var(--ui-radius-lg);
+  background: color-mix(in srgb, var(--app-text) 5%, transparent);
+}
+
+.sidebar-workspace-switch button {
+  min-height: 2rem;
+  border-radius: var(--ui-radius-md);
+  color: var(--app-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.sidebar-workspace-switch button:hover {
+  color: var(--app-text);
+}
+
+.sidebar-workspace-switch .sidebar-workspace-active {
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 .sidebar-brand {
@@ -979,12 +1169,71 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  letter-spacing: 0;
+}
+
+.sidebar-brand :deep(button),
+.sidebar-brand :deep(span.text-xs) {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--app-muted);
+  box-shadow: none;
+}
+
+.sidebar-brand :deep(button:hover) {
+  background: var(--app-surface-muted);
+  color: var(--app-text);
+}
+
+.dark .sidebar-brand :deep(button),
+.dark .sidebar-brand :deep(span.text-xs) {
+  border-color: var(--app-border);
+  background: var(--app-surface-muted);
+  color: var(--app-muted);
+}
+
+.dark .sidebar-brand :deep(button:hover) {
+  background: var(--app-surface);
+  color: var(--app-text);
 }
 
 .sidebar-link-collapsed {
   gap: 0;
-  padding-left: 0.875rem;
-  padding-right: 0.875rem;
+  justify-content: center;
+  padding-left: 0.625rem;
+  padding-right: 0.625rem;
+}
+
+.sidebar-child-group {
+  margin: 0.125rem 0 0.375rem;
+  border-left: 0;
+  padding-left: 0;
+}
+
+.sidebar-child-group .sidebar-link {
+  min-height: 2rem;
+  padding-left: 2.875rem;
+  padding-right: 0.625rem;
+}
+
+.sidebar-child-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dark .sidebar-child-group {
+  border-left-color: transparent;
+}
+
+.sidebar-footer {
+  border-top: 0;
+  padding: 0.625rem;
+}
+
+.dark .sidebar-footer {
+  border-top-color: transparent;
 }
 
 .sidebar-section-title {
@@ -1007,20 +1256,11 @@ onBeforeUnmount(() => {
 }
 
 .sidebar-section-title::after {
-  content: '';
-  position: absolute;
-  left: 0.75rem;
-  right: 0.75rem;
-  top: 50%;
-  height: 1px;
-  background: rgb(229 231 235);
-  opacity: 0;
-  transform: translateY(-50%);
-  transition: opacity 0.18s ease;
+  content: none;
 }
 
 .dark .sidebar-section-title::after {
-  background: rgb(55 65 81);
+  background: transparent;
 }
 
 .sidebar-section-title-text-collapsed {
@@ -1029,8 +1269,8 @@ onBeforeUnmount(() => {
 }
 
 .sidebar-section-title-collapsed::after {
-  opacity: 1;
-  transition-delay: 0.08s;
+  opacity: 0;
+  transition-delay: 0s;
 }
 
 .sidebar-label {

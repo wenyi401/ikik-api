@@ -2,7 +2,9 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
+import { accountsAPI } from '@/api/accounts'
 import type { GeminiOAuthCapabilities } from '@/api/admin/gemini'
+import type { AccountApiScope } from '@/composables/useAccountOAuth'
 
 export interface GeminiTokenInfo {
   access_token?: string
@@ -17,7 +19,7 @@ export interface GeminiTokenInfo {
   [key: string]: unknown
 }
 
-export function useGeminiOAuth() {
+export function useGeminiOAuth(scope: AccountApiScope = 'admin') {
   const appStore = useAppStore()
   const { t } = useI18n()
 
@@ -56,10 +58,13 @@ export function useGeminiOAuth() {
       const trimmedTierID = tierId?.trim()
       if (trimmedTierID) payload.tier_id = trimmedTierID
 
-      const response = await adminAPI.gemini.generateAuthUrl(payload as any)
+      const response =
+        scope === 'user'
+          ? await accountsAPI.generateGeminiOAuthUrl(payload as any)
+          : await adminAPI.gemini.generateAuthUrl(payload as any)
       authUrl.value = response.auth_url
       sessionId.value = response.session_id
-      state.value = response.state
+      state.value = response.state || ''
       return true
     } catch (err: any) {
       error.value = err.response?.data?.detail || t('admin.accounts.oauth.gemini.failedToGenerateUrl')
@@ -98,7 +103,10 @@ export function useGeminiOAuth() {
       const trimmedTierID = params.tierId?.trim()
       if (trimmedTierID) payload.tier_id = trimmedTierID
 
-      const tokenInfo = await adminAPI.gemini.exchangeCode(payload as any)
+      const tokenInfo =
+        scope === 'user'
+          ? await accountsAPI.exchangeGeminiOAuthCode(payload as any)
+          : await adminAPI.gemini.exchangeCode(payload as any)
       return tokenInfo as GeminiTokenInfo
     } catch (err: any) {
       // Check for specific missing project_id error
@@ -142,7 +150,9 @@ export function useGeminiOAuth() {
 
   const getCapabilities = async (): Promise<GeminiOAuthCapabilities | null> => {
     try {
-      return await adminAPI.gemini.getCapabilities()
+      return scope === 'user'
+        ? await accountsAPI.getGeminiOAuthCapabilities()
+        : await adminAPI.gemini.getCapabilities()
     } catch (err: any) {
       // Capabilities are optional for older servers; don't block the UI.
       return null

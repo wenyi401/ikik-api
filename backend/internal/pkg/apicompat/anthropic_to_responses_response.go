@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -95,17 +96,10 @@ func AnthropicToResponsesResponse(resp *AnthropicResponse) *ResponsesResponse {
 	}
 
 	// Usage
-	// Anthropic's input_tokens excludes cache_read/cache_creation, while OpenAI
-	// Responses' input_tokens is the total including cached tokens. Add them back
-	// when converting so downstream consumers see OpenAI semantics.
-	totalInputTokens := resp.Usage.InputTokens +
-		resp.Usage.CacheReadInputTokens +
-		resp.Usage.CacheCreationInputTokens
 	out.Usage = &ResponsesUsage{
-		InputTokens:              totalInputTokens,
-		OutputTokens:             resp.Usage.OutputTokens,
-		TotalTokens:              totalInputTokens + resp.Usage.OutputTokens,
-		CacheCreationInputTokens: resp.Usage.CacheCreationInputTokens,
+		InputTokens:  resp.Usage.InputTokens,
+		OutputTokens: resp.Usage.OutputTokens,
+		TotalTokens:  resp.Usage.InputTokens + resp.Usage.OutputTokens,
 	}
 	if resp.Usage.CacheReadInputTokens > 0 {
 		out.Usage.InputTokensDetails = &ResponsesInputTokensDetails{
@@ -152,20 +146,17 @@ type AnthropicEventToResponsesState struct {
 
 	// For message output: accumulate text parts
 	ContentIndex int
+	CurrentText  string
 
 	// For function_call: track per-output info
-	CurrentCallID string
-	CurrentName   string
+	CurrentCallID    string
+	CurrentName      string
+	CurrentArguments string
 
-	// Usage from message_start / message_delta. InputTokens here follows
-	// Anthropic semantics (excludes cached tokens); they are added back when
-	// emitting the OpenAI Responses usage.
-	InputTokens              int
-	OutputTokens             int
-	CacheReadInputTokens     int
-	CacheCreationInputTokens int
-
-	StopReason string
+	// Usage from message_delta
+	InputTokens          int
+	OutputTokens         int
+	CacheReadInputTokens int
 }
 
 // NewAnthropicEventToResponsesState returns an initialised stream state.
@@ -237,12 +228,6 @@ func anthToResHandleMessageStart(evt *AnthropicStreamEvent, state *AnthropicEven
 		if evt.Message.Usage.InputTokens > 0 {
 			state.InputTokens = evt.Message.Usage.InputTokens
 		}
-		if evt.Message.Usage.CacheReadInputTokens > 0 {
-			state.CacheReadInputTokens = evt.Message.Usage.CacheReadInputTokens
-		}
-		if evt.Message.Usage.CacheCreationInputTokens > 0 {
-			state.CacheCreationInputTokens = evt.Message.Usage.CacheCreationInputTokens
-		}
 	}
 
 	if state.CreatedSent {
@@ -281,6 +266,7 @@ func anthToResHandleContentBlockStart(evt *AnthropicStreamEvent, state *Anthropi
 			state.CurrentItemID = generateItemID()
 			state.CurrentItemType = "message"
 			state.ContentIndex = 0
+			state.CurrentText = ""
 
 			events = append(events, makeResponsesEvent(state, "response.output_item.added", &ResponsesStreamEvent{
 				OutputIndex: state.OutputIndex,
@@ -289,6 +275,15 @@ func anthToResHandleContentBlockStart(evt *AnthropicStreamEvent, state *Anthropi
 					ID:     state.CurrentItemID,
 					Role:   "assistant",
 					Status: "in_progress",
+				},
+			}))
+			events = append(events, makeResponsesEvent(state, "response.content_part.added", &ResponsesStreamEvent{
+				OutputIndex:  state.OutputIndex,
+				ContentIndex: state.ContentIndex,
+				ItemID:       state.CurrentItemID,
+				Part: &ResponsesContentPart{
+					Type: "output_text",
+					Text: "",
 				},
 			}))
 		}
@@ -301,6 +296,7 @@ func anthToResHandleContentBlockStart(evt *AnthropicStreamEvent, state *Anthropi
 		state.CurrentItemType = "function_call"
 		state.CurrentCallID = toResponsesCallID(evt.ContentBlock.ID)
 		state.CurrentName = evt.ContentBlock.Name
+		state.CurrentArguments = ""
 
 		events = append(events, makeResponsesEvent(state, "response.output_item.added", &ResponsesStreamEvent{
 			OutputIndex: state.OutputIndex,
@@ -327,6 +323,7 @@ func anthToResHandleContentBlockDelta(evt *AnthropicStreamEvent, state *Anthropi
 		if evt.Delta.Text == "" {
 			return nil
 		}
+		state.CurrentText += evt.Delta.Text
 		return []ResponsesStreamEvent{makeResponsesEvent(state, "response.output_text.delta", &ResponsesStreamEvent{
 			OutputIndex:  state.OutputIndex,
 			ContentIndex: state.ContentIndex,
@@ -349,6 +346,7 @@ func anthToResHandleContentBlockDelta(evt *AnthropicStreamEvent, state *Anthropi
 		if evt.Delta.PartialJSON == "" {
 			return nil
 		}
+		state.CurrentArguments += evt.Delta.PartialJSON
 		return []ResponsesStreamEvent{makeResponsesEvent(state, "response.function_call_arguments.delta", &ResponsesStreamEvent{
 			OutputIndex: state.OutputIndex,
 			Delta:       evt.Delta.PartialJSON,
@@ -387,6 +385,7 @@ func anthToResHandleContentBlockStop(evt *AnthropicStreamEvent, state *Anthropic
 				ItemID:      state.CurrentItemID,
 				CallID:      state.CurrentCallID,
 				Name:        state.CurrentName,
+				Arguments:   nonEmptyArguments(state.CurrentArguments),
 			}),
 		}
 		events = append(events, closeCurrentResponsesItem(state)...)
@@ -399,6 +398,16 @@ func anthToResHandleContentBlockStop(evt *AnthropicStreamEvent, state *Anthropic
 				OutputIndex:  state.OutputIndex,
 				ContentIndex: state.ContentIndex,
 				ItemID:       state.CurrentItemID,
+				Text:         state.CurrentText,
+			}),
+			makeResponsesEvent(state, "response.content_part.done", &ResponsesStreamEvent{
+				OutputIndex:  state.OutputIndex,
+				ContentIndex: state.ContentIndex,
+				ItemID:       state.CurrentItemID,
+				Part: &ResponsesContentPart{
+					Type: "output_text",
+					Text: state.CurrentText,
+				},
 			}),
 		}
 	}
@@ -407,20 +416,12 @@ func anthToResHandleContentBlockStop(evt *AnthropicStreamEvent, state *Anthropic
 }
 
 func anthToResHandleMessageDelta(evt *AnthropicStreamEvent, state *AnthropicEventToResponsesState) []ResponsesStreamEvent {
+	// Update usage
 	if evt.Usage != nil {
 		state.OutputTokens = evt.Usage.OutputTokens
-		if evt.Usage.InputTokens > 0 {
-			state.InputTokens = evt.Usage.InputTokens
-		}
 		if evt.Usage.CacheReadInputTokens > 0 {
 			state.CacheReadInputTokens = evt.Usage.CacheReadInputTokens
 		}
-		if evt.Usage.CacheCreationInputTokens > 0 {
-			state.CacheCreationInputTokens = evt.Usage.CacheCreationInputTokens
-		}
-	}
-	if evt.Delta != nil && evt.Delta.StopReason != "" {
-		state.StopReason = evt.Delta.StopReason
 	}
 
 	return nil
@@ -432,15 +433,15 @@ func anthToResHandleMessageStop(state *AnthropicEventToResponsesState) []Respons
 	}
 
 	var events []ResponsesStreamEvent
+
+	// Close any open item
 	events = append(events, closeCurrentResponsesItem(state)...)
 
+	// Determine status
 	status := "completed"
 	var incompleteDetails *ResponsesIncompleteDetails
-	if state.StopReason == "max_tokens" {
-		status = "incomplete"
-		incompleteDetails = &ResponsesIncompleteDetails{Reason: "max_output_tokens"}
-	}
 
+	// Emit response.completed
 	events = append(events, makeResponsesCompletedEvent(state, status, incompleteDetails))
 	state.CompletedSent = true
 	return events
@@ -455,23 +456,50 @@ func closeCurrentResponsesItem(state *AnthropicEventToResponsesState) []Response
 
 	itemType := state.CurrentItemType
 	itemID := state.CurrentItemID
+	currentText := state.CurrentText
+	currentCallID := state.CurrentCallID
+	currentName := state.CurrentName
+	currentArgs := state.CurrentArguments
 
 	// Reset
 	state.CurrentItemType = ""
 	state.CurrentItemID = ""
 	state.CurrentCallID = ""
 	state.CurrentName = ""
+	state.CurrentText = ""
+	state.CurrentArguments = ""
 	state.OutputIndex++
 	state.ContentIndex = 0
 
+	doneItem := &ResponsesOutput{
+		Type:   itemType,
+		ID:     itemID,
+		Status: "completed",
+	}
+	switch itemType {
+	case "message":
+		doneItem.Role = "assistant"
+		doneItem.Content = []ResponsesContentPart{{
+			Type: "output_text",
+			Text: currentText,
+		}}
+	case "function_call":
+		doneItem.CallID = currentCallID
+		doneItem.Name = currentName
+		doneItem.Arguments = nonEmptyArguments(currentArgs)
+	}
+
 	return []ResponsesStreamEvent{makeResponsesEvent(state, "response.output_item.done", &ResponsesStreamEvent{
 		OutputIndex: state.OutputIndex - 1, // Use the index before increment
-		Item: &ResponsesOutput{
-			Type:   itemType,
-			ID:     itemID,
-			Status: "completed",
-		},
+		Item:        doneItem,
 	})}
+}
+
+func nonEmptyArguments(args string) string {
+	if strings.TrimSpace(args) == "" {
+		return "{}"
+	}
+	return args
 }
 
 func makeResponsesCreatedEvent(state *AnthropicEventToResponsesState) ResponsesStreamEvent {
@@ -498,14 +526,10 @@ func makeResponsesCompletedEvent(
 	seq := state.SequenceNumber
 	state.SequenceNumber++
 
-	// Anthropic's input_tokens excludes cache_read/cache_creation; add them
-	// back to match OpenAI Responses semantics where input_tokens is the total.
-	totalInputTokens := state.InputTokens + state.CacheReadInputTokens + state.CacheCreationInputTokens
 	usage := &ResponsesUsage{
-		InputTokens:              totalInputTokens,
-		OutputTokens:             state.OutputTokens,
-		TotalTokens:              totalInputTokens + state.OutputTokens,
-		CacheCreationInputTokens: state.CacheCreationInputTokens,
+		InputTokens:  state.InputTokens,
+		OutputTokens: state.OutputTokens,
+		TotalTokens:  state.InputTokens + state.OutputTokens,
 	}
 	if state.CacheReadInputTokens > 0 {
 		usage.InputTokensDetails = &ResponsesInputTokensDetails{
@@ -513,20 +537,15 @@ func makeResponsesCompletedEvent(
 		}
 	}
 
-	eventType := "response.completed"
-	if status == "incomplete" {
-		eventType = "response.incomplete"
-	}
-
 	return ResponsesStreamEvent{
-		Type:           eventType,
+		Type:           "response.completed",
 		SequenceNumber: seq,
 		Response: &ResponsesResponse{
 			ID:                state.ResponseID,
 			Object:            "response",
 			Model:             state.Model,
 			Status:            status,
-			Output:            []ResponsesOutput{},
+			Output:            []ResponsesOutput{}, // Simplified; full output tracking would add complexity
 			Usage:             usage,
 			IncompleteDetails: incompleteDetails,
 		},

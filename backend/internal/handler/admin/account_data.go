@@ -2,79 +2,58 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"log/slog"
 
+	"github.com/gin-gonic/gin"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 const (
-	dataType       = "sub2api-data"
-	legacyDataType = "sub2api-bundle"
+	dataType       = "ikik-api-data"
+	legacyDataType = "ikik-api-bundle"
 	dataVersion    = 1
 	dataPageCap    = 1000
 )
 
-type DataPayload struct {
-	Type       string        `json:"type,omitempty"`
-	Version    int           `json:"version,omitempty"`
-	ExportedAt string        `json:"exported_at"`
-	Proxies    []DataProxy   `json:"proxies"`
-	Accounts   []DataAccount `json:"accounts"`
-	// SkippedShadows 记录导出时被排除的 spark 影子账号数量(见 ExportData)。仅作可见性提示,
-	// 导入侧忽略该字段;omitempty 保持向后兼容。
-	SkippedShadows int `json:"skipped_shadows,omitempty"`
-}
-
-type DataProxy struct {
-	ProxyKey        string `json:"proxy_key"`
-	Name            string `json:"name"`
-	Protocol        string `json:"protocol"`
-	Host            string `json:"host"`
-	Port            int    `json:"port"`
-	Username        string `json:"username,omitempty"`
-	Password        string `json:"password,omitempty"`
-	Status          string `json:"status"`
-	ExpiresAt       *int64 `json:"expires_at,omitempty"`        // unix 秒，与 DataAccount.ExpiresAt 风格一致
-	FallbackMode    string `json:"fallback_mode,omitempty"`     // none/direct/proxy
-	BackupProxyName string `json:"backup_proxy_name,omitempty"` // 备用代理 name（跨实例按 name 反查）
-	ExpiryWarnDays  int    `json:"expiry_warn_days,omitempty"`
-}
-
-// DataAccount 是管理员显式备份导出使用的账号结构，故意不走 dto.Account 的脱敏路径，
-// Credentials 原文返回。这是"管理员备份"这一显式行为的一部分；如未来需要导出脱敏版本，
-// 应新增独立结构而非修改这里。
-// 注意:本结构不含 parent_account_id/quota_dimension——spark 影子账号在 ExportData 处被显式
-// 排除(影子不持凭据、通用凭据型导入强制 credentials 非空无法重建父子链接),不在此表达。
-// 影子的独立调度配置(priority/并发/分组/status 管理员可单独调)亦不在本备份范围,属已知局限
-// (外审第6轮裁决:保持排除 + 前端警告,而非升级格式做完整往返)。
-type DataAccount struct {
-	Name               string         `json:"name"`
-	Notes              *string        `json:"notes,omitempty"`
-	Platform           string         `json:"platform"`
-	Type               string         `json:"type"`
-	Credentials        map[string]any `json:"credentials"`
-	Extra              map[string]any `json:"extra,omitempty"`
-	ProxyKey           *string        `json:"proxy_key,omitempty"`
-	Concurrency        int            `json:"concurrency"`
-	Priority           int            `json:"priority"`
-	RateMultiplier     *float64       `json:"rate_multiplier,omitempty"`
-	ExpiresAt          *int64         `json:"expires_at,omitempty"`
-	AutoPauseOnExpired *bool          `json:"auto_pause_on_expired,omitempty"`
-}
+type DataPayload = service.AccountDataPayload
+type DataProxy = service.AccountDataProxy
+type DataAccount = service.AccountDataAccount
 
 type DataImportRequest struct {
 	Data                 DataPayload `json:"data"`
+	GroupIDs             []int64     `json:"group_ids"`
 	SkipDefaultGroupBind *bool       `json:"skip_default_group_bind"`
+}
+
+type CredentialImportRequest struct {
+	Contents                []string `json:"contents" binding:"required"`
+	KiroConfigImport        bool     `json:"kiro_config_import"`
+	ClaudeWebImport         bool     `json:"claude_web_import"`
+	ClaudeWebAuthMode       string   `json:"claude_web_auth_mode" binding:"omitempty,oneof=session_key full_cookie"`
+	OwnerUserID             *int64   `json:"owner_user_id"`
+	ShareMode               string   `json:"share_mode" binding:"omitempty,oneof=private public"`
+	ShareStatus             string   `json:"share_status" binding:"omitempty,oneof=pending approved suspended"`
+	SharePolicyID           *int64   `json:"share_policy_id"`
+	ProxyID                 *int64   `json:"proxy_id"`
+	Concurrency             int      `json:"concurrency"`
+	Priority                int      `json:"priority"`
+	RateMultiplier          *float64 `json:"rate_multiplier"`
+	LoadFactor              *int     `json:"load_factor"`
+	GroupIDs                []int64  `json:"group_ids"`
+	ExpiresAt               *int64   `json:"expires_at"`
+	AutoPauseOnExpired      *bool    `json:"auto_pause_on_expired"`
+	SkipDefaultGroupBind    *bool    `json:"skip_default_group_bind"`
+	ConfirmMixedChannelRisk *bool    `json:"confirm_mixed_channel_risk"`
 }
 
 type DataImportResult struct {
@@ -91,6 +70,11 @@ type DataImportError struct {
 	Name     string `json:"name,omitempty"`
 	ProxyKey string `json:"proxy_key,omitempty"`
 	Message  string `json:"message"`
+}
+
+type dataImportPlatformMismatchExample struct {
+	Name     string `json:"name"`
+	Platform string `json:"platform"`
 }
 
 func buildProxyKey(protocol, host string, port int, username, password string) string {
@@ -112,24 +96,6 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 		return
 	}
 
-	// 排除 spark 影子账号:影子不持凭据,通用凭据型导出无法表达父子链接、导入侧又强制 credentials
-	// 非空——若混入会产出无法还原的坏备份(导入即失败)。影子的独立调度配置(priority/并发/分组/
-	// status,管理员可单独调)随之不进备份,还原后需在重建的影子上重新调优;前端按 skipped_shadows
-	// 提示用户(外审第5轮发现、第6轮裁决:保持排除 + 警告,不做完整往返)。
-	skippedShadows := 0
-	exportable := make([]service.Account, 0, len(accounts))
-	for i := range accounts {
-		if accounts[i].IsCredentialShadow() {
-			skippedShadows++
-			continue
-		}
-		exportable = append(exportable, accounts[i])
-	}
-	accounts = exportable
-	if skippedShadows > 0 {
-		slog.Info("export_skipped_spark_shadows", "count", skippedShadows)
-	}
-
 	includeProxies, err := parseIncludeProxies(c)
 	if err != nil {
 		response.BadRequest(c, err.Error())
@@ -147,82 +113,7 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 		proxies = []service.Proxy{}
 	}
 
-	// 构建 id→name 映射，用于导出备用代理 name
-	proxyNameByID := make(map[int64]string, len(proxies))
-	for i := range proxies {
-		proxyNameByID[proxies[i].ID] = proxies[i].Name
-	}
-
-	proxyKeyByID := make(map[int64]string, len(proxies))
-	dataProxies := make([]DataProxy, 0, len(proxies))
-	for i := range proxies {
-		p := proxies[i]
-		key := buildProxyKey(p.Protocol, p.Host, p.Port, p.Username, p.Password)
-		proxyKeyByID[p.ID] = key
-
-		var expiresAt *int64
-		if p.ExpiresAt != nil {
-			v := p.ExpiresAt.Unix()
-			expiresAt = &v
-		}
-		var backupProxyName string
-		if p.BackupProxyID != nil {
-			backupProxyName = proxyNameByID[*p.BackupProxyID]
-		}
-		dataProxies = append(dataProxies, DataProxy{
-			ProxyKey:        key,
-			Name:            p.Name,
-			Protocol:        p.Protocol,
-			Host:            p.Host,
-			Port:            p.Port,
-			Username:        p.Username,
-			Password:        p.Password,
-			Status:          p.Status,
-			ExpiresAt:       expiresAt,
-			FallbackMode:    p.FallbackMode,
-			BackupProxyName: backupProxyName,
-			ExpiryWarnDays:  p.ExpiryWarnDays,
-		})
-	}
-
-	dataAccounts := make([]DataAccount, 0, len(accounts))
-	for i := range accounts {
-		acc := accounts[i]
-		var proxyKey *string
-		if acc.ProxyID != nil {
-			if key, ok := proxyKeyByID[*acc.ProxyID]; ok {
-				proxyKey = &key
-			}
-		}
-		var expiresAt *int64
-		if acc.ExpiresAt != nil {
-			v := acc.ExpiresAt.Unix()
-			expiresAt = &v
-		}
-		dataAccounts = append(dataAccounts, DataAccount{
-			Name:               acc.Name,
-			Notes:              acc.Notes,
-			Platform:           acc.Platform,
-			Type:               acc.Type,
-			Credentials:        acc.Credentials,
-			Extra:              acc.Extra,
-			ProxyKey:           proxyKey,
-			Concurrency:        acc.Concurrency,
-			Priority:           acc.Priority,
-			RateMultiplier:     acc.RateMultiplier,
-			ExpiresAt:          expiresAt,
-			AutoPauseOnExpired: &acc.AutoPauseOnExpired,
-		})
-	}
-
-	payload := DataPayload{
-		ExportedAt:     time.Now().UTC().Format(time.RFC3339),
-		Proxies:        dataProxies,
-		Accounts:       dataAccounts,
-		SkippedShadows: skippedShadows,
-	}
-
-	response.Success(c, payload)
+	response.Success(c, service.BuildAccountDataPayload(accounts, proxies, buildProxyKey))
 }
 
 func (h *AccountHandler) ImportData(c *gin.Context) {
@@ -242,6 +133,232 @@ func (h *AccountHandler) ImportData(c *gin.Context) {
 	})
 }
 
+func (h *AccountHandler) ImportCredentials(c *gin.Context) {
+	var req CredentialImportRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if req.RateMultiplier != nil && *req.RateMultiplier < 0 {
+		response.BadRequest(c, "rate_multiplier must be >= 0")
+		return
+	}
+	if req.Priority <= 0 {
+		req.Priority = 50
+	}
+
+	sources, parseErrors := service.ParseAccountCredentialImportContentsWithOptions(req.Contents, service.AccountCredentialImportOptions{
+		KiroConfigImport:  req.KiroConfigImport,
+		ClaudeWebImport:   req.ClaudeWebImport,
+		ClaudeWebAuthMode: req.ClaudeWebAuthMode,
+	})
+	if len(sources) == 0 && len(parseErrors) == 0 {
+		response.BadRequest(c, "No importable account credentials found")
+		return
+	}
+	if len(sources) > service.MaxAccountCredentialImportItems {
+		response.BadRequest(c, fmt.Sprintf("Too many import items; maximum is %d", service.MaxAccountCredentialImportItems))
+		return
+	}
+
+	executeAdminIdempotentJSON(c, "admin.accounts.import_credentials", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		return h.importCredentials(ctx, req, sources, parseErrors), nil
+	})
+}
+
+func (h *AccountHandler) importCredentials(
+	ctx context.Context,
+	req CredentialImportRequest,
+	sources []service.AccountCredentialImportSource,
+	parseErrors []service.AccountCredentialImportError,
+) service.AccountCredentialImportResult {
+	result := service.AccountCredentialImportResult{
+		Total:  len(sources) + len(parseErrors),
+		Errors: []service.AccountCredentialImportError{},
+	}
+	result.Errors = append(result.Errors, parseErrors...)
+
+	for idx, source := range sources {
+		account, err := h.createAccountFromCredentialImportSource(ctx, source, req, idx+1)
+		if err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, service.AccountCredentialImportError{
+				Index:   len(parseErrors) + idx + 1,
+				Kind:    string(source.Kind),
+				Name:    source.Name,
+				Message: err.Error(),
+			})
+			continue
+		}
+		if account != nil {
+			result.Created++
+		}
+	}
+	result.Failed += len(parseErrors)
+	return result
+}
+
+func (h *AccountHandler) createAccountFromCredentialImportSource(
+	ctx context.Context,
+	source service.AccountCredentialImportSource,
+	defaults CredentialImportRequest,
+	sequence int,
+) (*service.Account, error) {
+	skipDefaultGroupBind := false
+	if defaults.SkipDefaultGroupBind != nil {
+		skipDefaultGroupBind = *defaults.SkipDefaultGroupBind
+	}
+	skipMixedChannelCheck := defaults.ConfirmMixedChannelRisk != nil && *defaults.ConfirmMixedChannelRisk
+
+	input := service.CreateAccountInput{
+		Name:                  strings.TrimSpace(source.Name),
+		Notes:                 source.Notes,
+		Platform:              source.Platform,
+		Type:                  service.AccountTypeOAuth,
+		Credentials:           source.Credentials,
+		Extra:                 source.Extra,
+		OwnerUserID:           defaults.OwnerUserID,
+		ShareMode:             defaults.ShareMode,
+		ShareStatus:           defaults.ShareStatus,
+		SharePolicyID:         defaults.SharePolicyID,
+		ProxyID:               defaults.ProxyID,
+		Concurrency:           defaults.Concurrency,
+		Priority:              defaults.Priority,
+		RateMultiplier:        defaults.RateMultiplier,
+		LoadFactor:            defaults.LoadFactor,
+		GroupIDs:              defaults.GroupIDs,
+		ExpiresAt:             defaults.ExpiresAt,
+		AutoPauseOnExpired:    defaults.AutoPauseOnExpired,
+		SkipDefaultGroupBind:  skipDefaultGroupBind,
+		SkipMixedChannelCheck: skipMixedChannelCheck,
+	}
+	if input.Concurrency <= 0 {
+		input.Concurrency = service.DefaultOAuthAccountConcurrencyForPlatform(input.Platform)
+	}
+
+	switch source.Kind {
+	case service.AccountCredentialImportKindOAuthCredentials:
+		if input.Name == "" {
+			input.Name = service.DeriveAccountCredentialImportName(input.Platform, input.Credentials, input.Extra, sequence)
+		}
+	case service.AccountCredentialImportKindOpenAIRefreshToken:
+		proxyURL, err := h.resolveCredentialImportProxyURL(ctx, defaults.ProxyID)
+		if err != nil {
+			return nil, err
+		}
+		clientID := strings.TrimSpace(source.ClientID)
+		if clientID == "" {
+			clientID, _ = openai.OAuthClientConfigByPlatform(service.PlatformOpenAI)
+		}
+		tokenInfo, err := h.openaiOAuthService.RefreshTokenWithClientID(ctx, source.Token, proxyURL, clientID)
+		if err != nil {
+			return nil, fmt.Errorf("validate OpenAI refresh token: %w", err)
+		}
+		input.Platform = service.PlatformOpenAI
+		input.Credentials = h.openaiOAuthService.BuildAccountCredentials(tokenInfo)
+		input.Extra = service.BuildOpenAIAccountCredentialImportExtra(tokenInfo)
+		if input.Concurrency <= 0 || defaults.Concurrency <= 0 {
+			input.Concurrency = service.DefaultOAuthAccountConcurrencyForPlatform(input.Platform)
+		}
+		if input.Name == "" {
+			input.Name = strings.TrimSpace(tokenInfo.Email)
+		}
+		if input.Name == "" {
+			input.Name = fmt.Sprintf("OpenAI OAuth Account #%d", sequence)
+		}
+	case service.AccountCredentialImportKindClaudeSessionKey:
+		tokenInfo, err := h.oauthService.CookieAuth(ctx, &service.CookieAuthInput{
+			SessionKey: source.Token,
+			ProxyID:    defaults.ProxyID,
+			Scope:      "full",
+		})
+		if err != nil {
+			return nil, fmt.Errorf("exchange Claude session key: %w", err)
+		}
+		input.Platform = service.PlatformAnthropic
+		input.Credentials = service.BuildClaudeAccountCredentials(tokenInfo)
+		input.Extra = service.BuildClaudeAccountCredentialImportExtra(tokenInfo)
+		if input.Concurrency <= 0 || defaults.Concurrency <= 0 {
+			input.Concurrency = service.DefaultOAuthAccountConcurrencyForPlatform(input.Platform)
+		}
+		if input.Name == "" {
+			input.Name = strings.TrimSpace(tokenInfo.EmailAddress)
+		}
+		if input.Name == "" {
+			input.Name = fmt.Sprintf("Claude OAuth Account #%d", sequence)
+		}
+	case service.AccountCredentialImportKindClaudeWebSession:
+		input.Platform = service.PlatformAnthropic
+		input.Credentials = source.Credentials
+		input.Extra = source.Extra
+		if defaults.Concurrency <= 0 {
+			input.Concurrency = 1
+		}
+		if input.Name == "" {
+			input.Name = service.DeriveAccountCredentialImportName(input.Platform, input.Credentials, input.Extra, sequence)
+		}
+	case service.AccountCredentialImportKindKiroConfig:
+		if h.kiroOAuthService == nil {
+			return nil, fmt.Errorf("kiro OAuth service is not configured")
+		}
+		tokenInfo, err := h.kiroOAuthService.RefreshToken(ctx, &service.KiroRefreshTokenInput{
+			RefreshToken: source.Token,
+			AuthMethod:   source.AuthMethod,
+			Provider:     source.Provider,
+			ClientID:     source.ClientID,
+			ClientSecret: source.ClientSecret,
+			StartURL:     source.StartURL,
+			Region:       source.Region,
+			ProfileArn:   source.ProfileArn,
+			ProxyID:      defaults.ProxyID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("validate Kiro config: %w", err)
+		}
+		input.Platform = service.PlatformKiro
+		input.Credentials = service.MergeCredentials(source.Credentials, h.kiroOAuthService.BuildAccountCredentials(tokenInfo))
+		input.Extra = source.Extra
+		if input.Concurrency <= 0 || defaults.Concurrency <= 0 {
+			input.Concurrency = service.DefaultOAuthAccountConcurrencyForPlatform(input.Platform)
+		}
+		if input.Name == "" {
+			input.Name = strings.TrimSpace(tokenInfo.Email)
+		}
+		if input.Name == "" {
+			input.Name = service.DeriveAccountCredentialImportName(input.Platform, input.Credentials, input.Extra, sequence)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported credential import kind")
+	}
+
+	if strings.TrimSpace(input.Name) == "" {
+		return nil, fmt.Errorf("account name is required")
+	}
+	sanitizeExtraBaseRPM(input.Extra)
+	account, err := h.adminService.CreateAccount(ctx, &input)
+	if err != nil {
+		return nil, err
+	}
+	h.adminService.ForceAntigravityPrivacy(ctx, account)
+	h.adminService.ForceOpenAIPrivacy(ctx, account)
+	h.enqueueOwnedPublicShareValidation(account)
+	return account, nil
+}
+
+func (h *AccountHandler) resolveCredentialImportProxyURL(ctx context.Context, proxyID *int64) (string, error) {
+	if proxyID == nil {
+		return "", nil
+	}
+	proxy, err := h.adminService.GetProxy(ctx, *proxyID)
+	if err != nil {
+		return "", fmt.Errorf("load proxy: %w", err)
+	}
+	if proxy == nil {
+		return "", fmt.Errorf("proxy not found")
+	}
+	return proxy.URL(), nil
+}
+
 func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) (DataImportResult, error) {
 	skipDefaultGroupBind := true
 	if req.SkipDefaultGroupBind != nil {
@@ -251,13 +368,16 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 	dataPayload := req.Data
 	result := DataImportResult{}
 
+	if err := h.validateImportTargetGroupPlatforms(ctx, req); err != nil {
+		return result, err
+	}
+
 	existingProxies, err := h.listAllProxies(ctx)
 	if err != nil {
 		return result, err
 	}
 
 	proxyKeyToID := make(map[string]int64, len(existingProxies))
-	// proxyNameToID 用于 backup_proxy_name 反查：DB 已有 + 本批次新建均会写入
 	proxyNameToID := make(map[string]int64, len(existingProxies))
 	for i := range existingProxies {
 		p := existingProxies[i]
@@ -285,68 +405,29 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			continue
 		}
 		normalizedStatus := normalizeProxyStatus(item.Status)
+		expiresAt := dataProxyExpiresAt(item)
+		fallbackMode, backupProxyID := dataProxyFallbackTarget(item, proxyNameToID)
 		if existingID, ok := proxyKeyToID[key]; ok {
 			proxyKeyToID[key] = existingID
 			result.ProxyReused++
 			if normalizedStatus != "" {
 				if proxy, getErr := h.adminService.GetProxy(ctx, existingID); getErr == nil && proxy != nil && proxy.Status != normalizedStatus {
-					// 同步 status 时传入完整字段，避免零值覆盖已存在代理的有效期/fallback 配置。
-					var existingExpiresAt *time.Time
-					if item.ExpiresAt != nil {
-						t := time.Unix(*item.ExpiresAt, 0).UTC()
-						existingExpiresAt = &t
-					}
-					existingFallbackMode := item.FallbackMode
-					if existingFallbackMode == "" {
-						existingFallbackMode = service.FallbackModeNone
-					}
-					var existingBackupProxyID *int64
-					if item.BackupProxyName != "" {
-						if bid, ok := proxyNameToID[item.BackupProxyName]; ok {
-							existingBackupProxyID = &bid
-						}
-					}
 					_, _ = h.adminService.UpdateProxy(ctx, existingID, &service.UpdateProxyInput{
-						Status:         normalizedStatus,
-						ExpiresAt:      existingExpiresAt,
-						FallbackMode:   existingFallbackMode,
-						BackupProxyID:  existingBackupProxyID,
-						ExpiryWarnDays: item.ExpiryWarnDays,
 						Name:           proxy.Name,
 						Protocol:       proxy.Protocol,
 						Host:           proxy.Host,
 						Port:           proxy.Port,
 						Username:       proxy.Username,
 						Password:       proxy.Password,
+						Status:         normalizedStatus,
+						ExpiresAt:      expiresAt,
+						FallbackMode:   fallbackMode,
+						BackupProxyID:  backupProxyID,
+						ExpiryWarnDays: item.ExpiryWarnDays,
 					})
 				}
 			}
 			continue
-		}
-
-		// 解析 expires_at（unix 秒 → *time.Time）
-		var expiresAt *time.Time
-		if item.ExpiresAt != nil {
-			t := time.Unix(*item.ExpiresAt, 0).UTC()
-			expiresAt = &t
-		}
-
-		// 解析 backup_proxy_name → backup_proxy_id
-		fallbackMode := item.FallbackMode
-		var backupProxyID *int64
-		if item.BackupProxyName != "" {
-			if bid, ok := proxyNameToID[item.BackupProxyName]; ok {
-				backupProxyID = &bid
-			} else {
-				// 查不到备用代理：降级 fallback_mode=none，记录 warning
-				fallbackMode = service.FallbackModeNone
-				result.Errors = append(result.Errors, DataImportError{
-					Kind:     "proxy",
-					Name:     item.Name,
-					ProxyKey: key,
-					Message:  fmt.Sprintf("backup_proxy_name %q not found, fallback_mode downgraded to none", item.BackupProxyName),
-				})
-			}
 		}
 
 		created, createErr := h.adminService.CreateProxy(ctx, &service.CreateProxyInput{
@@ -372,26 +453,24 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			continue
 		}
 		proxyKeyToID[key] = created.ID
-		// 把新建代理的 name 也加入反查表，供后续批内代理引用
 		if created.Name != "" {
 			proxyNameToID[created.Name] = created.ID
 		}
 		result.ProxyCreated++
 
 		if normalizedStatus != "" && normalizedStatus != created.Status {
-			// 新建后同步 status 时，传入完整字段，避免零值覆盖刚创建的有效期/fallback 配置。
 			_, _ = h.adminService.UpdateProxy(ctx, created.ID, &service.UpdateProxyInput{
-				Status:         normalizedStatus,
-				ExpiresAt:      expiresAt,
-				FallbackMode:   fallbackMode,
-				BackupProxyID:  backupProxyID,
-				ExpiryWarnDays: item.ExpiryWarnDays,
 				Name:           created.Name,
 				Protocol:       created.Protocol,
 				Host:           created.Host,
 				Port:           created.Port,
 				Username:       created.Username,
 				Password:       created.Password,
+				Status:         normalizedStatus,
+				ExpiresAt:      expiresAt,
+				FallbackMode:   fallbackMode,
+				BackupProxyID:  backupProxyID,
+				ExpiryWarnDays: item.ExpiryWarnDays,
 			})
 		}
 	}
@@ -440,7 +519,11 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			Concurrency:          item.Concurrency,
 			Priority:             item.Priority,
 			RateMultiplier:       item.RateMultiplier,
-			GroupIDs:             nil,
+			OwnerUserID:          item.OwnerUserID,
+			ShareMode:            item.ShareMode,
+			ShareStatus:          item.ShareStatus,
+			SharePolicyID:        item.SharePolicyID,
+			GroupIDs:             req.GroupIDs,
 			ExpiresAt:            item.ExpiresAt,
 			AutoPauseOnExpired:   item.AutoPauseOnExpired,
 			SkipDefaultGroupBind: skipDefaultGroupBind,
@@ -460,7 +543,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 		if created.Platform == service.PlatformAntigravity && created.Type == service.AccountTypeOAuth {
 			privacyAccounts = append(privacyAccounts, created)
 		}
-		h.scheduleGrokImportProbe(created)
+		h.enqueueOwnedPublicShareValidation(created)
 		result.AccountCreated++
 	}
 
@@ -484,6 +567,83 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 	return result, nil
 }
 
+func (h *AccountHandler) validateImportTargetGroupPlatforms(ctx context.Context, req DataImportRequest) error {
+	if len(req.GroupIDs) == 0 {
+		return nil
+	}
+
+	groups := make([]*service.Group, 0, len(req.GroupIDs))
+	seen := make(map[int64]struct{}, len(req.GroupIDs))
+	for _, groupID := range req.GroupIDs {
+		if groupID <= 0 {
+			return infraerrors.BadRequest("IMPORT_TARGET_GROUP_INVALID", fmt.Sprintf("import target group %d does not exist", groupID))
+		}
+		if _, ok := seen[groupID]; ok {
+			continue
+		}
+		seen[groupID] = struct{}{}
+
+		group, err := h.adminService.GetGroup(ctx, groupID)
+		if err != nil || group == nil {
+			return infraerrors.BadRequest("IMPORT_TARGET_GROUP_INVALID", fmt.Sprintf("import target group %d does not exist", groupID))
+		}
+		groups = append(groups, group)
+	}
+	if len(groups) == 0 {
+		return nil
+	}
+
+	expectedPlatform := strings.TrimSpace(groups[0].Platform)
+	platforms := map[string]struct{}{expectedPlatform: {}}
+	for _, group := range groups[1:] {
+		platforms[strings.TrimSpace(group.Platform)] = struct{}{}
+	}
+	if len(platforms) > 1 {
+		selectedPlatforms := make([]string, 0, len(platforms))
+		for platform := range platforms {
+			selectedPlatforms = append(selectedPlatforms, platform)
+		}
+		sort.Strings(selectedPlatforms)
+		return infraerrors.BadRequest(
+			"IMPORT_TARGET_GROUP_PLATFORM_MISMATCH",
+			fmt.Sprintf("import target groups must belong to one platform %s: %d groups mismatch", expectedPlatform, len(groups)-1),
+		).WithMetadata(map[string]string{
+			"expected_platform":  expectedPlatform,
+			"mismatch_count":     strconv.Itoa(len(groups) - 1),
+			"selected_platforms": strings.Join(selectedPlatforms, ","),
+		})
+	}
+
+	var examples []dataImportPlatformMismatchExample
+	mismatchCount := 0
+	for _, account := range req.Data.Accounts {
+		accountPlatform := strings.TrimSpace(account.Platform)
+		if accountPlatform == expectedPlatform {
+			continue
+		}
+		mismatchCount++
+		if len(examples) < 5 {
+			examples = append(examples, dataImportPlatformMismatchExample{
+				Name:     account.Name,
+				Platform: accountPlatform,
+			})
+		}
+	}
+	if mismatchCount == 0 {
+		return nil
+	}
+
+	examplesJSON, _ := json.Marshal(examples)
+	return infraerrors.BadRequest(
+		"IMPORT_ACCOUNT_PLATFORM_MISMATCH",
+		fmt.Sprintf("imported accounts must match target group platform %s: %d accounts mismatch", expectedPlatform, mismatchCount),
+	).WithMetadata(map[string]string{
+		"expected_platform": expectedPlatform,
+		"mismatch_count":    strconv.Itoa(mismatchCount),
+		"mismatch_examples": string(examplesJSON),
+	})
+}
+
 func (h *AccountHandler) listAllProxies(ctx context.Context) ([]service.Proxy, error) {
 	page := 1
 	pageSize := dataPageCap
@@ -502,12 +662,12 @@ func (h *AccountHandler) listAllProxies(ctx context.Context) ([]service.Proxy, e
 	return out, nil
 }
 
-func (h *AccountHandler) listAccountsFiltered(ctx context.Context, platform, accountType, status, search string, groupID int64, privacyMode, sortBy, sortOrder string) ([]service.Account, error) {
+func (h *AccountHandler) listAccountsFiltered(ctx context.Context, platform, accountType, status, search string, groupID, proxyID int64, privacyMode, sortBy, sortOrder string) ([]service.Account, error) {
 	page := 1
 	pageSize := dataPageCap
 	var out []service.Account
 	for {
-		items, total, err := h.adminService.ListAccounts(ctx, page, pageSize, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
+		items, total, err := h.adminService.ListAccounts(ctx, page, pageSize, platform, accountType, status, search, groupID, proxyID, privacyMode, sortBy, sortOrder)
 		if err != nil {
 			return nil, err
 		}
@@ -560,7 +720,12 @@ func (h *AccountHandler) resolveExportAccounts(ctx context.Context, ids []int64,
 		}
 	}
 
-	return h.listAccountsFiltered(ctx, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
+	proxyID, err := parseAccountProxyFilter(c)
+	if err != nil {
+		return nil, err
+	}
+
+	return h.listAccountsFiltered(ctx, platform, accountType, status, search, groupID, proxyID, privacyMode, sortBy, sortOrder)
 }
 
 func (h *AccountHandler) resolveExportProxies(ctx context.Context, accounts []service.Account) ([]service.Proxy, error) {
@@ -668,7 +833,7 @@ func validateDataProxy(item DataProxy) error {
 	}
 	if item.Status != "" {
 		normalizedStatus := normalizeProxyStatus(item.Status)
-		if normalizedStatus != service.StatusActive && normalizedStatus != "inactive" {
+		if normalizedStatus != service.StatusActive && normalizedStatus != "inactive" && normalizedStatus != service.StatusExpired {
 			return fmt.Errorf("proxy status is invalid: %s", item.Status)
 		}
 	}
@@ -701,6 +866,26 @@ func validateDataAccount(item DataAccount) error {
 	}
 	if item.Priority < 0 {
 		return errors.New("priority must be >= 0")
+	}
+	if item.OwnerUserID != nil && *item.OwnerUserID <= 0 {
+		return errors.New("owner_user_id must be > 0")
+	}
+	if shareMode := strings.ToLower(strings.TrimSpace(item.ShareMode)); shareMode != "" {
+		switch shareMode {
+		case service.AccountShareModePrivate, service.AccountShareModePublic:
+		default:
+			return fmt.Errorf("share_mode is invalid: %s", item.ShareMode)
+		}
+	}
+	if shareStatus := strings.ToLower(strings.TrimSpace(item.ShareStatus)); shareStatus != "" {
+		switch shareStatus {
+		case service.AccountShareStatusPending, service.AccountShareStatusApproved, service.AccountShareStatusSuspended:
+		default:
+			return fmt.Errorf("share_status is invalid: %s", item.ShareStatus)
+		}
+	}
+	if item.SharePolicyID != nil && *item.SharePolicyID <= 0 {
+		return errors.New("share_policy_id must be > 0")
 	}
 	return nil
 }
@@ -771,9 +956,6 @@ func normalizeProxyStatus(status string) string {
 	case service.StatusActive:
 		return service.StatusActive
 	case "inactive", service.StatusDisabled:
-		return "inactive"
-	case "expired":
-		// 导入 expired 代理按 inactive 处理，避免导入即触发到期改投逻辑
 		return "inactive"
 	default:
 		return normalized

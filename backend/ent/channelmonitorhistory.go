@@ -4,13 +4,13 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/channelmonitor"
+	"ikik-api/ent/channelmonitorhistory"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/channelmonitor"
-	"ikik-api/ent/channelmonitorhistory"
 )
 
 // ChannelMonitorHistory is the model entity for the ChannelMonitorHistory schema.

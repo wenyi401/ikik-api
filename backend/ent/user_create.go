@@ -6,11 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"ikik-api/ent/account"
 	"ikik-api/ent/announcementread"
 	"ikik-api/ent/apikey"
 	"ikik-api/ent/authidentity"
@@ -19,11 +15,18 @@ import (
 	"ikik-api/ent/pendingauthsession"
 	"ikik-api/ent/promocodeusage"
 	"ikik-api/ent/redeemcode"
+	"ikik-api/ent/shopbalanceledger"
+	"ikik-api/ent/shopdrawcycle"
+	"ikik-api/ent/shoporder"
 	"ikik-api/ent/usagelog"
 	"ikik-api/ent/user"
 	"ikik-api/ent/userattributevalue"
-	"ikik-api/ent/userplatformquota"
 	"ikik-api/ent/usersubscription"
+	"time"
+
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 )
 
 // UserCreate is the builder for creating a User entity.
@@ -116,16 +119,72 @@ func (_c *UserCreate) SetNillableBalance(v *float64) *UserCreate {
 	return _c
 }
 
-// SetFrozenBalance sets the "frozen_balance" field.
-func (_c *UserCreate) SetFrozenBalance(v float64) *UserCreate {
-	_c.mutation.SetFrozenBalance(v)
+// SetRechargeBalance sets the "recharge_balance" field.
+func (_c *UserCreate) SetRechargeBalance(v float64) *UserCreate {
+	_c.mutation.SetRechargeBalance(v)
 	return _c
 }
 
-// SetNillableFrozenBalance sets the "frozen_balance" field if the given value is not nil.
-func (_c *UserCreate) SetNillableFrozenBalance(v *float64) *UserCreate {
+// SetNillableRechargeBalance sets the "recharge_balance" field if the given value is not nil.
+func (_c *UserCreate) SetNillableRechargeBalance(v *float64) *UserCreate {
 	if v != nil {
-		_c.SetFrozenBalance(*v)
+		_c.SetRechargeBalance(*v)
+	}
+	return _c
+}
+
+// SetInviteIncomeBalance sets the "invite_income_balance" field.
+func (_c *UserCreate) SetInviteIncomeBalance(v float64) *UserCreate {
+	_c.mutation.SetInviteIncomeBalance(v)
+	return _c
+}
+
+// SetNillableInviteIncomeBalance sets the "invite_income_balance" field if the given value is not nil.
+func (_c *UserCreate) SetNillableInviteIncomeBalance(v *float64) *UserCreate {
+	if v != nil {
+		_c.SetInviteIncomeBalance(*v)
+	}
+	return _c
+}
+
+// SetShareIncomeBalance sets the "share_income_balance" field.
+func (_c *UserCreate) SetShareIncomeBalance(v float64) *UserCreate {
+	_c.mutation.SetShareIncomeBalance(v)
+	return _c
+}
+
+// SetNillableShareIncomeBalance sets the "share_income_balance" field if the given value is not nil.
+func (_c *UserCreate) SetNillableShareIncomeBalance(v *float64) *UserCreate {
+	if v != nil {
+		_c.SetShareIncomeBalance(*v)
+	}
+	return _c
+}
+
+// SetPointsBalance sets the "points_balance" field.
+func (_c *UserCreate) SetPointsBalance(v float64) *UserCreate {
+	_c.mutation.SetPointsBalance(v)
+	return _c
+}
+
+// SetNillablePointsBalance sets the "points_balance" field if the given value is not nil.
+func (_c *UserCreate) SetNillablePointsBalance(v *float64) *UserCreate {
+	if v != nil {
+		_c.SetPointsBalance(*v)
+	}
+	return _c
+}
+
+// SetPreferPointsBilling sets the "prefer_points_billing" field.
+func (_c *UserCreate) SetPreferPointsBilling(v bool) *UserCreate {
+	_c.mutation.SetPreferPointsBilling(v)
+	return _c
+}
+
+// SetNillablePreferPointsBilling sets the "prefer_points_billing" field if the given value is not nil.
+func (_c *UserCreate) SetNillablePreferPointsBilling(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetPreferPointsBilling(*v)
 	}
 	return _c
 }
@@ -340,6 +399,34 @@ func (_c *UserCreate) SetNillableTotalRecharged(v *float64) *UserCreate {
 	return _c
 }
 
+// SetTotalInviteIncome sets the "total_invite_income" field.
+func (_c *UserCreate) SetTotalInviteIncome(v float64) *UserCreate {
+	_c.mutation.SetTotalInviteIncome(v)
+	return _c
+}
+
+// SetNillableTotalInviteIncome sets the "total_invite_income" field if the given value is not nil.
+func (_c *UserCreate) SetNillableTotalInviteIncome(v *float64) *UserCreate {
+	if v != nil {
+		_c.SetTotalInviteIncome(*v)
+	}
+	return _c
+}
+
+// SetTotalShareIncome sets the "total_share_income" field.
+func (_c *UserCreate) SetTotalShareIncome(v float64) *UserCreate {
+	_c.mutation.SetTotalShareIncome(v)
+	return _c
+}
+
+// SetNillableTotalShareIncome sets the "total_share_income" field if the given value is not nil.
+func (_c *UserCreate) SetNillableTotalShareIncome(v *float64) *UserCreate {
+	if v != nil {
+		_c.SetTotalShareIncome(*v)
+	}
+	return _c
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_c *UserCreate) SetRpmLimit(v int) *UserCreate {
 	_c.mutation.SetRpmLimit(v)
@@ -504,6 +591,66 @@ func (_c *UserCreate) AddPaymentOrders(v ...*PaymentOrder) *UserCreate {
 	return _c.AddPaymentOrderIDs(ids...)
 }
 
+// AddShopOrderIDs adds the "shop_orders" edge to the ShopOrder entity by IDs.
+func (_c *UserCreate) AddShopOrderIDs(ids ...int64) *UserCreate {
+	_c.mutation.AddShopOrderIDs(ids...)
+	return _c
+}
+
+// AddShopOrders adds the "shop_orders" edges to the ShopOrder entity.
+func (_c *UserCreate) AddShopOrders(v ...*ShopOrder) *UserCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddShopOrderIDs(ids...)
+}
+
+// AddShopDrawCycleIDs adds the "shop_draw_cycles" edge to the ShopDrawCycle entity by IDs.
+func (_c *UserCreate) AddShopDrawCycleIDs(ids ...int64) *UserCreate {
+	_c.mutation.AddShopDrawCycleIDs(ids...)
+	return _c
+}
+
+// AddShopDrawCycles adds the "shop_draw_cycles" edges to the ShopDrawCycle entity.
+func (_c *UserCreate) AddShopDrawCycles(v ...*ShopDrawCycle) *UserCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddShopDrawCycleIDs(ids...)
+}
+
+// AddShopBalanceLedgerIDs adds the "shop_balance_ledger" edge to the ShopBalanceLedger entity by IDs.
+func (_c *UserCreate) AddShopBalanceLedgerIDs(ids ...int64) *UserCreate {
+	_c.mutation.AddShopBalanceLedgerIDs(ids...)
+	return _c
+}
+
+// AddShopBalanceLedger adds the "shop_balance_ledger" edges to the ShopBalanceLedger entity.
+func (_c *UserCreate) AddShopBalanceLedger(v ...*ShopBalanceLedger) *UserCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddShopBalanceLedgerIDs(ids...)
+}
+
+// AddOwnedAccountIDs adds the "owned_accounts" edge to the Account entity by IDs.
+func (_c *UserCreate) AddOwnedAccountIDs(ids ...int64) *UserCreate {
+	_c.mutation.AddOwnedAccountIDs(ids...)
+	return _c
+}
+
+// AddOwnedAccounts adds the "owned_accounts" edges to the Account entity.
+func (_c *UserCreate) AddOwnedAccounts(v ...*Account) *UserCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddOwnedAccountIDs(ids...)
+}
+
 // AddAuthIdentityIDs adds the "auth_identities" edge to the AuthIdentity entity by IDs.
 func (_c *UserCreate) AddAuthIdentityIDs(ids ...int64) *UserCreate {
 	_c.mutation.AddAuthIdentityIDs(ids...)
@@ -532,21 +679,6 @@ func (_c *UserCreate) AddPendingAuthSessions(v ...*PendingAuthSession) *UserCrea
 		ids[i] = v[i].ID
 	}
 	return _c.AddPendingAuthSessionIDs(ids...)
-}
-
-// AddPlatformQuotaIDs adds the "platform_quotas" edge to the UserPlatformQuota entity by IDs.
-func (_c *UserCreate) AddPlatformQuotaIDs(ids ...int64) *UserCreate {
-	_c.mutation.AddPlatformQuotaIDs(ids...)
-	return _c
-}
-
-// AddPlatformQuotas adds the "platform_quotas" edges to the UserPlatformQuota entity.
-func (_c *UserCreate) AddPlatformQuotas(v ...*UserPlatformQuota) *UserCreate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _c.AddPlatformQuotaIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -608,9 +740,25 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultBalance
 		_c.mutation.SetBalance(v)
 	}
-	if _, ok := _c.mutation.FrozenBalance(); !ok {
-		v := user.DefaultFrozenBalance
-		_c.mutation.SetFrozenBalance(v)
+	if _, ok := _c.mutation.RechargeBalance(); !ok {
+		v := user.DefaultRechargeBalance
+		_c.mutation.SetRechargeBalance(v)
+	}
+	if _, ok := _c.mutation.InviteIncomeBalance(); !ok {
+		v := user.DefaultInviteIncomeBalance
+		_c.mutation.SetInviteIncomeBalance(v)
+	}
+	if _, ok := _c.mutation.ShareIncomeBalance(); !ok {
+		v := user.DefaultShareIncomeBalance
+		_c.mutation.SetShareIncomeBalance(v)
+	}
+	if _, ok := _c.mutation.PointsBalance(); !ok {
+		v := user.DefaultPointsBalance
+		_c.mutation.SetPointsBalance(v)
+	}
+	if _, ok := _c.mutation.PreferPointsBilling(); !ok {
+		v := user.DefaultPreferPointsBilling
+		_c.mutation.SetPreferPointsBilling(v)
 	}
 	if _, ok := _c.mutation.Concurrency(); !ok {
 		v := user.DefaultConcurrency
@@ -651,6 +799,14 @@ func (_c *UserCreate) defaults() error {
 	if _, ok := _c.mutation.TotalRecharged(); !ok {
 		v := user.DefaultTotalRecharged
 		_c.mutation.SetTotalRecharged(v)
+	}
+	if _, ok := _c.mutation.TotalInviteIncome(); !ok {
+		v := user.DefaultTotalInviteIncome
+		_c.mutation.SetTotalInviteIncome(v)
+	}
+	if _, ok := _c.mutation.TotalShareIncome(); !ok {
+		v := user.DefaultTotalShareIncome
+		_c.mutation.SetTotalShareIncome(v)
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := user.DefaultRpmLimit
@@ -694,8 +850,20 @@ func (_c *UserCreate) check() error {
 	if _, ok := _c.mutation.Balance(); !ok {
 		return &ValidationError{Name: "balance", err: errors.New(`ent: missing required field "User.balance"`)}
 	}
-	if _, ok := _c.mutation.FrozenBalance(); !ok {
-		return &ValidationError{Name: "frozen_balance", err: errors.New(`ent: missing required field "User.frozen_balance"`)}
+	if _, ok := _c.mutation.RechargeBalance(); !ok {
+		return &ValidationError{Name: "recharge_balance", err: errors.New(`ent: missing required field "User.recharge_balance"`)}
+	}
+	if _, ok := _c.mutation.InviteIncomeBalance(); !ok {
+		return &ValidationError{Name: "invite_income_balance", err: errors.New(`ent: missing required field "User.invite_income_balance"`)}
+	}
+	if _, ok := _c.mutation.ShareIncomeBalance(); !ok {
+		return &ValidationError{Name: "share_income_balance", err: errors.New(`ent: missing required field "User.share_income_balance"`)}
+	}
+	if _, ok := _c.mutation.PointsBalance(); !ok {
+		return &ValidationError{Name: "points_balance", err: errors.New(`ent: missing required field "User.points_balance"`)}
+	}
+	if _, ok := _c.mutation.PreferPointsBilling(); !ok {
+		return &ValidationError{Name: "prefer_points_billing", err: errors.New(`ent: missing required field "User.prefer_points_billing"`)}
 	}
 	if _, ok := _c.mutation.Concurrency(); !ok {
 		return &ValidationError{Name: "concurrency", err: errors.New(`ent: missing required field "User.concurrency"`)}
@@ -741,6 +909,12 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.TotalRecharged(); !ok {
 		return &ValidationError{Name: "total_recharged", err: errors.New(`ent: missing required field "User.total_recharged"`)}
+	}
+	if _, ok := _c.mutation.TotalInviteIncome(); !ok {
+		return &ValidationError{Name: "total_invite_income", err: errors.New(`ent: missing required field "User.total_invite_income"`)}
+	}
+	if _, ok := _c.mutation.TotalShareIncome(); !ok {
+		return &ValidationError{Name: "total_share_income", err: errors.New(`ent: missing required field "User.total_share_income"`)}
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "User.rpm_limit"`)}
@@ -800,9 +974,25 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldBalance, field.TypeFloat64, value)
 		_node.Balance = value
 	}
-	if value, ok := _c.mutation.FrozenBalance(); ok {
-		_spec.SetField(user.FieldFrozenBalance, field.TypeFloat64, value)
-		_node.FrozenBalance = value
+	if value, ok := _c.mutation.RechargeBalance(); ok {
+		_spec.SetField(user.FieldRechargeBalance, field.TypeFloat64, value)
+		_node.RechargeBalance = value
+	}
+	if value, ok := _c.mutation.InviteIncomeBalance(); ok {
+		_spec.SetField(user.FieldInviteIncomeBalance, field.TypeFloat64, value)
+		_node.InviteIncomeBalance = value
+	}
+	if value, ok := _c.mutation.ShareIncomeBalance(); ok {
+		_spec.SetField(user.FieldShareIncomeBalance, field.TypeFloat64, value)
+		_node.ShareIncomeBalance = value
+	}
+	if value, ok := _c.mutation.PointsBalance(); ok {
+		_spec.SetField(user.FieldPointsBalance, field.TypeFloat64, value)
+		_node.PointsBalance = value
+	}
+	if value, ok := _c.mutation.PreferPointsBilling(); ok {
+		_spec.SetField(user.FieldPreferPointsBilling, field.TypeBool, value)
+		_node.PreferPointsBilling = value
 	}
 	if value, ok := _c.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)
@@ -863,6 +1053,14 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.TotalRecharged(); ok {
 		_spec.SetField(user.FieldTotalRecharged, field.TypeFloat64, value)
 		_node.TotalRecharged = value
+	}
+	if value, ok := _c.mutation.TotalInviteIncome(); ok {
+		_spec.SetField(user.FieldTotalInviteIncome, field.TypeFloat64, value)
+		_node.TotalInviteIncome = value
+	}
+	if value, ok := _c.mutation.TotalShareIncome(); ok {
+		_spec.SetField(user.FieldTotalShareIncome, field.TypeFloat64, value)
+		_node.TotalShareIncome = value
 	}
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)
@@ -1032,6 +1230,70 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
+	if nodes := _c.mutation.ShopOrdersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopOrdersTable,
+			Columns: []string{user.ShopOrdersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shoporder.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ShopDrawCyclesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopDrawCyclesTable,
+			Columns: []string{user.ShopDrawCyclesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopdrawcycle.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ShopBalanceLedgerIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopBalanceLedgerTable,
+			Columns: []string{user.ShopBalanceLedgerColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopbalanceledger.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.OwnedAccountsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedAccountsTable,
+			Columns: []string{user.OwnedAccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	if nodes := _c.mutation.AuthIdentitiesIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -1057,22 +1319,6 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(pendingauthsession.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
-	}
-	if nodes := _c.mutation.PlatformQuotasIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.PlatformQuotasTable,
-			Columns: []string{user.PlatformQuotasColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -1216,21 +1462,87 @@ func (u *UserUpsert) AddBalance(v float64) *UserUpsert {
 	return u
 }
 
-// SetFrozenBalance sets the "frozen_balance" field.
-func (u *UserUpsert) SetFrozenBalance(v float64) *UserUpsert {
-	u.Set(user.FieldFrozenBalance, v)
+// SetRechargeBalance sets the "recharge_balance" field.
+func (u *UserUpsert) SetRechargeBalance(v float64) *UserUpsert {
+	u.Set(user.FieldRechargeBalance, v)
 	return u
 }
 
-// UpdateFrozenBalance sets the "frozen_balance" field to the value that was provided on create.
-func (u *UserUpsert) UpdateFrozenBalance() *UserUpsert {
-	u.SetExcluded(user.FieldFrozenBalance)
+// UpdateRechargeBalance sets the "recharge_balance" field to the value that was provided on create.
+func (u *UserUpsert) UpdateRechargeBalance() *UserUpsert {
+	u.SetExcluded(user.FieldRechargeBalance)
 	return u
 }
 
-// AddFrozenBalance adds v to the "frozen_balance" field.
-func (u *UserUpsert) AddFrozenBalance(v float64) *UserUpsert {
-	u.Add(user.FieldFrozenBalance, v)
+// AddRechargeBalance adds v to the "recharge_balance" field.
+func (u *UserUpsert) AddRechargeBalance(v float64) *UserUpsert {
+	u.Add(user.FieldRechargeBalance, v)
+	return u
+}
+
+// SetInviteIncomeBalance sets the "invite_income_balance" field.
+func (u *UserUpsert) SetInviteIncomeBalance(v float64) *UserUpsert {
+	u.Set(user.FieldInviteIncomeBalance, v)
+	return u
+}
+
+// UpdateInviteIncomeBalance sets the "invite_income_balance" field to the value that was provided on create.
+func (u *UserUpsert) UpdateInviteIncomeBalance() *UserUpsert {
+	u.SetExcluded(user.FieldInviteIncomeBalance)
+	return u
+}
+
+// AddInviteIncomeBalance adds v to the "invite_income_balance" field.
+func (u *UserUpsert) AddInviteIncomeBalance(v float64) *UserUpsert {
+	u.Add(user.FieldInviteIncomeBalance, v)
+	return u
+}
+
+// SetShareIncomeBalance sets the "share_income_balance" field.
+func (u *UserUpsert) SetShareIncomeBalance(v float64) *UserUpsert {
+	u.Set(user.FieldShareIncomeBalance, v)
+	return u
+}
+
+// UpdateShareIncomeBalance sets the "share_income_balance" field to the value that was provided on create.
+func (u *UserUpsert) UpdateShareIncomeBalance() *UserUpsert {
+	u.SetExcluded(user.FieldShareIncomeBalance)
+	return u
+}
+
+// AddShareIncomeBalance adds v to the "share_income_balance" field.
+func (u *UserUpsert) AddShareIncomeBalance(v float64) *UserUpsert {
+	u.Add(user.FieldShareIncomeBalance, v)
+	return u
+}
+
+// SetPointsBalance sets the "points_balance" field.
+func (u *UserUpsert) SetPointsBalance(v float64) *UserUpsert {
+	u.Set(user.FieldPointsBalance, v)
+	return u
+}
+
+// UpdatePointsBalance sets the "points_balance" field to the value that was provided on create.
+func (u *UserUpsert) UpdatePointsBalance() *UserUpsert {
+	u.SetExcluded(user.FieldPointsBalance)
+	return u
+}
+
+// AddPointsBalance adds v to the "points_balance" field.
+func (u *UserUpsert) AddPointsBalance(v float64) *UserUpsert {
+	u.Add(user.FieldPointsBalance, v)
+	return u
+}
+
+// SetPreferPointsBilling sets the "prefer_points_billing" field.
+func (u *UserUpsert) SetPreferPointsBilling(v bool) *UserUpsert {
+	u.Set(user.FieldPreferPointsBilling, v)
+	return u
+}
+
+// UpdatePreferPointsBilling sets the "prefer_points_billing" field to the value that was provided on create.
+func (u *UserUpsert) UpdatePreferPointsBilling() *UserUpsert {
+	u.SetExcluded(user.FieldPreferPointsBilling)
 	return u
 }
 
@@ -1462,6 +1774,42 @@ func (u *UserUpsert) AddTotalRecharged(v float64) *UserUpsert {
 	return u
 }
 
+// SetTotalInviteIncome sets the "total_invite_income" field.
+func (u *UserUpsert) SetTotalInviteIncome(v float64) *UserUpsert {
+	u.Set(user.FieldTotalInviteIncome, v)
+	return u
+}
+
+// UpdateTotalInviteIncome sets the "total_invite_income" field to the value that was provided on create.
+func (u *UserUpsert) UpdateTotalInviteIncome() *UserUpsert {
+	u.SetExcluded(user.FieldTotalInviteIncome)
+	return u
+}
+
+// AddTotalInviteIncome adds v to the "total_invite_income" field.
+func (u *UserUpsert) AddTotalInviteIncome(v float64) *UserUpsert {
+	u.Add(user.FieldTotalInviteIncome, v)
+	return u
+}
+
+// SetTotalShareIncome sets the "total_share_income" field.
+func (u *UserUpsert) SetTotalShareIncome(v float64) *UserUpsert {
+	u.Set(user.FieldTotalShareIncome, v)
+	return u
+}
+
+// UpdateTotalShareIncome sets the "total_share_income" field to the value that was provided on create.
+func (u *UserUpsert) UpdateTotalShareIncome() *UserUpsert {
+	u.SetExcluded(user.FieldTotalShareIncome)
+	return u
+}
+
+// AddTotalShareIncome adds v to the "total_share_income" field.
+func (u *UserUpsert) AddTotalShareIncome(v float64) *UserUpsert {
+	u.Add(user.FieldTotalShareIncome, v)
+	return u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (u *UserUpsert) SetRpmLimit(v int) *UserUpsert {
 	u.Set(user.FieldRpmLimit, v)
@@ -1623,24 +1971,101 @@ func (u *UserUpsertOne) UpdateBalance() *UserUpsertOne {
 	})
 }
 
-// SetFrozenBalance sets the "frozen_balance" field.
-func (u *UserUpsertOne) SetFrozenBalance(v float64) *UserUpsertOne {
+// SetRechargeBalance sets the "recharge_balance" field.
+func (u *UserUpsertOne) SetRechargeBalance(v float64) *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
-		s.SetFrozenBalance(v)
+		s.SetRechargeBalance(v)
 	})
 }
 
-// AddFrozenBalance adds v to the "frozen_balance" field.
-func (u *UserUpsertOne) AddFrozenBalance(v float64) *UserUpsertOne {
+// AddRechargeBalance adds v to the "recharge_balance" field.
+func (u *UserUpsertOne) AddRechargeBalance(v float64) *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
-		s.AddFrozenBalance(v)
+		s.AddRechargeBalance(v)
 	})
 }
 
-// UpdateFrozenBalance sets the "frozen_balance" field to the value that was provided on create.
-func (u *UserUpsertOne) UpdateFrozenBalance() *UserUpsertOne {
+// UpdateRechargeBalance sets the "recharge_balance" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateRechargeBalance() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
-		s.UpdateFrozenBalance()
+		s.UpdateRechargeBalance()
+	})
+}
+
+// SetInviteIncomeBalance sets the "invite_income_balance" field.
+func (u *UserUpsertOne) SetInviteIncomeBalance(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetInviteIncomeBalance(v)
+	})
+}
+
+// AddInviteIncomeBalance adds v to the "invite_income_balance" field.
+func (u *UserUpsertOne) AddInviteIncomeBalance(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddInviteIncomeBalance(v)
+	})
+}
+
+// UpdateInviteIncomeBalance sets the "invite_income_balance" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateInviteIncomeBalance() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateInviteIncomeBalance()
+	})
+}
+
+// SetShareIncomeBalance sets the "share_income_balance" field.
+func (u *UserUpsertOne) SetShareIncomeBalance(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetShareIncomeBalance(v)
+	})
+}
+
+// AddShareIncomeBalance adds v to the "share_income_balance" field.
+func (u *UserUpsertOne) AddShareIncomeBalance(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddShareIncomeBalance(v)
+	})
+}
+
+// UpdateShareIncomeBalance sets the "share_income_balance" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateShareIncomeBalance() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateShareIncomeBalance()
+	})
+}
+
+// SetPointsBalance sets the "points_balance" field.
+func (u *UserUpsertOne) SetPointsBalance(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPointsBalance(v)
+	})
+}
+
+// AddPointsBalance adds v to the "points_balance" field.
+func (u *UserUpsertOne) AddPointsBalance(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddPointsBalance(v)
+	})
+}
+
+// UpdatePointsBalance sets the "points_balance" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdatePointsBalance() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePointsBalance()
+	})
+}
+
+// SetPreferPointsBilling sets the "prefer_points_billing" field.
+func (u *UserUpsertOne) SetPreferPointsBilling(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPreferPointsBilling(v)
+	})
+}
+
+// UpdatePreferPointsBilling sets the "prefer_points_billing" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdatePreferPointsBilling() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePreferPointsBilling()
 	})
 }
 
@@ -1907,6 +2332,48 @@ func (u *UserUpsertOne) AddTotalRecharged(v float64) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateTotalRecharged() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTotalRecharged()
+	})
+}
+
+// SetTotalInviteIncome sets the "total_invite_income" field.
+func (u *UserUpsertOne) SetTotalInviteIncome(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTotalInviteIncome(v)
+	})
+}
+
+// AddTotalInviteIncome adds v to the "total_invite_income" field.
+func (u *UserUpsertOne) AddTotalInviteIncome(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddTotalInviteIncome(v)
+	})
+}
+
+// UpdateTotalInviteIncome sets the "total_invite_income" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateTotalInviteIncome() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTotalInviteIncome()
+	})
+}
+
+// SetTotalShareIncome sets the "total_share_income" field.
+func (u *UserUpsertOne) SetTotalShareIncome(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTotalShareIncome(v)
+	})
+}
+
+// AddTotalShareIncome adds v to the "total_share_income" field.
+func (u *UserUpsertOne) AddTotalShareIncome(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddTotalShareIncome(v)
+	})
+}
+
+// UpdateTotalShareIncome sets the "total_share_income" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateTotalShareIncome() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTotalShareIncome()
 	})
 }
 
@@ -2240,24 +2707,101 @@ func (u *UserUpsertBulk) UpdateBalance() *UserUpsertBulk {
 	})
 }
 
-// SetFrozenBalance sets the "frozen_balance" field.
-func (u *UserUpsertBulk) SetFrozenBalance(v float64) *UserUpsertBulk {
+// SetRechargeBalance sets the "recharge_balance" field.
+func (u *UserUpsertBulk) SetRechargeBalance(v float64) *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
-		s.SetFrozenBalance(v)
+		s.SetRechargeBalance(v)
 	})
 }
 
-// AddFrozenBalance adds v to the "frozen_balance" field.
-func (u *UserUpsertBulk) AddFrozenBalance(v float64) *UserUpsertBulk {
+// AddRechargeBalance adds v to the "recharge_balance" field.
+func (u *UserUpsertBulk) AddRechargeBalance(v float64) *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
-		s.AddFrozenBalance(v)
+		s.AddRechargeBalance(v)
 	})
 }
 
-// UpdateFrozenBalance sets the "frozen_balance" field to the value that was provided on create.
-func (u *UserUpsertBulk) UpdateFrozenBalance() *UserUpsertBulk {
+// UpdateRechargeBalance sets the "recharge_balance" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateRechargeBalance() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
-		s.UpdateFrozenBalance()
+		s.UpdateRechargeBalance()
+	})
+}
+
+// SetInviteIncomeBalance sets the "invite_income_balance" field.
+func (u *UserUpsertBulk) SetInviteIncomeBalance(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetInviteIncomeBalance(v)
+	})
+}
+
+// AddInviteIncomeBalance adds v to the "invite_income_balance" field.
+func (u *UserUpsertBulk) AddInviteIncomeBalance(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddInviteIncomeBalance(v)
+	})
+}
+
+// UpdateInviteIncomeBalance sets the "invite_income_balance" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateInviteIncomeBalance() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateInviteIncomeBalance()
+	})
+}
+
+// SetShareIncomeBalance sets the "share_income_balance" field.
+func (u *UserUpsertBulk) SetShareIncomeBalance(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetShareIncomeBalance(v)
+	})
+}
+
+// AddShareIncomeBalance adds v to the "share_income_balance" field.
+func (u *UserUpsertBulk) AddShareIncomeBalance(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddShareIncomeBalance(v)
+	})
+}
+
+// UpdateShareIncomeBalance sets the "share_income_balance" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateShareIncomeBalance() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateShareIncomeBalance()
+	})
+}
+
+// SetPointsBalance sets the "points_balance" field.
+func (u *UserUpsertBulk) SetPointsBalance(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPointsBalance(v)
+	})
+}
+
+// AddPointsBalance adds v to the "points_balance" field.
+func (u *UserUpsertBulk) AddPointsBalance(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddPointsBalance(v)
+	})
+}
+
+// UpdatePointsBalance sets the "points_balance" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdatePointsBalance() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePointsBalance()
+	})
+}
+
+// SetPreferPointsBilling sets the "prefer_points_billing" field.
+func (u *UserUpsertBulk) SetPreferPointsBilling(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPreferPointsBilling(v)
+	})
+}
+
+// UpdatePreferPointsBilling sets the "prefer_points_billing" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdatePreferPointsBilling() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePreferPointsBilling()
 	})
 }
 
@@ -2524,6 +3068,48 @@ func (u *UserUpsertBulk) AddTotalRecharged(v float64) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateTotalRecharged() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTotalRecharged()
+	})
+}
+
+// SetTotalInviteIncome sets the "total_invite_income" field.
+func (u *UserUpsertBulk) SetTotalInviteIncome(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTotalInviteIncome(v)
+	})
+}
+
+// AddTotalInviteIncome adds v to the "total_invite_income" field.
+func (u *UserUpsertBulk) AddTotalInviteIncome(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddTotalInviteIncome(v)
+	})
+}
+
+// UpdateTotalInviteIncome sets the "total_invite_income" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateTotalInviteIncome() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTotalInviteIncome()
+	})
+}
+
+// SetTotalShareIncome sets the "total_share_income" field.
+func (u *UserUpsertBulk) SetTotalShareIncome(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetTotalShareIncome(v)
+	})
+}
+
+// AddTotalShareIncome adds v to the "total_share_income" field.
+func (u *UserUpsertBulk) AddTotalShareIncome(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddTotalShareIncome(v)
+	})
+}
+
+// UpdateTotalShareIncome sets the "total_share_income" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateTotalShareIncome() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateTotalShareIncome()
 	})
 }
 

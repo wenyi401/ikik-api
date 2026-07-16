@@ -5,13 +5,13 @@ package ent
 import (
 	"encoding/json"
 	"fmt"
+	"ikik-api/ent/authidentity"
+	"ikik-api/ent/user"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/authidentity"
-	"ikik-api/ent/user"
 )
 
 // AuthIdentity is the model entity for the AuthIdentity schema.

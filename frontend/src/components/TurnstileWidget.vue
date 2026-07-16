@@ -168,15 +168,19 @@ watch(
 <style scoped>
 .turnstile-wrapper {
   width: 100%;
+  overflow: visible;
 }
 
 .turnstile-container {
   width: 100%;
-  min-height: 65px;
+  min-height: 82px;
+  overflow: visible;
 }
 
 /* Make the Turnstile iframe fill the container width */
 .turnstile-container :deep(iframe) {
   width: 100% !important;
+  max-width: 100% !important;
+  min-height: 65px;
 }
 </style>

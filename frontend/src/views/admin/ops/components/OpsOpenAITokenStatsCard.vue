@@ -174,20 +174,20 @@ function onNextPage() {
             <Select v-model="pageSize" :options="pageSizeOptions" />
           </div>
           <button
-            class="btn btn-secondary btn-sm"
+            class="pagination-text-button"
             :disabled="loading || page <= 1"
             @click="onPrevPage"
           >
             {{ t('admin.ops.openaiTokenStats.prevPage') }}
           </button>
           <button
-            class="btn btn-secondary btn-sm"
+            class="pagination-text-button"
             :disabled="loading || page >= totalPages"
             @click="onNextPage"
           >
             {{ t('admin.ops.openaiTokenStats.nextPage') }}
           </button>
-          <span class="text-xs text-gray-500 dark:text-gray-400">
+          <span class="pagination-info text-xs">
             {{ t('admin.ops.openaiTokenStats.pageInfo', { page, total: totalPages }) }}
           </span>
         </template>

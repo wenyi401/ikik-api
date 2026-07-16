@@ -6,13 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/paymentorder"
+	"ikik-api/ent/user"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/paymentorder"
-	"ikik-api/ent/user"
 )
 
 // PaymentOrderCreate is the builder for creating a PaymentOrder entity.
@@ -207,6 +207,20 @@ func (_c *PaymentOrderCreate) SetSubscriptionDays(v int) *PaymentOrderCreate {
 func (_c *PaymentOrderCreate) SetNillableSubscriptionDays(v *int) *PaymentOrderCreate {
 	if v != nil {
 		_c.SetSubscriptionDays(*v)
+	}
+	return _c
+}
+
+// SetShopOrderID sets the "shop_order_id" field.
+func (_c *PaymentOrderCreate) SetShopOrderID(v int64) *PaymentOrderCreate {
+	_c.mutation.SetShopOrderID(v)
+	return _c
+}
+
+// SetNillableShopOrderID sets the "shop_order_id" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableShopOrderID(v *int64) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetShopOrderID(*v)
 	}
 	return _c
 }
@@ -769,6 +783,10 @@ func (_c *PaymentOrderCreate) createSpec() (*PaymentOrder, *sqlgraph.CreateSpec)
 		_spec.SetField(paymentorder.FieldSubscriptionDays, field.TypeInt, value)
 		_node.SubscriptionDays = &value
 	}
+	if value, ok := _c.mutation.ShopOrderID(); ok {
+		_spec.SetField(paymentorder.FieldShopOrderID, field.TypeInt64, value)
+		_node.ShopOrderID = &value
+	}
 	if value, ok := _c.mutation.ProviderInstanceID(); ok {
 		_spec.SetField(paymentorder.FieldProviderInstanceID, field.TypeString, value)
 		_node.ProviderInstanceID = &value
@@ -1213,6 +1231,30 @@ func (u *PaymentOrderUpsert) AddSubscriptionDays(v int) *PaymentOrderUpsert {
 // ClearSubscriptionDays clears the value of the "subscription_days" field.
 func (u *PaymentOrderUpsert) ClearSubscriptionDays() *PaymentOrderUpsert {
 	u.SetNull(paymentorder.FieldSubscriptionDays)
+	return u
+}
+
+// SetShopOrderID sets the "shop_order_id" field.
+func (u *PaymentOrderUpsert) SetShopOrderID(v int64) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldShopOrderID, v)
+	return u
+}
+
+// UpdateShopOrderID sets the "shop_order_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateShopOrderID() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldShopOrderID)
+	return u
+}
+
+// AddShopOrderID adds v to the "shop_order_id" field.
+func (u *PaymentOrderUpsert) AddShopOrderID(v int64) *PaymentOrderUpsert {
+	u.Add(paymentorder.FieldShopOrderID, v)
+	return u
+}
+
+// ClearShopOrderID clears the value of the "shop_order_id" field.
+func (u *PaymentOrderUpsert) ClearShopOrderID() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldShopOrderID)
 	return u
 }
 
@@ -1925,6 +1967,34 @@ func (u *PaymentOrderUpsertOne) UpdateSubscriptionDays() *PaymentOrderUpsertOne 
 func (u *PaymentOrderUpsertOne) ClearSubscriptionDays() *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearSubscriptionDays()
+	})
+}
+
+// SetShopOrderID sets the "shop_order_id" field.
+func (u *PaymentOrderUpsertOne) SetShopOrderID(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetShopOrderID(v)
+	})
+}
+
+// AddShopOrderID adds v to the "shop_order_id" field.
+func (u *PaymentOrderUpsertOne) AddShopOrderID(v int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddShopOrderID(v)
+	})
+}
+
+// UpdateShopOrderID sets the "shop_order_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateShopOrderID() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateShopOrderID()
+	})
+}
+
+// ClearShopOrderID clears the value of the "shop_order_id" field.
+func (u *PaymentOrderUpsertOne) ClearShopOrderID() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearShopOrderID()
 	})
 }
 
@@ -2857,6 +2927,34 @@ func (u *PaymentOrderUpsertBulk) UpdateSubscriptionDays() *PaymentOrderUpsertBul
 func (u *PaymentOrderUpsertBulk) ClearSubscriptionDays() *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearSubscriptionDays()
+	})
+}
+
+// SetShopOrderID sets the "shop_order_id" field.
+func (u *PaymentOrderUpsertBulk) SetShopOrderID(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetShopOrderID(v)
+	})
+}
+
+// AddShopOrderID adds v to the "shop_order_id" field.
+func (u *PaymentOrderUpsertBulk) AddShopOrderID(v int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddShopOrderID(v)
+	})
+}
+
+// UpdateShopOrderID sets the "shop_order_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateShopOrderID() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateShopOrderID()
+	})
+}
+
+// ClearShopOrderID clears the value of the "shop_order_id" field.
+func (u *PaymentOrderUpsertBulk) ClearShopOrderID() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearShopOrderID()
 	})
 }
 

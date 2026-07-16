@@ -3,11 +3,11 @@
 package paymentorder
 
 import (
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"ikik-api/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.
@@ -143,6 +143,11 @@ func SubscriptionGroupID(v int64) predicate.PaymentOrder {
 // SubscriptionDays applies equality check predicate on the "subscription_days" field. It's identical to SubscriptionDaysEQ.
 func SubscriptionDays(v int) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldSubscriptionDays, v))
+}
+
+// ShopOrderID applies equality check predicate on the "shop_order_id" field. It's identical to ShopOrderIDEQ.
+func ShopOrderID(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldShopOrderID, v))
 }
 
 // ProviderInstanceID applies equality check predicate on the "provider_instance_id" field. It's identical to ProviderInstanceIDEQ.
@@ -1288,6 +1293,56 @@ func SubscriptionDaysIsNil() predicate.PaymentOrder {
 // SubscriptionDaysNotNil applies the NotNil predicate on the "subscription_days" field.
 func SubscriptionDaysNotNil() predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldNotNull(FieldSubscriptionDays))
+}
+
+// ShopOrderIDEQ applies the EQ predicate on the "shop_order_id" field.
+func ShopOrderIDEQ(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldShopOrderID, v))
+}
+
+// ShopOrderIDNEQ applies the NEQ predicate on the "shop_order_id" field.
+func ShopOrderIDNEQ(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldShopOrderID, v))
+}
+
+// ShopOrderIDIn applies the In predicate on the "shop_order_id" field.
+func ShopOrderIDIn(vs ...int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldShopOrderID, vs...))
+}
+
+// ShopOrderIDNotIn applies the NotIn predicate on the "shop_order_id" field.
+func ShopOrderIDNotIn(vs ...int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldShopOrderID, vs...))
+}
+
+// ShopOrderIDGT applies the GT predicate on the "shop_order_id" field.
+func ShopOrderIDGT(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldShopOrderID, v))
+}
+
+// ShopOrderIDGTE applies the GTE predicate on the "shop_order_id" field.
+func ShopOrderIDGTE(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldShopOrderID, v))
+}
+
+// ShopOrderIDLT applies the LT predicate on the "shop_order_id" field.
+func ShopOrderIDLT(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldShopOrderID, v))
+}
+
+// ShopOrderIDLTE applies the LTE predicate on the "shop_order_id" field.
+func ShopOrderIDLTE(v int64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldShopOrderID, v))
+}
+
+// ShopOrderIDIsNil applies the IsNil predicate on the "shop_order_id" field.
+func ShopOrderIDIsNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIsNull(FieldShopOrderID))
+}
+
+// ShopOrderIDNotNil applies the NotNil predicate on the "shop_order_id" field.
+func ShopOrderIDNotNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotNull(FieldShopOrderID))
 }
 
 // ProviderInstanceIDEQ applies the EQ predicate on the "provider_instance_id" field.

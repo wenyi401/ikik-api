@@ -27,7 +27,7 @@ func (s *AccountRepoSuite) TestListWithFilters_SortByPriorityDesc() {
 		PageSize:  10,
 		SortBy:    "priority",
 		SortOrder: "desc",
-	}, "", "", "", "", 0, "")
+	}, "", "", "", "", 0, 0, "")
 	s.Require().NoError(err)
 	s.Require().Len(accounts, 2)
 	s.Require().Equal("high-priority", accounts[0].Name)

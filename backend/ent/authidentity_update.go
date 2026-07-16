@@ -6,16 +6,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
 	"ikik-api/ent/authidentity"
 	"ikik-api/ent/authidentitychannel"
 	"ikik-api/ent/identityadoptiondecision"
 	"ikik-api/ent/predicate"
 	"ikik-api/ent/user"
+	"time"
+
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 )
 
 // AuthIdentityUpdate is the builder for updating AuthIdentity entities.

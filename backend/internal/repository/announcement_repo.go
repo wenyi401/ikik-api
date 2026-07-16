@@ -204,8 +204,7 @@ func (r *announcementRepository) ListActive(ctx context.Context, now time.Time) 
 			announcement.Or(announcement.StartsAtIsNil(), announcement.StartsAtLTE(now)),
 			announcement.Or(announcement.EndsAtIsNil(), announcement.EndsAtGT(now)),
 		).
-		Order(dbent.Desc(announcement.FieldID)).
-		Limit(200)
+		Order(dbent.Desc(announcement.FieldID))
 
 	items, err := q.All(ctx)
 	if err != nil {

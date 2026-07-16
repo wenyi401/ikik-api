@@ -14,23 +14,14 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
-
-	infraerrors "ikik-api/internal/pkg/errors"
-)
-
-var (
-	ErrNoUpdateAvailable         = infraerrors.Conflict("ALREADY_UP_TO_DATE", "no update available; current version is latest")
-	ErrRollbackVersionNotAllowed = infraerrors.BadRequest("ROLLBACK_VERSION_NOT_ALLOWED", "version is not in the allowed rollback list")
 )
 
 const (
-	updateCacheKey = "update_check_cache"
 	updateCacheTTL = 1200 // 20 minutes
-	githubRepo     = "Wei-Shaw/sub2api"
+	githubRepo     = "wenyi401/ikik-api"
 
 	// Security: allowed download domains for updates
 	allowedDownloadHost = "github.com"
@@ -38,11 +29,6 @@ const (
 
 	// Security: max download size (500MB)
 	maxDownloadSize = 500 * 1024 * 1024
-
-	// Rollback: expose at most the 3 most recent versions older than current
-	maxRollbackVersions = 3
-	// Fetch a few extra releases so filtering (current/newer/prerelease) still leaves enough candidates
-	rollbackFetchPageSize = 15
 )
 
 // UpdateCache defines cache operations for update service
@@ -54,7 +40,6 @@ type UpdateCache interface {
 // GitHubReleaseClient 获取 GitHub release 信息的接口
 type GitHubReleaseClient interface {
 	FetchLatestRelease(ctx context.Context, repo string) (*GitHubRelease, error)
-	FetchRecentReleases(ctx context.Context, repo string, perPage int) ([]*GitHubRelease, error)
 	DownloadFile(ctx context.Context, url, dest string, maxSize int64) error
 	FetchChecksumFile(ctx context.Context, url string) ([]byte, error)
 }
@@ -111,16 +96,7 @@ type GitHubRelease struct {
 	Body        string        `json:"body"`
 	PublishedAt string        `json:"published_at"`
 	HTMLURL     string        `json:"html_url"`
-	Draft       bool          `json:"draft"`
-	Prerelease  bool          `json:"prerelease"`
 	Assets      []GitHubAsset `json:"assets"`
-}
-
-// RollbackVersion describes a release version the system can roll back to
-type RollbackVersion struct {
-	Version     string `json:"version"` // without "v" prefix, e.g. "0.1.146"
-	PublishedAt string `json:"published_at"`
-	HTMLURL     string `json:"html_url"`
 }
 
 type GitHubAsset struct {
@@ -169,22 +145,15 @@ func (s *UpdateService) PerformUpdate(ctx context.Context) error {
 	}
 
 	if !info.HasUpdate {
-		return ErrNoUpdateAvailable
+		return fmt.Errorf("no update available")
 	}
 
-	return s.applyReleaseAssets(ctx, info.ReleaseInfo.Assets)
-}
-
-// applyReleaseAssets downloads the platform archive from the given release assets,
-// verifies its checksum, and atomically swaps the running binary.
-// Shared by PerformUpdate (latest) and RollbackToVersion (specific older version).
-func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []Asset) error {
 	// Find matching archive and checksum for current platform
 	archiveName := s.getArchiveName()
 	var downloadURL string
 	var checksumURL string
 
-	for _, asset := range releaseAssets {
+	for _, asset := range info.ReleaseInfo.Assets {
 		if strings.Contains(asset.Name, archiveName) && !strings.HasSuffix(asset.Name, ".txt") {
 			downloadURL = asset.DownloadURL
 		}
@@ -221,7 +190,7 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 
 	// Create temp directory in the SAME directory as executable
 	// This ensures os.Rename is atomic (same filesystem)
-	tempDir, err := os.MkdirTemp(exeDir, ".sub2api-update-*")
+	tempDir, err := os.MkdirTemp(exeDir, ".ikik-api-update-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp dir: %w", err)
 	}
@@ -241,7 +210,7 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 	}
 
 	// Extract binary from archive
-	newBinaryPath := filepath.Join(tempDir, "sub2api")
+	newBinaryPath := filepath.Join(tempDir, "ikik-api")
 	if err := s.extractBinary(archivePath, newBinaryPath); err != nil {
 		return fmt.Errorf("extraction failed: %w", err)
 	}
@@ -303,105 +272,12 @@ func (s *UpdateService) Rollback() error {
 	return nil
 }
 
-// ListRollbackVersions returns up to maxRollbackVersions release versions that are
-// strictly older than the current version (the current version itself is excluded),
-// newest first. Draft and prerelease entries are skipped.
-func (s *UpdateService) ListRollbackVersions(ctx context.Context) ([]RollbackVersion, error) {
-	releases, err := s.fetchRollbackCandidates(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	versions := make([]RollbackVersion, 0, len(releases))
-	for _, r := range releases {
-		versions = append(versions, RollbackVersion{
-			Version:     strings.TrimPrefix(r.TagName, "v"),
-			PublishedAt: r.PublishedAt,
-			HTMLURL:     r.HTMLURL,
-		})
-	}
-	return versions, nil
-}
-
-// RollbackToVersion downloads and installs a specific older version.
-// The target must be one of the versions returned by ListRollbackVersions;
-// anything else (including the current version) is rejected.
-func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) error {
-	target := strings.TrimPrefix(strings.TrimSpace(version), "v")
-	if target == "" {
-		return ErrRollbackVersionNotAllowed
-	}
-
-	releases, err := s.fetchRollbackCandidates(ctx)
-	if err != nil {
-		return err
-	}
-
-	var match *GitHubRelease
-	for _, r := range releases {
-		if strings.TrimPrefix(r.TagName, "v") == target {
-			match = r
-			break
-		}
-	}
-	if match == nil {
-		return ErrRollbackVersionNotAllowed
-	}
-
-	assets := make([]Asset, len(match.Assets))
-	for i, a := range match.Assets {
-		assets[i] = Asset{
-			Name:        a.Name,
-			DownloadURL: a.BrowserDownloadURL,
-			Size:        a.Size,
-		}
-	}
-
-	return s.applyReleaseAssets(ctx, assets)
-}
-
-// fetchRollbackCandidates fetches recent releases and keeps the newest
-// maxRollbackVersions entries strictly older than the current version.
-func (s *UpdateService) fetchRollbackCandidates(ctx context.Context) ([]*GitHubRelease, error) {
-	releases, err := s.githubClient.FetchRecentReleases(ctx, githubRepo, rollbackFetchPageSize)
-	if err != nil {
-		return nil, err
-	}
-
-	seen := make(map[string]bool, len(releases))
-	candidates := make([]*GitHubRelease, 0, maxRollbackVersions)
-	for _, r := range releases {
-		if r == nil || r.Draft || r.Prerelease {
-			continue
-		}
-		v := strings.TrimPrefix(r.TagName, "v")
-		if v == "" || seen[v] {
-			continue
-		}
-		// Only versions strictly older than current (also excludes current itself)
-		if compareVersions(v, s.currentVersion) >= 0 {
-			continue
-		}
-		seen[v] = true
-		candidates = append(candidates, r)
-	}
-
-	sort.SliceStable(candidates, func(i, j int) bool {
-		return compareVersions(
-			strings.TrimPrefix(candidates[i].TagName, "v"),
-			strings.TrimPrefix(candidates[j].TagName, "v"),
-		) > 0
-	})
-
-	if len(candidates) > maxRollbackVersions {
-		candidates = candidates[:maxRollbackVersions]
-	}
-	return candidates, nil
-}
-
 func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, error) {
 	release, err := s.githubClient.FetchLatestRelease(ctx, githubRepo)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateUpdateReleaseSource(release); err != nil {
 		return nil, err
 	}
 
@@ -465,6 +341,37 @@ func validateDownloadURL(rawURL string) error {
 		return fmt.Errorf("download from untrusted host: %s", host)
 	}
 
+	return nil
+}
+
+func validateUpdateReleaseSource(release *GitHubRelease) error {
+	if release == nil {
+		return fmt.Errorf("release metadata is empty")
+	}
+	if err := validateUpdateRepositoryURL(release.HTMLURL); err != nil {
+		return fmt.Errorf("release source mismatch: %w", err)
+	}
+	for _, asset := range release.Assets {
+		if err := validateUpdateRepositoryURL(asset.BrowserDownloadURL); err != nil {
+			return fmt.Errorf("release asset %q source mismatch: %w", asset.Name, err)
+		}
+	}
+	return nil
+}
+
+func validateUpdateRepositoryURL(rawURL string) error {
+	parsedURL, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	if parsedURL.Scheme != "https" || !strings.EqualFold(parsedURL.Hostname(), allowedDownloadHost) {
+		return fmt.Errorf("URL must use https://%s", allowedDownloadHost)
+	}
+
+	expectedPrefix := "/" + strings.ToLower(githubRepo) + "/releases/"
+	if !strings.HasPrefix(strings.ToLower(parsedURL.EscapedPath()), expectedPrefix) {
+		return fmt.Errorf("expected repository %s", githubRepo)
+	}
 	return nil
 }
 
@@ -551,7 +458,7 @@ func (s *UpdateService) extractBinary(archivePath, destPath string) error {
 			}
 
 			// Only extract the specific binary we need
-			if baseName == "sub2api" || baseName == "sub2api.exe" {
+			if baseName == "ikik-api" || baseName == "ikik-api.exe" {
 				// Additional security: limit file size (max 500MB)
 				const maxBinarySize = 500 * 1024 * 1024
 				if hdr.Size > maxBinarySize {
@@ -610,6 +517,17 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 
 	if time.Now().Unix()-cached.Timestamp > updateCacheTTL {
 		return nil, fmt.Errorf("cache expired")
+	}
+	if cached.ReleaseInfo == nil {
+		return nil, fmt.Errorf("cached release metadata is empty")
+	}
+	if err := validateUpdateRepositoryURL(cached.ReleaseInfo.HTMLURL); err != nil {
+		return nil, fmt.Errorf("cached release source mismatch: %w", err)
+	}
+	for _, asset := range cached.ReleaseInfo.Assets {
+		if err := validateUpdateRepositoryURL(asset.DownloadURL); err != nil {
+			return nil, fmt.Errorf("cached release asset %q source mismatch: %w", asset.Name, err)
+		}
 	}
 
 	return &UpdateInfo{

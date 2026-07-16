@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"ikik-api/internal/pkg/logger"
 	"strings"
 	"time"
 )
@@ -361,7 +360,7 @@ func defaultOpsAdvancedSettings() *OpsAdvancedSettings {
 	return &OpsAdvancedSettings{
 		DataRetention: OpsDataRetentionSettings{
 			CleanupEnabled:             false,
-			CleanupSchedule:            opsCleanupDefaultSchedule,
+			CleanupSchedule:            "0 2 * * *",
 			ErrorLogRetentionDays:      30,
 			MinuteMetricsRetentionDays: 30,
 			HourlyMetricsRetentionDays: 30,
@@ -369,7 +368,6 @@ func defaultOpsAdvancedSettings() *OpsAdvancedSettings {
 		Aggregation: OpsAggregationSettings{
 			AggregationEnabled: false,
 		},
-		OpenAIAccountQuotaAutoPause:     OpsOpenAIAccountQuotaAutoPauseSettings{},
 		IgnoreCountTokensErrors:         true,  // count_tokens 404 是预期行为，默认忽略
 		IgnoreContextCanceled:           true,  // Default to true - client disconnects are not errors
 		IgnoreNoAvailableAccounts:       false, // Default to false - this is a real routing issue
@@ -385,11 +383,9 @@ func normalizeOpsAdvancedSettings(cfg *OpsAdvancedSettings) {
 	if cfg == nil {
 		return
 	}
-	cfg.OpenAIAccountQuotaAutoPause.DefaultThreshold5h = clampOpsQuotaAutoPauseThreshold(cfg.OpenAIAccountQuotaAutoPause.DefaultThreshold5h)
-	cfg.OpenAIAccountQuotaAutoPause.DefaultThreshold7d = clampOpsQuotaAutoPauseThreshold(cfg.OpenAIAccountQuotaAutoPause.DefaultThreshold7d)
 	cfg.DataRetention.CleanupSchedule = strings.TrimSpace(cfg.DataRetention.CleanupSchedule)
 	if cfg.DataRetention.CleanupSchedule == "" {
-		cfg.DataRetention.CleanupSchedule = opsCleanupDefaultSchedule
+		cfg.DataRetention.CleanupSchedule = "0 2 * * *"
 	}
 	// 保留天数：0 表示每次定时清理全部（清空所有），> 0 表示按天数保留；
 	// 仅在拿到非法的负数时回填默认值，避免覆盖用户主动设的 0。
@@ -406,16 +402,6 @@ func normalizeOpsAdvancedSettings(cfg *OpsAdvancedSettings) {
 	if cfg.AutoRefreshIntervalSec <= 0 {
 		cfg.AutoRefreshIntervalSec = 30
 	}
-}
-
-func clampOpsQuotaAutoPauseThreshold(value float64) float64 {
-	if value <= 0 {
-		return 0
-	}
-	if value > 1 {
-		return 1
-	}
-	return value
 }
 
 func validateOpsAdvancedSettings(cfg *OpsAdvancedSettings) error {
@@ -489,20 +475,6 @@ func (s *OpsService) UpdateOpsAdvancedSettings(ctx context.Context, cfg *OpsAdva
 	}
 	if err := s.settingRepo.Set(ctx, SettingKeyOpsAdvancedSettings, string(raw)); err != nil {
 		return nil, err
-	}
-	// Push the new quota auto-pause settings straight into the in-memory cache that
-	// the OpenAI scheduling hot path reads, so the next request observes the new value
-	// without waiting for the background refresher's TTL.
-	if s.quotaAutoPauseSink != nil {
-		s.quotaAutoPauseSink(cfg.OpenAIAccountQuotaAutoPause)
-	}
-
-	// notify cleanup service to reload schedule/enabled.
-	if s.cleanupReloader != nil {
-		if rerr := s.cleanupReloader.Reload(ctx); rerr != nil {
-			logger.LegacyPrintf("service.ops_settings",
-				"[OpsSettings] cleanup reload after advanced-settings update failed: %v", rerr)
-		}
 	}
 
 	updated := &OpsAdvancedSettings{}

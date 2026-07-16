@@ -6,12 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/paymentauditlog"
+	"ikik-api/ent/predicate"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/paymentauditlog"
-	"ikik-api/ent/predicate"
 )
 
 // PaymentAuditLogUpdate is the builder for updating PaymentAuditLog entities.

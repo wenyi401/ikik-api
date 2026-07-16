@@ -65,3 +65,25 @@ func TestBuildUsageLogBatchInsertQuery_UsesConflictDoNothing(t *testing.T) {
 	require.Contains(t, query, "ON CONFLICT (request_id, api_key_id) DO NOTHING")
 	require.NotContains(t, strings.ToUpper(query), "DO UPDATE")
 }
+
+func TestUsageSnapshotBusinessDateUsesShanghaiDay(t *testing.T) {
+	got := usageSnapshotBusinessDate(time.Date(2024, 1, 1, 16, 30, 0, 0, time.UTC))
+	require.Equal(t, "2024-01-02", got)
+}
+
+func TestIsUsageSnapshotBusinessFullDayRange(t *testing.T) {
+	loc := usageSnapshotBusinessLocation()
+	start := time.Date(2024, 1, 2, 0, 0, 0, 0, loc)
+	end := start.AddDate(0, 0, 1)
+
+	require.True(t, isUsageSnapshotBusinessFullDayRange(start.UTC(), end.UTC()))
+	require.False(t, isUsageSnapshotBusinessFullDayRange(start.Add(time.Hour), end))
+}
+
+func TestBuildSnapshotUsageStatsConditionsUsesShanghaiDateStrings(t *testing.T) {
+	start := time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC)
+	end := time.Date(2024, 1, 2, 16, 0, 0, 0, time.UTC)
+	_, args := buildSnapshotUsageStatsConditions(UsageLogFilters{StartTime: &start, EndTime: &end})
+
+	require.Equal(t, []any{"2024-01-02", "2024-01-03"}, args)
+}

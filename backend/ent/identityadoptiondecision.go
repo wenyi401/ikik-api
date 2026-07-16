@@ -4,14 +4,14 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/authidentity"
+	"ikik-api/ent/identityadoptiondecision"
+	"ikik-api/ent/pendingauthsession"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/authidentity"
-	"ikik-api/ent/identityadoptiondecision"
-	"ikik-api/ent/pendingauthsession"
 )
 
 // IdentityAdoptionDecision is the model entity for the IdentityAdoptionDecision schema.

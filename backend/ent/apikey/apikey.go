@@ -65,6 +65,8 @@ const (
 	EdgeUser = "user"
 	// EdgeGroup holds the string denoting the group edge name in mutations.
 	EdgeGroup = "group"
+	// EdgeGroupRoutes holds the string denoting the group_routes edge name in mutations.
+	EdgeGroupRoutes = "group_routes"
 	// EdgeUsageLogs holds the string denoting the usage_logs edge name in mutations.
 	EdgeUsageLogs = "usage_logs"
 	// Table holds the table name of the apikey in the database.
@@ -83,6 +85,13 @@ const (
 	GroupInverseTable = "groups"
 	// GroupColumn is the table column denoting the group relation/edge.
 	GroupColumn = "group_id"
+	// GroupRoutesTable is the table that holds the group_routes relation/edge.
+	GroupRoutesTable = "api_key_group_routes"
+	// GroupRoutesInverseTable is the table name for the APIKeyGroupRoute entity.
+	// It exists in this package in order to avoid circular dependency with the "apikeygrouproute" package.
+	GroupRoutesInverseTable = "api_key_group_routes"
+	// GroupRoutesColumn is the table column denoting the group_routes relation/edge.
+	GroupRoutesColumn = "api_key_id"
 	// UsageLogsTable is the table that holds the usage_logs relation/edge.
 	UsageLogsTable = "usage_logs"
 	// UsageLogsInverseTable is the table name for the UsageLog entity.
@@ -297,6 +306,20 @@ func ByGroupField(field string, opts ...sql.OrderTermOption) OrderOption {
 	}
 }
 
+// ByGroupRoutesCount orders the results by group_routes count.
+func ByGroupRoutesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newGroupRoutesStep(), opts...)
+	}
+}
+
+// ByGroupRoutes orders the results by group_routes terms.
+func ByGroupRoutes(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newGroupRoutesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByUsageLogsCount orders the results by usage_logs count.
 func ByUsageLogsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -322,6 +345,13 @@ func newGroupStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(GroupInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2O, true, GroupTable, GroupColumn),
+	)
+}
+func newGroupRoutesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(GroupRoutesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, GroupRoutesTable, GroupRoutesColumn),
 	)
 }
 func newUsageLogsStep() *sqlgraph.Step {

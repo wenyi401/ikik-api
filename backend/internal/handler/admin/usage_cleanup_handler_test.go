@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -57,6 +58,18 @@ func (s *cleanupRepoStub) ListTasks(ctx context.Context, params pagination.Pagin
 
 func (s *cleanupRepoStub) ClaimNextPendingTask(ctx context.Context, staleRunningAfterSeconds int64) (*service.UsageCleanupTask, error) {
 	return nil, nil
+}
+
+func (s *cleanupRepoStub) FindOldestUsageLogBefore(ctx context.Context, cutoff time.Time) (*time.Time, error) {
+	return nil, nil
+}
+
+func (s *cleanupRepoStub) ExportUsageLogs(ctx context.Context, filters service.UsageCleanupFilters) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(nil)), nil
+}
+
+func (s *cleanupRepoStub) SnapshotUsageLogs(ctx context.Context, filters service.UsageCleanupFilters) error {
+	return nil
 }
 
 func (s *cleanupRepoStub) GetTaskStatus(ctx context.Context, taskID int64) (string, error) {

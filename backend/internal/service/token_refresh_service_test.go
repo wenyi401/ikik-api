@@ -20,15 +20,8 @@ type tokenRefreshAccountRepo struct {
 	setErrorCalls          int
 	clearTempCalls         int
 	setTempUnschedCalls    int
-	updateExtraCalls       int
-	lastErrorMessage       string
-	lastTempUnschedReason  string
-	lastExtraUpdates       map[string]any
 	lastAccount            *Account
 	updateErr              error
-	setErrorErr            error
-	setTempUnschedErr      error
-	beforeConditionalState func()
 }
 
 func (r *tokenRefreshAccountRepo) Update(ctx context.Context, account *Account) error {
@@ -44,7 +37,7 @@ func (r *tokenRefreshAccountRepo) UpdateCredentials(ctx context.Context, id int6
 	if r.updateErr != nil {
 		return r.updateErr
 	}
-	cloned := shallowCopyMap(credentials)
+	cloned := cloneCredentials(credentials)
 	if r.accountsByID != nil {
 		if acc, ok := r.accountsByID[id]; ok && acc != nil {
 			acc.Credentials = cloned
@@ -58,8 +51,7 @@ func (r *tokenRefreshAccountRepo) UpdateCredentials(ctx context.Context, id int6
 
 func (r *tokenRefreshAccountRepo) SetError(ctx context.Context, id int64, errorMsg string) error {
 	r.setErrorCalls++
-	r.lastErrorMessage = errorMsg
-	return r.setErrorErr
+	return nil
 }
 
 func (r *tokenRefreshAccountRepo) ClearTempUnschedulable(ctx context.Context, id int64) error {
@@ -69,82 +61,6 @@ func (r *tokenRefreshAccountRepo) ClearTempUnschedulable(ctx context.Context, id
 
 func (r *tokenRefreshAccountRepo) SetTempUnschedulable(ctx context.Context, id int64, until time.Time, reason string) error {
 	r.setTempUnschedCalls++
-	r.lastTempUnschedReason = reason
-	return r.setTempUnschedErr
-}
-
-func (r *tokenRefreshAccountRepo) SetGrokCredentialErrorIfMatch(
-	_ context.Context,
-	id int64,
-	snapshot GrokCredentialMutationSnapshot,
-	errorMsg string,
-) (bool, error) {
-	if r.beforeConditionalState != nil {
-		hook := r.beforeConditionalState
-		r.beforeConditionalState = nil
-		hook()
-	}
-	account := r.accountsByID[id]
-	if !grokCredentialSnapshotMatchesAccount(account, snapshot) ||
-		(errorMsg == string(GrokCredentialReasonProxyInvalid) && account.Proxy != nil) {
-		return false, nil
-	}
-	r.setErrorCalls++
-	r.lastErrorMessage = errorMsg
-	if r.setErrorErr != nil {
-		return false, r.setErrorErr
-	}
-	account.Status = StatusError
-	account.Schedulable = false
-	account.ErrorMessage = errorMsg
-	return true, nil
-}
-
-func (r *tokenRefreshAccountRepo) SetGrokCredentialTempUnschedulableIfMatch(
-	_ context.Context,
-	id int64,
-	snapshot GrokCredentialMutationSnapshot,
-	until time.Time,
-	reason string,
-) (bool, error) {
-	if r.beforeConditionalState != nil {
-		hook := r.beforeConditionalState
-		r.beforeConditionalState = nil
-		hook()
-	}
-	account := r.accountsByID[id]
-	if !grokCredentialSnapshotMatchesAccount(account, snapshot) {
-		return false, nil
-	}
-	r.setTempUnschedCalls++
-	r.lastTempUnschedReason = reason
-	if r.setTempUnschedErr != nil {
-		return false, r.setTempUnschedErr
-	}
-	value := until
-	account.TempUnschedulableUntil = &value
-	return true, nil
-}
-
-func grokCredentialSnapshotMatchesAccount(account *Account, snapshot GrokCredentialMutationSnapshot) bool {
-	return account != nil && account.IsGrokOAuth() && account.IsSchedulable() &&
-		grokCredentialMutationSnapshot(account).CredentialsJSON == snapshot.CredentialsJSON &&
-		grokCredentialProxyIDsEqual(account.ProxyID, snapshot.ProxyID)
-}
-
-func (r *tokenRefreshAccountRepo) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
-	r.updateExtraCalls++
-	r.lastExtraUpdates = shallowCopyMap(updates)
-	if r.accountsByID != nil {
-		if acc, ok := r.accountsByID[id]; ok && acc != nil {
-			if acc.Extra == nil {
-				acc.Extra = make(map[string]any, len(updates))
-			}
-			for k, v := range updates {
-				acc.Extra[k] = v
-			}
-		}
-	}
 	return nil
 }
 
@@ -160,13 +76,9 @@ func (s *tokenCacheInvalidatorStub) InvalidateToken(ctx context.Context, account
 
 type tempUnschedCacheStub struct {
 	deleteCalls int
-	setCalls    int
-	lastState   *TempUnschedState
 }
 
 func (s *tempUnschedCacheStub) SetTempUnsched(ctx context.Context, accountID int64, state *TempUnschedState) error {
-	s.setCalls++
-	s.lastState = state
 	return nil
 }
 
@@ -311,121 +223,6 @@ func TestTokenRefreshService_RefreshWithRetry_Antigravity(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, repo.updateCalls)
 	require.Equal(t, 1, invalidator.calls) // Antigravity 也应触发缓存失效
-}
-
-func TestAntigravityTokenRefresher_NeedsRefresh_ForceRefreshMarker(t *testing.T) {
-	refresher := NewAntigravityTokenRefresher(nil)
-	account := &Account{
-		ID:       3675,
-		Platform: PlatformAntigravity,
-		Type:     AccountTypeOAuth,
-		Credentials: map[string]any{
-			"expires_at": time.Now().Add(time.Hour).Format(time.RFC3339),
-		},
-		Extra: map[string]any{
-			antigravityForceTokenRefreshExtraKey: true,
-		},
-	}
-
-	require.True(t, refresher.NeedsRefresh(account, 0), "server-invalidated token must refresh even before expires_at")
-}
-
-func TestAntigravityTokenRefresher_NeedsRefresh_NormalExpiryRulesUnchanged(t *testing.T) {
-	refresher := NewAntigravityTokenRefresher(nil)
-
-	t.Run("normal_unexpired_without_marker_does_not_refresh", func(t *testing.T) {
-		account := &Account{
-			ID:       3707,
-			Platform: PlatformAntigravity,
-			Type:     AccountTypeOAuth,
-			Credentials: map[string]any{
-				"expires_at": time.Now().Add(time.Hour).Format(time.RFC3339),
-			},
-		}
-
-		require.False(t, refresher.NeedsRefresh(account, 0))
-	})
-
-	t.Run("normal_expiring_refreshes", func(t *testing.T) {
-		account := &Account{
-			ID:       3708,
-			Platform: PlatformAntigravity,
-			Type:     AccountTypeOAuth,
-			Credentials: map[string]any{
-				"expires_at": time.Now().Add(5 * time.Minute).Format(time.RFC3339),
-			},
-		}
-
-		require.True(t, refresher.NeedsRefresh(account, 0))
-	})
-}
-
-func TestTokenRefreshService_RefreshWithRetry_AntigravityClearsForceRefreshOnSuccess(t *testing.T) {
-	repo := &tokenRefreshAccountRepo{}
-	cfg := &config.Config{
-		TokenRefresh: config.TokenRefreshConfig{
-			MaxRetries:          1,
-			RetryBackoffSeconds: 0,
-		},
-	}
-	service := NewTokenRefreshService(repo, nil, nil, nil, nil, nil, nil, cfg, nil)
-	until := time.Now().Add(10 * time.Minute)
-	account := &Account{
-		ID:                     3709,
-		Platform:               PlatformAntigravity,
-		Type:                   AccountTypeOAuth,
-		TempUnschedulableUntil: &until,
-		Extra: map[string]any{
-			antigravityForceTokenRefreshExtraKey:       true,
-			antigravityForceTokenRefreshReasonExtraKey: "401_invalid",
-			"privacy_mode": AntigravityPrivacySet,
-		},
-	}
-	refresher := &tokenRefresherStub{
-		credentials: map[string]any{
-			"access_token": "new-ag-token",
-		},
-	}
-
-	err := service.refreshWithRetry(context.Background(), account, refresher, refresher, time.Hour)
-	require.NoError(t, err)
-	require.Equal(t, 1, repo.updateCredentialsCalls)
-	require.Equal(t, 1, repo.updateExtraCalls)
-	require.Equal(t, false, repo.lastExtraUpdates[antigravityForceTokenRefreshExtraKey])
-	require.Equal(t, "", repo.lastExtraUpdates[antigravityForceTokenRefreshReasonExtraKey])
-	require.Equal(t, false, account.Extra[antigravityForceTokenRefreshExtraKey])
-	require.Equal(t, 1, repo.clearTempCalls, "successful refresh should restore schedulability")
-}
-
-func TestTokenRefreshService_RefreshWithRetry_AntigravityForceRefreshInvalidGrantSetsError(t *testing.T) {
-	repo := &tokenRefreshAccountRepo{}
-	cfg := &config.Config{
-		TokenRefresh: config.TokenRefreshConfig{
-			MaxRetries:          3,
-			RetryBackoffSeconds: 0,
-		},
-	}
-	service := NewTokenRefreshService(repo, nil, nil, nil, nil, nil, nil, cfg, nil)
-	account := &Account{
-		ID:       3710,
-		Platform: PlatformAntigravity,
-		Type:     AccountTypeOAuth,
-		Extra: map[string]any{
-			antigravityForceTokenRefreshExtraKey:       true,
-			antigravityForceTokenRefreshReasonExtraKey: "401_invalid",
-		},
-	}
-	refresher := &tokenRefresherStub{
-		err: errors.New("invalid_grant: token revoked"),
-	}
-
-	err := service.refreshWithRetry(context.Background(), account, refresher, refresher, time.Hour)
-	require.Error(t, err)
-	require.Equal(t, 1, repo.setErrorCalls)
-	require.Equal(t, 0, repo.setTempUnschedCalls)
-	require.Equal(t, 1, repo.updateExtraCalls)
-	require.Equal(t, false, repo.lastExtraUpdates[antigravityForceTokenRefreshExtraKey])
-	require.Contains(t, repo.lastErrorMessage, "non-retryable")
 }
 
 // TestTokenRefreshService_RefreshWithRetry_NonOAuthAccount 测试非 OAuth 账号不触发缓存失效
@@ -735,22 +532,18 @@ func TestIsNonRetryableRefreshError(t *testing.T) {
 		{name: "network_error", err: errors.New("network timeout"), expected: false},
 		{name: "invalid_grant", err: errors.New("invalid_grant"), expected: true},
 		{name: "invalid_client", err: errors.New("invalid_client"), expected: true},
-		{name: "invalid_refresh_token", err: errors.New(`OPENAI_OAUTH_TOKEN_REFRESH_FAILED: token refresh failed: status 401, body: {"error":{"code":"invalid_refresh_token"}}`), expected: true},
-		{name: "token_expired", err: errors.New(`OPENAI_OAUTH_TOKEN_REFRESH_FAILED: token refresh failed: status 401, body: {"error":{"code":"token_expired"}}`), expected: true},
-		{name: "refresh_token_reused", err: errors.New(`OPENAI_OAUTH_TOKEN_REFRESH_FAILED: token refresh failed: status 401, body: {"error":{"code":"refresh_token_reused"}}`), expected: true},
-		{name: "app_session_terminated", err: errors.New(`OPENAI_OAUTH_TOKEN_REFRESH_FAILED: token refresh failed: status 401, body: {"error": {"code": "app_session_terminated"}}`), expected: true},
 		{name: "unauthorized_client", err: errors.New("unauthorized_client"), expected: true},
 		{name: "access_denied", err: errors.New("access_denied"), expected: true},
 		{name: "no_refresh_token", err: errors.New("no refresh token available"), expected: true},
-		{name: "grok_entitlement_denied", err: errors.New("GROK_OAUTH_ENTITLEMENT_DENIED: subscription required"), expected: true},
-		{name: "invalid_scope", err: errors.New("invalid_scope: requested scope is not allowed"), expected: true},
+		{name: "try_signing_in_again", err: errors.New("Please try signing in again"), expected: true},
+		{name: "try_signing_in_again_with_context", err: errors.New("token endpoint returned 401: Please try signing in again"), expected: true},
 		{name: "invalid_grant_with_desc", err: errors.New("Error: invalid_grant - token revoked"), expected: true},
 		{name: "case_insensitive", err: errors.New("INVALID_GRANT"), expected: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isNonRetryableRefreshError(tt.err)
+			result := IsNonRetryableRefreshError(tt.err)
 			require.Equal(t, tt.expected, result)
 		})
 	}
@@ -812,7 +605,6 @@ func TestPathA_Success(t *testing.T) {
 		ID:       100,
 		Platform: PlatformGemini,
 		Type:     AccountTypeOAuth,
-		Status:   StatusActive,
 	}
 	repo := &tokenRefreshAccountRepo{}
 	repo.accountsByID = map[int64]*Account{account.ID: account}
@@ -834,7 +626,6 @@ func TestPathA_LockHeld(t *testing.T) {
 		ID:       101,
 		Platform: PlatformGemini,
 		Type:     AccountTypeOAuth,
-		Status:   StatusActive,
 	}
 	repo := &tokenRefreshAccountRepo{}
 	invalidator := &tokenCacheInvalidatorStub{}
@@ -855,7 +646,6 @@ func TestPathA_AlreadyRefreshed(t *testing.T) {
 		ID:       102,
 		Platform: PlatformGemini,
 		Type:     AccountTypeOAuth,
-		Status:   StatusActive,
 	}
 	repo := &tokenRefreshAccountRepo{}
 	repo.accountsByID = map[int64]*Account{account.ID: account}
@@ -895,7 +685,6 @@ func TestPathA_NonRetryableError(t *testing.T) {
 		ID:       103,
 		Platform: PlatformGemini,
 		Type:     AccountTypeOAuth,
-		Status:   StatusActive,
 	}
 	repo := &tokenRefreshAccountRepo{}
 	repo.accountsByID = map[int64]*Account{account.ID: account}
@@ -921,7 +710,6 @@ func TestPathA_RetryableErrorExhausted(t *testing.T) {
 		ID:       104,
 		Platform: PlatformGemini,
 		Type:     AccountTypeOAuth,
-		Status:   StatusActive,
 	}
 	repo := &tokenRefreshAccountRepo{}
 	repo.accountsByID = map[int64]*Account{account.ID: account}
@@ -955,7 +743,6 @@ func TestPathA_DBUpdateFailed(t *testing.T) {
 		ID:       105,
 		Platform: PlatformGemini,
 		Type:     AccountTypeOAuth,
-		Status:   StatusActive,
 	}
 	repo := &tokenRefreshAccountRepo{updateErr: errors.New("db connection lost")}
 	repo.accountsByID = map[int64]*Account{account.ID: account}
@@ -966,7 +753,7 @@ func TestPathA_DBUpdateFailed(t *testing.T) {
 
 	err := service.refreshWithRetry(context.Background(), account, refresher, refresher, time.Hour)
 	require.Error(t, err)
-	require.ErrorIs(t, err, errOAuthRefreshCredentialPersist)
+	require.Contains(t, err.Error(), "DB update failed")
 	require.Equal(t, 1, repo.updateCalls)  // DB 更新被尝试
 	require.Equal(t, 0, invalidator.calls) // DB 失败时不应触发缓存失效
 }

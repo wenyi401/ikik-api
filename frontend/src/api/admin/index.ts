@@ -11,6 +11,7 @@ import proxiesAPI from './proxies'
 import redeemAPI from './redeem'
 import promoAPI from './promo'
 import announcementsAPI from './announcements'
+import emailBroadcastsAPI from './emailBroadcasts'
 import settingsAPI from './settings'
 import systemAPI from './system'
 import subscriptionsAPI from './subscriptions'
@@ -18,6 +19,7 @@ import usageAPI from './usage'
 import geminiAPI from './gemini'
 import antigravityAPI from './antigravity'
 import grokAPI from './grok'
+import kiroAPI from './kiro'
 import userAttributesAPI from './userAttributes'
 import opsAPI from './ops'
 import errorPassthroughAPI from './errorPassthrough'
@@ -30,9 +32,12 @@ import channelsAPI from './channels'
 import channelMonitorAPI from './channelMonitor'
 import channelMonitorTemplateAPI from './channelMonitorTemplate'
 import adminPaymentAPI from './payment'
+import revenueAPI from './revenue'
 import affiliatesAPI from './affiliates'
+import accountSharePoliciesAPI from './accountSharePolicies'
 import riskControlAPI from './riskControl'
-import adminComplianceAPI from './compliance'
+import carpoolsAPI from './carpools'
+import modulesAPI from './modules'
 
 /**
  * Unified admin API object for convenient access
@@ -46,6 +51,7 @@ export const adminAPI = {
   redeem: redeemAPI,
   promo: promoAPI,
   announcements: announcementsAPI,
+  emailBroadcasts: emailBroadcastsAPI,
   settings: settingsAPI,
   system: systemAPI,
   subscriptions: subscriptionsAPI,
@@ -53,6 +59,7 @@ export const adminAPI = {
   gemini: geminiAPI,
   antigravity: antigravityAPI,
   grok: grokAPI,
+  kiro: kiroAPI,
   userAttributes: userAttributesAPI,
   ops: opsAPI,
   errorPassthrough: errorPassthroughAPI,
@@ -65,9 +72,12 @@ export const adminAPI = {
   channelMonitor: channelMonitorAPI,
   channelMonitorTemplate: channelMonitorTemplateAPI,
   payment: adminPaymentAPI,
+  revenue: revenueAPI,
   affiliates: affiliatesAPI,
+  accountSharePolicies: accountSharePoliciesAPI,
   riskControl: riskControlAPI,
-  compliance: adminComplianceAPI
+  carpools: carpoolsAPI,
+  modules: modulesAPI
 }
 
 export {
@@ -79,6 +89,7 @@ export {
   redeemAPI,
   promoAPI,
   announcementsAPI,
+  emailBroadcastsAPI,
   settingsAPI,
   systemAPI,
   subscriptionsAPI,
@@ -86,6 +97,7 @@ export {
   geminiAPI,
   antigravityAPI,
   grokAPI,
+  kiroAPI,
   userAttributesAPI,
   opsAPI,
   errorPassthroughAPI,
@@ -98,9 +110,12 @@ export {
   channelMonitorAPI,
   channelMonitorTemplateAPI,
   adminPaymentAPI,
+  revenueAPI,
   affiliatesAPI,
+  accountSharePoliciesAPI,
   riskControlAPI,
-  adminComplianceAPI
+  carpoolsAPI,
+  modulesAPI
 }
 
 export default adminAPI
@@ -110,4 +125,6 @@ export type { BalanceHistoryItem } from './users'
 export type { ErrorPassthroughRule, CreateRuleRequest, UpdateRuleRequest } from './errorPassthrough'
 export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'
 export type { TLSFingerprintProfile, CreateProfileRequest, UpdateProfileRequest } from './tlsFingerprintProfile'
-export type { ContentModerationConfig, ContentModerationLog, ModerationMode } from './riskControl'
+export type { RevenueSummary, RevenueSummaryParams } from './revenue'
+export type { AccountSharePolicy } from './accountSharePolicies'
+export type { AdminCarpoolPoolSummary, AdminCarpoolFilters } from './carpools'

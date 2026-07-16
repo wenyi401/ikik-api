@@ -10,9 +10,11 @@ import (
 	dbent "ikik-api/ent"
 	"ikik-api/ent/enttest"
 	"ikik-api/internal/payment"
+	infraerrors "ikik-api/internal/pkg/errors"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
+	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 )
 
@@ -187,23 +189,6 @@ func TestParsePaymentConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("custom enabled types are preserved", func(t *testing.T) {
-		t.Parallel()
-		vals := map[string]string{
-			SettingEnabledPaymentTypes: "alipay,ldc,usdt_trc20",
-		}
-		cfg := svc.parsePaymentConfig(vals)
-		want := []string{"alipay", "ldc", "usdt_trc20"}
-		if len(cfg.EnabledTypes) != len(want) {
-			t.Fatalf("EnabledTypes len = %d, want %d (%v)", len(cfg.EnabledTypes), len(want), cfg.EnabledTypes)
-		}
-		for i := range want {
-			if cfg.EnabledTypes[i] != want[i] {
-				t.Fatalf("EnabledTypes[%d] = %q, want %q (full=%v)", i, cfg.EnabledTypes[i], want[i], cfg.EnabledTypes)
-			}
-		}
-	})
-
 	t.Run("empty enabled types string", func(t *testing.T) {
 		t.Parallel()
 		vals := map[string]string{
@@ -372,10 +357,38 @@ func newPaymentConfigServiceTestClient(t *testing.T) *dbent.Client {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	t.Cleanup(func() { _ = db.Close() })
 
 	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
 		t.Fatalf("enable foreign keys: %v", err)
+	}
+
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS points_ledger (
+			id integer PRIMARY KEY AUTOINCREMENT,
+			user_id integer NOT NULL,
+			direction varchar(10) NOT NULL,
+			amount decimal(20,10) NOT NULL,
+			reason varchar(50) NOT NULL,
+			ref_type varchar(50) NOT NULL,
+			ref_id integer,
+			balance_before decimal(20,10) NOT NULL,
+			balance_after decimal(20,10) NOT NULL,
+			operator_user_id integer,
+			metadata text NOT NULL DEFAULT '{}',
+			created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)
+	`); err != nil {
+		t.Fatalf("create points ledger test table: %v", err)
+	}
+	if _, err := db.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_points_ledger_unique_ref_reason
+		ON points_ledger (user_id, direction, reason, ref_type, ref_id)
+		WHERE ref_id IS NOT NULL
+	`); err != nil {
+		t.Fatalf("create points ledger test index: %v", err)
 	}
 
 	drv := entsql.OpenDB(dialect.SQLite, db)
@@ -447,6 +460,117 @@ func TestUpdatePaymentConfig_PersistsVisibleMethodRouting(t *testing.T) {
 	if repo.values[SettingPaymentVisibleMethodWxpaySource] != VisibleMethodSourceOfficialWechat {
 		t.Fatalf("wxpay source = %q, want %q", repo.values[SettingPaymentVisibleMethodWxpaySource], VisibleMethodSourceOfficialWechat)
 	}
+}
+
+func TestPaymentConfigReceiptCodeOSS(t *testing.T) {
+	t.Parallel()
+
+	key := []byte("12345678901234567890123456789012")
+	repo := &paymentConfigSettingRepoStub{values: map[string]string{}}
+	svc := &PaymentConfigService{settingRepo: repo, encryptionKey: key}
+	enabled := true
+	forcePathStyle := false
+	maxSize := int64(2 * 1024 * 1024)
+	presignExpire := 600
+
+	err := svc.UpdatePaymentConfig(context.Background(), UpdatePaymentConfigRequest{
+		ReceiptCodeOSSEnabled:              &enabled,
+		ReceiptCodeOSSEndpoint:             paymentConfigStrPtr("https://oss-cn-hangzhou.aliyuncs.com"),
+		ReceiptCodeOSSRegion:               paymentConfigStrPtr("oss-cn-hangzhou"),
+		ReceiptCodeOSSBucket:               paymentConfigStrPtr("ikik-api"),
+		ReceiptCodeOSSAccessKeyID:          paymentConfigStrPtr("ak"),
+		ReceiptCodeOSSSecretAccessKey:      paymentConfigStrPtr("secret"),
+		ReceiptCodeOSSPrefix:               paymentConfigStrPtr("receipt-codes"),
+		ReceiptCodeOSSPublicBaseURL:        paymentConfigStrPtr("https://cdn.example.com/base/"),
+		ReceiptCodeOSSForcePathStyle:       &forcePathStyle,
+		ReceiptCodeOSSMaxSizeBytes:         &maxSize,
+		ReceiptCodeOSSPresignExpireSeconds: &presignExpire,
+	})
+	if err != nil {
+		t.Fatalf("UpdatePaymentConfig returned error: %v", err)
+	}
+	if repo.values[SettingPaymentReceiptCodeOSSSecretAccessKey] == "secret" {
+		t.Fatal("receipt code OSS secret was stored in plaintext")
+	}
+
+	cfg, err := svc.GetPaymentConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GetPaymentConfig returned error: %v", err)
+	}
+	if !cfg.ReceiptCodeOSS.Enabled {
+		t.Fatal("ReceiptCodeOSS.Enabled = false, want true")
+	}
+	if cfg.ReceiptCodeOSS.SecretAccessKey != "secret" {
+		t.Fatalf("ReceiptCodeOSS secret = %q, want secret", cfg.ReceiptCodeOSS.SecretAccessKey)
+	}
+	if !cfg.ReceiptCodeOSS.SecretAccessKeyConfigured {
+		t.Fatal("ReceiptCodeOSS.SecretAccessKeyConfigured = false, want true")
+	}
+	if cfg.ReceiptCodeOSS.Prefix != "receipt-codes/" {
+		t.Fatalf("ReceiptCodeOSS.Prefix = %q, want receipt-codes/", cfg.ReceiptCodeOSS.Prefix)
+	}
+	if cfg.ReceiptCodeOSS.PublicBaseURL != "https://cdn.example.com/base" {
+		t.Fatalf("ReceiptCodeOSS.PublicBaseURL = %q, want trimmed URL", cfg.ReceiptCodeOSS.PublicBaseURL)
+	}
+}
+
+func TestPaymentConfigReceiptCodeOSSKeepsExistingSecretOnBlankUpdate(t *testing.T) {
+	t.Parallel()
+
+	key := []byte("12345678901234567890123456789012")
+	repo := &paymentConfigSettingRepoStub{values: map[string]string{}}
+	svc := &PaymentConfigService{settingRepo: repo, encryptionKey: key}
+	enabled := true
+	err := svc.UpdatePaymentConfig(context.Background(), UpdatePaymentConfigRequest{
+		ReceiptCodeOSSEnabled:         &enabled,
+		ReceiptCodeOSSEndpoint:        paymentConfigStrPtr("https://oss-cn-hangzhou.aliyuncs.com"),
+		ReceiptCodeOSSBucket:          paymentConfigStrPtr("ikik-api"),
+		ReceiptCodeOSSAccessKeyID:     paymentConfigStrPtr("ak"),
+		ReceiptCodeOSSSecretAccessKey: paymentConfigStrPtr("secret"),
+	})
+	if err != nil {
+		t.Fatalf("initial UpdatePaymentConfig returned error: %v", err)
+	}
+	err = svc.UpdatePaymentConfig(context.Background(), UpdatePaymentConfigRequest{
+		ReceiptCodeOSSEndpoint:        paymentConfigStrPtr("https://oss-cn-shanghai.aliyuncs.com"),
+		ReceiptCodeOSSSecretAccessKey: paymentConfigStrPtr(""),
+	})
+	if err != nil {
+		t.Fatalf("blank-secret UpdatePaymentConfig returned error: %v", err)
+	}
+	if repo.values[SettingPaymentReceiptCodeOSSSecretAccessKey] == "" {
+		t.Fatal("blank secret update cleared existing secret")
+	}
+	cfg, err := svc.GetReceiptCodeStorageConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GetReceiptCodeStorageConfig returned error: %v", err)
+	}
+	if cfg.SecretAccessKey != "secret" {
+		t.Fatalf("retained secret = %q, want secret", cfg.SecretAccessKey)
+	}
+}
+
+func TestPaymentConfigReceiptCodeOSSRequiresSecretWhenAccessKeyChanges(t *testing.T) {
+	t.Parallel()
+
+	key := []byte("12345678901234567890123456789012")
+	repo := &paymentConfigSettingRepoStub{values: map[string]string{}}
+	svc := &PaymentConfigService{settingRepo: repo, encryptionKey: key}
+	enabled := true
+	require.NoError(t, svc.UpdatePaymentConfig(context.Background(), UpdatePaymentConfigRequest{
+		ReceiptCodeOSSEnabled:         &enabled,
+		ReceiptCodeOSSEndpoint:        paymentConfigStrPtr("https://oss.example.com"),
+		ReceiptCodeOSSBucket:          paymentConfigStrPtr("receipts"),
+		ReceiptCodeOSSAccessKeyID:     paymentConfigStrPtr("old-access-key"),
+		ReceiptCodeOSSSecretAccessKey: paymentConfigStrPtr("old-secret"),
+	}))
+
+	err := svc.UpdatePaymentConfig(context.Background(), UpdatePaymentConfigRequest{
+		ReceiptCodeOSSAccessKeyID:     paymentConfigStrPtr("new-access-key"),
+		ReceiptCodeOSSSecretAccessKey: paymentConfigStrPtr(""),
+	})
+	require.Error(t, err)
+	require.Equal(t, "RECEIPT_CODE_OSS_SECRET_REQUIRED_FOR_NEW_ACCESS_KEY", infraerrors.Reason(err))
 }
 
 func paymentConfigStrPtr(value string) *string {

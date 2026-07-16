@@ -100,16 +100,15 @@ func anthropicUsageFromResponsesUsage(usage *ResponsesUsage) AnthropicUsage {
 		cachedTokens = usage.InputTokensDetails.CachedTokens
 	}
 
-	inputTokens := usage.InputTokens - cachedTokens - usage.CacheCreationInputTokens
+	inputTokens := usage.InputTokens - cachedTokens
 	if inputTokens < 0 {
 		inputTokens = 0
 	}
 
 	return AnthropicUsage{
-		InputTokens:              inputTokens,
-		OutputTokens:             usage.OutputTokens,
-		CacheReadInputTokens:     cachedTokens,
-		CacheCreationInputTokens: usage.CacheCreationInputTokens,
+		InputTokens:          inputTokens,
+		OutputTokens:         usage.OutputTokens,
+		CacheReadInputTokens: cachedTokens,
 	}
 }
 
@@ -121,22 +120,13 @@ func responsesStatusToAnthropicStopReason(status string, details *ResponsesIncom
 		}
 		return "end_turn"
 	case "completed":
-		if containsAnthropicToolUseBlock(blocks) {
+		if len(blocks) > 0 && blocks[len(blocks)-1].Type == "tool_use" {
 			return "tool_use"
 		}
 		return "end_turn"
 	default:
 		return "end_turn"
 	}
-}
-
-func containsAnthropicToolUseBlock(blocks []AnthropicContentBlock) bool {
-	for _, block := range blocks {
-		if block.Type == "tool_use" {
-			return true
-		}
-	}
-	return false
 }
 
 func sanitizeAnthropicToolUseInput(name string, raw string) json.RawMessage {
@@ -171,21 +161,18 @@ type ResponsesEventToAnthropicState struct {
 	MessageStartSent bool
 	MessageStopSent  bool
 
-	ContentBlockIndex   int
-	ContentBlockOpen    bool
-	CurrentBlockType    string // "text" | "thinking" | "tool_use"
-	CurrentToolName     string
-	CurrentToolArgs     string
-	CurrentToolHadDelta bool
-	HasToolCall         bool
+	ContentBlockIndex int
+	ContentBlockOpen  bool
+	CurrentBlockType  string // "text" | "thinking" | "tool_use"
+	CurrentToolName   string
+	CurrentToolArgs   string
 
 	// OutputIndexToBlockIdx maps Responses output_index → Anthropic content block index.
 	OutputIndexToBlockIdx map[int]int
 
-	InputTokens              int
-	OutputTokens             int
-	CacheReadInputTokens     int
-	CacheCreationInputTokens int
+	InputTokens          int
+	OutputTokens         int
+	CacheReadInputTokens int
 
 	ResponseID string
 	Model      string
@@ -229,9 +216,7 @@ func ResponsesEventToAnthropicEvents(
 		return resToAnthHandleReasoningDelta(evt, state)
 	case "response.reasoning_summary_text.done":
 		return resToAnthHandleBlockDone(state)
-	// response.done 是 Realtime/WS 与项目透传路径使用的终止别名；
-	// 普通 Responses HTTP SSE 的公开终止事件仍以 response.completed 为主。
-	case "response.completed", "response.done", "response.incomplete", "response.failed":
+	case "response.completed", "response.incomplete", "response.failed":
 		return resToAnthHandleCompleted(evt, state)
 	default:
 		return nil
@@ -248,22 +233,16 @@ func FinalizeResponsesAnthropicStream(state *ResponsesEventToAnthropicState) []A
 	var events []AnthropicStreamEvent
 	events = append(events, closeCurrentBlock(state)...)
 
-	stopReason := "end_turn"
-	if state.HasToolCall {
-		stopReason = "tool_use"
-	}
-
 	events = append(events,
 		AnthropicStreamEvent{
 			Type: "message_delta",
 			Delta: &AnthropicDelta{
-				StopReason: stopReason,
+				StopReason: "end_turn",
 			},
 			Usage: &AnthropicUsage{
-				InputTokens:              state.InputTokens,
-				OutputTokens:             state.OutputTokens,
-				CacheReadInputTokens:     state.CacheReadInputTokens,
-				CacheCreationInputTokens: state.CacheCreationInputTokens,
+				InputTokens:          state.InputTokens,
+				OutputTokens:         state.OutputTokens,
+				CacheReadInputTokens: state.CacheReadInputTokens,
 			},
 		},
 		AnthropicStreamEvent{Type: "message_stop"},
@@ -331,8 +310,6 @@ func resToAnthHandleOutputItemAdded(evt *ResponsesStreamEvent, state *ResponsesE
 		state.CurrentBlockType = "tool_use"
 		state.CurrentToolName = evt.Item.Name
 		state.CurrentToolArgs = ""
-		state.CurrentToolHadDelta = false
-		state.HasToolCall = true
 
 		events = append(events, AnthropicStreamEvent{
 			Type:  "content_block_start",
@@ -413,8 +390,9 @@ func resToAnthHandleFuncArgsDelta(evt *ResponsesStreamEvent, state *ResponsesEve
 		return nil
 	}
 
-	if state.CurrentBlockType == "tool_use" {
-		state.CurrentToolHadDelta = true
+	if state.CurrentBlockType == "tool_use" && state.CurrentToolName == "Read" {
+		state.CurrentToolArgs += evt.Delta
+		return nil
 	}
 
 	blockIdx, ok := state.OutputIndexToBlockIdx[evt.OutputIndex]
@@ -433,7 +411,7 @@ func resToAnthHandleFuncArgsDelta(evt *ResponsesStreamEvent, state *ResponsesEve
 }
 
 func resToAnthHandleFuncArgsDone(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
-	if state.CurrentBlockType != "tool_use" {
+	if state.CurrentBlockType != "tool_use" || state.CurrentToolName != "Read" {
 		return resToAnthHandleBlockDone(state)
 	}
 
@@ -441,15 +419,9 @@ func resToAnthHandleFuncArgsDone(evt *ResponsesStreamEvent, state *ResponsesEven
 	if raw == "" {
 		raw = state.CurrentToolArgs
 	}
-	if raw == "" || state.CurrentToolHadDelta {
+	sanitized := sanitizeAnthropicToolUseInput(state.CurrentToolName, raw)
+	if len(sanitized) == 0 {
 		return closeCurrentBlock(state)
-	}
-	if state.CurrentToolName == "Read" {
-		sanitized := sanitizeAnthropicToolUseInput(state.CurrentToolName, raw)
-		if len(sanitized) == 0 {
-			return closeCurrentBlock(state)
-		}
-		raw = string(sanitized)
 	}
 
 	idx := state.ContentBlockIndex
@@ -458,7 +430,7 @@ func resToAnthHandleFuncArgsDone(evt *ResponsesStreamEvent, state *ResponsesEven
 		Index: &idx,
 		Delta: &AnthropicDelta{
 			Type:        "input_json_delta",
-			PartialJSON: raw,
+			PartialJSON: string(sanitized),
 		},
 	}}
 	events = append(events, closeCurrentBlock(state)...)
@@ -572,20 +544,12 @@ func resToAnthHandleCompleted(evt *ResponsesStreamEvent, state *ResponsesEventTo
 	events = append(events, closeCurrentBlock(state)...)
 
 	stopReason := "end_turn"
-	if evt.Usage != nil {
-		usage := anthropicUsageFromResponsesUsage(evt.Usage)
-		state.InputTokens = usage.InputTokens
-		state.OutputTokens = usage.OutputTokens
-		state.CacheReadInputTokens = usage.CacheReadInputTokens
-		state.CacheCreationInputTokens = usage.CacheCreationInputTokens
-	}
 	if evt.Response != nil {
 		if evt.Response.Usage != nil {
 			usage := anthropicUsageFromResponsesUsage(evt.Response.Usage)
 			state.InputTokens = usage.InputTokens
 			state.OutputTokens = usage.OutputTokens
 			state.CacheReadInputTokens = usage.CacheReadInputTokens
-			state.CacheCreationInputTokens = usage.CacheCreationInputTokens
 		}
 		switch evt.Response.Status {
 		case "incomplete":
@@ -593,7 +557,7 @@ func resToAnthHandleCompleted(evt *ResponsesStreamEvent, state *ResponsesEventTo
 				stopReason = "max_tokens"
 			}
 		case "completed":
-			if state.HasToolCall {
+			if state.ContentBlockIndex > 0 && state.CurrentBlockType == "tool_use" {
 				stopReason = "tool_use"
 			}
 		}
@@ -606,10 +570,9 @@ func resToAnthHandleCompleted(evt *ResponsesStreamEvent, state *ResponsesEventTo
 				StopReason: stopReason,
 			},
 			Usage: &AnthropicUsage{
-				InputTokens:              state.InputTokens,
-				OutputTokens:             state.OutputTokens,
-				CacheReadInputTokens:     state.CacheReadInputTokens,
-				CacheCreationInputTokens: state.CacheCreationInputTokens,
+				InputTokens:          state.InputTokens,
+				OutputTokens:         state.OutputTokens,
+				CacheReadInputTokens: state.CacheReadInputTokens,
 			},
 		},
 		AnthropicStreamEvent{Type: "message_stop"},
@@ -627,7 +590,6 @@ func closeCurrentBlock(state *ResponsesEventToAnthropicState) []AnthropicStreamE
 	state.ContentBlockIndex++
 	state.CurrentToolName = ""
 	state.CurrentToolArgs = ""
-	state.CurrentToolHadDelta = false
 	return []AnthropicStreamEvent{{
 		Type:  "content_block_stop",
 		Index: &idx,

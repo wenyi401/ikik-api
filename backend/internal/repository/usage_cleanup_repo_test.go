@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"testing"
 	"time"
 
@@ -41,7 +42,7 @@ func TestUsageCleanupRepositoryCreateTask(t *testing.T) {
 	now := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	mock.ExpectQuery("INSERT INTO usage_cleanup_tasks").
-		WithArgs(task.Status, sqlmock.AnyArg(), task.CreatedBy, task.DeletedRows).
+		WithArgs(task.Status, sqlmock.AnyArg(), task.CreatedBy, "admin", task.DeletedRows).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(1), now, now))
 
 	err := repo.CreateTask(context.Background(), task)
@@ -72,7 +73,7 @@ func TestUsageCleanupRepositoryCreateTaskQueryError(t *testing.T) {
 	}
 
 	mock.ExpectQuery("INSERT INTO usage_cleanup_tasks").
-		WithArgs(task.Status, sqlmock.AnyArg(), task.CreatedBy, task.DeletedRows).
+		WithArgs(task.Status, sqlmock.AnyArg(), task.CreatedBy, "admin", task.DeletedRows).
 		WillReturnError(sql.ErrConnDone)
 
 	err := repo.CreateTask(context.Background(), task)
@@ -107,7 +108,7 @@ func TestUsageCleanupRepositoryListTasks(t *testing.T) {
 	createdAt := time.Date(2024, 1, 2, 12, 0, 0, 0, time.UTC)
 	updatedAt := createdAt.Add(time.Minute)
 	rows := sqlmock.NewRows([]string{
-		"id", "status", "filters", "created_by", "deleted_rows", "error_message",
+		"id", "status", "filters", "created_by", "created_source", "deleted_rows", "error_message",
 		"canceled_by", "canceled_at",
 		"started_at", "finished_at", "created_at", "updated_at",
 	}).AddRow(
@@ -115,6 +116,7 @@ func TestUsageCleanupRepositoryListTasks(t *testing.T) {
 		service.UsageCleanupStatusSucceeded,
 		filtersJSON,
 		int64(2),
+		"admin",
 		int64(9),
 		"error",
 		nil,
@@ -127,7 +129,7 @@ func TestUsageCleanupRepositoryListTasks(t *testing.T) {
 
 	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM usage_cleanup_tasks").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(1)))
-	mock.ExpectQuery("SELECT id, status, filters, created_by, deleted_rows, error_message").
+	mock.ExpectQuery("SELECT id, status, filters, COALESCE\\(created_by, 0\\), created_source, deleted_rows, error_message").
 		WithArgs(20, 0).
 		WillReturnRows(rows)
 
@@ -137,6 +139,7 @@ func TestUsageCleanupRepositoryListTasks(t *testing.T) {
 	require.Equal(t, int64(1), tasks[0].ID)
 	require.Equal(t, service.UsageCleanupStatusSucceeded, tasks[0].Status)
 	require.Equal(t, int64(2), tasks[0].CreatedBy)
+	require.Equal(t, "admin", tasks[0].CreatedSource)
 	require.Equal(t, int64(9), tasks[0].DeletedRows)
 	require.NotNil(t, tasks[0].ErrorMsg)
 	require.Equal(t, "error", *tasks[0].ErrorMsg)
@@ -152,7 +155,7 @@ func TestUsageCleanupRepositoryListTasksQueryError(t *testing.T) {
 
 	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM usage_cleanup_tasks").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(2)))
-	mock.ExpectQuery("SELECT id, status, filters, created_by, deleted_rows, error_message").
+	mock.ExpectQuery("SELECT id, status, filters, COALESCE\\(created_by, 0\\), created_source, deleted_rows, error_message").
 		WithArgs(20, 0).
 		WillReturnError(sql.ErrConnDone)
 
@@ -166,7 +169,7 @@ func TestUsageCleanupRepositoryListTasksInvalidFilters(t *testing.T) {
 	repo := &usageCleanupRepository{sql: db}
 
 	rows := sqlmock.NewRows([]string{
-		"id", "status", "filters", "created_by", "deleted_rows", "error_message",
+		"id", "status", "filters", "created_by", "created_source", "deleted_rows", "error_message",
 		"canceled_by", "canceled_at",
 		"started_at", "finished_at", "created_at", "updated_at",
 	}).AddRow(
@@ -174,6 +177,7 @@ func TestUsageCleanupRepositoryListTasksInvalidFilters(t *testing.T) {
 		service.UsageCleanupStatusSucceeded,
 		[]byte("not-json"),
 		int64(2),
+		"admin",
 		int64(9),
 		nil,
 		nil,
@@ -186,7 +190,7 @@ func TestUsageCleanupRepositoryListTasksInvalidFilters(t *testing.T) {
 
 	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM usage_cleanup_tasks").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(1)))
-	mock.ExpectQuery("SELECT id, status, filters, created_by, deleted_rows, error_message").
+	mock.ExpectQuery("SELECT id, status, filters, COALESCE\\(created_by, 0\\), created_source, deleted_rows, error_message").
 		WithArgs(20, 0).
 		WillReturnRows(rows)
 
@@ -202,7 +206,7 @@ func TestUsageCleanupRepositoryClaimNextPendingTaskNone(t *testing.T) {
 	mock.ExpectQuery("UPDATE usage_cleanup_tasks").
 		WithArgs(service.UsageCleanupStatusPending, service.UsageCleanupStatusRunning, int64(1800), service.UsageCleanupStatusRunning).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "status", "filters", "created_by", "deleted_rows", "error_message",
+			"id", "status", "filters", "created_by", "created_source", "deleted_rows", "error_message",
 			"started_at", "finished_at", "created_at", "updated_at",
 		}))
 
@@ -223,13 +227,14 @@ func TestUsageCleanupRepositoryClaimNextPendingTask(t *testing.T) {
 	require.NoError(t, err)
 
 	rows := sqlmock.NewRows([]string{
-		"id", "status", "filters", "created_by", "deleted_rows", "error_message",
+		"id", "status", "filters", "created_by", "created_source", "deleted_rows", "error_message",
 		"started_at", "finished_at", "created_at", "updated_at",
 	}).AddRow(
 		int64(4),
 		service.UsageCleanupStatusRunning,
 		filtersJSON,
 		int64(7),
+		"system_auto_retention",
 		int64(0),
 		nil,
 		start,
@@ -248,8 +253,109 @@ func TestUsageCleanupRepositoryClaimNextPendingTask(t *testing.T) {
 	require.Equal(t, int64(4), task.ID)
 	require.Equal(t, service.UsageCleanupStatusRunning, task.Status)
 	require.Equal(t, int64(7), task.CreatedBy)
+	require.Equal(t, "system_auto_retention", task.CreatedSource)
 	require.NotNil(t, task.StartedAt)
 	require.Nil(t, task.ErrorMsg)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageCleanupRepositoryExportUsageLogs(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageCleanupRepository{sql: db}
+
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	mock.ExpectQuery("SELECT to_jsonb\\(usage_logs\\)::text").
+		WithArgs(start, end).
+		WillReturnRows(sqlmock.NewRows([]string{"to_jsonb"}).
+			AddRow(`{"id":1,"model":"a"}`).
+			AddRow(`{"id":2,"model":"b"}`))
+
+	reader, err := repo.ExportUsageLogs(context.Background(), service.UsageCleanupFilters{StartTime: start, EndTime: end})
+	require.NoError(t, err)
+	defer func() { _ = reader.Close() }()
+	data, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.Equal(t, "{\"id\":1,\"model\":\"a\"}\n{\"id\":2,\"model\":\"b\"}\n", string(data))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageCleanupRepositorySnapshotUsageLogs(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageCleanupRepository{sql: db}
+
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	filters := service.UsageCleanupFilters{
+		StartTime: start,
+		EndTime:   end,
+	}
+
+	mock.ExpectExec("AT TIME ZONE 'Asia/Shanghai'").
+		WithArgs(start, end).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectExec("AT TIME ZONE 'Asia/Shanghai'").
+		WithArgs(start, end).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+
+	err := repo.SnapshotUsageLogs(context.Background(), filters)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageCleanupRepositorySnapshotUsageLogsRejectsDimensionFilters(t *testing.T) {
+	db, _ := newSQLMock(t)
+	repo := &usageCleanupRepository{sql: db}
+
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	userID := int64(3)
+	err := repo.SnapshotUsageLogs(context.Background(), service.UsageCleanupFilters{
+		StartTime: start,
+		EndTime:   end,
+		UserID:    &userID,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "full-range retention windows")
+}
+
+func TestUsageCleanupRepositorySnapshotUsageLogsMissingRange(t *testing.T) {
+	db, _ := newSQLMock(t)
+	repo := &usageCleanupRepository{sql: db}
+
+	err := repo.SnapshotUsageLogs(context.Background(), service.UsageCleanupFilters{})
+	require.Error(t, err)
+}
+
+func TestUsageCleanupRepositoryFindOldestUsageLogBefore(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageCleanupRepository{sql: db}
+
+	cutoff := time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC)
+	oldest := time.Date(2024, 1, 1, 1, 2, 3, 0, time.UTC)
+	mock.ExpectQuery("SELECT MIN\\(created_at\\) FROM usage_logs WHERE created_at < \\$1").
+		WithArgs(cutoff).
+		WillReturnRows(sqlmock.NewRows([]string{"min"}).AddRow(oldest))
+
+	got, err := repo.FindOldestUsageLogBefore(context.Background(), cutoff)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Equal(t, oldest, *got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageCleanupRepositoryFindOldestUsageLogBeforeEmpty(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageCleanupRepository{sql: db}
+
+	cutoff := time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery("SELECT MIN\\(created_at\\) FROM usage_logs WHERE created_at < \\$1").
+		WithArgs(cutoff).
+		WillReturnRows(sqlmock.NewRows([]string{"min"}).AddRow(nil))
+
+	got, err := repo.FindOldestUsageLogBefore(context.Background(), cutoff)
+	require.NoError(t, err)
+	require.Nil(t, got)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -271,13 +377,14 @@ func TestUsageCleanupRepositoryClaimNextPendingTaskInvalidFilters(t *testing.T) 
 	repo := &usageCleanupRepository{sql: db}
 
 	rows := sqlmock.NewRows([]string{
-		"id", "status", "filters", "created_by", "deleted_rows", "error_message",
+		"id", "status", "filters", "created_by", "created_source", "deleted_rows", "error_message",
 		"started_at", "finished_at", "created_at", "updated_at",
 	}).AddRow(
 		int64(4),
 		service.UsageCleanupStatusRunning,
 		[]byte("invalid"),
 		int64(7),
+		"admin",
 		int64(0),
 		nil,
 		nil,

@@ -1,6 +1,6 @@
 <template>
   <div>
-    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+    <label class="mb-2 block text-sm font-medium text-[var(--ui-text)]">
       {{ t('payment.paymentMethod') }}
     </label>
     <div class="grid grid-cols-2 gap-3 sm:flex">
@@ -10,22 +10,22 @@
         type="button"
         :disabled="!method.available"
         :class="[
-          'relative flex h-[60px] flex-col items-center justify-center rounded-lg border px-3 transition-all sm:flex-1',
+          'relative flex h-14 flex-col items-center justify-center rounded-lg border px-3 transition-colors sm:flex-1',
           !method.available
-            ? 'cursor-not-allowed border-gray-200 bg-gray-50 opacity-50 dark:border-dark-700 dark:bg-dark-800/50'
+            ? 'cursor-not-allowed border-[var(--ui-border)] bg-[var(--ui-surface-subtle)] opacity-50'
             : selected === method.type
-              ? methodSelectedClass(method.type)
-              : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-dark-500',
+              ? 'border-[var(--ui-text)] bg-[var(--ui-surface-subtle)] text-[var(--ui-text)]'
+              : 'border-[var(--ui-border)] bg-[var(--ui-surface)] text-[var(--ui-text-secondary)] hover:border-[var(--ui-border-strong)] hover:bg-[var(--ui-surface-subtle)]',
         ]"
         @click="method.available && emit('select', method.type)"
       >
         <span class="flex items-center gap-2">
-          <img :src="methodIcon(method.type)" :alt="methodLabel(method)" class="h-7 w-7 object-contain" />
+          <img :src="methodIcon(method.type)" :alt="t(`payment.methods.${method.type}`)" class="h-7 w-7" />
           <span class="flex flex-col items-start leading-none">
-            <span class="text-base font-semibold">{{ methodLabel(method) }}</span>
+            <span class="text-base font-semibold">{{ t(`payment.methods.${method.type}`) }}</span>
             <span
               v-if="method.fee_rate > 0"
-              class="text-[10px] tracking-wide text-gray-500 dark:text-dark-400"
+              class="text-[10px] tracking-wide text-[var(--ui-text-tertiary)]"
             >
               {{ t('payment.fee') }} {{ method.fee_rate }}%
             </span>
@@ -39,16 +39,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { METHOD_ORDER, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from './providerConfig'
+import { METHOD_ORDER } from './providerConfig'
 import alipayIcon from '@/assets/icons/alipay.svg'
 import wxpayIcon from '@/assets/icons/wxpay.svg'
 import stripeIcon from '@/assets/icons/stripe.svg'
 import airwallexIcon from '@/assets/icons/airwallex.svg'
-import paymentIcon from '@/assets/icons/payment.svg'
 
 export interface PaymentMethodOption {
   type: string
-  display_name?: string
   fee_rate: number
   available: boolean
 }
@@ -69,7 +67,6 @@ const METHOD_ICONS: Record<string, string> = {
   wxpay: wxpayIcon,
   stripe: stripeIcon,
   airwallex: airwallexIcon,
-  credit_card: paymentIcon,
 }
 
 const sortedMethods = computed(() => {
@@ -82,21 +79,10 @@ const sortedMethods = computed(() => {
 })
 
 function methodIcon(type: string): string {
-  if (isBuiltInAlipayMethod(type)) return METHOD_ICONS.alipay
-  if (isBuiltInWxpayMethod(type)) return METHOD_ICONS.wxpay
+  if (type.includes('alipay')) return METHOD_ICONS.alipay
+  if (type.includes('wxpay')) return METHOD_ICONS.wxpay
   if (type === 'airwallex') return METHOD_ICONS.airwallex
-  return METHOD_ICONS[type] || paymentIcon
+  return METHOD_ICONS[type] || alipayIcon
 }
 
-function methodLabel(method: PaymentMethodOption): string {
-  return method.display_name || t(`payment.methods.${method.type}`, method.type)
-}
-
-function methodSelectedClass(type: string): string {
-  if (isBuiltInAlipayMethod(type)) return 'border-[#02A9F1] bg-blue-50 text-gray-900 shadow-sm dark:bg-blue-950 dark:text-gray-100'
-  if (isBuiltInWxpayMethod(type)) return 'border-[#09BB07] bg-green-50 text-gray-900 shadow-sm dark:bg-green-950 dark:text-gray-100'
-  if (type === 'stripe') return 'border-[#676BE5] bg-indigo-50 text-gray-900 shadow-sm dark:bg-indigo-950 dark:text-gray-100'
-  if (type === 'airwallex') return 'border-[#FF6B3D] bg-orange-50 text-gray-900 shadow-sm dark:border-[#FF8E3C] dark:bg-orange-950 dark:text-gray-100'
-  return 'border-primary-500 bg-primary-50 text-gray-900 shadow-sm dark:bg-primary-950 dark:text-gray-100'
-}
 </script>

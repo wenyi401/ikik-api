@@ -393,3 +393,41 @@ func TestDashboardService_AggDisabled_UsesUsageLogsFallback(t *testing.T) {
 	require.False(t, repo.rangeEnd.IsZero())
 	require.Equal(t, truncateToDayUTC(repo.rangeEnd.AddDate(0, 0, -7)), repo.rangeStart)
 }
+
+func TestDashboardService_GetDashboardStatsWithRange_UsesRangeFetcher(t *testing.T) {
+	expected := &usagestats.DashboardStats{TotalRequests: 17}
+	repo := &usageRepoStub{
+		rangeStats: expected,
+		err:        errors.New("should not call cached dashboard stats path"),
+	}
+	aggNow := time.Now().UTC().Truncate(time.Second)
+	aggRepo := &dashboardAggregationRepoStub{watermark: aggNow}
+	cache := &dashboardCacheStub{
+		get: func(ctx context.Context) (string, error) {
+			return "", errors.New("range stats must not read global stats cache")
+		},
+	}
+	cfg := &config.Config{
+		Dashboard: config.DashboardCacheConfig{Enabled: true},
+		DashboardAgg: config.DashboardAggregationConfig{
+			Enabled:         true,
+			IntervalSeconds: 60,
+			LookbackSeconds: 120,
+		},
+	}
+	svc := NewDashboardService(repo, aggRepo, cache, cfg)
+
+	start := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 5, 3, 0, 0, 0, 0, time.UTC)
+	got, err := svc.GetDashboardStatsWithRange(context.Background(), start, end)
+
+	require.NoError(t, err)
+	require.Equal(t, expected, got)
+	require.Equal(t, int32(0), atomic.LoadInt32(&repo.calls))
+	require.Equal(t, int32(1), atomic.LoadInt32(&repo.rangeCalls))
+	require.Equal(t, int32(0), atomic.LoadInt32(&cache.getCalls))
+	require.Equal(t, start, repo.rangeStart)
+	require.Equal(t, end, repo.rangeEnd)
+	require.Equal(t, aggNow.Format(time.RFC3339), got.StatsUpdatedAt)
+	require.False(t, got.StatsStale)
+}

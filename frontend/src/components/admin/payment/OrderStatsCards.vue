@@ -1,69 +1,30 @@
 <template>
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-    <!-- Today Revenue -->
-    <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-green-100 p-2 dark:bg-green-900/30">
-          <Icon name="dollar" size="md" class="text-green-600 dark:text-green-400" :stroke-width="2" />
-        </div>
-        <div>
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('payment.admin.todayRevenue') }}</p>
-          <p class="text-xl font-bold text-gray-900 dark:text-white">${{ formatMoney(stats.today_amount) }}</p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">
-            {{ stats.today_count }} {{ t('payment.admin.orders') }}
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Total Revenue -->
-    <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
-          <Icon name="creditCard" size="md" class="text-blue-600 dark:text-blue-400" :stroke-width="2" />
-        </div>
-        <div>
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('payment.admin.totalRevenue') }}</p>
-          <p class="text-xl font-bold text-gray-900 dark:text-white">${{ formatMoney(stats.total_amount) }}</p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">
-            {{ stats.total_count }} {{ t('payment.admin.orders') }}
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Today Orders -->
-    <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30">
-          <Icon name="chart" size="md" class="text-purple-600 dark:text-purple-400" :stroke-width="2" />
-        </div>
-        <div>
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('payment.admin.todayOrders') }}</p>
-          <p class="text-xl font-bold text-gray-900 dark:text-white">{{ stats.today_count }}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Average Amount -->
-    <div class="card p-4">
-      <div class="flex items-center gap-3">
-        <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900/30">
-          <Icon name="chart" size="md" class="text-amber-600 dark:text-amber-400" :stroke-width="2" />
-        </div>
-        <div>
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('payment.admin.avgAmount') }}</p>
-          <p class="text-xl font-bold text-gray-900 dark:text-white">${{ formatMoney(stats.avg_amount) }}</p>
-        </div>
-      </div>
-    </div>
-  </div>
+  <UiMetricStrip class="payment-summary" :style="{ '--metric-columns': 4 }">
+    <UiMetric
+      :label="t('payment.admin.todayRevenue')"
+      :value="`$${formatMoney(stats.today_amount)}`"
+      :detail="`${stats.today_count} ${t('payment.admin.entries')}`"
+    />
+    <UiMetric
+      :label="t('payment.admin.totalRevenue')"
+      :value="`$${formatMoney(stats.total_amount)}`"
+      :detail="`${stats.total_count} ${t('payment.admin.entries')}`"
+    />
+    <UiMetric
+      :label="t('payment.admin.todayOrders')"
+      :value="stats.today_count"
+    />
+    <UiMetric
+      :label="t('payment.admin.avgAmount')"
+      :value="`$${formatMoney(stats.avg_amount)}`"
+    />
+  </UiMetricStrip>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import Icon from '@/components/icons/Icon.vue'
 import type { DashboardStats } from '@/types/payment'
+import { UiMetric, UiMetricStrip } from '@/ui'
 
 const { t } = useI18n()
 
@@ -72,6 +33,42 @@ defineProps<{
 }>()
 
 function formatMoney(value: number): string {
-  return value.toFixed(2)
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value)
 }
 </script>
+
+<style scoped>
+.payment-summary {
+  padding-block: 0.25rem 1.25rem;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.payment-summary :deep(.ui-metric) {
+  padding: 0;
+}
+
+.payment-summary :deep(.ui-metric + .ui-metric) {
+  padding-left: clamp(1rem, 2.5vw, 2rem);
+  border-left: 1px solid var(--ui-border);
+}
+
+@media (max-width: 900px) {
+  .payment-summary :deep(.ui-metric:nth-child(3)) {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .payment-summary :deep(.ui-metric + .ui-metric) {
+    padding-left: 0.875rem;
+  }
+
+  .payment-summary :deep(.ui-metric:nth-child(3)) {
+    padding-left: 0;
+  }
+}
+</style>

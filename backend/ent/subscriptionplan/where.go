@@ -3,10 +3,10 @@
 package subscriptionplan
 
 import (
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.

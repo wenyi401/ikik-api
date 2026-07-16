@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	dbent "ikik-api/ent"
@@ -60,6 +62,8 @@ type UsageService struct {
 	userRepo             UserRepository
 	entClient            *dbent.Client
 	authCacheInvalidator APIKeyAuthCacheInvalidator
+	settingRepo          SettingRepository
+	homeStatsGroupReader DefaultSubscriptionGroupReader
 }
 
 // NewUsageService 创建使用统计服务实例
@@ -70,6 +74,16 @@ func NewUsageService(usageRepo UsageLogRepository, userRepo UserRepository, entC
 		entClient:            entClient,
 		authCacheInvalidator: authCacheInvalidator,
 	}
+}
+
+// SetSettingRepository injects settings for optional usage-stat presentation filters.
+func (s *UsageService) SetSettingRepository(repo SettingRepository) {
+	s.settingRepo = repo
+}
+
+// SetHomeStatsGroupReader injects group lookup for homepage stats group validation.
+func (s *UsageService) SetHomeStatsGroupReader(reader DefaultSubscriptionGroupReader) {
+	s.homeStatsGroupReader = reader
 }
 
 // Create 创建使用日志
@@ -318,16 +332,6 @@ func (s *UsageService) GetUserUsageTrendByUserID(ctx context.Context, userID int
 
 // GetUsageTrendWithFilters returns trend data using the shared usage filter shape.
 func (s *UsageService) GetUsageTrendWithFilters(ctx context.Context, startTime, endTime time.Time, granularity string, filters usagestats.UsageLogFilters) ([]usagestats.TrendDataPoint, error) {
-	type usageTrendWithFiltersRepo interface {
-		GetUsageTrendWithUsageFilters(ctx context.Context, startTime, endTime time.Time, granularity string, filters usagestats.UsageLogFilters) ([]usagestats.TrendDataPoint, error)
-	}
-	if filterRepo, ok := s.usageRepo.(usageTrendWithFiltersRepo); ok {
-		trend, err := filterRepo.GetUsageTrendWithUsageFilters(ctx, startTime, endTime, granularity, filters)
-		if err != nil {
-			return nil, fmt.Errorf("get usage trend with filters: %w", err)
-		}
-		return trend, nil
-	}
 	trend, err := s.usageRepo.GetUsageTrendWithFilters(ctx, startTime, endTime, granularity, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.Model, filters.RequestType, filters.Stream, filters.BillingType)
 	if err != nil {
 		return nil, fmt.Errorf("get usage trend with filters: %w", err)
@@ -347,16 +351,6 @@ func (s *UsageService) GetUserModelStats(ctx context.Context, userID int64, star
 // GetModelStatsWithFiltersBySource returns model stats using the shared usage filter shape.
 func (s *UsageService) GetModelStatsWithFiltersBySource(ctx context.Context, startTime, endTime time.Time, filters usagestats.UsageLogFilters, modelSource string) ([]usagestats.ModelStat, error) {
 	normalizedSource := usagestats.NormalizeModelSource(modelSource)
-	type modelStatsWithUsageFiltersRepo interface {
-		GetModelStatsWithUsageFiltersBySource(ctx context.Context, startTime, endTime time.Time, filters usagestats.UsageLogFilters, source string) ([]usagestats.ModelStat, error)
-	}
-	if filterRepo, ok := s.usageRepo.(modelStatsWithUsageFiltersRepo); ok {
-		stats, err := filterRepo.GetModelStatsWithUsageFiltersBySource(ctx, startTime, endTime, filters, normalizedSource)
-		if err != nil {
-			return nil, fmt.Errorf("get model stats with filters by source: %w", err)
-		}
-		return stats, nil
-	}
 	type modelStatsBySourceRepo interface {
 		GetModelStatsWithFiltersBySource(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8, source string) ([]usagestats.ModelStat, error)
 	}
@@ -376,19 +370,18 @@ func (s *UsageService) GetModelStatsWithFiltersBySource(ctx context.Context, sta
 
 // GetGroupStatsWithFilters returns group stats using the shared usage filter shape.
 func (s *UsageService) GetGroupStatsWithFilters(ctx context.Context, startTime, endTime time.Time, filters usagestats.UsageLogFilters) ([]usagestats.GroupStat, error) {
-	type groupStatsWithUsageFiltersRepo interface {
-		GetGroupStatsWithUsageFilters(ctx context.Context, startTime, endTime time.Time, filters usagestats.UsageLogFilters) ([]usagestats.GroupStat, error)
-	}
-	if filterRepo, ok := s.usageRepo.(groupStatsWithUsageFiltersRepo); ok {
-		stats, err := filterRepo.GetGroupStatsWithUsageFilters(ctx, startTime, endTime, filters)
-		if err != nil {
-			return nil, fmt.Errorf("get group stats with filters: %w", err)
-		}
-		return stats, nil
-	}
 	stats, err := s.usageRepo.GetGroupStatsWithFilters(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.RequestType, filters.Stream, filters.BillingType)
 	if err != nil {
 		return nil, fmt.Errorf("get group stats with filters: %w", err)
+	}
+	return stats, nil
+}
+
+// GetUserAccountSharingDashboard returns owned-account consumption and public-sharing settlement stats.
+func (s *UsageService) GetUserAccountSharingDashboard(ctx context.Context, userID int64, startTime, endTime time.Time, granularity string, accountPage, accountPageSize int) (*usagestats.AccountSharingDashboardStats, error) {
+	stats, err := s.usageRepo.GetUserAccountSharingDashboard(ctx, userID, startTime, endTime, granularity, accountPage, accountPageSize)
+	if err != nil {
+		return nil, fmt.Errorf("get user account sharing dashboard: %w", err)
 	}
 	return stats, nil
 }
@@ -400,30 +393,6 @@ func (s *UsageService) GetAPIKeyModelStats(ctx context.Context, apiKeyID int64, 
 		return nil, fmt.Errorf("get api key model stats: %w", err)
 	}
 	return stats, nil
-}
-
-// GetAPIKeyDailyUsage returns daily usage stats for a user's API key.
-func (s *UsageService) GetAPIKeyDailyUsage(ctx context.Context, userID, apiKeyID int64, startTime, endTime time.Time) ([]usagestats.APIKeyDailyUsagePoint, error) {
-	trend, err := s.usageRepo.GetUsageTrendWithFilters(ctx, startTime, endTime, "day", userID, apiKeyID, 0, 0, "", nil, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("get api key daily usage: %w", err)
-	}
-
-	points := make([]usagestats.APIKeyDailyUsagePoint, 0, len(trend))
-	for _, row := range trend {
-		points = append(points, usagestats.APIKeyDailyUsagePoint{
-			Date:             row.Date,
-			Requests:         row.Requests,
-			InputTokens:      row.InputTokens,
-			OutputTokens:     row.OutputTokens,
-			CacheReadTokens:  row.CacheReadTokens,
-			CacheWriteTokens: row.CacheCreationTokens,
-			TotalTokens:      row.TotalTokens,
-			Cost:             row.Cost,
-			ActualCost:       row.ActualCost,
-		})
-	}
-	return points, nil
 }
 
 // GetBatchAPIKeyUsageStats returns today/total actual_cost for given api keys.
@@ -451,6 +420,161 @@ func (s *UsageService) GetGlobalStats(ctx context.Context, startTime, endTime ti
 		return nil, fmt.Errorf("get global usage stats: %w", err)
 	}
 	return stats, nil
+}
+
+// GetPublicTodayStats returns public homepage usage counters and health metrics.
+func (s *UsageService) GetPublicTodayStats(ctx context.Context, startTime, endTime time.Time) (*usagestats.PublicTodayUsageStats, error) {
+	globalStats, err := s.GetGlobalStats(ctx, startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+
+	healthGroupID := s.publicHomeStatsGroupID(ctx)
+	healthStats := globalStats
+	if healthGroupID > 0 {
+		healthStats, err = s.publicHomeStats(ctx, startTime, endTime, healthGroupID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	errorCount, err := s.countPublicUsageErrors(ctx, startTime, endTime, healthGroupID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &usagestats.PublicTodayUsageStats{
+		TodayRequests: globalStats.TotalRequests,
+		TodayTokens:   globalStats.TotalTokens,
+		SuccessCount:  healthStats.TotalRequests,
+		ErrorCount:    errorCount,
+	}
+
+	totalObservedRequests := healthStats.TotalRequests + errorCount
+	if totalObservedRequests > 0 {
+		successRate := float64(healthStats.TotalRequests) / float64(totalObservedRequests) * 100
+		result.SuccessRate = &successRate
+	}
+	if globalStats.TotalRequests > 0 {
+		averageDurationMs := globalStats.AverageDurationMs
+		result.AverageDurationMs = &averageDurationMs
+	}
+	if healthStats.RequestsWithFirstToken > 0 {
+		averageFirstTokenMs := healthStats.AverageFirstTokenMs
+		result.AverageFirstTokenMs = &averageFirstTokenMs
+	}
+
+	return result, nil
+}
+
+func (s *UsageService) publicHomeStats(ctx context.Context, startTime, endTime time.Time, groupID int64) (*usagestats.UsageStats, error) {
+	if groupID <= 0 {
+		return s.GetGlobalStats(ctx, startTime, endTime)
+	}
+	return s.GetStatsWithFilters(ctx, usagestats.UsageLogFilters{
+		GroupID:   groupID,
+		StartTime: &startTime,
+		EndTime:   &endTime,
+	})
+}
+
+func (s *UsageService) publicHomeStatsGroupID(ctx context.Context) int64 {
+	if s == nil || s.settingRepo == nil {
+		return 0
+	}
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyHomeStatsGroupID)
+	if err != nil {
+		return 0
+	}
+	groupID, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil || groupID <= 0 {
+		return 0
+	}
+	if s.homeStatsGroupReader != nil {
+		group, err := s.homeStatsGroupReader.GetByID(ctx, groupID)
+		if err != nil || !isAdministratorPublicGroup(group) {
+			return 0
+		}
+	}
+	return groupID
+}
+
+func (s *UsageService) countPublicUsageErrors(ctx context.Context, startTime, endTime time.Time, groupID int64) (int64, error) {
+	if s.entClient == nil {
+		return 0, nil
+	}
+	hasStatusCode, err := s.tableColumnExists(ctx, "ops_error_logs", "status_code")
+	if err != nil || !hasStatusCode {
+		return 0, nil
+	}
+
+	args := []any{startTime, endTime}
+	query := `
+		SELECT COALESCE(COUNT(*), 0)
+		FROM ops_error_logs
+		WHERE created_at >= $1
+		  AND created_at < $2
+		  AND COALESCE(status_code, 0) >= 400
+	`
+	if groupID > 0 {
+		hasGroupID, err := s.tableColumnExists(ctx, "ops_error_logs", "group_id")
+		if err != nil || !hasGroupID {
+			return 0, nil
+		}
+		args = append(args, groupID)
+		query += fmt.Sprintf(" AND group_id = $%d", len(args))
+	}
+
+	hasBusinessLimited, err := s.tableColumnExists(ctx, "ops_error_logs", "is_business_limited")
+	if err == nil && hasBusinessLimited {
+		query += " AND NOT COALESCE(is_business_limited, false)"
+	}
+
+	rows, err := s.entClient.QueryContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("count public usage errors: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var count int64
+	if rows.Next() {
+		if err := rows.Scan(&count); err != nil {
+			return 0, fmt.Errorf("scan public usage errors: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("iterate public usage errors: %w", err)
+	}
+
+	return count, nil
+}
+
+func (s *UsageService) tableColumnExists(ctx context.Context, tableName, columnName string) (bool, error) {
+	rows, err := s.entClient.QueryContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = $1
+			  AND column_name = $2
+		)
+	`, tableName, columnName)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var exists bool
+	if rows.Next() {
+		if err := rows.Scan(&exists); err != nil {
+			return false, err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+
+	return exists, nil
 }
 
 // GetStatsWithFilters returns usage stats with optional filters.

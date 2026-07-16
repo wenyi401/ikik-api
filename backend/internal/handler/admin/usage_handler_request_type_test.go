@@ -94,6 +94,18 @@ func TestAdminUsageListExactTotalTrue(t *testing.T) {
 	require.True(t, repo.listFilters.ExactTotal)
 }
 
+func TestAdminUsageListRequestIDFilter(t *testing.T) {
+	repo := &adminUsageRepoCapture{}
+	router := newAdminUsageRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/usage?request_id=req-123", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "req-123", repo.listFilters.RequestID)
+}
+
 func TestAdminUsageListInvalidExactTotal(t *testing.T) {
 	repo := &adminUsageRepoCapture{}
 	router := newAdminUsageRequestTypeTestRouter(repo)

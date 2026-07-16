@@ -1,0 +1,60 @@
+goos: linux
+goarch: amd64
+pkg: ikik-api/internal/service
+cpu: 13th Gen Intel(R) Core(TM) i5-13600KF
+BenchmarkGatewayService_ParseSSEUsage_MessageStart-20               	  467865	      2403 ns/op	    2224 B/op	      40 allocs/op
+BenchmarkGatewayService_ParseSSEUsage_MessageStart-20               	  463100	      2455 ns/op	    2224 B/op	      40 allocs/op
+BenchmarkGatewayService_ParseSSEUsage_MessageStart-20               	  472974	      2421 ns/op	    2224 B/op	      40 allocs/op
+BenchmarkGatewayService_ParseSSEUsage_MessageStart-20               	  468956	      2379 ns/op	    2224 B/op	      40 allocs/op
+BenchmarkGatewayService_ParseSSEUsage_MessageStart-20               	  508983	      2372 ns/op	    2224 B/op	      40 allocs/op
+BenchmarkGatewayService_ParseSSEUsage_MessageStart-20               	  494251	      2378 ns/op	    2224 B/op	      40 allocs/op
+BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageStart-20    	 1846669	       643.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageStart-20    	 1850743	       655.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageStart-20    	 1842531	       650.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageStart-20    	 1842110	       649.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageStart-20    	 1824736	       647.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageStart-20    	 1847221	       649.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGatewayService_ParseSSEUsage_MessageDelta-20               	  515887	      2186 ns/op	    1872 B/op	      37 allocs/op
+BenchmarkGatewayService_ParseSSEUsage_MessageDelta-20               	  519673	      2255 ns/op	    1872 B/op	      37 allocs/op
+BenchmarkGatewayService_ParseSSEUsage_MessageDelta-20               	  555856	      2197 ns/op	    1872 B/op	      37 allocs/op
+BenchmarkGatewayService_ParseSSEUsage_MessageDelta-20               	  547356	      2194 ns/op	    1872 B/op	      37 allocs/op
+BenchmarkGatewayService_ParseSSEUsage_MessageDelta-20               	  520796	      2224 ns/op	    1872 B/op	      37 allocs/op
+BenchmarkGatewayService_ParseSSEUsage_MessageDelta-20               	  531657	      2177 ns/op	    1872 B/op	      37 allocs/op
+BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageDelta-20    	 1596841	       755.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageDelta-20    	 1580008	       751.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageDelta-20    	 1594468	       756.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageDelta-20    	 1579392	       750.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageDelta-20    	 1595959	       751.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageDelta-20    	 1604078	       753.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkParseClaudeUsageFromResponseBody-20                        	 1474922	       817.2 ns/op	     320 B/op	       2 allocs/op
+BenchmarkParseClaudeUsageFromResponseBody-20                        	 1468426	       820.2 ns/op	     320 B/op	       2 allocs/op
+BenchmarkParseClaudeUsageFromResponseBody-20                        	 1469355	       815.5 ns/op	     320 B/op	       2 allocs/op
+BenchmarkParseClaudeUsageFromResponseBody-20                        	 1473657	       819.9 ns/op	     320 B/op	       2 allocs/op
+BenchmarkParseClaudeUsageFromResponseBody-20                        	 1353183	       863.3 ns/op	     320 B/op	       2 allocs/op
+BenchmarkParseClaudeUsageFromResponseBody-20                        	 1439142	       825.9 ns/op	     320 B/op	       2 allocs/op
+BenchmarkGatewayForward_AntigravityClaudeNonStream-20               	   28329	     39620 ns/op	   30780 B/op	     266 allocs/op
+BenchmarkGatewayForward_AntigravityClaudeNonStream-20               	   30484	     39647 ns/op	   30791 B/op	     266 allocs/op
+BenchmarkGatewayForward_AntigravityClaudeNonStream-20               	   29310	     39630 ns/op	   30832 B/op	     266 allocs/op
+BenchmarkGatewayForward_AntigravityClaudeNonStream-20               	   31288	     38798 ns/op	   30769 B/op	     266 allocs/op
+BenchmarkGatewayForward_AntigravityClaudeNonStream-20               	   31226	     40313 ns/op	   30848 B/op	     266 allocs/op
+BenchmarkGatewayForward_AntigravityClaudeNonStream-20               	   30166	     39549 ns/op	   30793 B/op	     266 allocs/op
+BenchmarkGatewayForward_AntigravityClaudeStream-20                  	   27830	     42915 ns/op	   39901 B/op	     329 allocs/op
+BenchmarkGatewayForward_AntigravityClaudeStream-20                  	   28850	     43027 ns/op	   39900 B/op	     329 allocs/op
+BenchmarkGatewayForward_AntigravityClaudeStream-20                  	   26864	     41222 ns/op	   39906 B/op	     329 allocs/op
+BenchmarkGatewayForward_AntigravityClaudeStream-20                  	   28328	     43579 ns/op	   39959 B/op	     329 allocs/op
+BenchmarkGatewayForward_AntigravityClaudeStream-20                  	   28596	     43420 ns/op	   39852 B/op	     329 allocs/op
+BenchmarkGatewayForward_AntigravityClaudeStream-20                  	   28867	     42027 ns/op	   39861 B/op	     329 allocs/op
+BenchmarkGatewayForward_AnthropicNonStreamPassthrough-20            	  132291	      9375 ns/op	   14666 B/op	      93 allocs/op
+BenchmarkGatewayForward_AnthropicNonStreamPassthrough-20            	  129505	      9491 ns/op	   14666 B/op	      93 allocs/op
+BenchmarkGatewayForward_AnthropicNonStreamPassthrough-20            	  122263	      9278 ns/op	   14666 B/op	      93 allocs/op
+BenchmarkGatewayForward_AnthropicNonStreamPassthrough-20            	  132528	      9455 ns/op	   14666 B/op	      93 allocs/op
+BenchmarkGatewayForward_AnthropicNonStreamPassthrough-20            	  130437	      9289 ns/op	   14666 B/op	      93 allocs/op
+BenchmarkGatewayForward_AnthropicNonStreamPassthrough-20            	  131500	      9505 ns/op	   14666 B/op	      93 allocs/op
+BenchmarkGatewayForward_AnthropicStreamPassthrough-20               	   42405	     27982 ns/op	   19168 B/op	     134 allocs/op
+BenchmarkGatewayForward_AnthropicStreamPassthrough-20               	   43042	     28211 ns/op	   19174 B/op	     134 allocs/op
+BenchmarkGatewayForward_AnthropicStreamPassthrough-20               	   41194	     28241 ns/op	   19221 B/op	     134 allocs/op
+BenchmarkGatewayForward_AnthropicStreamPassthrough-20               	   42230	     28071 ns/op	   19172 B/op	     134 allocs/op
+BenchmarkGatewayForward_AnthropicStreamPassthrough-20               	   43098	     27915 ns/op	   19186 B/op	     134 allocs/op
+BenchmarkGatewayForward_AnthropicStreamPassthrough-20               	   42762	     27136 ns/op	   19161 B/op	     134 allocs/op
+PASS
+ok  	ikik-api/internal/service	85.616s

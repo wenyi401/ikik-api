@@ -5,16 +5,14 @@
 
 import { apiClient } from '../client'
 
-export type Provider = 'openai' | 'anthropic' | 'gemini' | 'grok'
+export type Provider = 'openai' | 'anthropic' | 'gemini'
 export type MonitorStatus = 'operational' | 'degraded' | 'failed' | 'error'
 export type BodyOverrideMode = 'off' | 'merge' | 'replace'
-export type APIMode = 'chat_completions' | 'responses'
 
 export interface ChannelMonitor {
   id: number
   name: string
   provider: Provider
-  api_mode: APIMode
   endpoint: string
   api_key_masked: string
   /**
@@ -40,6 +38,8 @@ export interface ChannelMonitor {
   primary_latency_ms: number | null
   /** Primary model 7-day availability percentage (0-100) */
   availability_7d: number
+  /** Primary model 30-day availability percentage (0-100) */
+  availability_30d: number
   /** Latest status per extra model (used for hover tooltip) */
   extra_models_status: ExtraModelStatus[]
   /** 请求自定义快照字段（高级设置） */
@@ -74,7 +74,6 @@ export interface ListResponse {
 export interface CreateParams {
   name: string
   provider: Provider
-  api_mode?: APIMode
   endpoint: string
   api_key: string
   primary_model: string

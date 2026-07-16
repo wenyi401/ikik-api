@@ -5,7 +5,7 @@
       <nav class="mx-auto flex max-w-6xl items-center justify-between">
         <router-link to="/home" class="flex items-center gap-3">
           <div class="h-10 w-10 overflow-hidden rounded-xl shadow-md">
-            <img :src="siteLogo || '/logo.png'" alt="Logo" class="h-full w-full object-contain" />
+            <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
           </div>
           <span class="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{{ siteName }}</span>
         </router-link>
@@ -289,62 +289,6 @@
             </div>
           </div>
 
-          <!-- Daily Usage Table -->
-          <div
-            v-if="showDailyUsage"
-            class="fade-up fade-up-delay-4 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur-sm overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
-          >
-            <div class="flex flex-col gap-3 px-8 py-5 border-b border-gray-200 dark:border-dark-700 sm:flex-row sm:items-center sm:justify-between">
-              <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.dailyDetail') }}</h3>
-              <div class="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 dark:border-dark-700 dark:bg-dark-950">
-                <button
-                  v-for="option in dailyUsageOptions"
-                  :key="option.value"
-                  @click="setDailyUsageDays(option.value)"
-                  class="min-w-12 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-                  :class="dailyUsageDays === option.value
-                    ? 'bg-primary-500 text-white'
-                    : 'text-gray-600 hover:bg-gray-100 dark:text-dark-300 dark:hover:bg-dark-800'"
-                >
-                  {{ option.label }}
-                </button>
-              </div>
-            </div>
-            <div v-if="dailyUsageRows.length > 0" class="overflow-x-auto">
-              <table class="w-full">
-                <thead>
-                  <tr class="border-b border-gray-200 bg-gray-50 dark:border-dark-700 dark:bg-dark-950">
-                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.date') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.requests') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.inputTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.outputTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.cacheReadTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.cacheWriteTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.cost') }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="row in dailyUsageRows"
-                    :key="row.date"
-                    class="border-b border-gray-100 last:border-b-0 dark:border-dark-800"
-                  >
-                    <td class="px-4 py-3 text-sm font-medium whitespace-nowrap text-gray-900 dark:text-white">{{ row.date }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(row.requests) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(row.input_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(row.output_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(row.cache_read_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(row.cache_write_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right font-medium text-gray-900 dark:text-white">{{ usd(row.actual_cost != null ? row.actual_cost : row.cost) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div v-else class="px-8 py-8 text-center text-sm text-gray-500 dark:text-dark-400">
-              {{ t('keyUsage.noDailyUsage') }}
-            </div>
-          </div>
-
           <!-- Model Stats Table -->
           <div
             v-if="modelStats.length > 0"
@@ -420,21 +364,19 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
+import { buildGatewayUrl } from '@/api/client'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { buildGatewayUrl } from '@/api/client'
-import { formatDateLocalInput } from '@/utils/format'
-import { sanitizeUrl } from '@/utils/url'
 
 const { t, locale } = useI18n()
 const appStore = useAppStore()
 
 // ==================== Site Settings (same as HomeView) ====================
 
-const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'Sub2API')
-const siteLogo = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
-const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || ''))
-const githubUrl = 'https://ikik-api'
+const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'ikik-api')
+const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
+const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
+const githubUrl = 'https://github.com/wenyi401/ikik-api'
 
 // ==================== Theme (same as HomeView) ====================
 
@@ -467,19 +409,12 @@ type DateRangeKey = 'today' | '7d' | '30d' | 'custom'
 const currentRange = ref<DateRangeKey>('today')
 const customStartDate = ref('')
 const customEndDate = ref('')
-const dailyUsageDays = ref<7 | 30 | 90>(30)
 
 const dateRanges = computed(() => [
   { key: 'today' as const, label: t('keyUsage.dateRangeToday') },
   { key: '7d' as const, label: t('keyUsage.dateRange7d') },
   { key: '30d' as const, label: t('keyUsage.dateRange30d') },
   { key: 'custom' as const, label: t('keyUsage.dateRangeCustom') },
-])
-
-const dailyUsageOptions = computed(() => [
-  { value: 7 as const, label: t('keyUsage.dateRange7d') },
-  { value: 30 as const, label: t('keyUsage.dateRange30d') },
-  { value: 90 as const, label: t('keyUsage.dateRange90d') },
 ])
 
 function setDateRange(key: DateRangeKey) {
@@ -491,46 +426,34 @@ function setDateRange(key: DateRangeKey) {
 
 function getDateParams(): string {
   const now = new Date()
-  const params = new URLSearchParams()
+  const fmt = (d: Date) => d.toISOString().split('T')[0]
 
   if (currentRange.value === 'custom') {
     if (customStartDate.value && customEndDate.value) {
-      params.set('start_date', customStartDate.value)
-      params.set('end_date', customEndDate.value)
+      return `start_date=${customStartDate.value}&end_date=${customEndDate.value}`
     }
-  } else {
-    const end = formatDateLocalInput(now)
-    let start: string
-    switch (currentRange.value) {
-      case 'today': start = end; break
-      case '7d': start = formatDateLocalInput(new Date(now.getTime() - 7 * 86400000)); break
-      case '30d': start = formatDateLocalInput(new Date(now.getTime() - 30 * 86400000)); break
-      default: start = formatDateLocalInput(new Date(now.getTime() - 30 * 86400000))
-    }
-    params.set('start_date', start)
-    params.set('end_date', end)
+    return ''
   }
-  params.set('days', String(dailyUsageDays.value))
-  params.set('timezone', getBrowserTimezone())
-  return params.toString()
-}
 
-function setDailyUsageDays(days: 7 | 30 | 90) {
-  if (dailyUsageDays.value === days) return
-  dailyUsageDays.value = days
-  if (resultData.value && apiKey.value.trim()) {
-    queryKey()
+  const end = fmt(now)
+  let start: string
+  switch (currentRange.value) {
+    case 'today': start = end; break
+    case '7d': start = fmt(new Date(now.getTime() - 7 * 86400000)); break
+    case '30d': start = fmt(new Date(now.getTime() - 30 * 86400000)); break
+    default: start = fmt(new Date(now.getTime() - 30 * 86400000))
   }
+  return `start_date=${start}&end_date=${end}`
 }
 
 // ==================== Ring Animation ====================
 
 const CIRCUMFERENCE = 2 * Math.PI * 68
 const RING_GRADIENTS = [
-  { from: '#14b8a6', to: '#5eead4' },
-  { from: '#6366F1', to: '#A5B4FC' },
-  { from: '#10B981', to: '#6EE7B7' },
-  { from: '#F59E0B', to: '#FCD34D' },
+  { from: '#10a37f', to: '#45d09a' },
+  { from: '#3b82f6', to: '#d2dec0' },
+  { from: '#0d8f70', to: '#b8f3d6' },
+  { from: '#f59e0b', to: '#ead9c8' },
 ]
 
 const ringAnimated = ref(false)
@@ -809,24 +732,6 @@ const usageStatCells = computed<StatCell[]>(() => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const modelStats = computed<any[]>(() => resultData.value?.model_stats || [])
 
-interface DailyUsageRow {
-  date: string
-  requests: number
-  input_tokens: number
-  output_tokens: number
-  cache_read_tokens: number
-  cache_write_tokens: number
-  cost: number
-  actual_cost?: number
-}
-
-const dailyUsageRows = computed<DailyUsageRow[]>(() => {
-  const rows = resultData.value?.daily_usage
-  return Array.isArray(rows) ? rows : []
-})
-
-const showDailyUsage = computed(() => Boolean(resultData.value && Array.isArray(resultData.value.daily_usage)))
-
 // ==================== Utility Functions ====================
 
 function usd(value: number | null | undefined): string {
@@ -844,14 +749,6 @@ function formatDate(iso: string | null | undefined): string {
   const d = new Date(iso)
   const loc = locale.value === 'zh' ? 'zh-CN' : 'en-US'
   return d.toLocaleDateString(loc, { year: 'numeric', month: 'long', day: 'numeric' })
-}
-
-function getBrowserTimezone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-  } catch {
-    return 'UTC'
-  }
 }
 
 // ==================== API Query ====================
@@ -945,8 +842,8 @@ onUnmounted(() => {
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .input-ring:focus {
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.2);
-  border-color: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.2);
+  border-color: #10a37f;
   outline: none;
 }
 
@@ -963,13 +860,13 @@ onUnmounted(() => {
   100% { background-position: 200% 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background: linear-gradient(90deg, #d9d9e3 25%, #ececf1 50%, #d9d9e3 75%);
   background-size: 200% 100%;
   animation: shimmer-kv 1.8s ease-in-out infinite;
   border-radius: 8px;
 }
 :global(.dark) .skeleton {
-  background: linear-gradient(90deg, #334155 25%, #1e293b 50%, #334155 75%);
+  background: linear-gradient(90deg, #40414f 25%, #2f3037 50%, #40414f 75%);
   background-size: 200% 100%;
 }
 

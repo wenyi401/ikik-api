@@ -6,13 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/paymentproviderinstance"
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/paymentproviderinstance"
-	"ikik-api/ent/predicate"
 )
 
 // PaymentProviderInstanceUpdate is the builder for updating PaymentProviderInstance entities.

@@ -6,15 +6,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/apikey"
+	"ikik-api/ent/apikeygrouproute"
+	"ikik-api/ent/group"
+	"ikik-api/ent/usagelog"
+	"ikik-api/ent/user"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/apikey"
-	"ikik-api/ent/group"
-	"ikik-api/ent/usagelog"
-	"ikik-api/ent/user"
 )
 
 // APIKeyCreate is the builder for creating a APIKey entity.
@@ -315,6 +316,21 @@ func (_c *APIKeyCreate) SetUser(v *User) *APIKeyCreate {
 // SetGroup sets the "group" edge to the Group entity.
 func (_c *APIKeyCreate) SetGroup(v *Group) *APIKeyCreate {
 	return _c.SetGroupID(v.ID)
+}
+
+// AddGroupRouteIDs adds the "group_routes" edge to the APIKeyGroupRoute entity by IDs.
+func (_c *APIKeyCreate) AddGroupRouteIDs(ids ...int64) *APIKeyCreate {
+	_c.mutation.AddGroupRouteIDs(ids...)
+	return _c
+}
+
+// AddGroupRoutes adds the "group_routes" edges to the APIKeyGroupRoute entity.
+func (_c *APIKeyCreate) AddGroupRoutes(v ...*APIKeyGroupRoute) *APIKeyCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddGroupRouteIDs(ids...)
 }
 
 // AddUsageLogIDs adds the "usage_logs" edge to the UsageLog entity by IDs.
@@ -627,6 +643,22 @@ func (_c *APIKeyCreate) createSpec() (*APIKey, *sqlgraph.CreateSpec) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		_node.GroupID = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.GroupRoutesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupRoutesTable,
+			Columns: []string{apikey.GroupRoutesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouproute.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := _c.mutation.UsageLogsIDs(); len(nodes) > 0 {

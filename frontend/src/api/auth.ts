@@ -157,6 +157,24 @@ export async function getCurrentUser() {
 }
 
 /**
+ * Resume website login with the HttpOnly session cookie.
+ */
+export async function resumeSession(): Promise<AuthResponse> {
+  const { data } = await apiClient.get<AuthResponse>('/auth/session')
+
+  setAuthToken(data.access_token)
+  if (data.refresh_token) {
+    setRefreshToken(data.refresh_token)
+  }
+  if (data.expires_in) {
+    setTokenExpiresAt(data.expires_in)
+  }
+  localStorage.setItem('auth_user', JSON.stringify(data.user))
+
+  return data
+}
+
+/**
  * User logout
  * Clears authentication token and user data from localStorage
  * Optionally revokes the refresh token on the server
@@ -164,13 +182,10 @@ export async function getCurrentUser() {
 export async function logout(): Promise<void> {
   const refreshToken = getRefreshToken()
 
-  // Try to revoke the refresh token on the server
-  if (refreshToken) {
-    try {
-      await apiClient.post('/auth/logout', { refresh_token: refreshToken })
-    } catch {
-      // Ignore errors - we still want to clear local state
-    }
+  try {
+    await apiClient.post('/auth/logout', refreshToken ? { refresh_token: refreshToken } : {})
+  } catch {
+    // Ignore errors - we still want to clear local state.
   }
 
   clearAuthToken()
@@ -592,7 +607,7 @@ export async function completeWeChatOAuthRegistration(
 }
 
 async function createPendingOAuthAccount(
-  provider: 'linuxdo' | 'oidc' | 'wechat' | 'dingtalk',
+  provider: 'linuxdo' | 'oidc' | 'wechat',
   invitationCode: string,
   decision?: OAuthAdoptionDecision,
   affiliateCode?: string
@@ -631,14 +646,6 @@ export async function createPendingWeChatOAuthAccount(
   affiliateCode?: string
 ): Promise<PendingOAuthCreateAccountResponse> {
   return createPendingOAuthAccount('wechat', invitationCode, decision, affiliateCode)
-}
-
-export async function createPendingDingTalkOAuthAccount(
-  invitationCode: string,
-  decision?: OAuthAdoptionDecision,
-  affiliateCode?: string
-): Promise<PendingOAuthCreateAccountResponse> {
-  return createPendingOAuthAccount('dingtalk', invitationCode, decision, affiliateCode)
 }
 
 export async function completePendingOAuthBindLogin(
@@ -680,6 +687,7 @@ export const authAPI = {
   forgotPassword,
   resetPassword,
   refreshToken,
+  resumeSession,
   revokeAllSessions,
   getPendingOAuthBindLoginKind,
   isPendingOAuthCreateAccountRequired,
@@ -691,8 +699,7 @@ export const authAPI = {
   exchangePendingOAuthCompletion,
   completeLinuxDoOAuthRegistration,
   completeOIDCOAuthRegistration,
-  completeWeChatOAuthRegistration,
-  createPendingDingTalkOAuthAccount
+  completeWeChatOAuthRegistration
 }
 
 export default authAPI

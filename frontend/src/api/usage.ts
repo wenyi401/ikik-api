@@ -10,24 +10,21 @@ import type {
   UsageStatsResponse,
   PaginatedResponse,
   TrendDataPoint,
-  ModelStat,
-  GroupStat,
-  UsageRequestType,
-  UserErrorRequest,
-  UserErrorRequestDetail,
-  UserErrorListParams
+  ModelStat
 } from '@/types'
 
 // ==================== Dashboard Types ====================
 
-export interface PlatformDashboardStats {
+export interface UserDashboardPlatformUsage {
   platform: string
-  total_requests: number
+  requests: number
+  input_tokens: number
+  output_tokens: number
+  cache_creation_tokens: number
+  cache_read_tokens: number
   total_tokens: number
-  total_actual_cost: number
-  today_requests: number
-  today_tokens: number
-  today_actual_cost: number
+  cost: number
+  actual_cost: number
 }
 
 export interface UserDashboardStats {
@@ -49,24 +46,27 @@ export interface UserDashboardStats {
   today_tokens: number
   today_cost: number // 今日标准计费
   today_actual_cost: number // 今日实际扣除
+  today_platforms?: UserDashboardPlatformUsage[]
   average_duration_ms: number
   rpm: number // 近5分钟平均每分钟请求数
   tpm: number // 近5分钟平均每分钟Token数
-  by_platform?: PlatformDashboardStats[]
+}
+
+export interface PublicTodayUsageStats {
+  today_requests: number
+  today_tokens: number
+  success_count: number
+  error_count: number
+  success_rate: number | null
+  average_duration_ms: number | null
+  average_first_token_ms: number | null
+  timezone: string
 }
 
 export interface TrendParams {
   start_date?: string
   end_date?: string
-  granularity?: 'day' | 'hour'
-  api_key_id?: number
-  model?: string
-  group_id?: number
-  request_type?: UsageRequestType
-  stream?: boolean
-  billing_type?: number | null
-  billing_mode?: string | null
-  timezone?: string
+  granularity?: 'day' | 'hour' | 'week' | 'month'
 }
 
 export interface TrendResponse {
@@ -82,39 +82,73 @@ export interface ModelStatsResponse {
   end_date: string
 }
 
-export interface ApiKeyDailyUsagePoint {
+export interface AccountSharingSummary {
+  owned_accounts: number
+  private_accounts: number
+  public_pending_accounts: number
+  public_approved_accounts: number
+  public_suspended_accounts: number
+  self_requests: number
+  self_tokens: number
+  self_actual_cost: number
+  self_account_cost: number
+  external_requests: number
+  external_consumer_charge: number
+  external_account_cost: number
+  external_owner_credit: number
+  external_platform_fee: number
+  total_account_cost: number
+  balance_net_change: number
+}
+
+export interface AccountSharingAccountStat {
+  account_id: number
+  name: string
+  platform: string
+  share_mode: 'private' | 'public' | string
+  share_status: 'pending' | 'approved' | 'suspended' | string
+  self_requests: number
+  self_tokens: number
+  self_actual_cost: number
+  self_account_cost: number
+  external_requests: number
+  external_consumer_charge: number
+  external_account_cost: number
+  external_owner_credit: number
+  external_platform_fee: number
+}
+
+export interface AccountSharingTrendPoint {
   date: string
-  requests: number
-  input_tokens: number
-  output_tokens: number
-  cache_read_tokens: number
-  cache_write_tokens: number
-  total_tokens: number
-  cost: number
-  actual_cost: number
+  self_requests: number
+  self_tokens: number
+  self_actual_cost: number
+  self_account_cost: number
+  external_requests: number
+  external_consumer_charge: number
+  external_account_cost: number
+  external_owner_credit: number
+  external_platform_fee: number
 }
 
-export interface ApiKeyDailyUsageResponse {
-  items: ApiKeyDailyUsagePoint[]
-  days: number
-  start_date: string
-  end_date: string
-}
-
-export interface UsageDashboardSnapshotV2Params extends TrendParams {
-  include_trend?: boolean
-  include_model_stats?: boolean
-  include_group_stats?: boolean
-}
-
-export interface UsageDashboardSnapshotV2Response {
-  generated_at: string
+export interface AccountSharingDashboardStats {
+  summary: AccountSharingSummary
+  accounts: AccountSharingAccountStat[]
+  accounts_pagination: {
+    total: number
+    page: number
+    page_size: number
+    pages: number
+  }
+  trend: AccountSharingTrendPoint[]
   start_date: string
   end_date: string
   granularity: string
-  trend?: TrendDataPoint[]
-  models?: ModelStat[]
-  groups?: GroupStat[]
+}
+
+export interface AccountSharingDashboardParams extends TrendParams {
+  account_page?: number
+  account_page_size?: number
 }
 
 /**
@@ -167,12 +201,10 @@ export async function query(
  * @returns Usage statistics
  */
 export async function getStats(
-  paramsOrPeriod: (UsageQueryParams & { period?: string; timezone?: string }) | string = 'today',
+  period: string = 'today',
   apiKeyId?: number
 ): Promise<UsageStatsResponse> {
-  const params: Record<string, unknown> = typeof paramsOrPeriod === 'string'
-    ? { period: paramsOrPeriod }
-    : { ...paramsOrPeriod }
+  const params: Record<string, unknown> = { period }
 
   if (apiKeyId !== undefined) {
     params.api_key_id = apiKeyId
@@ -262,6 +294,14 @@ export async function getDashboardStats(): Promise<UserDashboardStats> {
 }
 
 /**
+ * Get public site-wide usage counters for the homepage.
+ */
+export async function getPublicTodayStats(): Promise<PublicTodayUsageStats> {
+  const { data } = await apiClient.get<PublicTodayUsageStats>('/public/usage/today')
+  return data
+}
+
+/**
  * Get user usage trend data
  * @param params - Query parameters for filtering
  * @returns Usage trend data for current user
@@ -279,44 +319,13 @@ export async function getDashboardTrend(params?: TrendParams): Promise<TrendResp
 export async function getDashboardModels(params?: {
   start_date?: string
   end_date?: string
-  api_key_id?: number
-  model?: string
-  model_source?: 'requested'
-  group_id?: number
-  request_type?: UsageRequestType
-  stream?: boolean
-  billing_type?: number | null
-  billing_mode?: string | null
-  timezone?: string
 }): Promise<ModelStatsResponse> {
   const { data } = await apiClient.get<ModelStatsResponse>('/usage/dashboard/models', { params })
   return data
 }
 
-/**
- * Get daily usage details for one API key owned by the current user.
- * @param apiKeyId - API key ID
- * @param days - Number of days to include (1-90)
- * @returns Daily usage detail rows
- */
-export async function getMyApiKeyDailyUsage(
-  apiKeyId: number,
-  days: number = 30
-): Promise<ApiKeyDailyUsageResponse> {
-  const { data } = await apiClient.get<ApiKeyDailyUsageResponse>(
-    `/user/api-keys/${apiKeyId}/usage/daily`,
-    { params: { days } }
-  )
-  return data
-}
-
-export async function getDashboardSnapshotV2(
-  params?: UsageDashboardSnapshotV2Params
-): Promise<UsageDashboardSnapshotV2Response> {
-  const { data } = await apiClient.get<UsageDashboardSnapshotV2Response>(
-    '/usage/dashboard/snapshot-v2',
-    { params }
-  )
+export async function getDashboardAccountSharing(params?: AccountSharingDashboardParams): Promise<AccountSharingDashboardStats> {
+  const { data } = await apiClient.get<AccountSharingDashboardStats>('/usage/dashboard/account-sharing', { params })
   return data
 }
 
@@ -354,20 +363,6 @@ export async function getDashboardApiKeysUsage(
   return data
 }
 
-export async function listMyErrorRequests(
-  params: UserErrorListParams
-): Promise<PaginatedResponse<UserErrorRequest>> {
-  const { data } = await apiClient.get<PaginatedResponse<UserErrorRequest>>('/usage/errors', {
-    params
-  })
-  return data
-}
-
-export async function getMyErrorDetail(id: number): Promise<UserErrorRequestDetail> {
-  const { data } = await apiClient.get<UserErrorRequestDetail>(`/usage/errors/${id}`)
-  return data
-}
-
 export const usageAPI = {
   list,
   query,
@@ -376,15 +371,12 @@ export const usageAPI = {
   getByDateRange,
   getById,
   // Dashboard
+  getPublicTodayStats,
   getDashboardStats,
   getDashboardTrend,
   getDashboardModels,
-  getMyApiKeyDailyUsage,
-  getDashboardSnapshotV2,
-  getDashboardApiKeysUsage,
-  // Error requests
-  listMyErrorRequests,
-  getMyErrorDetail
+  getDashboardAccountSharing,
+  getDashboardApiKeysUsage
 }
 
 export default usageAPI

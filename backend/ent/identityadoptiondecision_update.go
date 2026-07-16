@@ -6,15 +6,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/authidentity"
+	"ikik-api/ent/identityadoptiondecision"
+	"ikik-api/ent/pendingauthsession"
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/authidentity"
-	"ikik-api/ent/identityadoptiondecision"
-	"ikik-api/ent/pendingauthsession"
-	"ikik-api/ent/predicate"
 )
 
 // IdentityAdoptionDecisionUpdate is the builder for updating IdentityAdoptionDecision entities.

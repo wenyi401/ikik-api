@@ -6,11 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
-	"entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/sqlgraph"
-	"entgo.io/ent/schema/field"
+	"ikik-api/ent/account"
 	"ikik-api/ent/announcementread"
 	"ikik-api/ent/apikey"
 	"ikik-api/ent/authidentity"
@@ -20,11 +16,18 @@ import (
 	"ikik-api/ent/predicate"
 	"ikik-api/ent/promocodeusage"
 	"ikik-api/ent/redeemcode"
+	"ikik-api/ent/shopbalanceledger"
+	"ikik-api/ent/shopdrawcycle"
+	"ikik-api/ent/shoporder"
 	"ikik-api/ent/usagelog"
 	"ikik-api/ent/user"
 	"ikik-api/ent/userattributevalue"
-	"ikik-api/ent/userplatformquota"
 	"ikik-api/ent/usersubscription"
+	"time"
+
+	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/schema/field"
 )
 
 // UserUpdate is the builder for updating User entities.
@@ -129,24 +132,101 @@ func (_u *UserUpdate) AddBalance(v float64) *UserUpdate {
 	return _u
 }
 
-// SetFrozenBalance sets the "frozen_balance" field.
-func (_u *UserUpdate) SetFrozenBalance(v float64) *UserUpdate {
-	_u.mutation.ResetFrozenBalance()
-	_u.mutation.SetFrozenBalance(v)
+// SetRechargeBalance sets the "recharge_balance" field.
+func (_u *UserUpdate) SetRechargeBalance(v float64) *UserUpdate {
+	_u.mutation.ResetRechargeBalance()
+	_u.mutation.SetRechargeBalance(v)
 	return _u
 }
 
-// SetNillableFrozenBalance sets the "frozen_balance" field if the given value is not nil.
-func (_u *UserUpdate) SetNillableFrozenBalance(v *float64) *UserUpdate {
+// SetNillableRechargeBalance sets the "recharge_balance" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableRechargeBalance(v *float64) *UserUpdate {
 	if v != nil {
-		_u.SetFrozenBalance(*v)
+		_u.SetRechargeBalance(*v)
 	}
 	return _u
 }
 
-// AddFrozenBalance adds value to the "frozen_balance" field.
-func (_u *UserUpdate) AddFrozenBalance(v float64) *UserUpdate {
-	_u.mutation.AddFrozenBalance(v)
+// AddRechargeBalance adds value to the "recharge_balance" field.
+func (_u *UserUpdate) AddRechargeBalance(v float64) *UserUpdate {
+	_u.mutation.AddRechargeBalance(v)
+	return _u
+}
+
+// SetInviteIncomeBalance sets the "invite_income_balance" field.
+func (_u *UserUpdate) SetInviteIncomeBalance(v float64) *UserUpdate {
+	_u.mutation.ResetInviteIncomeBalance()
+	_u.mutation.SetInviteIncomeBalance(v)
+	return _u
+}
+
+// SetNillableInviteIncomeBalance sets the "invite_income_balance" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableInviteIncomeBalance(v *float64) *UserUpdate {
+	if v != nil {
+		_u.SetInviteIncomeBalance(*v)
+	}
+	return _u
+}
+
+// AddInviteIncomeBalance adds value to the "invite_income_balance" field.
+func (_u *UserUpdate) AddInviteIncomeBalance(v float64) *UserUpdate {
+	_u.mutation.AddInviteIncomeBalance(v)
+	return _u
+}
+
+// SetShareIncomeBalance sets the "share_income_balance" field.
+func (_u *UserUpdate) SetShareIncomeBalance(v float64) *UserUpdate {
+	_u.mutation.ResetShareIncomeBalance()
+	_u.mutation.SetShareIncomeBalance(v)
+	return _u
+}
+
+// SetNillableShareIncomeBalance sets the "share_income_balance" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableShareIncomeBalance(v *float64) *UserUpdate {
+	if v != nil {
+		_u.SetShareIncomeBalance(*v)
+	}
+	return _u
+}
+
+// AddShareIncomeBalance adds value to the "share_income_balance" field.
+func (_u *UserUpdate) AddShareIncomeBalance(v float64) *UserUpdate {
+	_u.mutation.AddShareIncomeBalance(v)
+	return _u
+}
+
+// SetPointsBalance sets the "points_balance" field.
+func (_u *UserUpdate) SetPointsBalance(v float64) *UserUpdate {
+	_u.mutation.ResetPointsBalance()
+	_u.mutation.SetPointsBalance(v)
+	return _u
+}
+
+// SetNillablePointsBalance sets the "points_balance" field if the given value is not nil.
+func (_u *UserUpdate) SetNillablePointsBalance(v *float64) *UserUpdate {
+	if v != nil {
+		_u.SetPointsBalance(*v)
+	}
+	return _u
+}
+
+// AddPointsBalance adds value to the "points_balance" field.
+func (_u *UserUpdate) AddPointsBalance(v float64) *UserUpdate {
+	_u.mutation.AddPointsBalance(v)
+	return _u
+}
+
+// SetPreferPointsBilling sets the "prefer_points_billing" field.
+func (_u *UserUpdate) SetPreferPointsBilling(v bool) *UserUpdate {
+	_u.mutation.SetPreferPointsBilling(v)
+	return _u
+}
+
+// SetNillablePreferPointsBilling sets the "prefer_points_billing" field if the given value is not nil.
+func (_u *UserUpdate) SetNillablePreferPointsBilling(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetPreferPointsBilling(*v)
+	}
 	return _u
 }
 
@@ -411,6 +491,48 @@ func (_u *UserUpdate) AddTotalRecharged(v float64) *UserUpdate {
 	return _u
 }
 
+// SetTotalInviteIncome sets the "total_invite_income" field.
+func (_u *UserUpdate) SetTotalInviteIncome(v float64) *UserUpdate {
+	_u.mutation.ResetTotalInviteIncome()
+	_u.mutation.SetTotalInviteIncome(v)
+	return _u
+}
+
+// SetNillableTotalInviteIncome sets the "total_invite_income" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableTotalInviteIncome(v *float64) *UserUpdate {
+	if v != nil {
+		_u.SetTotalInviteIncome(*v)
+	}
+	return _u
+}
+
+// AddTotalInviteIncome adds value to the "total_invite_income" field.
+func (_u *UserUpdate) AddTotalInviteIncome(v float64) *UserUpdate {
+	_u.mutation.AddTotalInviteIncome(v)
+	return _u
+}
+
+// SetTotalShareIncome sets the "total_share_income" field.
+func (_u *UserUpdate) SetTotalShareIncome(v float64) *UserUpdate {
+	_u.mutation.ResetTotalShareIncome()
+	_u.mutation.SetTotalShareIncome(v)
+	return _u
+}
+
+// SetNillableTotalShareIncome sets the "total_share_income" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableTotalShareIncome(v *float64) *UserUpdate {
+	if v != nil {
+		_u.SetTotalShareIncome(*v)
+	}
+	return _u
+}
+
+// AddTotalShareIncome adds value to the "total_share_income" field.
+func (_u *UserUpdate) AddTotalShareIncome(v float64) *UserUpdate {
+	_u.mutation.AddTotalShareIncome(v)
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *UserUpdate) SetRpmLimit(v int) *UserUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -582,6 +704,66 @@ func (_u *UserUpdate) AddPaymentOrders(v ...*PaymentOrder) *UserUpdate {
 	return _u.AddPaymentOrderIDs(ids...)
 }
 
+// AddShopOrderIDs adds the "shop_orders" edge to the ShopOrder entity by IDs.
+func (_u *UserUpdate) AddShopOrderIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddShopOrderIDs(ids...)
+	return _u
+}
+
+// AddShopOrders adds the "shop_orders" edges to the ShopOrder entity.
+func (_u *UserUpdate) AddShopOrders(v ...*ShopOrder) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddShopOrderIDs(ids...)
+}
+
+// AddShopDrawCycleIDs adds the "shop_draw_cycles" edge to the ShopDrawCycle entity by IDs.
+func (_u *UserUpdate) AddShopDrawCycleIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddShopDrawCycleIDs(ids...)
+	return _u
+}
+
+// AddShopDrawCycles adds the "shop_draw_cycles" edges to the ShopDrawCycle entity.
+func (_u *UserUpdate) AddShopDrawCycles(v ...*ShopDrawCycle) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddShopDrawCycleIDs(ids...)
+}
+
+// AddShopBalanceLedgerIDs adds the "shop_balance_ledger" edge to the ShopBalanceLedger entity by IDs.
+func (_u *UserUpdate) AddShopBalanceLedgerIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddShopBalanceLedgerIDs(ids...)
+	return _u
+}
+
+// AddShopBalanceLedger adds the "shop_balance_ledger" edges to the ShopBalanceLedger entity.
+func (_u *UserUpdate) AddShopBalanceLedger(v ...*ShopBalanceLedger) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddShopBalanceLedgerIDs(ids...)
+}
+
+// AddOwnedAccountIDs adds the "owned_accounts" edge to the Account entity by IDs.
+func (_u *UserUpdate) AddOwnedAccountIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddOwnedAccountIDs(ids...)
+	return _u
+}
+
+// AddOwnedAccounts adds the "owned_accounts" edges to the Account entity.
+func (_u *UserUpdate) AddOwnedAccounts(v ...*Account) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddOwnedAccountIDs(ids...)
+}
+
 // AddAuthIdentityIDs adds the "auth_identities" edge to the AuthIdentity entity by IDs.
 func (_u *UserUpdate) AddAuthIdentityIDs(ids ...int64) *UserUpdate {
 	_u.mutation.AddAuthIdentityIDs(ids...)
@@ -610,21 +792,6 @@ func (_u *UserUpdate) AddPendingAuthSessions(v ...*PendingAuthSession) *UserUpda
 		ids[i] = v[i].ID
 	}
 	return _u.AddPendingAuthSessionIDs(ids...)
-}
-
-// AddPlatformQuotaIDs adds the "platform_quotas" edge to the UserPlatformQuota entity by IDs.
-func (_u *UserUpdate) AddPlatformQuotaIDs(ids ...int64) *UserUpdate {
-	_u.mutation.AddPlatformQuotaIDs(ids...)
-	return _u
-}
-
-// AddPlatformQuotas adds the "platform_quotas" edges to the UserPlatformQuota entity.
-func (_u *UserUpdate) AddPlatformQuotas(v ...*UserPlatformQuota) *UserUpdate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddPlatformQuotaIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -842,6 +1009,90 @@ func (_u *UserUpdate) RemovePaymentOrders(v ...*PaymentOrder) *UserUpdate {
 	return _u.RemovePaymentOrderIDs(ids...)
 }
 
+// ClearShopOrders clears all "shop_orders" edges to the ShopOrder entity.
+func (_u *UserUpdate) ClearShopOrders() *UserUpdate {
+	_u.mutation.ClearShopOrders()
+	return _u
+}
+
+// RemoveShopOrderIDs removes the "shop_orders" edge to ShopOrder entities by IDs.
+func (_u *UserUpdate) RemoveShopOrderIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveShopOrderIDs(ids...)
+	return _u
+}
+
+// RemoveShopOrders removes "shop_orders" edges to ShopOrder entities.
+func (_u *UserUpdate) RemoveShopOrders(v ...*ShopOrder) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveShopOrderIDs(ids...)
+}
+
+// ClearShopDrawCycles clears all "shop_draw_cycles" edges to the ShopDrawCycle entity.
+func (_u *UserUpdate) ClearShopDrawCycles() *UserUpdate {
+	_u.mutation.ClearShopDrawCycles()
+	return _u
+}
+
+// RemoveShopDrawCycleIDs removes the "shop_draw_cycles" edge to ShopDrawCycle entities by IDs.
+func (_u *UserUpdate) RemoveShopDrawCycleIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveShopDrawCycleIDs(ids...)
+	return _u
+}
+
+// RemoveShopDrawCycles removes "shop_draw_cycles" edges to ShopDrawCycle entities.
+func (_u *UserUpdate) RemoveShopDrawCycles(v ...*ShopDrawCycle) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveShopDrawCycleIDs(ids...)
+}
+
+// ClearShopBalanceLedger clears all "shop_balance_ledger" edges to the ShopBalanceLedger entity.
+func (_u *UserUpdate) ClearShopBalanceLedger() *UserUpdate {
+	_u.mutation.ClearShopBalanceLedger()
+	return _u
+}
+
+// RemoveShopBalanceLedgerIDs removes the "shop_balance_ledger" edge to ShopBalanceLedger entities by IDs.
+func (_u *UserUpdate) RemoveShopBalanceLedgerIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveShopBalanceLedgerIDs(ids...)
+	return _u
+}
+
+// RemoveShopBalanceLedger removes "shop_balance_ledger" edges to ShopBalanceLedger entities.
+func (_u *UserUpdate) RemoveShopBalanceLedger(v ...*ShopBalanceLedger) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveShopBalanceLedgerIDs(ids...)
+}
+
+// ClearOwnedAccounts clears all "owned_accounts" edges to the Account entity.
+func (_u *UserUpdate) ClearOwnedAccounts() *UserUpdate {
+	_u.mutation.ClearOwnedAccounts()
+	return _u
+}
+
+// RemoveOwnedAccountIDs removes the "owned_accounts" edge to Account entities by IDs.
+func (_u *UserUpdate) RemoveOwnedAccountIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveOwnedAccountIDs(ids...)
+	return _u
+}
+
+// RemoveOwnedAccounts removes "owned_accounts" edges to Account entities.
+func (_u *UserUpdate) RemoveOwnedAccounts(v ...*Account) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveOwnedAccountIDs(ids...)
+}
+
 // ClearAuthIdentities clears all "auth_identities" edges to the AuthIdentity entity.
 func (_u *UserUpdate) ClearAuthIdentities() *UserUpdate {
 	_u.mutation.ClearAuthIdentities()
@@ -882,27 +1133,6 @@ func (_u *UserUpdate) RemovePendingAuthSessions(v ...*PendingAuthSession) *UserU
 		ids[i] = v[i].ID
 	}
 	return _u.RemovePendingAuthSessionIDs(ids...)
-}
-
-// ClearPlatformQuotas clears all "platform_quotas" edges to the UserPlatformQuota entity.
-func (_u *UserUpdate) ClearPlatformQuotas() *UserUpdate {
-	_u.mutation.ClearPlatformQuotas()
-	return _u
-}
-
-// RemovePlatformQuotaIDs removes the "platform_quotas" edge to UserPlatformQuota entities by IDs.
-func (_u *UserUpdate) RemovePlatformQuotaIDs(ids ...int64) *UserUpdate {
-	_u.mutation.RemovePlatformQuotaIDs(ids...)
-	return _u
-}
-
-// RemovePlatformQuotas removes "platform_quotas" edges to UserPlatformQuota entities.
-func (_u *UserUpdate) RemovePlatformQuotas(v ...*UserPlatformQuota) *UserUpdate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemovePlatformQuotaIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1018,11 +1248,32 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedBalance(); ok {
 		_spec.AddField(user.FieldBalance, field.TypeFloat64, value)
 	}
-	if value, ok := _u.mutation.FrozenBalance(); ok {
-		_spec.SetField(user.FieldFrozenBalance, field.TypeFloat64, value)
+	if value, ok := _u.mutation.RechargeBalance(); ok {
+		_spec.SetField(user.FieldRechargeBalance, field.TypeFloat64, value)
 	}
-	if value, ok := _u.mutation.AddedFrozenBalance(); ok {
-		_spec.AddField(user.FieldFrozenBalance, field.TypeFloat64, value)
+	if value, ok := _u.mutation.AddedRechargeBalance(); ok {
+		_spec.AddField(user.FieldRechargeBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.InviteIncomeBalance(); ok {
+		_spec.SetField(user.FieldInviteIncomeBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedInviteIncomeBalance(); ok {
+		_spec.AddField(user.FieldInviteIncomeBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ShareIncomeBalance(); ok {
+		_spec.SetField(user.FieldShareIncomeBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedShareIncomeBalance(); ok {
+		_spec.AddField(user.FieldShareIncomeBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.PointsBalance(); ok {
+		_spec.SetField(user.FieldPointsBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedPointsBalance(); ok {
+		_spec.AddField(user.FieldPointsBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.PreferPointsBilling(); ok {
+		_spec.SetField(user.FieldPreferPointsBilling, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)
@@ -1092,6 +1343,18 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedTotalRecharged(); ok {
 		_spec.AddField(user.FieldTotalRecharged, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.TotalInviteIncome(); ok {
+		_spec.SetField(user.FieldTotalInviteIncome, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedTotalInviteIncome(); ok {
+		_spec.AddField(user.FieldTotalInviteIncome, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.TotalShareIncome(); ok {
+		_spec.SetField(user.FieldTotalShareIncome, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedTotalShareIncome(); ok {
+		_spec.AddField(user.FieldTotalShareIncome, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)
@@ -1561,6 +1824,186 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.ShopOrdersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopOrdersTable,
+			Columns: []string{user.ShopOrdersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shoporder.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedShopOrdersIDs(); len(nodes) > 0 && !_u.mutation.ShopOrdersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopOrdersTable,
+			Columns: []string{user.ShopOrdersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shoporder.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ShopOrdersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopOrdersTable,
+			Columns: []string{user.ShopOrdersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shoporder.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ShopDrawCyclesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopDrawCyclesTable,
+			Columns: []string{user.ShopDrawCyclesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopdrawcycle.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedShopDrawCyclesIDs(); len(nodes) > 0 && !_u.mutation.ShopDrawCyclesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopDrawCyclesTable,
+			Columns: []string{user.ShopDrawCyclesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopdrawcycle.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ShopDrawCyclesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopDrawCyclesTable,
+			Columns: []string{user.ShopDrawCyclesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopdrawcycle.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ShopBalanceLedgerCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopBalanceLedgerTable,
+			Columns: []string{user.ShopBalanceLedgerColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopbalanceledger.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedShopBalanceLedgerIDs(); len(nodes) > 0 && !_u.mutation.ShopBalanceLedgerCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopBalanceLedgerTable,
+			Columns: []string{user.ShopBalanceLedgerColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopbalanceledger.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ShopBalanceLedgerIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopBalanceLedgerTable,
+			Columns: []string{user.ShopBalanceLedgerColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopbalanceledger.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.OwnedAccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedAccountsTable,
+			Columns: []string{user.OwnedAccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedOwnedAccountsIDs(); len(nodes) > 0 && !_u.mutation.OwnedAccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedAccountsTable,
+			Columns: []string{user.OwnedAccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.OwnedAccountsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedAccountsTable,
+			Columns: []string{user.OwnedAccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _u.mutation.AuthIdentitiesCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -1644,51 +2087,6 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(pendingauthsession.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.PlatformQuotasCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.PlatformQuotasTable,
-			Columns: []string{user.PlatformQuotasColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedPlatformQuotasIDs(); len(nodes) > 0 && !_u.mutation.PlatformQuotasCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.PlatformQuotasTable,
-			Columns: []string{user.PlatformQuotasColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.PlatformQuotasIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.PlatformQuotasTable,
-			Columns: []string{user.PlatformQuotasColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -1805,24 +2203,101 @@ func (_u *UserUpdateOne) AddBalance(v float64) *UserUpdateOne {
 	return _u
 }
 
-// SetFrozenBalance sets the "frozen_balance" field.
-func (_u *UserUpdateOne) SetFrozenBalance(v float64) *UserUpdateOne {
-	_u.mutation.ResetFrozenBalance()
-	_u.mutation.SetFrozenBalance(v)
+// SetRechargeBalance sets the "recharge_balance" field.
+func (_u *UserUpdateOne) SetRechargeBalance(v float64) *UserUpdateOne {
+	_u.mutation.ResetRechargeBalance()
+	_u.mutation.SetRechargeBalance(v)
 	return _u
 }
 
-// SetNillableFrozenBalance sets the "frozen_balance" field if the given value is not nil.
-func (_u *UserUpdateOne) SetNillableFrozenBalance(v *float64) *UserUpdateOne {
+// SetNillableRechargeBalance sets the "recharge_balance" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableRechargeBalance(v *float64) *UserUpdateOne {
 	if v != nil {
-		_u.SetFrozenBalance(*v)
+		_u.SetRechargeBalance(*v)
 	}
 	return _u
 }
 
-// AddFrozenBalance adds value to the "frozen_balance" field.
-func (_u *UserUpdateOne) AddFrozenBalance(v float64) *UserUpdateOne {
-	_u.mutation.AddFrozenBalance(v)
+// AddRechargeBalance adds value to the "recharge_balance" field.
+func (_u *UserUpdateOne) AddRechargeBalance(v float64) *UserUpdateOne {
+	_u.mutation.AddRechargeBalance(v)
+	return _u
+}
+
+// SetInviteIncomeBalance sets the "invite_income_balance" field.
+func (_u *UserUpdateOne) SetInviteIncomeBalance(v float64) *UserUpdateOne {
+	_u.mutation.ResetInviteIncomeBalance()
+	_u.mutation.SetInviteIncomeBalance(v)
+	return _u
+}
+
+// SetNillableInviteIncomeBalance sets the "invite_income_balance" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableInviteIncomeBalance(v *float64) *UserUpdateOne {
+	if v != nil {
+		_u.SetInviteIncomeBalance(*v)
+	}
+	return _u
+}
+
+// AddInviteIncomeBalance adds value to the "invite_income_balance" field.
+func (_u *UserUpdateOne) AddInviteIncomeBalance(v float64) *UserUpdateOne {
+	_u.mutation.AddInviteIncomeBalance(v)
+	return _u
+}
+
+// SetShareIncomeBalance sets the "share_income_balance" field.
+func (_u *UserUpdateOne) SetShareIncomeBalance(v float64) *UserUpdateOne {
+	_u.mutation.ResetShareIncomeBalance()
+	_u.mutation.SetShareIncomeBalance(v)
+	return _u
+}
+
+// SetNillableShareIncomeBalance sets the "share_income_balance" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableShareIncomeBalance(v *float64) *UserUpdateOne {
+	if v != nil {
+		_u.SetShareIncomeBalance(*v)
+	}
+	return _u
+}
+
+// AddShareIncomeBalance adds value to the "share_income_balance" field.
+func (_u *UserUpdateOne) AddShareIncomeBalance(v float64) *UserUpdateOne {
+	_u.mutation.AddShareIncomeBalance(v)
+	return _u
+}
+
+// SetPointsBalance sets the "points_balance" field.
+func (_u *UserUpdateOne) SetPointsBalance(v float64) *UserUpdateOne {
+	_u.mutation.ResetPointsBalance()
+	_u.mutation.SetPointsBalance(v)
+	return _u
+}
+
+// SetNillablePointsBalance sets the "points_balance" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillablePointsBalance(v *float64) *UserUpdateOne {
+	if v != nil {
+		_u.SetPointsBalance(*v)
+	}
+	return _u
+}
+
+// AddPointsBalance adds value to the "points_balance" field.
+func (_u *UserUpdateOne) AddPointsBalance(v float64) *UserUpdateOne {
+	_u.mutation.AddPointsBalance(v)
+	return _u
+}
+
+// SetPreferPointsBilling sets the "prefer_points_billing" field.
+func (_u *UserUpdateOne) SetPreferPointsBilling(v bool) *UserUpdateOne {
+	_u.mutation.SetPreferPointsBilling(v)
+	return _u
+}
+
+// SetNillablePreferPointsBilling sets the "prefer_points_billing" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillablePreferPointsBilling(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetPreferPointsBilling(*v)
+	}
 	return _u
 }
 
@@ -2087,6 +2562,48 @@ func (_u *UserUpdateOne) AddTotalRecharged(v float64) *UserUpdateOne {
 	return _u
 }
 
+// SetTotalInviteIncome sets the "total_invite_income" field.
+func (_u *UserUpdateOne) SetTotalInviteIncome(v float64) *UserUpdateOne {
+	_u.mutation.ResetTotalInviteIncome()
+	_u.mutation.SetTotalInviteIncome(v)
+	return _u
+}
+
+// SetNillableTotalInviteIncome sets the "total_invite_income" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableTotalInviteIncome(v *float64) *UserUpdateOne {
+	if v != nil {
+		_u.SetTotalInviteIncome(*v)
+	}
+	return _u
+}
+
+// AddTotalInviteIncome adds value to the "total_invite_income" field.
+func (_u *UserUpdateOne) AddTotalInviteIncome(v float64) *UserUpdateOne {
+	_u.mutation.AddTotalInviteIncome(v)
+	return _u
+}
+
+// SetTotalShareIncome sets the "total_share_income" field.
+func (_u *UserUpdateOne) SetTotalShareIncome(v float64) *UserUpdateOne {
+	_u.mutation.ResetTotalShareIncome()
+	_u.mutation.SetTotalShareIncome(v)
+	return _u
+}
+
+// SetNillableTotalShareIncome sets the "total_share_income" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableTotalShareIncome(v *float64) *UserUpdateOne {
+	if v != nil {
+		_u.SetTotalShareIncome(*v)
+	}
+	return _u
+}
+
+// AddTotalShareIncome adds value to the "total_share_income" field.
+func (_u *UserUpdateOne) AddTotalShareIncome(v float64) *UserUpdateOne {
+	_u.mutation.AddTotalShareIncome(v)
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *UserUpdateOne) SetRpmLimit(v int) *UserUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -2258,6 +2775,66 @@ func (_u *UserUpdateOne) AddPaymentOrders(v ...*PaymentOrder) *UserUpdateOne {
 	return _u.AddPaymentOrderIDs(ids...)
 }
 
+// AddShopOrderIDs adds the "shop_orders" edge to the ShopOrder entity by IDs.
+func (_u *UserUpdateOne) AddShopOrderIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddShopOrderIDs(ids...)
+	return _u
+}
+
+// AddShopOrders adds the "shop_orders" edges to the ShopOrder entity.
+func (_u *UserUpdateOne) AddShopOrders(v ...*ShopOrder) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddShopOrderIDs(ids...)
+}
+
+// AddShopDrawCycleIDs adds the "shop_draw_cycles" edge to the ShopDrawCycle entity by IDs.
+func (_u *UserUpdateOne) AddShopDrawCycleIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddShopDrawCycleIDs(ids...)
+	return _u
+}
+
+// AddShopDrawCycles adds the "shop_draw_cycles" edges to the ShopDrawCycle entity.
+func (_u *UserUpdateOne) AddShopDrawCycles(v ...*ShopDrawCycle) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddShopDrawCycleIDs(ids...)
+}
+
+// AddShopBalanceLedgerIDs adds the "shop_balance_ledger" edge to the ShopBalanceLedger entity by IDs.
+func (_u *UserUpdateOne) AddShopBalanceLedgerIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddShopBalanceLedgerIDs(ids...)
+	return _u
+}
+
+// AddShopBalanceLedger adds the "shop_balance_ledger" edges to the ShopBalanceLedger entity.
+func (_u *UserUpdateOne) AddShopBalanceLedger(v ...*ShopBalanceLedger) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddShopBalanceLedgerIDs(ids...)
+}
+
+// AddOwnedAccountIDs adds the "owned_accounts" edge to the Account entity by IDs.
+func (_u *UserUpdateOne) AddOwnedAccountIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddOwnedAccountIDs(ids...)
+	return _u
+}
+
+// AddOwnedAccounts adds the "owned_accounts" edges to the Account entity.
+func (_u *UserUpdateOne) AddOwnedAccounts(v ...*Account) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddOwnedAccountIDs(ids...)
+}
+
 // AddAuthIdentityIDs adds the "auth_identities" edge to the AuthIdentity entity by IDs.
 func (_u *UserUpdateOne) AddAuthIdentityIDs(ids ...int64) *UserUpdateOne {
 	_u.mutation.AddAuthIdentityIDs(ids...)
@@ -2286,21 +2863,6 @@ func (_u *UserUpdateOne) AddPendingAuthSessions(v ...*PendingAuthSession) *UserU
 		ids[i] = v[i].ID
 	}
 	return _u.AddPendingAuthSessionIDs(ids...)
-}
-
-// AddPlatformQuotaIDs adds the "platform_quotas" edge to the UserPlatformQuota entity by IDs.
-func (_u *UserUpdateOne) AddPlatformQuotaIDs(ids ...int64) *UserUpdateOne {
-	_u.mutation.AddPlatformQuotaIDs(ids...)
-	return _u
-}
-
-// AddPlatformQuotas adds the "platform_quotas" edges to the UserPlatformQuota entity.
-func (_u *UserUpdateOne) AddPlatformQuotas(v ...*UserPlatformQuota) *UserUpdateOne {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddPlatformQuotaIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -2518,6 +3080,90 @@ func (_u *UserUpdateOne) RemovePaymentOrders(v ...*PaymentOrder) *UserUpdateOne 
 	return _u.RemovePaymentOrderIDs(ids...)
 }
 
+// ClearShopOrders clears all "shop_orders" edges to the ShopOrder entity.
+func (_u *UserUpdateOne) ClearShopOrders() *UserUpdateOne {
+	_u.mutation.ClearShopOrders()
+	return _u
+}
+
+// RemoveShopOrderIDs removes the "shop_orders" edge to ShopOrder entities by IDs.
+func (_u *UserUpdateOne) RemoveShopOrderIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveShopOrderIDs(ids...)
+	return _u
+}
+
+// RemoveShopOrders removes "shop_orders" edges to ShopOrder entities.
+func (_u *UserUpdateOne) RemoveShopOrders(v ...*ShopOrder) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveShopOrderIDs(ids...)
+}
+
+// ClearShopDrawCycles clears all "shop_draw_cycles" edges to the ShopDrawCycle entity.
+func (_u *UserUpdateOne) ClearShopDrawCycles() *UserUpdateOne {
+	_u.mutation.ClearShopDrawCycles()
+	return _u
+}
+
+// RemoveShopDrawCycleIDs removes the "shop_draw_cycles" edge to ShopDrawCycle entities by IDs.
+func (_u *UserUpdateOne) RemoveShopDrawCycleIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveShopDrawCycleIDs(ids...)
+	return _u
+}
+
+// RemoveShopDrawCycles removes "shop_draw_cycles" edges to ShopDrawCycle entities.
+func (_u *UserUpdateOne) RemoveShopDrawCycles(v ...*ShopDrawCycle) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveShopDrawCycleIDs(ids...)
+}
+
+// ClearShopBalanceLedger clears all "shop_balance_ledger" edges to the ShopBalanceLedger entity.
+func (_u *UserUpdateOne) ClearShopBalanceLedger() *UserUpdateOne {
+	_u.mutation.ClearShopBalanceLedger()
+	return _u
+}
+
+// RemoveShopBalanceLedgerIDs removes the "shop_balance_ledger" edge to ShopBalanceLedger entities by IDs.
+func (_u *UserUpdateOne) RemoveShopBalanceLedgerIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveShopBalanceLedgerIDs(ids...)
+	return _u
+}
+
+// RemoveShopBalanceLedger removes "shop_balance_ledger" edges to ShopBalanceLedger entities.
+func (_u *UserUpdateOne) RemoveShopBalanceLedger(v ...*ShopBalanceLedger) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveShopBalanceLedgerIDs(ids...)
+}
+
+// ClearOwnedAccounts clears all "owned_accounts" edges to the Account entity.
+func (_u *UserUpdateOne) ClearOwnedAccounts() *UserUpdateOne {
+	_u.mutation.ClearOwnedAccounts()
+	return _u
+}
+
+// RemoveOwnedAccountIDs removes the "owned_accounts" edge to Account entities by IDs.
+func (_u *UserUpdateOne) RemoveOwnedAccountIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveOwnedAccountIDs(ids...)
+	return _u
+}
+
+// RemoveOwnedAccounts removes "owned_accounts" edges to Account entities.
+func (_u *UserUpdateOne) RemoveOwnedAccounts(v ...*Account) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveOwnedAccountIDs(ids...)
+}
+
 // ClearAuthIdentities clears all "auth_identities" edges to the AuthIdentity entity.
 func (_u *UserUpdateOne) ClearAuthIdentities() *UserUpdateOne {
 	_u.mutation.ClearAuthIdentities()
@@ -2558,27 +3204,6 @@ func (_u *UserUpdateOne) RemovePendingAuthSessions(v ...*PendingAuthSession) *Us
 		ids[i] = v[i].ID
 	}
 	return _u.RemovePendingAuthSessionIDs(ids...)
-}
-
-// ClearPlatformQuotas clears all "platform_quotas" edges to the UserPlatformQuota entity.
-func (_u *UserUpdateOne) ClearPlatformQuotas() *UserUpdateOne {
-	_u.mutation.ClearPlatformQuotas()
-	return _u
-}
-
-// RemovePlatformQuotaIDs removes the "platform_quotas" edge to UserPlatformQuota entities by IDs.
-func (_u *UserUpdateOne) RemovePlatformQuotaIDs(ids ...int64) *UserUpdateOne {
-	_u.mutation.RemovePlatformQuotaIDs(ids...)
-	return _u
-}
-
-// RemovePlatformQuotas removes "platform_quotas" edges to UserPlatformQuota entities.
-func (_u *UserUpdateOne) RemovePlatformQuotas(v ...*UserPlatformQuota) *UserUpdateOne {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemovePlatformQuotaIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -2724,11 +3349,32 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	if value, ok := _u.mutation.AddedBalance(); ok {
 		_spec.AddField(user.FieldBalance, field.TypeFloat64, value)
 	}
-	if value, ok := _u.mutation.FrozenBalance(); ok {
-		_spec.SetField(user.FieldFrozenBalance, field.TypeFloat64, value)
+	if value, ok := _u.mutation.RechargeBalance(); ok {
+		_spec.SetField(user.FieldRechargeBalance, field.TypeFloat64, value)
 	}
-	if value, ok := _u.mutation.AddedFrozenBalance(); ok {
-		_spec.AddField(user.FieldFrozenBalance, field.TypeFloat64, value)
+	if value, ok := _u.mutation.AddedRechargeBalance(); ok {
+		_spec.AddField(user.FieldRechargeBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.InviteIncomeBalance(); ok {
+		_spec.SetField(user.FieldInviteIncomeBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedInviteIncomeBalance(); ok {
+		_spec.AddField(user.FieldInviteIncomeBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ShareIncomeBalance(); ok {
+		_spec.SetField(user.FieldShareIncomeBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedShareIncomeBalance(); ok {
+		_spec.AddField(user.FieldShareIncomeBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.PointsBalance(); ok {
+		_spec.SetField(user.FieldPointsBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedPointsBalance(); ok {
+		_spec.AddField(user.FieldPointsBalance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.PreferPointsBilling(); ok {
+		_spec.SetField(user.FieldPreferPointsBilling, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.Concurrency(); ok {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)
@@ -2798,6 +3444,18 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedTotalRecharged(); ok {
 		_spec.AddField(user.FieldTotalRecharged, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.TotalInviteIncome(); ok {
+		_spec.SetField(user.FieldTotalInviteIncome, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedTotalInviteIncome(); ok {
+		_spec.AddField(user.FieldTotalInviteIncome, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.TotalShareIncome(); ok {
+		_spec.SetField(user.FieldTotalShareIncome, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedTotalShareIncome(); ok {
+		_spec.AddField(user.FieldTotalShareIncome, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)
@@ -3267,6 +3925,186 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.ShopOrdersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopOrdersTable,
+			Columns: []string{user.ShopOrdersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shoporder.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedShopOrdersIDs(); len(nodes) > 0 && !_u.mutation.ShopOrdersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopOrdersTable,
+			Columns: []string{user.ShopOrdersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shoporder.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ShopOrdersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopOrdersTable,
+			Columns: []string{user.ShopOrdersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shoporder.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ShopDrawCyclesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopDrawCyclesTable,
+			Columns: []string{user.ShopDrawCyclesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopdrawcycle.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedShopDrawCyclesIDs(); len(nodes) > 0 && !_u.mutation.ShopDrawCyclesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopDrawCyclesTable,
+			Columns: []string{user.ShopDrawCyclesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopdrawcycle.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ShopDrawCyclesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopDrawCyclesTable,
+			Columns: []string{user.ShopDrawCyclesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopdrawcycle.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ShopBalanceLedgerCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopBalanceLedgerTable,
+			Columns: []string{user.ShopBalanceLedgerColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopbalanceledger.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedShopBalanceLedgerIDs(); len(nodes) > 0 && !_u.mutation.ShopBalanceLedgerCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopBalanceLedgerTable,
+			Columns: []string{user.ShopBalanceLedgerColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopbalanceledger.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ShopBalanceLedgerIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ShopBalanceLedgerTable,
+			Columns: []string{user.ShopBalanceLedgerColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(shopbalanceledger.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.OwnedAccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedAccountsTable,
+			Columns: []string{user.OwnedAccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedOwnedAccountsIDs(); len(nodes) > 0 && !_u.mutation.OwnedAccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedAccountsTable,
+			Columns: []string{user.OwnedAccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.OwnedAccountsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.OwnedAccountsTable,
+			Columns: []string{user.OwnedAccountsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _u.mutation.AuthIdentitiesCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -3350,51 +4188,6 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(pendingauthsession.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.PlatformQuotasCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.PlatformQuotasTable,
-			Columns: []string{user.PlatformQuotasColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedPlatformQuotasIDs(); len(nodes) > 0 && !_u.mutation.PlatformQuotasCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.PlatformQuotasTable,
-			Columns: []string{user.PlatformQuotasColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.PlatformQuotasIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   user.PlatformQuotasTable,
-			Columns: []string{user.PlatformQuotasColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(userplatformquota.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

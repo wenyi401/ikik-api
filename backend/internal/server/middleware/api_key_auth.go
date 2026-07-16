@@ -77,10 +77,6 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			return
 		}
 
-		// apiKey 已加载（含 User/Group）。即便后续因分组停用/Key 停用/用户停用/
-		// IP 限制等早退中断，也让 Ops 错误日志能回退取到 user/group/platform。
-		SetOpsFallbackAPIKey(c, apiKey)
-
 		// ── 3. 基础鉴权（始终执行） ─────────────────────────────────
 
 		// disabled / 未知状态 → 无条件拦截（expired 和 quota_exhausted 留给计费阶段）
@@ -95,7 +91,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		// 注意：错误信息故意模糊，避免暴露具体的 IP 限制机制
 		if len(apiKey.IPWhitelist) > 0 || len(apiKey.IPBlacklist) > 0 {
 			clientIP := ip.GetTrustedClientIP(c)
-			if cfg.TrustForwardedIPForAPIKeyACL() {
+			if cfg != nil && cfg.TrustForwardedIPForAPIKeyACL() {
 				clientIP = ip.GetClientIP(c)
 			}
 			allowed, _ := ip.CheckIPRestrictionWithCompiledRules(clientIP, apiKey.CompiledIPWhitelist, apiKey.CompiledIPBlacklist)
@@ -103,7 +99,6 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 				if clientIP == "" {
 					clientIP = "unknown"
 				}
-				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonIPRestriction)
 				AbortWithError(c, 403, "ACCESS_DENIED", fmt.Sprintf("Access denied. Your IP is %s", clientIP))
 				return
 			}
@@ -120,14 +115,10 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			AbortWithError(c, 401, "USER_INACTIVE", "User account is not active")
 			return
 		}
-		if abortIfAPIKeyGroupUnavailable(c, apiKey) {
-			return
-		}
+
 		if abortIfAPIKeyGroupNotAllowed(c, apiKey) {
 			return
 		}
-		ctx := context.WithValue(c.Request.Context(), ctxkey.UserID, apiKey.User.ID)
-		c.Request = c.Request.WithContext(ctx)
 
 		// ── 4. SimpleMode → early return ─────────────────────────────
 
@@ -138,6 +129,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 				Concurrency: apiKey.User.Concurrency,
 			})
 			c.Set(string(ContextKeyUserRole), apiKey.User.Role)
+			setAuthenticatedUserIDContext(c, apiKey.User.ID)
 			setGroupContext(c, apiKey.Group)
 			_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
 			c.Next()
@@ -195,15 +187,6 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			// 订阅模式：验证订阅限额
 			if subscription != nil {
 				needsMaintenance, validateErr := subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
-				if needsMaintenance {
-					refreshed, maintenanceErr := subscriptionService.EnsureWindowMaintenance(c.Request.Context(), subscription)
-					if maintenanceErr != nil {
-						AbortWithError(c, 500, "SUBSCRIPTION_MAINTENANCE_FAILED", "Failed to maintain subscription usage windows")
-						return
-					}
-					subscription = refreshed
-					_, validateErr = subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
-				}
 				if validateErr != nil {
 					code := "SUBSCRIPTION_INVALID"
 					status := 403
@@ -216,9 +199,15 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 					AbortWithError(c, status, code, validateErr.Error())
 					return
 				}
+
+				// 窗口维护异步化（不阻塞请求）
+				if needsMaintenance {
+					maintenanceCopy := *subscription
+					subscriptionService.DoWindowMaintenance(&maintenanceCopy)
+				}
 			} else {
 				// 非订阅模式 或 订阅模式但 subscriptionService 未注入：回退到余额检查
-				if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
+				if !service.HasUsageBillingFunds(apiKey.User) {
 					AbortWithError(c, 403, "INSUFFICIENT_BALANCE", "Insufficient account balance")
 					return
 				}
@@ -236,6 +225,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			Concurrency: apiKey.User.Concurrency,
 		})
 		c.Set(string(ContextKeyUserRole), apiKey.User.Role)
+		setAuthenticatedUserIDContext(c, apiKey.User.ID)
 		setGroupContext(c, apiKey.Group)
 		_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
 
@@ -246,26 +236,6 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 // GetAPIKeyFromContext 从上下文中获取API key
 func GetAPIKeyFromContext(c *gin.Context) (*service.APIKey, bool) {
 	value, exists := c.Get(string(ContextKeyAPIKey))
-	if !exists {
-		return nil, false
-	}
-	apiKey, ok := value.(*service.APIKey)
-	return apiKey, ok
-}
-
-// SetOpsFallbackAPIKey 记录已加载的 API Key，供 Ops 错误日志在鉴权早退时回退使用。
-// 与 ContextKeyAPIKey 区分：写入它不代表请求已通过鉴权，因此不影响 handler、
-// 审计日志等对“已鉴权”的判断。
-func SetOpsFallbackAPIKey(c *gin.Context, apiKey *service.APIKey) {
-	if c == nil || apiKey == nil {
-		return
-	}
-	c.Set(string(ContextKeyOpsFallbackAPIKey), apiKey)
-}
-
-// GetOpsFallbackAPIKey 读取 Ops 错误日志专用的回退 API Key。
-func GetOpsFallbackAPIKey(c *gin.Context) (*service.APIKey, bool) {
-	value, exists := c.Get(string(ContextKeyOpsFallbackAPIKey))
 	if !exists {
 		return nil, false
 	}
@@ -294,29 +264,22 @@ func setGroupContext(c *gin.Context, group *service.Group) {
 	c.Request = c.Request.WithContext(ctx)
 }
 
-// apiKeyBalanceBelowAuthThreshold 保持鉴权层的历史语义：仅在余额耗尽（<=0）时拒绝。
-// MinimumBalanceReserve 只作为 billing-cache 预检的保守下限，不得复用为鉴权硬门槛，
-// 否则已配置该值的存量部署升级后，0 < balance < reserve 的用户会在所有端点被静默 403。
-func apiKeyBalanceBelowAuthThreshold(balance float64, _ *config.Config) bool {
-	return balance <= 0
-}
-
-func abortIfAPIKeyGroupUnavailable(c *gin.Context, apiKey *service.APIKey) bool {
-	code, message, ok := validateAPIKeyGroupAvailable(apiKey)
-	if ok {
-		return false
+func setAuthenticatedUserIDContext(c *gin.Context, userID int64) {
+	if userID <= 0 {
+		return
 	}
-	service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonAPIKeyGroupUnavailable)
-	AbortWithError(c, 403, code, message)
-	return true
+	if existing, ok := c.Request.Context().Value(ctxkey.AuthenticatedUserID).(int64); ok && existing == userID {
+		return
+	}
+	ctx := context.WithValue(c.Request.Context(), ctxkey.AuthenticatedUserID, userID)
+	c.Request = c.Request.WithContext(ctx)
 }
 
 func abortIfAPIKeyGroupNotAllowed(c *gin.Context, apiKey *service.APIKey) bool {
 	if validateAPIKeyGroupAllowed(apiKey) {
 		return false
 	}
-	service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonAPIKeyGroupUnavailable)
-	AbortWithError(c, 403, "GROUP_NOT_ALLOWED", "API Key 所属专属分组不再允许当前用户使用")
+	AbortWithError(c, 403, "GROUP_NOT_ALLOWED", "API key group is no longer allowed for this user")
 	return true
 }
 
@@ -329,18 +292,4 @@ func validateAPIKeyGroupAllowed(apiKey *service.APIKey) bool {
 		return true
 	}
 	return apiKey.User.CanBindGroup(group.ID, group.IsExclusive)
-}
-
-func validateAPIKeyGroupAvailable(apiKey *service.APIKey) (string, string, bool) {
-	if apiKey == nil || apiKey.GroupID == nil {
-		return "", "", true
-	}
-	group := apiKey.Group
-	if group == nil || strings.EqualFold(group.Status, "deleted") {
-		return "GROUP_DELETED", "API Key 所属分组已删除", false
-	}
-	if !group.IsActive() {
-		return "GROUP_DISABLED", "API Key 所属分组已停用", false
-	}
-	return "", "", true
 }

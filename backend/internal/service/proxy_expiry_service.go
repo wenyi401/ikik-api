@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// ProxyExpiryService 周期扫描到期代理并把绑定账号改投备用/直连。
 type ProxyExpiryService struct {
 	proxyRepo ProxyRepository
 	interval  time.Duration
@@ -17,7 +16,11 @@ type ProxyExpiryService struct {
 }
 
 func NewProxyExpiryService(proxyRepo ProxyRepository, interval time.Duration) *ProxyExpiryService {
-	return &ProxyExpiryService{proxyRepo: proxyRepo, interval: interval, stopCh: make(chan struct{})}
+	return &ProxyExpiryService{
+		proxyRepo: proxyRepo,
+		interval:  interval,
+		stopCh:    make(chan struct{}),
+	}
 }
 
 func (s *ProxyExpiryService) Start() {

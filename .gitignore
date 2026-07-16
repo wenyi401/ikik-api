@@ -54,6 +54,7 @@ pnpm-debug.log*
 *.env
 !.env.example
 docker-compose.override.yml
+main_data.md
 
 # ===================
 # IDE / 编辑器
@@ -86,43 +87,43 @@ temp/
 .cache/
 .dev/
 .serena/
-
+test/
 # ===================
 # 构建产物
 # ===================
 dist/
 build/
 release/
-
-# 后端嵌入的前端构建产物
-# Keep a placeholder file so `//go:embed all:dist` always has a match in CI/lint,
-# while still ignoring generated frontend build outputs.
-backend/internal/web/dist/
 !backend/internal/web/dist/
 backend/internal/web/dist/*
 !backend/internal/web/dist/.keep
-
-# 后端运行时缓存数据
 backend/data/
+data/
+backups/
+*.dump
+*.sql.gz
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.rar
 
-# ===================
-# 本地配置文件（包含敏感信息）
-# ===================
+# 证书和私钥
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+
 backend/config.yaml
 deploy/config.yaml
 backend/.installed
-
-# ===================
-# 其他
-# ===================
 tests
-!deploy/tests/
-!deploy/tests/**
 CLAUDE.md
 .claude
-scripts
-!backend/scripts/
-!backend/scripts/resolve-version.sh
+/scripts/
 .code-review-state
 #openspec/
 code-reviews/
@@ -135,10 +136,15 @@ docs/*
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
-!docs/legal/
-!docs/legal/*.md
+!docs/OFFICIAL_UPDATE_AND_DEPLOY_CN.md
+!docs/LOCAL_IMAGE_UPLOAD_DEPLOY_CN.md
 .serena/
 .codex/
 frontend/coverage/
 aicodex
 output/
+test/images/
+
+nul
+/issues/
+/.codex_tmp/

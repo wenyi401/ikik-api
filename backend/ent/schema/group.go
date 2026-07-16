@@ -45,32 +45,28 @@ func (Group) Fields() []ent.Field {
 		field.Float("rate_multiplier").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
 			Default(1.0),
-		// 高峰时段倍率（added by migration 158）
-		field.Bool("peak_rate_enabled").
-			Default(false).
-			Comment("是否启用高峰时段倍率"),
-		field.String("peak_start").
-			MaxLen(5).
-			Default("").
-			Comment("高峰开始时间 HH:MM（含），如 14:00；空表示未配置；不支持跨天"),
-		field.String("peak_end").
-			MaxLen(5).
-			Default("").
-			Comment("高峰结束时间 HH:MM（不含），必须大于 peak_start；不支持跨天，如 22:00-02:00"),
-		field.Float("peak_rate_multiplier").
-			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
-			Default(1.0).
-			Comment("高峰时段叠加倍率，仅在 peak_rate_enabled 且处于 [peak_start, peak_end) 时乘入文本倍率"),
 		field.Bool("is_exclusive").
 			Default(false),
 		field.String("status").
 			MaxLen(20).
 			Default(domain.StatusActive),
+		field.Int64("owner_user_id").
+			Optional().
+			Nillable().
+			Comment("Owner user for user-private groups"),
+		field.String("scope").
+			MaxLen(20).
+			Default(domain.GroupScopePublic).
+			Comment("Group visibility scope: public or user_private"),
 
 		// Subscription-related fields (added by migration 003)
 		field.String("platform").
 			MaxLen(50).
 			Default(domain.PlatformAnthropic),
+		field.String("required_account_level").
+			MaxLen(20).
+			Default("").
+			Comment("Required account capability level for this group: empty/free/plus/pro/team/k12."),
 		field.String("subscription_type").
 			MaxLen(20).
 			Default(domain.SubscriptionTypeStandard),
@@ -93,9 +89,6 @@ func (Group) Fields() []ent.Field {
 		field.Bool("allow_image_generation").
 			Default(false).
 			Comment("是否允许该分组使用图片生成能力"),
-		field.Bool("allow_batch_image_generation").
-			Default(false).
-			Comment("是否允许该分组使用批量图片生成能力"),
 		field.Bool("image_rate_independent").
 			Default(false).
 			Comment("图片生成是否使用独立倍率；false 表示共享分组有效倍率"),
@@ -115,38 +108,6 @@ func (Group) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
-		field.Float("batch_image_discount_multiplier").
-			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
-			Default(0.5).
-			Comment("批量图片生成折扣倍率，最终单价会乘以该值；0 表示免费"),
-		field.Float("batch_image_hold_multiplier").
-			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
-			Default(0.6).
-			Comment("批量图片生成冻结价格比例，按普通生图原价乘以该比例冻结，结算后释放差额"),
-		field.Bool("video_rate_independent").
-			Default(false).
-			Comment("视频生成是否使用独立倍率；false 表示共享分组有效倍率"),
-		field.Float("video_rate_multiplier").
-			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
-			Default(1.0).
-			Comment("视频生成独立倍率，仅 video_rate_independent=true 时生效"),
-		field.Float("video_price_480p").
-			Optional().
-			Nillable().
-			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
-		field.Float("video_price_720p").
-			Optional().
-			Nillable().
-			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
-		field.Float("video_price_1080p").
-			Optional().
-			Nillable().
-			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
-		field.Float("web_search_price_per_call").
-			Optional().
-			Nillable().
-			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
-			Comment("Codex alpha/search 网页搜索单次价格（USD/次）；nil 表示使用默认价 0.01（官方 $10/1000 次）"),
 
 		// Claude Code 客户端限制 (added by migration 029)
 		field.Bool("claude_code_only").
@@ -209,18 +170,38 @@ func (Group) Fields() []ent.Field {
 		field.JSON("models_list_config", domain.GroupModelsListConfig{}).
 			Default(domain.GroupModelsListConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
-			Comment("自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度"),
+			Comment("自定义 /v1/models 展示列表配置；仅用于控制模型列表响应"),
 
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").
 			Default(0).
 			Comment("分组 RPM 上限，0 表示不限制；设置后接管该分组用户的限流"),
+
+		// Kiro 模拟缓存配置（仅 Kiro 平台生效）
+		field.Bool("kiro_cache_emulation_enabled").
+			Default(false).
+			Comment("是否启用 Kiro 模拟缓存（仅 kiro 分组生效）"),
+		field.Bool("kiro_auto_sticky_enabled").
+			Default(true).
+			Comment("是否启用 Kiro 自动会话粘性路由（仅 kiro 分组生效）"),
+		field.Int("kiro_sticky_session_ttl_seconds").
+			Default(3600).
+			Comment("Kiro 自动会话粘性绑定 TTL（秒，仅 kiro 分组生效）"),
+		field.Float("kiro_cache_emulation_ratio").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(5,4)"}).
+			Default(1.0).
+			Comment("Kiro 模拟缓存生效比例，范围 0-1（仅 kiro 分组生效）"),
+		field.String("kiro_endpoint_mode").
+			MaxLen(8).
+			Default("q").
+			Comment("Kiro 推理 endpoint：q=AWS Q (q.{region}.amazonaws.com), krs=Kiro Runtime Service (runtime.us-east-1.kiro.dev)"),
 	}
 }
 
 func (Group) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("api_keys", APIKey.Type),
+		edge.To("api_key_group_routes", APIKeyGroupRoute.Type),
 		edge.To("redeem_codes", RedeemCode.Type),
 		edge.To("subscriptions", UserSubscription.Type),
 		edge.To("usage_logs", UsageLog.Type),
@@ -242,6 +223,9 @@ func (Group) Indexes() []ent.Index {
 		index.Fields("platform"),
 		index.Fields("subscription_type"),
 		index.Fields("is_exclusive"),
+		index.Fields("owner_user_id"),
+		index.Fields("scope"),
+		index.Fields("owner_user_id", "platform", "scope"),
 		index.Fields("deleted_at"),
 		index.Fields("sort_order"),
 	}

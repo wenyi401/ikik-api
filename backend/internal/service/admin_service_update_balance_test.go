@@ -30,6 +30,19 @@ func (s *balanceUserRepoStub) Update(ctx context.Context, user *User) error {
 	return nil
 }
 
+func (s *balanceUserRepoStub) UpdateBalance(ctx context.Context, id int64, amount float64) error {
+	if s.updateErr != nil {
+		return s.updateErr
+	}
+	if s.userRepoStub != nil && s.userRepoStub.user != nil && s.userRepoStub.user.ID == id {
+		clone := *s.userRepoStub.user
+		clone.Balance += amount
+		s.userRepoStub.user = &clone
+		s.updated = append(s.updated, &clone)
+	}
+	return nil
+}
+
 type balanceRedeemRepoStub struct {
 	*redeemRepoStub
 	created []*RedeemCode
@@ -73,7 +86,7 @@ func TestAdminService_UpdateUserBalance_InvalidatesAuthCache(t *testing.T) {
 		authCacheInvalidator: invalidator,
 	}
 
-	_, err := svc.UpdateUserBalance(context.Background(), 7, 5, "add", "")
+	_, err := svc.UpdateUserBalance(context.Background(), 7, 5, "add", "", false)
 	require.NoError(t, err)
 	require.Equal(t, []int64{7}, invalidator.userIDs)
 	require.Len(t, redeemRepo.created, 1)
@@ -90,8 +103,26 @@ func TestAdminService_UpdateUserBalance_NoChangeNoInvalidate(t *testing.T) {
 		authCacheInvalidator: invalidator,
 	}
 
-	_, err := svc.UpdateUserBalance(context.Background(), 7, 10, "set", "")
+	_, err := svc.UpdateUserBalance(context.Background(), 7, 10, "set", "", false)
 	require.NoError(t, err)
 	require.Empty(t, invalidator.userIDs)
 	require.Empty(t, redeemRepo.created)
+}
+
+func TestRedeemService_GenerateCodesRejectsNonPositivePointsValue(t *testing.T) {
+	svc := &RedeemService{redeemRepo: &redeemRepoStub{}}
+
+	_, err := svc.GenerateCodes(context.Background(), GenerateCodesRequest{
+		Count: 1,
+		Type:  RedeemTypePoints,
+		Value: -1,
+	})
+	require.Error(t, err)
+
+	_, err = svc.GenerateCodes(context.Background(), GenerateCodesRequest{
+		Count: 1,
+		Type:  RedeemTypePoints,
+		Value: 0,
+	})
+	require.Error(t, err)
 }

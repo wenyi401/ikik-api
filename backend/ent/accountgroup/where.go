@@ -3,11 +3,11 @@
 package accountgroup
 
 import (
+	"ikik-api/ent/predicate"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"ikik-api/ent/predicate"
 )
 
 // AccountID applies equality check predicate on the "account_id" field. It's identical to AccountIDEQ.

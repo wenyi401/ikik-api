@@ -95,3 +95,29 @@ func isUniqueConstraintViolation(err error) bool {
 		strings.Contains(msg, "unique constraint") ||
 		strings.Contains(msg, "duplicate entry")
 }
+
+func isUniqueViolationOnIndex(err error, indexNames map[string]struct{}) bool {
+	if err == nil || len(indexNames) == 0 {
+		return false
+	}
+
+	var pgErr *pq.Error
+	if errors.As(err, &pgErr) {
+		if pgErr.Code != "23505" {
+			return false
+		}
+		_, ok := indexNames[pgErr.Constraint]
+		return ok
+	}
+
+	msg := strings.ToLower(err.Error())
+	if !strings.Contains(msg, "duplicate key") && !strings.Contains(msg, "unique constraint") {
+		return false
+	}
+	for indexName := range indexNames {
+		if strings.Contains(msg, strings.ToLower(indexName)) {
+			return true
+		}
+	}
+	return false
+}
