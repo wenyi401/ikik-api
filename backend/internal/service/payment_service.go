@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
-	"github.com/Wei-Shaw/sub2api/internal/payment"
-	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/paymentproviderinstance"
+	"ikik-api/internal/payment"
+	"ikik-api/internal/payment/provider"
 )
 
 // --- Order Status Constants ---

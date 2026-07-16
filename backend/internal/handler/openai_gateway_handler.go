@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/ctxkey"
+	"ikik-api/internal/pkg/ip"
+	"ikik-api/internal/pkg/logger"
+	middleware2 "ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"

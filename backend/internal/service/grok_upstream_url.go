@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
-	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/xai"
+	"ikik-api/internal/util/urlvalidator"
 )
 
 func grokBaseURLValidator(account *Account, cfg *config.Config) (xai.BaseURLValidator, error) {

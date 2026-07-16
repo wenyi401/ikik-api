@@ -12,9 +12,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/config"
+	middleware2 "ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 )
 

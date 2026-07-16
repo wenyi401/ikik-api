@@ -333,7 +333,7 @@ docker compose logs -f sub2api
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/Wei-Shaw/sub2api.git
+git clone https://ikik-api.git
 cd sub2api/deploy
 
 # 2. 复制环境配置文件
@@ -475,7 +475,7 @@ rm -rf data/ postgres_data/ redis_data/
 Apple 芯片 Mac 在 macOS 26 上可使用 Apple `container` 1.1.0 或更高版本运行完整的 Sub2API、PostgreSQL 和 Redis：
 
 ```bash
-git clone https://github.com/Wei-Shaw/sub2api.git
+git clone https://ikik-api.git
 cd sub2api/deploy
 ./apple-container.sh init
 ./apple-container.sh up
@@ -501,7 +501,7 @@ cd sub2api/deploy
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/Wei-Shaw/sub2api.git
+git clone https://ikik-api.git
 cd sub2api
 
 # 2. 安装 pnpm（如果还没有安装）

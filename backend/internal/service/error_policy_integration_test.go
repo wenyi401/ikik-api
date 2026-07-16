@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/antigravity"
+	"ikik-api/internal/pkg/tlsfingerprint"
 	"github.com/stretchr/testify/require"
 )
 

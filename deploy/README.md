@@ -91,7 +91,7 @@ If you prefer manual control:
 
 ```bash
 # Clone repository
-git clone https://github.com/Wei-Shaw/sub2api.git
+git clone https://ikik-api.git
 cd sub2api/deploy
 
 # Configure environment
@@ -379,7 +379,7 @@ curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install
 
 ### Manual Installation
 
-1. Download the latest release from [GitHub Releases](https://github.com/Wei-Shaw/sub2api/releases)
+1. Download the latest release from [GitHub Releases](https://ikik-api/releases)
 2. Extract and copy the binary to `/opt/sub2api/`
 3. Copy `sub2api.service` to `/etc/systemd/system/`
 4. Run:

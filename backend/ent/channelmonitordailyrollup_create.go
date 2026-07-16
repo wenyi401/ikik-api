@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Wei-Shaw/sub2api/ent/channelmonitor"
-	"github.com/Wei-Shaw/sub2api/ent/channelmonitordailyrollup"
+	"ikik-api/ent/channelmonitor"
+	"ikik-api/ent/channelmonitordailyrollup"
 )
 
 // ChannelMonitorDailyRollupCreate is the builder for creating a ChannelMonitorDailyRollup entity.

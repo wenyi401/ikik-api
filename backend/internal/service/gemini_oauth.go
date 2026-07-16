@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
+	"ikik-api/internal/pkg/geminicli"
 )
 
 // GeminiOAuthClient performs Google OAuth token exchange/refresh for Gemini integration.

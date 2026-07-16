@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/service"
 )
 
 type stubAdminService struct {

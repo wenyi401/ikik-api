@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
+	"ikik-api/internal/config"
 )
 
 // ─── Mocks ───

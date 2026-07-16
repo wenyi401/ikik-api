@@ -5,12 +5,12 @@ package enttest
 import (
 	"context"
 
-	"github.com/Wei-Shaw/sub2api/ent"
+	"ikik-api/ent"
 	// required by schema hooks.
-	_ "github.com/Wei-Shaw/sub2api/ent/runtime"
+	_ "ikik-api/ent/runtime"
 
 	"entgo.io/ent/dialect/sql/schema"
-	"github.com/Wei-Shaw/sub2api/ent/migrate"
+	"ikik-api/ent/migrate"
 )
 
 type (

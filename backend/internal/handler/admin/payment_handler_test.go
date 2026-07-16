@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
+	dbent "ikik-api/ent"
 )
 
 func TestSanitizeAdminPaymentOrderForResponseAddsCurrency(t *testing.T) {

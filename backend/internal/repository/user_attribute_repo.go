@@ -3,10 +3,10 @@ package repository
 import (
 	"context"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
-	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/userattributedefinition"
+	"ikik-api/ent/userattributevalue"
+	"ikik-api/internal/service"
 )
 
 // UserAttributeDefinitionRepository implementation

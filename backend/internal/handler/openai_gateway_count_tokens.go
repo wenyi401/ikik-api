@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/domain"
-	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/domain"
+	middleware2 "ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

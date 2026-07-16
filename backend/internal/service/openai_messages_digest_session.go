@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
+	"ikik-api/internal/pkg/apicompat"
 )
 
 type openAICompatAnthropicDigestBinding struct {

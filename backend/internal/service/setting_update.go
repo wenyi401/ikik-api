@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"ikik-api/internal/pkg/antigravity"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 // UpdateSettings 更新系统设置

@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Wei-Shaw/sub2api/ent/batchimageitem"
+	"ikik-api/ent/batchimageitem"
 )
 
 // BatchImageItemCreate is the builder for creating a BatchImageItem entity.

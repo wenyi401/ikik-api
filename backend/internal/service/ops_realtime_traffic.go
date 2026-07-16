@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 // GetRealtimeTrafficSummary returns QPS/TPS current/peak/avg for the provided window.

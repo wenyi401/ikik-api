@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"ikik-api/internal/pkg/openai"
 )
 
 var codexModelMap = map[string]string{

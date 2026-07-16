@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"ikik-api/internal/config"
+	infraerrors "ikik-api/internal/pkg/errors"
 	"golang.org/x/sync/singleflight"
 )
 

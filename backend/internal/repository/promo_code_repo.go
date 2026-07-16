@@ -4,11 +4,11 @@ import (
 	"context"
 	"strings"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/promocode"
-	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/promocode"
+	"ikik-api/ent/promocodeusage"
+	"ikik-api/internal/pkg/pagination"
+	"ikik-api/internal/service"
 
 	entsql "entgo.io/ent/dialect/sql"
 )

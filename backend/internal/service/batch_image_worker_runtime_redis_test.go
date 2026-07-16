@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/repository"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/config"
+	"ikik-api/internal/repository"
+	"ikik-api/internal/service"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"

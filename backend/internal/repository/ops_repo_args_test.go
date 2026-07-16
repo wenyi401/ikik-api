@@ -6,7 +6,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
 )
 

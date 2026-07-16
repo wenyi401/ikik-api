@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/enttest"
-	"github.com/Wei-Shaw/sub2api/internal/payment"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/enttest"
+	"ikik-api/internal/payment"
+	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 

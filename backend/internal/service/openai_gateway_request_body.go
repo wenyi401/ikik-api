@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
-	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
+	"ikik-api/internal/pkg/ctxkey"
+	"ikik-api/internal/util/urlvalidator"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"

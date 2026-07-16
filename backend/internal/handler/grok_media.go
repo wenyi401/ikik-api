@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	pkghttputil "ikik-api/internal/pkg/httputil"
+	"ikik-api/internal/pkg/ip"
+	"ikik-api/internal/pkg/logger"
+	middleware2 "ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

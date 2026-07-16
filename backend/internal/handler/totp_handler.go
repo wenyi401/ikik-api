@@ -3,9 +3,9 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
-	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/pkg/response"
+	middleware2 "ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 )
 
 // TotpHandler handles TOTP-related requests

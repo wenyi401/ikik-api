@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/timezone"
 )
 
 // fakeIncrCache 仅记录 IncrUserPlatformQuotaUsageCache 被调用的参数。

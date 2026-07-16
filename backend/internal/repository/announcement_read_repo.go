@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/announcementread"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/announcementread"
+	"ikik-api/internal/service"
 )
 
 type announcementReadRepository struct {

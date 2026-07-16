@@ -15,13 +15,13 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/Wei-Shaw/sub2api/ent/runtime"
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/handler"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
-	"github.com/Wei-Shaw/sub2api/internal/setup"
-	"github.com/Wei-Shaw/sub2api/internal/web"
+	_ "ikik-api/ent/runtime"
+	"ikik-api/internal/config"
+	"ikik-api/internal/handler"
+	"ikik-api/internal/pkg/logger"
+	"ikik-api/internal/server/middleware"
+	"ikik-api/internal/setup"
+	"ikik-api/internal/web"
 
 	"github.com/gin-gonic/gin"
 )

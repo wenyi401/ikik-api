@@ -3,10 +3,10 @@ package handler
 import (
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
-	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/handler/admin"
+	"ikik-api/internal/handler/dto"
+	"ikik-api/internal/pkg/response"
+	"ikik-api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

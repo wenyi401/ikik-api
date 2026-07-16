@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/service"
 )
 
 func UserFromServiceShallow(u *service.User) *User {

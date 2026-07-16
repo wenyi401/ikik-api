@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
-	"github.com/Wei-Shaw/sub2api/internal/payment"
-	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/servertiming"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/paymentorder"
+	"ikik-api/internal/payment"
+	"ikik-api/internal/payment/provider"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/servertiming"
 	"github.com/shopspring/decimal"
 )
 

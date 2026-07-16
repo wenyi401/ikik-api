@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/securitysecret"
-	"github.com/Wei-Shaw/sub2api/internal/config"
+	"ikik-api/ent"
+	"ikik-api/ent/securitysecret"
+	"ikik-api/internal/config"
 )
 
 const (

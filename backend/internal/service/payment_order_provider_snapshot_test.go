@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"ikik-api/internal/payment"
 	"github.com/stretchr/testify/require"
 )
 

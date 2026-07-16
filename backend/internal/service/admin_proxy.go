@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
-	"github.com/Wei-Shaw/sub2api/internal/util/httputil"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/httpclient"
+	"ikik-api/internal/pkg/logger"
+	"ikik-api/internal/pkg/pagination"
+	"ikik-api/internal/util/httputil"
 )
 
 // Proxy management implementations

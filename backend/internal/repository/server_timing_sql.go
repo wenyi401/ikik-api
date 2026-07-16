@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/servertiming"
+	"ikik-api/internal/pkg/servertiming"
 )
 
 type serverTimingConnector struct {

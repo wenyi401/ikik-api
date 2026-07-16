@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/config"
+	"ikik-api/internal/handler/dto"
+	"ikik-api/internal/pkg/response"
+	"ikik-api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

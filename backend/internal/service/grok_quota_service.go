@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/xai"
 	"golang.org/x/sync/singleflight"
 )
 

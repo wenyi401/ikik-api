@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
-	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/handler/dto"
+	"ikik-api/internal/pkg/pagination"
+	"ikik-api/internal/pkg/response"
+	"ikik-api/internal/pkg/timezone"
+	"ikik-api/internal/pkg/usagestats"
+	middleware2 "ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

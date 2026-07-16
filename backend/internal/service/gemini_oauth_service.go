@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/geminicli"
+	"ikik-api/internal/pkg/httpclient"
+	"ikik-api/internal/pkg/logger"
 )
 
 const (

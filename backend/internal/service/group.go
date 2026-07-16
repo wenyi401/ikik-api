@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/domain"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"ikik-api/internal/domain"
+	"ikik-api/internal/pkg/timezone"
 )
 
 type OpenAIMessagesDispatchModelConfig = domain.OpenAIMessagesDispatchModelConfig

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
+	"ikik-api/internal/pkg/apicompat"
 	"github.com/gin-gonic/gin"
 )
 

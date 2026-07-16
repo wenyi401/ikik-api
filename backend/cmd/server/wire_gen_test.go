@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/handler"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/config"
+	"ikik-api/internal/handler"
+	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
 )
 

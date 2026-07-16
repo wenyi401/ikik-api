@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	dbuser "github.com/Wei-Shaw/sub2api/ent/user"
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/oauth"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	dbent "ikik-api/ent"
+	dbuser "ikik-api/ent/user"
+	"ikik-api/internal/config"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/oauth"
+	"ikik-api/internal/pkg/response"
+	"ikik-api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

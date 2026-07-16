@@ -5,8 +5,8 @@ package repository
 import (
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/pkg/pagination"
+	"ikik-api/internal/service"
 )
 
 func (s *ProxyRepoSuite) TestListWithFiltersAndAccountCount_SortByAccountCountDesc() {

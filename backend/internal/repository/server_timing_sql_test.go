@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/servertiming"
+	"ikik-api/internal/pkg/servertiming"
 )
 
 const fakeDriverDelay = 2 * time.Millisecond

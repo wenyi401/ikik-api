@@ -8,10 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"ikik-api/internal/config"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/logger"
+	"ikik-api/internal/pkg/timezone"
 	"golang.org/x/sync/singleflight"
 )
 

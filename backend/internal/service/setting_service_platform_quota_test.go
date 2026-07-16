@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"ikik-api/internal/config"
+	infraerrors "ikik-api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 

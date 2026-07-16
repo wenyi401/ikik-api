@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	_ "github.com/Wei-Shaw/sub2api/ent/runtime"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	dbent "ikik-api/ent"
+	_ "ikik-api/ent/runtime"
+	"ikik-api/internal/pkg/timezone"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 

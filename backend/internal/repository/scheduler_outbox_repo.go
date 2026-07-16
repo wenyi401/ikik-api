@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/service"
 )
 
 type schedulerOutboxRepository struct {

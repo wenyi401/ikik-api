@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
 )
 

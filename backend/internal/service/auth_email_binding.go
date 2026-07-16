@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/authidentity"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/authidentity"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/logger"
 )
 
 // BindEmailIdentity verifies and binds a local email/password identity to the

@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/antigravity"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/openai"
 )
 
 // InitializeDefaultSettings 初始化默认设置

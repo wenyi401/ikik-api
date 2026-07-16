@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
+	"ikik-api/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 )
 

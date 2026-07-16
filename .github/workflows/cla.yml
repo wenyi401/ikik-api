@@ -35,12 +35,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           path-to-signatures: "cla.json"
-          path-to-document: "https://github.com/Wei-Shaw/sub2api/blob/main/CLA.md"
+          path-to-document: "https://ikik-api/blob/main/CLA.md"
           branch: "cla-signatures"
           allowlist: "dependabot[bot],renovate[bot],bot*"
           lock-pullrequest-aftermerge: false
           custom-notsigned-prcomment: |
-            Thank you for your contribution! Before we can merge this PR, we need $you to sign our [Contributor License Agreement (CLA)](https://github.com/Wei-Shaw/sub2api/blob/main/CLA.md).
+            Thank you for your contribution! Before we can merge this PR, we need $you to sign our [Contributor License Agreement (CLA)](https://ikik-api/blob/main/CLA.md).
 
             **To sign**, please reply with the following comment:
 
@@ -64,6 +64,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           path-to-signatures: "cla.json"
-          path-to-document: "https://github.com/Wei-Shaw/sub2api/blob/main/CLA.md"
+          path-to-document: "https://ikik-api/blob/main/CLA.md"
           branch: "cla-signatures"
           lock-pullrequest-aftermerge: true

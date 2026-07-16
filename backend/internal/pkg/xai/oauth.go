@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/util/logredact"
-	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
+	"ikik-api/internal/util/logredact"
+	"ikik-api/internal/util/urlvalidator"
 )
 
 const (
