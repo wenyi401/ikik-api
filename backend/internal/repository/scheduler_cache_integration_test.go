@@ -67,7 +67,9 @@ func TestSchedulerCacheSnapshotUsesSlimMetadataButKeepsFullAccount(t *testing.T)
 		},
 	}
 
-	require.NoError(t, cache.SetSnapshot(ctx, bucket, []service.Account{account}))
+	token, err := cache.CaptureBucketWriteToken(ctx, bucket)
+	require.NoError(t, err)
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, token, []service.Account{account}))
 
 	snapshot, hit, err := cache.GetSnapshot(ctx, bucket)
 	require.NoError(t, err)
@@ -103,56 +105,72 @@ func TestSchedulerCacheSnapshotUsesSlimMetadataButKeepsFullAccount(t *testing.T)
 	require.NotNil(t, full.AccountGroups[0].Group)
 }
 
-func TestSchedulerCacheEmptySnapshotEvictsBucket(t *testing.T) {
+func TestSchedulerCacheRetireAndReopenFencesOldEpochIntegration(t *testing.T) {
 	ctx := context.Background()
 	rdb := testRedis(t)
 	cache := NewSchedulerCache(rdb)
+	bucket := service.SchedulerBucket{GroupID: 77, Platform: service.PlatformAntigravity, Mode: service.SchedulerModeForced}
+	account := service.Account{ID: 7701, Platform: service.PlatformAntigravity, Type: service.AccountTypeOAuth}
 
-	bucket := service.SchedulerBucket{GroupID: 77, Platform: service.PlatformOpenAI, Mode: service.SchedulerModeSingle}
-	account := service.Account{
-		ID:          202,
-		Name:        "openai-cache-entry",
-		Platform:    service.PlatformOpenAI,
-		Type:        service.AccountTypeOAuth,
-		Status:      service.StatusActive,
-		Schedulable: true,
-		Priority:    1,
-		GroupIDs:    []int64{bucket.GroupID},
-	}
-
-	require.NoError(t, cache.SetSnapshot(ctx, bucket, []service.Account{account}))
-	buckets, err := cache.ListBuckets(ctx)
+	oldToken, err := cache.CaptureBucketWriteToken(ctx, bucket)
 	require.NoError(t, err)
-	require.Contains(t, schedulerBucketStrings(buckets), bucket.String())
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, oldToken, []service.Account{account}))
+	require.NoError(t, cache.RetireBucket(ctx, bucket))
+	require.NoError(t, cache.RetireBucket(ctx, bucket))
 
-	require.NoError(t, cache.SetSnapshot(ctx, bucket, nil))
+	_, hit, err := cache.GetSnapshot(ctx, bucket)
+	require.NoError(t, err)
+	require.False(t, hit)
+	_, err = cache.CaptureBucketWriteToken(ctx, bucket)
+	require.ErrorIs(t, err, service.ErrSchedulerBucketRetired)
+	require.ErrorIs(t, cache.SetSnapshot(ctx, bucket, oldToken, []service.Account{account}), service.ErrSchedulerBucketRetired)
+
+	newToken, err := cache.ReopenBucket(ctx, bucket)
+	require.NoError(t, err)
+	require.Greater(t, newToken.Epoch, oldToken.Epoch)
+	require.ErrorIs(t, cache.SetSnapshot(ctx, bucket, oldToken, []service.Account{account}), service.ErrSchedulerBucketWriteFenced)
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, newToken, []service.Account{account}))
 
 	snapshot, hit, err := cache.GetSnapshot(ctx, bucket)
 	require.NoError(t, err)
-	require.False(t, hit)
-	require.Nil(t, snapshot)
-
-	buckets, err = cache.ListBuckets(ctx)
-	require.NoError(t, err)
-	require.NotContains(t, schedulerBucketStrings(buckets), bucket.String())
-
-	exists, err := rdb.Exists(
-		ctx,
-		schedulerBucketKey(schedulerActivePrefix, bucket),
-		schedulerBucketKey(schedulerReadyPrefix, bucket),
-	).Result()
-	require.NoError(t, err)
-	require.Zero(t, exists)
-
-	isMember, err := rdb.SIsMember(ctx, schedulerBucketSetKey, bucket.String()).Result()
-	require.NoError(t, err)
-	require.False(t, isMember)
+	require.True(t, hit)
+	require.Len(t, snapshot, 1)
+	require.Equal(t, account.ID, snapshot[0].ID)
 }
 
-func schedulerBucketStrings(buckets []service.SchedulerBucket) []string {
-	out := make([]string, 0, len(buckets))
-	for _, bucket := range buckets {
-		out = append(out, bucket.String())
-	}
-	return out
+func TestSchedulerCacheGroupLifecycleLeaseOwnerAndTTLIntegration(t *testing.T) {
+	ctx := context.Background()
+	rdb := testRedis(t)
+	cache := NewSchedulerCache(rdb)
+	const groupID int64 = 78
+	const ttl = 500 * time.Millisecond
+
+	first, acquired, err := cache.TryAcquireGroupLifecycleLease(ctx, groupID, ttl)
+	require.NoError(t, err)
+	require.True(t, acquired)
+	pttl, err := rdb.PTTL(ctx, schedulerGroupLifecycleLockKey(groupID)).Result()
+	require.NoError(t, err)
+	require.Positive(t, pttl)
+	require.LessOrEqual(t, pttl, ttl)
+
+	var second service.SchedulerGroupLifecycleLease
+	require.Eventually(t, func() bool {
+		var acquireErr error
+		second, acquired, acquireErr = cache.TryAcquireGroupLifecycleLease(ctx, groupID, time.Minute)
+		return acquireErr == nil && acquired
+	}, 5*time.Second, 20*time.Millisecond)
+	require.NotEqual(t, first.OwnerToken, second.OwnerToken)
+
+	require.ErrorIs(t, cache.ReleaseGroupLifecycleLease(ctx, first), service.ErrSchedulerGroupLifecycleLeaseLost)
+	_, acquired, err = cache.TryAcquireGroupLifecycleLease(ctx, groupID, time.Minute)
+	require.NoError(t, err)
+	require.False(t, acquired, "a stale release must not delete the successor lease")
+
+	require.NoError(t, cache.ReleaseGroupLifecycleLease(ctx, second))
+	require.ErrorIs(t, cache.ReleaseGroupLifecycleLease(ctx, second), service.ErrSchedulerGroupLifecycleLeaseLost)
+	third, acquired, err := cache.TryAcquireGroupLifecycleLease(ctx, groupID, time.Minute)
+	require.NoError(t, err)
+	require.True(t, acquired)
+	require.True(t, third.ValidFor(groupID))
+	require.NoError(t, cache.ReleaseGroupLifecycleLease(ctx, third))
 }

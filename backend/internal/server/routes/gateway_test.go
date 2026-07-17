@@ -1,82 +1,47 @@
 package routes
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/handler"
 	servermiddleware "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
-type gatewayRouteSettingRepo struct {
-	values map[string]string
-}
-
-func (r *gatewayRouteSettingRepo) Get(context.Context, string) (*service.Setting, error) {
-	return nil, service.ErrSettingNotFound
-}
-
-func (r *gatewayRouteSettingRepo) GetValue(_ context.Context, key string) (string, error) {
-	if value, ok := r.values[key]; ok {
-		return value, nil
-	}
-	return "", service.ErrSettingNotFound
-}
-
-func (r *gatewayRouteSettingRepo) Set(context.Context, string, string) error { return nil }
-
-func (r *gatewayRouteSettingRepo) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
-	out := make(map[string]string, len(keys))
-	for _, key := range keys {
-		if value, ok := r.values[key]; ok {
-			out[key] = value
-		}
-	}
-	return out, nil
-}
-
-func (r *gatewayRouteSettingRepo) SetMultiple(context.Context, map[string]string) error { return nil }
-
-func (r *gatewayRouteSettingRepo) GetAll(context.Context) (map[string]string, error) {
-	out := make(map[string]string, len(r.values))
-	for key, value := range r.values {
-		out[key] = value
-	}
-	return out, nil
-}
-
-func (r *gatewayRouteSettingRepo) Delete(context.Context, string) error { return nil }
-
-func newGatewayRoutesTestRouter() *gin.Engine {
+func newGatewayRoutesTestRouter(platform ...string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	settingSvc := service.NewSettingService(&gatewayRouteSettingRepo{values: map[string]string{}}, &config.Config{})
+
+	groupPlatform := service.PlatformOpenAI
+	if len(platform) > 0 && platform[0] != "" {
+		groupPlatform = platform[0]
+	}
 
 	RegisterGatewayRoutes(
 		router,
 		&handler.Handlers{
 			Gateway:       &handler.GatewayHandler{},
 			OpenAIGateway: &handler.OpenAIGatewayHandler{},
+			AsyncImage:    handler.NewAsyncImageHandler(nil, nil),
 		},
 		servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
 			groupID := int64(1)
 			c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
 				GroupID: &groupID,
-				Group:   &service.Group{Platform: service.PlatformOpenAI},
+				Group:   &service.Group{Platform: groupPlatform},
 			})
 			c.Next()
 		}),
 		nil,
 		nil,
 		nil,
-		settingSvc,
+		nil,
 		&config.Config{},
 	)
 
@@ -101,6 +66,36 @@ func TestGatewayRoutesOpenAIResponsesCompactPathIsRegistered(t *testing.T) {
 	}
 }
 
+func TestGatewayRoutesOpenAIAlphaSearchPathsAreRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter()
+	registered := make(map[string]bool)
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodPost {
+			registered[route.Path] = true
+		}
+	}
+
+	for _, path := range []string{
+		"/v1/alpha/search",
+		"/alpha/search",
+		"/backend-api/codex/alpha/search",
+	} {
+		require.True(t, registered[path], "POST %s should be registered", path)
+	}
+}
+
+func TestGatewayRoutesAlphaSearchRejectsNonOpenAIGroup(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformGrok)
+	req := httptest.NewRequest(http.MethodPost, "/v1/alpha/search", strings.NewReader(`{"model":"gpt-5.6-sol"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Contains(t, w.Body.String(), "only available for OpenAI groups")
+}
+
 func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 	router := newGatewayRoutesTestRouter()
 
@@ -119,96 +114,141 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 	}
 }
 
-func TestPrivateGroupRouteResolverFiltersRoutesByEndpoint(t *testing.T) {
-	groupID := int64(1)
-	routes := []service.APIKeyGroupRoute{
-		privateRoute(1, service.PlatformAnthropic),
-		privateRoute(2, service.PlatformOpenAI),
-		privateRoute(3, service.PlatformGemini),
-		privateRoute(4, service.PlatformKiro),
-		privateRoute(5, service.PlatformGrok),
+func TestGatewayRoutesAsyncImagesPathsAreRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter()
+	registered := make(map[string]bool)
+	for _, route := range router.Routes() {
+		registered[route.Method+" "+route.Path] = true
 	}
 
-	tests := []struct {
-		name          string
-		path          string
-		wantPrimary   int64
-		wantPlatforms []string
-	}{
-		{
-			name:          "messages uses anthropic private group",
-			path:          "/v1/messages",
-			wantPrimary:   1,
-			wantPlatforms: []string{service.PlatformAnthropic},
-		},
-		{
-			name:          "chat completions uses openai-compatible text groups",
-			path:          "/v1/chat/completions",
-			wantPrimary:   2,
-			wantPlatforms: []string{service.PlatformOpenAI, service.PlatformKiro},
-		},
-		{
-			name:          "responses includes grok-compatible group",
-			path:          "/v1/responses",
-			wantPrimary:   2,
-			wantPlatforms: []string{service.PlatformOpenAI, service.PlatformKiro, service.PlatformGrok},
-		},
-		{
-			name:          "gemini native uses gemini private group",
-			path:          "/v1beta/models/gemini-2.5-pro:generateContent",
-			wantPrimary:   3,
-			wantPlatforms: []string{service.PlatformGemini},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gin.SetMode(gin.TestMode)
-			router := gin.New()
-			router.Use(func(c *gin.Context) {
-				c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
-					ID:          9,
-					GroupID:     &groupID,
-					Group:       routes[0].Group,
-					GroupRoutes: routes,
-				})
-				c.Next()
-			})
-			router.Use(privateGroupRouteResolverMiddleware())
-			router.Any("/*path", func(c *gin.Context) {
-				apiKey, ok := servermiddleware.GetAPIKeyFromContext(c)
-				require.True(t, ok)
-				require.NotNil(t, apiKey.GroupID)
-				require.Equal(t, tt.wantPrimary, *apiKey.GroupID)
-				gotPlatforms := make([]string, 0, len(apiKey.GroupRoutes))
-				for _, route := range apiKey.GroupRoutes {
-					require.NotNil(t, route.Group)
-					gotPlatforms = append(gotPlatforms, route.Group.Platform)
-				}
-				require.Equal(t, tt.wantPlatforms, gotPlatforms)
-			})
-
-			req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(`{}`))
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
-			require.Equal(t, http.StatusOK, w.Code)
-		})
+	for _, route := range []string{
+		"POST /v1/images/generations/async",
+		"POST /v1/images/edits/async",
+		"GET /v1/images/tasks/:task_id",
+		"POST /images/generations/async",
+		"POST /images/edits/async",
+		"GET /images/tasks/:task_id",
+	} {
+		require.True(t, registered[route], "%s should be registered", route)
 	}
 }
 
-func privateRoute(id int64, platform string) service.APIKeyGroupRoute {
-	return service.APIKeyGroupRoute{
-		GroupID:         id,
-		Priority:        int(100 + id),
-		Weight:          1,
-		Enabled:         true,
-		CooldownSeconds: 30,
-		Group: &service.Group{
-			ID:       id,
-			Name:     platform,
-			Platform: platform,
-			Scope:    service.GroupScopeUserPrivate,
-			Status:   service.StatusActive,
-		},
+func TestGatewayRoutesGrokImagesAndVideosPathsAreRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformGrok)
+
+	for _, path := range []string{
+		"/v1/images/generations",
+		"/v1/images/edits",
+		"/images/generations",
+		"/images/edits",
+		"/v1/videos/generations",
+		"/videos/generations",
+		"/v1/videos/edits",
+		"/videos/edits",
+		"/v1/videos/extensions",
+		"/videos/extensions",
+	} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"grok-imagine","prompt":"draw a cat"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit Grok media handler", path)
+		require.NotContains(t, w.Body.String(), "not supported for this platform")
 	}
+
+	for _, path := range []string{
+		"/v1/videos/request-123",
+		"/videos/request-123",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit Grok video handler", path)
+		require.NotContains(t, w.Body.String(), "not supported for this platform")
+	}
+}
+
+func TestGatewayRoutesNonGrokVideosAreRejectedAtPlatformGate(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformOpenAI)
+
+	for _, tc := range []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{http.MethodPost, "/v1/videos/generations", `{"model":"grok-imagine-video-1.5","prompt":"waves"}`},
+		{http.MethodPost, "/videos/generations", `{"model":"grok-imagine-video-1.5","prompt":"waves"}`},
+		{http.MethodPost, "/v1/videos/edits", `{"model":"grok-imagine-video","prompt":"waves","video":{"url":"https://example.com/in.mp4"}}`},
+		{http.MethodPost, "/videos/edits", `{"model":"grok-imagine-video","prompt":"waves","video":{"url":"https://example.com/in.mp4"}}`},
+		{http.MethodPost, "/v1/videos/extensions", `{"model":"grok-imagine-video","prompt":"waves","video":{"url":"https://example.com/in.mp4"}}`},
+		{http.MethodPost, "/videos/extensions", `{"model":"grok-imagine-video","prompt":"waves","video":{"url":"https://example.com/in.mp4"}}`},
+		{http.MethodGet, "/v1/videos/request-123", ""},
+		{http.MethodGet, "/videos/request-123", ""},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusNotFound, w.Code, "method=%s path=%s", tc.method, tc.path)
+		require.Contains(t, w.Body.String(), "Videos API is not supported for this platform")
+	}
+}
+
+func TestGatewayRoutesGrokAllowsCLICompatibilityEntrypoints(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformGrok)
+
+	for _, tc := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/v1/messages"},
+		{http.MethodPost, "/v1/chat/completions"},
+		{http.MethodPost, "/chat/completions"},
+		{http.MethodGet, "/v1/responses"},
+		{http.MethodGet, "/responses"},
+		{http.MethodGet, "/backend-api/codex/responses"},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{"model":"grok"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.NotEqual(t, http.StatusNotFound, w.Code, "method=%s path=%s", tc.method, tc.path)
+		require.NotContains(t, w.Body.String(), "not supported for Grok groups")
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", strings.NewReader(`{"model":"grok","messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Contains(t, w.Body.String(), "Token counting is not supported for this platform")
+
+	for _, path := range []string{
+		"/v1/responses",
+		"/responses",
+		"/backend-api/codex/responses",
+	} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"grok","input":"hi"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should still reach Responses handler", path)
+	}
+}
+
+func TestGatewayRoutesOpenAICountTokensPathIsRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformOpenAI)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", strings.NewReader(`{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+	require.NotEqual(t, http.StatusNotFound, w.Code)
 }

@@ -50,6 +50,12 @@ func (Group) Fields() []ent.Field {
 		field.String("status").
 			MaxLen(20).
 			Default(domain.StatusActive),
+		field.String("duplicate_operation_id").
+			MaxLen(64).
+			Optional().
+			Nillable().
+			Immutable().
+			Comment("Internal idempotency recovery marker; not exposed through the API"),
 		field.Int64("owner_user_id").
 			Optional().
 			Nillable().
@@ -228,5 +234,9 @@ func (Group) Indexes() []ent.Index {
 		index.Fields("owner_user_id", "platform", "scope"),
 		index.Fields("deleted_at"),
 		index.Fields("sort_order"),
+		index.Fields("duplicate_operation_id").
+			Unique().
+			StorageKey("idx_groups_duplicate_operation_id_active").
+			Annotations(entsql.IndexWhere("duplicate_operation_id IS NOT NULL AND deleted_at IS NULL")),
 	}
 }

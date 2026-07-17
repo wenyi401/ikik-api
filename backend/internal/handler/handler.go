@@ -10,10 +10,7 @@ type AdminHandlers struct {
 	User                   *admin.UserHandler
 	Group                  *admin.GroupHandler
 	Account                *admin.AccountHandler
-	AccountSharePolicy     *admin.AccountSharePolicyHandler
-	Carpool                *admin.CarpoolHandler
 	Announcement           *admin.AnnouncementHandler
-	EmailBroadcast         *admin.EmailBroadcastHandler
 	DataManagement         *admin.DataManagementHandler
 	Backup                 *admin.BackupHandler
 	OAuth                  *admin.OAuthHandler
@@ -21,7 +18,6 @@ type AdminHandlers struct {
 	GeminiOAuth            *admin.GeminiOAuthHandler
 	AntigravityOAuth       *admin.AntigravityOAuthHandler
 	GrokOAuth              *admin.GrokOAuthHandler
-	KiroOAuth              *admin.KiroOAuthHandler
 	Proxy                  *admin.ProxyHandler
 	Redeem                 *admin.RedeemHandler
 	Promo                  *admin.PromoHandler
@@ -40,11 +36,9 @@ type AdminHandlers struct {
 	ChannelMonitorTemplate *admin.ChannelMonitorRequestTemplateHandler
 	ContentModeration      *admin.ContentModerationHandler
 	Payment                *admin.PaymentHandler
-	Revenue                *admin.RevenueHandler
-	Withdrawal             *admin.WithdrawalHandler
-	Shop                   *admin.ShopHandler
 	Affiliate              *admin.AffiliateHandler
-	Module                 *admin.ModuleHandler
+	Compliance             *admin.ComplianceHandler
+	AuditLog               *admin.AuditLogHandler
 }
 
 // Handlers contains all HTTP handlers
@@ -52,7 +46,6 @@ type Handlers struct {
 	Auth             *AuthHandler
 	User             *UserHandler
 	APIKey           *APIKeyHandler
-	UserAccount      *UserAccountHandler
 	Usage            *UsageHandler
 	Redeem           *RedeemHandler
 	Subscription     *SubscriptionHandler
@@ -66,10 +59,8 @@ type Handlers struct {
 	Payment          *PaymentHandler
 	PaymentWebhook   *PaymentWebhookHandler
 	AvailableChannel *AvailableChannelHandler
-	Playground       *PlaygroundHandler
-	ReceiptCode      *ReceiptCodeHandler
-	Withdrawal       *WithdrawalHandler
-	Shop             *ShopHandler
+	AsyncImage       *AsyncImageHandler
+	BatchImage       *BatchImageHandler
 }
 
 // BuildInfo contains build-time information
