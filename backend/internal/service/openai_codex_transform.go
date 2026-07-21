@@ -79,6 +79,7 @@ type codexTransformResult struct {
 type codexOAuthTransformOptions struct {
 	IsCodexCLI              bool
 	IsCompact               bool
+	BlockConnectorTools     bool
 	SkipDefaultInstructions bool
 	PreserveToolCallIDs     bool
 }
@@ -204,6 +205,9 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 	}
 
 	if normalizeCodexTools(reqBody) {
+		result.Modified = true
+	}
+	if opts.BlockConnectorTools && len(stripCodexConnectorTools(reqBody)) > 0 {
 		result.Modified = true
 	}
 	if normalizeCodexToolChoice(reqBody) {

@@ -318,9 +318,14 @@ type CreateAccountInput struct {
 	Name               string
 	Notes              *string
 	Platform           string
+	AccountLevel       string
 	Type               string
 	Credentials        map[string]any
 	Extra              map[string]any
+	OwnerUserID        *int64
+	ShareMode          string
+	ShareStatus        string
+	SharePolicyID      *int64
 	ProxyID            *int64
 	Concurrency        int
 	Priority           int
@@ -349,8 +354,13 @@ type UpdateAccountInput struct {
 	Name                  string
 	Notes                 *string
 	Type                  string // Account type: oauth, setup-token, apikey
+	AccountLevel          *string
 	Credentials           map[string]any
 	Extra                 map[string]any
+	OwnerUserID           *int64
+	ShareMode             string
+	ShareStatus           string
+	SharePolicyID         *int64
 	ProxyID               *int64
 	Concurrency           *int     // 使用指针区分"未提供"和"设置为0"
 	Priority              *int     // 使用指针区分"未提供"和"设置为0"
@@ -375,6 +385,7 @@ type BulkUpdateAccountsInput struct {
 	LoadFactor     *int
 	Status         string
 	Schedulable    *bool
+	AccountLevel   *string
 	GroupIDs       *[]int64
 	Credentials    map[string]any
 	Extra          map[string]any
@@ -388,6 +399,7 @@ type BulkUpdateAccountFilters struct {
 	Type        string
 	Status      string
 	Group       string
+	ProxyID     int64
 	Search      string
 	PrivacyMode string
 }
@@ -587,27 +599,28 @@ var ErrRPMStatusUnavailable = infraerrors.New(http.StatusNotImplemented, "RPM_ST
 
 // adminServiceImpl implements AdminService
 type adminServiceImpl struct {
-	userRepo             UserRepository
-	groupRepo            GroupRepository
-	groupDuplicateRepo   GroupDuplicateRepository
-	accountRepo          AccountRepository
-	accountDuplicateRepo AccountDuplicateRepository
-	proxyRepo            ProxyRepository
-	apiKeyRepo           APIKeyRepository
-	redeemCodeRepo       RedeemCodeRepository
-	userGroupRateRepo    UserGroupRateRepository
-	userRPMCache         UserRPMCache
-	billingCacheService  *BillingCacheService
-	proxyProber          ProxyExitInfoProber
-	proxyLatencyCache    ProxyLatencyCache
-	authCacheInvalidator APIKeyAuthCacheInvalidator
-	entClient            *dbent.Client // 用于开启数据库事务
-	settingService       *SettingService
-	defaultSubAssigner   DefaultSubscriptionAssigner
-	userSubRepo          UserSubscriptionRepository
-	privacyClientFactory PrivacyClientFactory
-	runtimeBlocker       AccountRuntimeBlocker
-	affiliateService     adminRechargeAffiliateAccruer
+	userRepo                UserRepository
+	groupRepo               GroupRepository
+	groupDuplicateRepo      GroupDuplicateRepository
+	accountRepo             AccountRepository
+	accountDuplicateRepo    AccountDuplicateRepository
+	proxyRepo               ProxyRepository
+	apiKeyRepo              APIKeyRepository
+	redeemCodeRepo          RedeemCodeRepository
+	userGroupRateRepo       UserGroupRateRepository
+	userRPMCache            UserRPMCache
+	billingCacheService     *BillingCacheService
+	proxyProber             ProxyExitInfoProber
+	proxyLatencyCache       ProxyLatencyCache
+	authCacheInvalidator    APIKeyAuthCacheInvalidator
+	entClient               *dbent.Client // 用于开启数据库事务
+	settingService          *SettingService
+	defaultSubAssigner      DefaultSubscriptionAssigner
+	userSubRepo             UserSubscriptionRepository
+	privacyClientFactory    PrivacyClientFactory
+	runtimeBlocker          AccountRuntimeBlocker
+	affiliateService        adminRechargeAffiliateAccruer
+	privateGroupProvisioner UserPrivateGroupProvisioner
 }
 
 type adminRechargeAffiliateAccruer interface {

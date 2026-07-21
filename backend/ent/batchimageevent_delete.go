@@ -4,12 +4,12 @@ package ent
 
 import (
 	"context"
+	"ikik-api/ent/batchimageevent"
+	"ikik-api/ent/predicate"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/batchimageevent"
-	"ikik-api/ent/predicate"
 )
 
 // BatchImageEventDelete is the builder for deleting a BatchImageEvent entity.

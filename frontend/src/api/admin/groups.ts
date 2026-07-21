@@ -125,11 +125,6 @@ export async function create(groupData: CreateGroupRequest): Promise<AdminGroup>
   return data
 }
 
-/**
- * Duplicate a group on the server so configuration that is not present in the
- * list response is preserved. Keep the operation key after ambiguous failures
- * so a retry replays the original operation instead of creating another group.
- */
 const duplicateOperationKeys = new Map<string, string>()
 
 interface DuplicateOperationScope {

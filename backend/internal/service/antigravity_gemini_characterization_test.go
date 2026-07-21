@@ -42,6 +42,7 @@ func passCharAntigravityAccount(id int64, mapping map[string]any) *Account {
 		Schedulable: true,
 		Credentials: map[string]any{
 			"access_token":  "ag-token",
+			"project_id":    "pass-char-project",
 			"model_mapping": mapping,
 		},
 	}

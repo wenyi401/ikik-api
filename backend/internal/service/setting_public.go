@@ -220,6 +220,11 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyChannelMonitorEnabled,
 		SettingKeyChannelMonitorDefaultIntervalSeconds,
 		SettingKeyAvailableChannelsEnabled,
+		SettingKeyFreeModelsEnabled,
+		SettingKeyCarpoolEnabled,
+		SettingKeyCarpoolBaseServiceFeeUSD,
+		SettingKeyCarpoolSystemProxyFeeUSD,
+		SettingKeyCarpoolRiskControlFeeUSD,
 		SettingKeyAffiliateEnabled,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
@@ -331,6 +336,11 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ChannelMonitorDefaultIntervalSeconds: parseChannelMonitorInterval(settings[SettingKeyChannelMonitorDefaultIntervalSeconds]),
 
 		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
+		FreeModelsEnabled:        settings[SettingKeyFreeModelsEnabled] == "true",
+		CarpoolEnabled:           settings[SettingKeyCarpoolEnabled] == "true",
+		CarpoolBaseServiceFeeUSD: parseNonNegativeSettingFloat(settings[SettingKeyCarpoolBaseServiceFeeUSD], CarpoolBaseServiceFeeUSDDefault),
+		CarpoolSystemProxyFeeUSD: parseNonNegativeSettingFloat(settings[SettingKeyCarpoolSystemProxyFeeUSD], CarpoolSystemProxyFeeUSDDefault),
+		CarpoolRiskControlFeeUSD: parseNonNegativeSettingFloat(settings[SettingKeyCarpoolRiskControlFeeUSD], CarpoolRiskControlFeeUSDDefault),
 
 		AffiliateEnabled: settings[SettingKeyAffiliateEnabled] == "true",
 
@@ -491,12 +501,17 @@ type PublicSettingsInjectionPayload struct {
 	// Feature flags — MUST match the opt-in/opt-out registry in
 	// frontend/src/utils/featureFlags.ts. Missing a field here is the bug
 	// that hid the "可用渠道" menu on page refresh.
-	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
-	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
-	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
-	AffiliateEnabled                     bool `json:"affiliate_enabled"`
-	RiskControlEnabled                   bool `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests           bool `json:"allow_user_view_error_requests"`
+	ChannelMonitorEnabled                bool    `json:"channel_monitor_enabled"`
+	ChannelMonitorDefaultIntervalSeconds int     `json:"channel_monitor_default_interval_seconds"`
+	AvailableChannelsEnabled             bool    `json:"available_channels_enabled"`
+	FreeModelsEnabled                    bool    `json:"free_models_enabled"`
+	CarpoolEnabled                       bool    `json:"carpool_enabled"`
+	CarpoolBaseServiceFeeUSD             float64 `json:"carpool_base_service_fee_usd"`
+	CarpoolSystemProxyFeeUSD             float64 `json:"carpool_system_proxy_fee_usd"`
+	CarpoolRiskControlFeeUSD             float64 `json:"carpool_risk_control_fee_usd"`
+	AffiliateEnabled                     bool    `json:"affiliate_enabled"`
+	RiskControlEnabled                   bool    `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests           bool    `json:"allow_user_view_error_requests"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -559,6 +574,11 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
+		FreeModelsEnabled:                    settings.FreeModelsEnabled,
+		CarpoolEnabled:                       settings.CarpoolEnabled,
+		CarpoolBaseServiceFeeUSD:             settings.CarpoolBaseServiceFeeUSD,
+		CarpoolSystemProxyFeeUSD:             settings.CarpoolSystemProxyFeeUSD,
+		CarpoolRiskControlFeeUSD:             settings.CarpoolRiskControlFeeUSD,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,

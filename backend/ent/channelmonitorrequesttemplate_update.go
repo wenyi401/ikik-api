@@ -115,6 +115,20 @@ func (_u *ChannelMonitorRequestTemplateUpdate) ClearBodyOverride() *ChannelMonit
 	return _u
 }
 
+// SetAPIMode sets the "api_mode" field.
+func (_u *ChannelMonitorRequestTemplateUpdate) SetAPIMode(v string) *ChannelMonitorRequestTemplateUpdate {
+	_u.mutation.SetAPIMode(v)
+	return _u
+}
+
+// SetNillableAPIMode sets the "api_mode" field if the given value is not nil.
+func (_u *ChannelMonitorRequestTemplateUpdate) SetNillableAPIMode(v *string) *ChannelMonitorRequestTemplateUpdate {
+	if v != nil {
+		_u.SetAPIMode(*v)
+	}
+	return _u
+}
+
 // AddMonitorIDs adds the "monitors" edge to the ChannelMonitor entity by IDs.
 func (_u *ChannelMonitorRequestTemplateUpdate) AddMonitorIDs(ids ...int64) *ChannelMonitorRequestTemplateUpdate {
 	_u.mutation.AddMonitorIDs(ids...)
@@ -214,6 +228,11 @@ func (_u *ChannelMonitorRequestTemplateUpdate) check() error {
 			return &ValidationError{Name: "body_override_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitorRequestTemplate.body_override_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.APIMode(); ok {
+		if err := channelmonitorrequesttemplate.APIModeValidator(v); err != nil {
+			return &ValidationError{Name: "api_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitorRequestTemplate.api_mode": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -255,6 +274,9 @@ func (_u *ChannelMonitorRequestTemplateUpdate) sqlSave(ctx context.Context) (_no
 	}
 	if _u.mutation.BodyOverrideCleared() {
 		_spec.ClearField(channelmonitorrequesttemplate.FieldBodyOverride, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.APIMode(); ok {
+		_spec.SetField(channelmonitorrequesttemplate.FieldAPIMode, field.TypeString, value)
 	}
 	if _u.mutation.MonitorsCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -407,6 +429,20 @@ func (_u *ChannelMonitorRequestTemplateUpdateOne) ClearBodyOverride() *ChannelMo
 	return _u
 }
 
+// SetAPIMode sets the "api_mode" field.
+func (_u *ChannelMonitorRequestTemplateUpdateOne) SetAPIMode(v string) *ChannelMonitorRequestTemplateUpdateOne {
+	_u.mutation.SetAPIMode(v)
+	return _u
+}
+
+// SetNillableAPIMode sets the "api_mode" field if the given value is not nil.
+func (_u *ChannelMonitorRequestTemplateUpdateOne) SetNillableAPIMode(v *string) *ChannelMonitorRequestTemplateUpdateOne {
+	if v != nil {
+		_u.SetAPIMode(*v)
+	}
+	return _u
+}
+
 // AddMonitorIDs adds the "monitors" edge to the ChannelMonitor entity by IDs.
 func (_u *ChannelMonitorRequestTemplateUpdateOne) AddMonitorIDs(ids ...int64) *ChannelMonitorRequestTemplateUpdateOne {
 	_u.mutation.AddMonitorIDs(ids...)
@@ -519,6 +555,11 @@ func (_u *ChannelMonitorRequestTemplateUpdateOne) check() error {
 			return &ValidationError{Name: "body_override_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitorRequestTemplate.body_override_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.APIMode(); ok {
+		if err := channelmonitorrequesttemplate.APIModeValidator(v); err != nil {
+			return &ValidationError{Name: "api_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitorRequestTemplate.api_mode": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -577,6 +618,9 @@ func (_u *ChannelMonitorRequestTemplateUpdateOne) sqlSave(ctx context.Context) (
 	}
 	if _u.mutation.BodyOverrideCleared() {
 		_spec.ClearField(channelmonitorrequesttemplate.FieldBodyOverride, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.APIMode(); ok {
+		_spec.SetField(channelmonitorrequesttemplate.FieldAPIMode, field.TypeString, value)
 	}
 	if _u.mutation.MonitorsCleared() {
 		edge := &sqlgraph.EdgeSpec{

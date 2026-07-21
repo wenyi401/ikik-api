@@ -144,19 +144,26 @@ type SystemSettings struct {
 	CustomMenuItems             string // JSON array of custom menu items
 	CustomEndpoints             string // JSON array of custom endpoints
 
-	DefaultConcurrency           int
-	DefaultBalance               float64
-	RiskControlEnabled           bool
-	CyberSessionBlockEnabled     bool
-	CyberSessionBlockTTLSeconds  int
-	AffiliateEnabled             bool
-	AffiliateRebateRate          float64
-	AffiliateRebateFreezeHours   int
-	AffiliateRebateDurationDays  int
-	AffiliateRebatePerInviteeCap float64
-	AdminRechargeRebateEnabled   bool
-	DefaultUserRPMLimit          int
-	DefaultSubscriptions         []DefaultSubscriptionSetting
+	DefaultConcurrency              int
+	DefaultBalance                  float64
+	RiskControlEnabled              bool
+	CyberSessionBlockEnabled        bool
+	CyberSessionBlockTTLSeconds     int
+	AffiliateEnabled                bool
+	AffiliateRebateRate             float64
+	AffiliateRebateFreezeHours      int
+	AffiliateRebateDurationDays     int
+	AffiliateRebatePerInviteeCap    float64
+	AdminRechargeRebateEnabled      bool
+	DefaultUserRPMLimit             int
+	HomeStatsGroupID                int64
+	UserPrivateGroupDailyLimitUSD   *float64
+	UserPrivateGroupWeeklyLimitUSD  *float64
+	UserPrivateGroupMonthlyLimitUSD *float64
+	UserPrivateGroupRateMultiplier  float64
+	UserPrivateGroupRPMLimit        int
+	UserPrivateGroupCommissionRate  float64
+	DefaultSubscriptions            []DefaultSubscriptionSetting
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -180,7 +187,13 @@ type SystemSettings struct {
 	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
 
 	// Available Channels feature (user-facing aggregate view)
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+	AvailableChannelsEnabled bool              `json:"available_channels_enabled"`
+	AutoModelSettings        AutoModelSettings `json:"auto_model_settings"`
+	FreeModelsEnabled        bool              `json:"free_models_enabled"`
+	CarpoolEnabled           bool              `json:"carpool_enabled"`
+	CarpoolBaseServiceFeeUSD float64           `json:"carpool_base_service_fee_usd"`
+	CarpoolSystemProxyFeeUSD float64           `json:"carpool_system_proxy_fee_usd"`
+	CarpoolRiskControlFeeUSD float64           `json:"carpool_risk_control_fee_usd"`
 
 	// Claude Code version check
 	MinClaudeCodeVersion string
@@ -200,6 +213,7 @@ type SystemSettings struct {
 	ClaudeOAuthSystemPrompt                string // Claude OAuth mimic 路径注入的通用扩展 system prompt；空值使用内置默认
 	ClaudeOAuthSystemPromptBlocks          string // Claude OAuth mimic 路径注入的 system blocks JSON 配置；空值使用内置默认
 	EnableAnthropicCacheTTL1hInjection     bool   // 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
+	OpenAIImagesResponsesReasoningEffort   string // OpenAI OAuth image bridge reasoning.effort
 	EnableClientDatelineNormalization      bool   // 是否对 Anthropic OAuth/SetupToken 请求体做客户端 dateline 归一化（默认 true）
 	RewriteMessageCacheControl             bool   // 是否改写 messages[*].content[*].cache_control（默认 false）
 	AntigravityUserAgentVersion            string // Antigravity 上游 User-Agent 版本号；空值使用配置/默认值
@@ -224,6 +238,8 @@ type SystemSettings struct {
 	OpenAILowUpstreamRatePriorityEnabled                   bool
 	OpenAIOAuthSchedulingRateMultiplier                    float64
 	OpenAIAdvancedSchedulerEnabled                         bool
+	OpenAIFreeAccountRepairEnabled                         bool
+	OpenAIFreeAccountRepairWeeklyThresholdUSD              float64
 	OpenAIAdvancedSchedulerStickyWeightedEnabled           bool
 	OpenAIAdvancedSchedulerSubscriptionPriorityEnabled     bool
 	OpenAIAdvancedSchedulerLBTopK                          string
@@ -329,7 +345,12 @@ type PublicSettings struct {
 	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
 
 	// Available Channels feature (user-facing aggregate view)
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+	AvailableChannelsEnabled bool    `json:"available_channels_enabled"`
+	FreeModelsEnabled        bool    `json:"free_models_enabled"`
+	CarpoolEnabled           bool    `json:"carpool_enabled"`
+	CarpoolBaseServiceFeeUSD float64 `json:"carpool_base_service_fee_usd"`
+	CarpoolSystemProxyFeeUSD float64 `json:"carpool_system_proxy_fee_usd"`
+	CarpoolRiskControlFeeUSD float64 `json:"carpool_risk_control_fee_usd"`
 
 	// Affiliate (邀请返利) feature toggle
 	AffiliateEnabled bool `json:"affiliate_enabled"`

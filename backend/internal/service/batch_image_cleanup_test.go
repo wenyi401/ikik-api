@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBatchImageCleanupService_DeleteOutputsForOwner(t *testing.T) {

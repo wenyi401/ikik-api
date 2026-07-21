@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/usagestats"
 	"ikik-api/internal/pkg/xai"
-	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 type grokQuotaAccountRepo struct {

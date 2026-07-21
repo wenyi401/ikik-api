@@ -9,15 +9,15 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-	"github.com/imroc/req/v3"
-	"github.com/tidwall/gjson"
 	dbent "ikik-api/ent"
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/oauth"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/service"
+	"github.com/gin-gonic/gin"
+	"github.com/imroc/req/v3"
+	"github.com/tidwall/gjson"
 )
 
 const (
@@ -75,11 +75,9 @@ func (h *AuthHandler) emailOAuthStart(c *gin.Context, provider string) {
 	}
 
 	secureCookie := isRequestHTTPS(c)
-	loginAgreementRevision := strings.TrimSpace(c.Query("login_agreement_revision"))
 	emailOAuthSetCookie(c, emailOAuthStateCookieName, encodeCookieValue(state), secureCookie)
 	emailOAuthSetCookie(c, emailOAuthRedirectCookie, encodeCookieValue(redirectTo), secureCookie)
 	emailOAuthSetCookie(c, emailOAuthProviderCookie, encodeCookieValue(provider), secureCookie)
-	setOAuthLoginAgreementCookie(c, loginAgreementRevision, secureCookie)
 	captureOAuthPromoCode(c, secureCookie)
 	if affCode := strings.TrimSpace(firstNonEmpty(c.Query("aff_code"), c.Query("aff"))); affCode != "" {
 		emailOAuthSetCookie(c, emailOAuthAffiliateCookie, encodeCookieValue(affCode), secureCookie)
@@ -122,7 +120,6 @@ func (h *AuthHandler) emailOAuthCallback(c *gin.Context, provider string) {
 		emailOAuthClearCookie(c, emailOAuthRedirectCookie, secureCookie)
 		emailOAuthClearCookie(c, emailOAuthProviderCookie, secureCookie)
 		emailOAuthClearCookie(c, emailOAuthAffiliateCookie, secureCookie)
-		clearOAuthLoginAgreementCookie(c, secureCookie)
 		clearOAuthPromoCodeCookie(c, secureCookie)
 	}()
 	expectedState, err := readCookieDecoded(c, emailOAuthStateCookieName)
@@ -209,10 +206,6 @@ func (h *AuthHandler) emailOAuthCallbackWithProfile(
 		redirectOAuthError(c, frontendCallback, "login_blocked", infraerrors.Reason(err), infraerrors.Message(err))
 		return
 	}
-	if err := h.ensureLoginAgreementAccepted(c.Request.Context(), readOAuthLoginAgreementCookie(c)); err != nil {
-		redirectOAuthError(c, frontendCallback, "login_blocked", infraerrors.Reason(err), infraerrors.Message(err))
-		return
-	}
 
 	fragment := url.Values{}
 	fragment.Set("access_token", tokenPair.AccessToken)
@@ -281,7 +274,6 @@ func (h *AuthHandler) createEmailOAuthRegistrationPendingSession(
 	email := strings.TrimSpace(strings.ToLower(profile.Email))
 	username := strings.TrimSpace(profile.Username)
 	affiliateCode := h.emailOAuthAffiliateCode(c)
-	loginAgreementRevision := readOAuthLoginAgreementCookie(c)
 	upstreamClaims := map[string]any{
 		"email":            email,
 		"email_verified":   profile.EmailVerified,
@@ -336,17 +328,15 @@ func (h *AuthHandler) createEmailOAuthRegistrationPendingSession(
 		ResolvedEmail:          email,
 		RedirectTo:             redirectTo,
 		BrowserSessionKey:      browserSessionKey,
-		LoginAgreementRevision: loginAgreementRevision,
 		UpstreamIdentityClaims: upstreamClaims,
 		CompletionResponse:     completionResponse,
 	})
 }
 
 type completeEmailOAuthRequest struct {
-	Password               string `json:"password" binding:"required,min=6"`
-	InvitationCode         string `json:"invitation_code,omitempty"`
-	AffCode                string `json:"aff_code,omitempty"`
-	LoginAgreementRevision string `json:"login_agreement_revision,omitempty"`
+	Password       string `json:"password" binding:"required,min=6"`
+	InvitationCode string `json:"invitation_code,omitempty"`
+	AffCode        string `json:"aff_code,omitempty"`
 }
 
 func (h *AuthHandler) completeEmailOAuthRegistration(c *gin.Context, provider string) {
@@ -370,10 +360,6 @@ func (h *AuthHandler) completeEmailOAuthRegistration(c *gin.Context, provider st
 		return
 	}
 	if err := h.ensureBackendModeAllowsNewUserLogin(c.Request.Context()); err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	if err := h.ensureLoginAgreementAccepted(c.Request.Context(), requestLoginAgreementRevision(req.LoginAgreementRevision, session)); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}

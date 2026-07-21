@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -16,18 +15,9 @@ import (
 	"ikik-api/internal/service"
 )
 
-const usageSnapshotBusinessTimezone = "Asia/Shanghai"
-
 type usageCleanupRepository struct {
 	client *dbent.Client
 	sql    sqlExecutor
-}
-
-type usageLogsArchiveReader struct {
-	rows *sql.Rows
-	buf  []byte
-	line []byte
-	done bool
 }
 
 func NewUsageCleanupRepository(client *dbent.Client, sqlDB *sql.DB) service.UsageCleanupRepository {
@@ -61,7 +51,7 @@ func (r *usageCleanupRepository) ListTasks(ctx context.Context, params paginatio
 	}
 
 	query := `
-		SELECT id, status, filters, COALESCE(created_by, 0), created_source, deleted_rows, error_message,
+		SELECT id, status, filters, created_by, deleted_rows, error_message,
 			canceled_by, canceled_at,
 			started_at, finished_at, created_at, updated_at
 		FROM usage_cleanup_tasks
@@ -88,7 +78,6 @@ func (r *usageCleanupRepository) ListTasks(ctx context.Context, params paginatio
 			&task.Status,
 			&filtersJSON,
 			&task.CreatedBy,
-			&task.CreatedSource,
 			&task.DeletedRows,
 			&errMsg,
 			&canceledBy,
@@ -153,7 +142,7 @@ func (r *usageCleanupRepository) ClaimNextPendingTask(ctx context.Context, stale
 			updated_at = NOW()
 		FROM next
 		WHERE tasks.id = next.id
-		RETURNING tasks.id, tasks.status, tasks.filters, COALESCE(tasks.created_by, 0), tasks.created_source, tasks.deleted_rows, tasks.error_message,
+		RETURNING tasks.id, tasks.status, tasks.filters, tasks.created_by, tasks.deleted_rows, tasks.error_message,
 			tasks.started_at, tasks.finished_at, tasks.created_at, tasks.updated_at
 	`
 	var task service.UsageCleanupTask
@@ -175,7 +164,6 @@ func (r *usageCleanupRepository) ClaimNextPendingTask(ctx context.Context, stale
 		&task.Status,
 		&filtersJSON,
 		&task.CreatedBy,
-		&task.CreatedSource,
 		&task.DeletedRows,
 		&errMsg,
 		&startedAt,
@@ -203,268 +191,6 @@ func (r *usageCleanupRepository) ClaimNextPendingTask(ctx context.Context, stale
 	return &task, nil
 }
 
-func (r *usageCleanupRepository) FindOldestUsageLogBefore(ctx context.Context, cutoff time.Time) (*time.Time, error) {
-	if r == nil || r.sql == nil {
-		return nil, fmt.Errorf("usage cleanup repository not ready")
-	}
-	var oldest sql.NullTime
-	if err := scanSingleRow(ctx, r.sql, "SELECT MIN(created_at) FROM usage_logs WHERE created_at < $1", []any{cutoff.UTC()}, &oldest); err != nil {
-		return nil, err
-	}
-	if !oldest.Valid {
-		return nil, nil
-	}
-	value := oldest.Time.UTC()
-	return &value, nil
-}
-
-func (r *usageCleanupRepository) ExportUsageLogs(ctx context.Context, filters service.UsageCleanupFilters) (io.ReadCloser, error) {
-	if filters.StartTime.IsZero() || filters.EndTime.IsZero() {
-		return nil, fmt.Errorf("usage log export filters missing time range")
-	}
-	whereClause, args := buildUsageCleanupWhere(filters)
-	if whereClause == "" {
-		return nil, fmt.Errorf("usage log export filters missing time range")
-	}
-	query := fmt.Sprintf(`
-		SELECT to_jsonb(usage_logs)::text
-		FROM usage_logs
-		WHERE %s
-		ORDER BY created_at ASC, id ASC
-	`, whereClause)
-	rows, err := r.sql.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	return &usageLogsArchiveReader{rows: rows}, nil
-}
-
-func (r *usageCleanupRepository) SnapshotUsageLogs(ctx context.Context, filters service.UsageCleanupFilters) error {
-	if filters.StartTime.IsZero() || filters.EndTime.IsZero() {
-		return fmt.Errorf("usage log snapshot filters missing time range")
-	}
-	if hasUsageCleanupDimensionFilters(filters) {
-		return fmt.Errorf("usage log snapshot only supports full-range retention windows")
-	}
-	whereClause, args := buildUsageCleanupWhere(filters)
-	if whereClause == "" {
-		return fmt.Errorf("usage log snapshot filters missing time range")
-	}
-
-	query := fmt.Sprintf(`
-		INSERT INTO usage_daily_dimension_snapshots (
-			bucket_date,
-			user_id,
-			api_key_id,
-			account_id,
-			group_id,
-			model,
-			requested_model,
-			upstream_model,
-			model_mapping_chain,
-			request_type,
-			stream_state,
-			billing_type,
-			billing_mode,
-			total_requests,
-			input_tokens,
-			output_tokens,
-			cache_creation_tokens,
-			cache_read_tokens,
-			total_cost,
-			actual_cost,
-			account_cost,
-			total_duration_ms,
-			computed_at
-		)
-		SELECT
-			(created_at AT TIME ZONE 'Asia/Shanghai')::date AS bucket_date,
-			COALESCE(user_id, 0) AS user_id,
-			COALESCE(api_key_id, 0) AS api_key_id,
-			COALESCE(account_id, 0) AS account_id,
-			COALESCE(group_id, 0) AS group_id,
-			COALESCE(model, '') AS model,
-			COALESCE(requested_model, '') AS requested_model,
-			COALESCE(upstream_model, '') AS upstream_model,
-			COALESCE(model_mapping_chain, '') AS model_mapping_chain,
-			COALESCE(request_type, 0)::smallint AS request_type,
-			CASE WHEN stream IS TRUE THEN 1 ELSE 0 END::smallint AS stream_state,
-			COALESCE(billing_type, -1)::smallint AS billing_type,
-			COALESCE(billing_mode, '') AS billing_mode,
-			COUNT(*) AS total_requests,
-			COALESCE(SUM(input_tokens), 0) AS input_tokens,
-			COALESCE(SUM(output_tokens), 0) AS output_tokens,
-			COALESCE(SUM(cache_creation_tokens), 0) AS cache_creation_tokens,
-			COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
-			COALESCE(SUM(total_cost), 0) AS total_cost,
-			COALESCE(SUM(actual_cost), 0) AS actual_cost,
-			COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) AS account_cost,
-			COALESCE(SUM(COALESCE(duration_ms, 0)), 0) AS total_duration_ms,
-			NOW() AS computed_at
-		FROM usage_logs
-		WHERE %s
-		GROUP BY
-			bucket_date,
-			COALESCE(user_id, 0),
-			COALESCE(api_key_id, 0),
-			COALESCE(account_id, 0),
-			COALESCE(group_id, 0),
-			COALESCE(model, ''),
-			COALESCE(requested_model, ''),
-			COALESCE(upstream_model, ''),
-			COALESCE(model_mapping_chain, ''),
-			COALESCE(request_type, 0)::smallint,
-			CASE WHEN stream IS TRUE THEN 1 ELSE 0 END::smallint,
-			COALESCE(billing_type, -1)::smallint,
-			COALESCE(billing_mode, '')
-		ON CONFLICT (
-			bucket_date,
-			user_id,
-			api_key_id,
-			account_id,
-			group_id,
-			model,
-			requested_model,
-			upstream_model,
-			model_mapping_chain,
-			request_type,
-			stream_state,
-			billing_type,
-			billing_mode
-		) DO UPDATE SET
-			total_requests = EXCLUDED.total_requests,
-			input_tokens = EXCLUDED.input_tokens,
-			output_tokens = EXCLUDED.output_tokens,
-			cache_creation_tokens = EXCLUDED.cache_creation_tokens,
-			cache_read_tokens = EXCLUDED.cache_read_tokens,
-			total_cost = EXCLUDED.total_cost,
-			actual_cost = EXCLUDED.actual_cost,
-			account_cost = EXCLUDED.account_cost,
-			total_duration_ms = EXCLUDED.total_duration_ms,
-			computed_at = EXCLUDED.computed_at
-	`, whereClause)
-
-	if _, err := r.sql.ExecContext(ctx, query, args...); err != nil {
-		return err
-	}
-	if err := r.snapshotRevenueDailyDimensions(ctx, whereClause, args); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (r *usageCleanupRepository) snapshotRevenueDailyDimensions(ctx context.Context, whereClause string, args []any) error {
-	if strings.TrimSpace(whereClause) == "" {
-		return fmt.Errorf("revenue snapshot filters missing time range")
-	}
-	query := fmt.Sprintf(`
-		INSERT INTO revenue_daily_dimension_snapshots (
-			bucket_date,
-			user_id,
-			account_id,
-			group_id,
-			owner_user_id,
-			model,
-			requested_model,
-			total_requests,
-			total_tokens,
-			standard_cost,
-			consumed_revenue,
-			account_cost,
-			share_consumer_charge,
-			share_account_cost,
-			share_owner_credit,
-			share_platform_fee,
-			computed_at
-		)
-		SELECT
-			(ul.created_at AT TIME ZONE 'Asia/Shanghai')::date AS bucket_date,
-			COALESCE(ul.user_id, 0) AS user_id,
-			COALESCE(ul.account_id, 0) AS account_id,
-			COALESCE(ul.group_id, 0) AS group_id,
-			COALESCE(ase.owner_user_id, 0) AS owner_user_id,
-			COALESCE(NULLIF(TRIM(ul.model), ''), '') AS model,
-			COALESCE(NULLIF(TRIM(ul.requested_model), ''), '') AS requested_model,
-			COUNT(*) AS total_requests,
-			COALESCE(SUM(
-				COALESCE(ul.input_tokens, 0)
-				+ COALESCE(ul.output_tokens, 0)
-				+ COALESCE(ul.cache_creation_tokens, 0)
-				+ COALESCE(ul.cache_read_tokens, 0)
-			), 0) AS total_tokens,
-			COALESCE(SUM(ul.total_cost), 0) AS standard_cost,
-			COALESCE(SUM(ul.actual_cost), 0) AS consumed_revenue,
-			COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) AS account_cost,
-			COALESCE(SUM(COALESCE(ase.consumer_charge, 0)), 0) AS share_consumer_charge,
-			COALESCE(SUM(COALESCE(ase.account_cost, 0)), 0) AS share_account_cost,
-			COALESCE(SUM(COALESCE(ase.owner_credit, 0)), 0) AS share_owner_credit,
-			COALESCE(SUM(COALESCE(ase.platform_fee, 0)), 0) AS share_platform_fee,
-			NOW() AS computed_at
-		FROM usage_logs ul
-		LEFT JOIN account_share_settlement_entries ase ON ase.usage_log_id = ul.id
-			AND ase.status = 'applied'
-			AND ase.consumer_user_id <> ase.owner_user_id
-		WHERE %s
-		GROUP BY
-			bucket_date,
-			COALESCE(ul.user_id, 0),
-			COALESCE(ul.account_id, 0),
-			COALESCE(ul.group_id, 0),
-			COALESCE(ase.owner_user_id, 0),
-			COALESCE(NULLIF(TRIM(ul.model), ''), ''),
-			COALESCE(NULLIF(TRIM(ul.requested_model), ''), '')
-		ON CONFLICT (
-			bucket_date,
-			user_id,
-			account_id,
-			group_id,
-			owner_user_id,
-			model,
-			requested_model
-		) DO UPDATE SET
-			total_requests = EXCLUDED.total_requests,
-			total_tokens = EXCLUDED.total_tokens,
-			standard_cost = EXCLUDED.standard_cost,
-			consumed_revenue = EXCLUDED.consumed_revenue,
-			account_cost = EXCLUDED.account_cost,
-			share_consumer_charge = EXCLUDED.share_consumer_charge,
-			share_account_cost = EXCLUDED.share_account_cost,
-			share_owner_credit = EXCLUDED.share_owner_credit,
-			share_platform_fee = EXCLUDED.share_platform_fee,
-			computed_at = EXCLUDED.computed_at
-	`, qualifyUsageCleanupWhereForRevenueSnapshot(whereClause))
-
-	if _, err := r.sql.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("snapshot revenue daily dimensions: %w", err)
-	}
-	return nil
-}
-
-func qualifyUsageCleanupWhereForRevenueSnapshot(whereClause string) string {
-	return strings.NewReplacer(
-		"created_at ", "ul.created_at ",
-		"user_id ", "ul.user_id ",
-		"api_key_id ", "ul.api_key_id ",
-		"account_id ", "ul.account_id ",
-		"group_id ", "ul.group_id ",
-		"model ", "ul.model ",
-		"request_type ", "ul.request_type ",
-		"stream ", "ul.stream ",
-		"billing_type ", "ul.billing_type ",
-	).Replace(whereClause)
-}
-
-func hasUsageCleanupDimensionFilters(filters service.UsageCleanupFilters) bool {
-	return filters.UserID != nil ||
-		filters.APIKeyID != nil ||
-		filters.AccountID != nil ||
-		filters.GroupID != nil ||
-		filters.Model != nil ||
-		filters.RequestType != nil ||
-		filters.Stream != nil ||
-		filters.BillingType != nil
-}
-
 func (r *usageCleanupRepository) GetTaskStatus(ctx context.Context, taskID int64) (string, error) {
 	if r.client != nil {
 		return r.getTaskStatusWithEnt(ctx, taskID)
@@ -474,41 +200,6 @@ func (r *usageCleanupRepository) GetTaskStatus(ctx context.Context, taskID int64
 		return "", err
 	}
 	return status, nil
-}
-
-func (r *usageLogsArchiveReader) Read(p []byte) (int, error) {
-	if r == nil || r.rows == nil {
-		return 0, io.EOF
-	}
-	for len(r.buf) == 0 && !r.done {
-		if !r.rows.Next() {
-			r.done = true
-			if err := r.rows.Err(); err != nil {
-				return 0, err
-			}
-			return 0, io.EOF
-		}
-		var line string
-		if err := r.rows.Scan(&line); err != nil {
-			return 0, err
-		}
-		r.line = append(r.line[:0], line...)
-		r.line = append(r.line, '\n')
-		r.buf = r.line
-	}
-	if len(r.buf) == 0 {
-		return 0, io.EOF
-	}
-	n := copy(p, r.buf)
-	r.buf = r.buf[n:]
-	return n, nil
-}
-
-func (r *usageLogsArchiveReader) Close() error {
-	if r == nil || r.rows == nil {
-		return nil
-	}
-	return r.rows.Close()
 }
 
 func (r *usageCleanupRepository) UpdateTaskProgress(ctx context.Context, taskID int64, deletedRows int64) error {
@@ -694,19 +385,13 @@ func (r *usageCleanupRepository) createTaskWithEnt(ctx context.Context, task *se
 	if err != nil {
 		return fmt.Errorf("marshal cleanup filters: %w", err)
 	}
-	if strings.TrimSpace(task.CreatedSource) == "" {
-		task.CreatedSource = "admin"
-	}
-	builder := client.UsageCleanupTask.
+	created, err := client.UsageCleanupTask.
 		Create().
 		SetStatus(task.Status).
 		SetFilters(json.RawMessage(filtersJSON)).
-		SetCreatedSource(task.CreatedSource).
-		SetDeletedRows(task.DeletedRows)
-	if task.CreatedBy > 0 {
-		builder.SetCreatedBy(task.CreatedBy)
-	}
-	created, err := builder.Save(ctx)
+		SetCreatedBy(task.CreatedBy).
+		SetDeletedRows(task.DeletedRows).
+		Save(ctx)
 	if err != nil {
 		return err
 	}
@@ -721,20 +406,16 @@ func (r *usageCleanupRepository) createTaskWithSQL(ctx context.Context, task *se
 	if err != nil {
 		return fmt.Errorf("marshal cleanup filters: %w", err)
 	}
-	if strings.TrimSpace(task.CreatedSource) == "" {
-		task.CreatedSource = "admin"
-	}
 	query := `
 		INSERT INTO usage_cleanup_tasks (
 			status,
 			filters,
 			created_by,
-			created_source,
 			deleted_rows
-		) VALUES ($1, $2, NULLIF($3, 0), $4, $5)
+		) VALUES ($1, $2, $3, $4)
 		RETURNING id, created_at, updated_at
 	`
-	if err := scanSingleRow(ctx, r.sql, query, []any{task.Status, filtersJSON, task.CreatedBy, task.CreatedSource, task.DeletedRows}, &task.ID, &task.CreatedAt, &task.UpdatedAt); err != nil {
+	if err := scanSingleRow(ctx, r.sql, query, []any{task.Status, filtersJSON, task.CreatedBy, task.DeletedRows}, &task.ID, &task.CreatedAt, &task.UpdatedAt); err != nil {
 		return err
 	}
 	return nil

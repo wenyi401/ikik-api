@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	pkghttputil "ikik-api/internal/pkg/httputil"
 	"ikik-api/internal/pkg/ip"
 	"ikik-api/internal/pkg/logger"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 // GrokImages handles xAI image generation/editing through Grok groups.
@@ -114,9 +114,9 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 			return
 		}
 		if moderationBody := requestInfo.ModerationBody(); len(moderationBody) > 0 {
-			decision := h.checkContentModeration(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIImages, requestModel, moderationBody)
+			decision := h.runPreFlightHooks(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIImages, requestModel, moderationBody)
 			if decision != nil && decision.Blocked {
-				h.errorResponse(c, contentModerationStatus(decision), contentModerationErrorCode(decision), decision.Message)
+				h.errorResponse(c, preFlightStatus(decision), preFlightErrorCode(decision), decision.Message)
 				return
 			}
 		}

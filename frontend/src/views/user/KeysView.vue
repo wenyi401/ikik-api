@@ -41,6 +41,30 @@
         >
           <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
         </UiIconButton>
+        <div ref="columnDropdownRef" class="relative">
+          <button
+            class="btn btn-secondary px-2 md:px-3"
+            :title="t('keys.columnSettings')"
+            @click="showColumnDropdown = !showColumnDropdown"
+          >
+            <Icon name="grid" size="md" class="md:mr-1.5" />
+            <span class="hidden md:inline">{{ t('keys.columnSettings') }}</span>
+          </button>
+          <div
+            v-if="showColumnDropdown"
+            class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] py-1 shadow-lg"
+          >
+            <button
+              v-for="col in toggleableColumns"
+              :key="col.key"
+              class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-[var(--app-text)] hover:bg-[var(--app-surface-muted)]"
+              @click="toggleColumn(col.key)"
+            >
+              <span>{{ col.label }}</span>
+              <Icon v-if="isColumnVisible(col.key)" name="check" size="sm" class="text-[var(--app-primary)]" :stroke-width="2" />
+            </button>
+          </div>
+        </div>
         <button @click="openCreateModal" class="btn btn-primary" data-tour="keys-create-btn">
           {{ t('keys.createKey') }}
         </button>
@@ -59,6 +83,10 @@
           default-sort-order="desc"
           @sort="handleSort"
         >
+          <template #cell-id="{ value }">
+            <span class="font-mono text-xs text-[var(--app-muted)]">#{{ value }}</span>
+          </template>
+
           <template #cell-key="{ value, row }">
             <div class="flex items-center gap-2">
               <code class="code text-xs">
@@ -327,6 +355,11 @@
 	            <span v-else class="text-sm text-[var(--app-muted)]">-</span>
           </template>
 
+          <template #cell-last_used_ip="{ value }">
+            <span v-if="value" class="text-sm text-[var(--app-muted)]">{{ value }}</span>
+            <span v-else class="text-sm text-[var(--app-muted)]">-</span>
+          </template>
+
           <template #cell-created_at="{ value }">
 	            <span class="text-sm text-[var(--app-muted)]">{{ formatDateTime(value) }}</span>
           </template>
@@ -428,21 +461,7 @@
         </div>
 
         <div>
-          <div class="mb-2 flex items-center justify-between gap-3">
-            <label class="input-label mb-0">{{ t('keys.groupLabel') }}</label>
-            <button
-              v-if="privateRouterOption"
-              type="button"
-              class="text-xs font-medium text-[var(--app-muted)] transition-colors hover:text-[var(--app-text)]"
-              @click="showPrivateGroupDetails = !showPrivateGroupDetails"
-            >
-              {{
-                showPrivateGroupDetails
-                  ? t('keys.privateRouter.hideSpecific')
-                  : t('keys.privateRouter.showSpecific')
-              }}
-            </button>
-          </div>
+          <label class="input-label">{{ t('keys.groupLabel') }}</label>
           <Select
             v-model="formData.group_id"
             :options="groupOptions"
@@ -1224,7 +1243,7 @@
 </template>
 
 <script setup lang="ts">
-	import { ref, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
+	import { ref, reactive, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
 	import { useAppStore } from '@/stores/app'
 	import { useOnboardingStore } from '@/stores/onboarding'
@@ -1298,19 +1317,88 @@ const appStore = useAppStore()
 const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
-const columns = computed<Column[]>(() => [
+const allColumns = computed<Column[]>(() => [
   { key: 'name', label: t('common.name'), sortable: true },
+  { key: 'id', label: t('keys.id'), sortable: true },
   { key: 'key', label: t('keys.apiKey'), sortable: false },
   { key: 'group', label: t('keys.group'), sortable: false },
-  { key: 'current_concurrency', label: t('keys.currentConcurrency'), sortable: false },
+  { key: 'current_concurrency', label: t('keys.currentConcurrency'), sortable: true },
   { key: 'usage', label: t('keys.usage'), sortable: false },
   { key: 'rate_limit', label: t('keys.rateLimitColumn'), sortable: false },
   { key: 'expires_at', label: t('keys.expiresAt'), sortable: true },
   { key: 'status', label: t('common.status'), sortable: true },
   { key: 'last_used_at', label: t('keys.lastUsedAt'), sortable: true },
+  { key: 'last_used_ip', label: t('keys.lastUsedIP'), sortable: false },
   { key: 'created_at', label: t('keys.created'), sortable: true },
   { key: 'actions', label: t('common.actions'), sortable: false }
 ])
+
+const ALWAYS_VISIBLE_COLUMNS = new Set(['name', 'actions'])
+const DEFAULT_HIDDEN_COLUMNS = ['id', 'rate_limit', 'last_used_at', 'last_used_ip']
+const HIDDEN_COLUMNS_KEY = 'api-key-hidden-columns'
+const COLUMN_SETTINGS_VERSION_KEY = 'api-key-column-settings-version'
+const COLUMN_SETTINGS_VERSION = 3
+const VERSION_NEW_HIDDEN_COLUMNS: Record<number, string[]> = {
+  2: ['last_used_ip'],
+  3: ['id']
+}
+const hiddenColumns = reactive<Set<string>>(new Set())
+
+const toggleableColumns = computed(() =>
+  allColumns.value.filter((column) => !ALWAYS_VISIBLE_COLUMNS.has(column.key))
+)
+
+const saveColumnsToStorage = () => {
+  try {
+    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
+    localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
+  } catch (error) {
+    console.error('Failed to save API key table columns:', error)
+  }
+}
+
+const loadSavedColumns = () => {
+  hiddenColumns.clear()
+  try {
+    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
+    if (saved) {
+      const parsed = JSON.parse(saved) as string[]
+      const validColumnKeys = new Set(allColumns.value.map((column) => column.key))
+      parsed
+        .filter((key) => typeof key === 'string' && validColumnKeys.has(key) && !ALWAYS_VISIBLE_COLUMNS.has(key))
+        .forEach((key) => hiddenColumns.add(key))
+      const storedVersion = Number(localStorage.getItem(COLUMN_SETTINGS_VERSION_KEY) ?? '1')
+      if (storedVersion < COLUMN_SETTINGS_VERSION) {
+        for (let version = storedVersion + 1; version <= COLUMN_SETTINGS_VERSION; version += 1) {
+          for (const key of VERSION_NEW_HIDDEN_COLUMNS[version] ?? []) {
+            if (validColumnKeys.has(key) && !ALWAYS_VISIBLE_COLUMNS.has(key)) hiddenColumns.add(key)
+          }
+        }
+        saveColumnsToStorage()
+      } else {
+        localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
+      }
+    } else {
+      DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
+      localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
+    }
+  } catch (error) {
+    console.error('Failed to load API key table columns:', error)
+    DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
+  }
+}
+
+const toggleColumn = (key: string) => {
+  if (ALWAYS_VISIBLE_COLUMNS.has(key)) return
+  if (hiddenColumns.has(key)) hiddenColumns.delete(key)
+  else hiddenColumns.add(key)
+  saveColumnsToStorage()
+}
+
+const isColumnVisible = (key: string) => !hiddenColumns.has(key)
+const columns = computed<Column[]>(() =>
+  allColumns.value.filter((column) => ALWAYS_VISIBLE_COLUMNS.has(column.key) || !hiddenColumns.has(column.key))
+)
 
 const apiKeys = ref<ApiKey[]>([])
 const groups = ref<Group[]>([])
@@ -1320,7 +1408,6 @@ const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
 const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({})
 const userGroupRates = ref<Record<number, number>>({})
-const showPrivateGroupDetails = ref(false)
 
 const pagination = ref({
   page: 1,
@@ -1345,12 +1432,14 @@ const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
 const showCcsClientSelect = ref(false)
+const showColumnDropdown = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
+const columnDropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number; width: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 let abortController: AbortController | null = null
@@ -1451,12 +1540,29 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
   onFilterChange()
 }
 
+const privateGroupPlatformPriority: Record<string, number> = {
+  anthropic: 0,
+  openai: 1,
+  gemini: 2,
+  antigravity: 3,
+  grok: 4,
+  custom: 5,
+  kiro: 6
+}
+
 const privateGroups = computed(() =>
-  groups.value.filter((group) => group.scope === 'user_private')
+  groups.value
+    .filter((group) => group.scope === 'user_private')
+    .sort((left, right) => {
+      const leftPriority = privateGroupPlatformPriority[left.platform] ?? Number.MAX_SAFE_INTEGER
+      const rightPriority = privateGroupPlatformPriority[right.platform] ?? Number.MAX_SAFE_INTEGER
+      if (leftPriority !== rightPriority) return leftPriority - rightPriority
+      return left.id - right.id
+    })
 )
 
 const privateRouterOption = computed<GroupOption | null>(() => {
-  if (privateGroups.value.length < 2) return null
+  if (privateGroups.value.length === 0) return null
   return {
     value: privateRouterValue,
     label: t('keys.privateRouter.title'),
@@ -1486,9 +1592,6 @@ const realGroupOptions = computed<GroupOption[]>(() =>
 const groupOptions = computed<GroupOption[]>(() => {
   const options = [...realGroupOptions.value]
   if (!privateRouterOption.value) return options
-  if (showPrivateGroupDetails.value) {
-    return [privateRouterOption.value, ...options]
-  }
   return [
     privateRouterOption.value,
     ...options.filter((option) => option.scope !== 'user_private')
@@ -1516,7 +1619,7 @@ const privateRouterRoutes = (): ApiKeyGroupRoute[] =>
     }))
 
 const isPrivateRouterRoutes = (routes: ApiKeyGroupRoute[] | ApiKeyGroupRouteForm[] | undefined): boolean => {
-  if (!routes || routes.length < 2) return false
+  if (!routes || routes.length === 0) return false
   const privateIDs = new Set(privateGroups.value.map((group) => group.id))
   return routes.every((route) => privateIDs.has(route.group_id || 0))
 }
@@ -1903,6 +2006,9 @@ const closeGroupSelector = (event: MouseEvent) => {
     groupSelectorKeyId.value = null
     dropdownPosition.value = null
   }
+  if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
+    showColumnDropdown.value = false
+  }
 }
 
 const confirmDelete = (key: ApiKey) => {
@@ -2211,6 +2317,7 @@ function formatResetTime(resetAt: string | null): string {
 }
 
 onMounted(() => {
+  loadSavedColumns()
   loadApiKeys()
   loadGroups()
   loadUserGroupRates()

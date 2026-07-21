@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
+	"ikik-api/internal/payment"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"ikik-api/internal/payment"
 )
 
 const (
@@ -54,12 +54,6 @@ type airwallexTokenState struct {
 }
 
 var airwallexAccessTokens sync.Map
-
-func init() {
-	register(payment.TypeAirwallex, func(instanceID string, config map[string]string) (payment.Provider, error) {
-		return NewAirwallex(instanceID, config)
-	})
-}
 
 func NewAirwallex(instanceID string, config map[string]string) (*Airwallex, error) {
 	for _, k := range []string{"clientId", "apiKey", "webhookSecret", "apiBase"} {

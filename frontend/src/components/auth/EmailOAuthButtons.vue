@@ -8,7 +8,7 @@
       <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
     </div>
 
-    <div class="grid grid-cols-1 gap-3">
+    <div :class="providerGridClass">
       <button
         v-for="provider in visibleProviders"
         :key="provider"
@@ -56,15 +56,23 @@ const { t } = useI18n()
 
 const visibleProviders = computed<EmailOAuthProvider[]>(() => {
   const providers: EmailOAuthProvider[] = []
-  if (props.googleEnabled) providers.push('google')
   if (props.githubEnabled) providers.push('github')
+  if (props.googleEnabled) providers.push('google')
   return providers
 })
 
 const hasProviders = computed(() => visibleProviders.value.length > 0)
+const hasMultipleProviders = computed(() => visibleProviders.value.length > 1)
+const providerGridClass = computed(() => [
+  'grid',
+  'grid-cols-1',
+  'gap-3',
+  hasMultipleProviders.value ? 'sm:grid-cols-2' : ''
+])
+
 function providerLabel(provider: EmailOAuthProvider): string {
   const name = provider === 'github' ? 'GitHub' : 'Google'
-  return t('auth.emailOAuth.signIn', { providerName: name })
+  return hasMultipleProviders.value ? name : t('auth.emailOAuth.signIn', { providerName: name })
 }
 
 function startLogin(provider: EmailOAuthProvider): void {

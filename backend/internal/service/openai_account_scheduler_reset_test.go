@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/config"
 )
 
 func openAIResetTestScheduler(reset float64) *defaultOpenAIAccountScheduler {

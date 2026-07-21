@@ -54,6 +54,11 @@ func TestAPIContracts(t *testing.T) {
 					"username": "alice",
 						"role": "user",
 						"balance": 12.5,
+						"recharge_balance": 0,
+						"invite_income_balance": 0,
+						"share_income_balance": 0,
+						"points_balance": 0,
+						"prefer_points_billing": false,
 						"frozen_balance": 0,
 						"concurrency": 5,
 					"rpm_limit": 0,
@@ -66,6 +71,8 @@ func TestAPIContracts(t *testing.T) {
 					"balance_notify_threshold": null,
 					"balance_notify_extra_emails": null,
 					"total_recharged": 0,
+					"total_invite_income": 0,
+					"total_share_income": 0,
 					"linuxdo_bound": false,
 					"oidc_bound": false,
 					"wechat_bound": false,
@@ -677,6 +684,7 @@ func TestAPIContracts(t *testing.T) {
 					service.SettingKeyDefaultBalance:       "1.25",
 					service.SettingKeyTableDefaultPageSize: "20",
 					service.SettingKeyTablePageSizeOptions: "[10,20,50,100]",
+					service.SettingKeyAutoModelSettings:    `{"enabled":false,"models":[]}`,
 
 					service.SettingKeyOpsMonitoringEnabled:                               "false",
 					service.SettingKeyOpsRealtimeMonitoringEnabled:                       "true",
@@ -792,6 +800,7 @@ func TestAPIContracts(t *testing.T) {
 						"api_key_acl_trust_forwarded_ip": false,
 					"contact_info": "support",
 					"doc_url": "https://docs.example.com",
+					"home_stats_group_id": 0,
 					"auth_source_default_email_balance": 0,
 					"auth_source_default_email_concurrency": 5,
 					"auth_source_default_email_subscriptions": [],
@@ -830,6 +839,12 @@ func TestAPIContracts(t *testing.T) {
 					"force_email_on_third_party_signup": false,
 					"default_concurrency": 5,
 					"default_balance": 1.25,
+					"user_private_group_daily_limit_usd": null,
+					"user_private_group_weekly_limit_usd": null,
+					"user_private_group_monthly_limit_usd": null,
+					"user_private_group_rate_multiplier": 1,
+					"user_private_group_rpm_limit": 0,
+					"user_private_group_commission_rate": 0.005,
 					"default_platform_quotas": {"anthropic":{"daily":null,"weekly":null,"monthly":null},"antigravity":{"daily":null,"weekly":null,"monthly":null},"gemini":{"daily":null,"weekly":null,"monthly":null},"grok":{"daily":null,"weekly":null,"monthly":null},"openai":{"daily":null,"weekly":null,"monthly":null}},
 					"auth_source_default_email_platform_quotas": null,
 					"auth_source_default_github_platform_quotas": null,
@@ -911,6 +926,10 @@ func TestAPIContracts(t *testing.T) {
 					"openai_advanced_scheduler_effective_weight_upstream_cost": "0",
 					"openai_advanced_scheduler_effective_weight_previous_response": "5",
 					"openai_advanced_scheduler_effective_weight_session_sticky": "3",
+					"openai_images_responses_reasoning_effort": "medium",
+					"openai_free_account_repair_enabled": false,
+					"openai_free_account_repair_weekly_threshold_usd": 60,
+					"auto_model_settings": {"enabled": false, "models": []},
 					"openai_codex_user_agent":           "",
 					"openai_fast_policy_settings": {
 						"rules": []
@@ -948,6 +967,11 @@ func TestAPIContracts(t *testing.T) {
 					"channel_monitor_enabled": true,
 					"channel_monitor_default_interval_seconds": 60,
 					"available_channels_enabled": false,
+					"free_models_enabled": false,
+					"carpool_enabled": false,
+					"carpool_base_service_fee_usd": 75,
+					"carpool_system_proxy_fee_usd": 10,
+					"carpool_risk_control_fee_usd": 15,
 					"risk_control_enabled": false,
 					"cyber_session_block_enabled": false,
 					"cyber_session_block_ttl_seconds": 3600,
@@ -1004,6 +1028,7 @@ func TestAPIContracts(t *testing.T) {
 					service.SettingKeyRegistrationEnabled:              "true",
 					service.SettingKeyEmailVerifyEnabled:               "false",
 					service.SettingKeyRegistrationEmailSuffixWhitelist: "[]",
+					service.SettingKeyAutoModelSettings:                `{"enabled":false,"models":[]}`,
 				})
 			},
 			method:     http.MethodGet,
@@ -1103,6 +1128,7 @@ func TestAPIContracts(t *testing.T) {
 					"contact_info": "",
 					"doc_url": "",
 					"home_content": "",
+					"home_stats_group_id": 0,
 					"hide_ccs_import_button": false,
 					"purchase_subscription_enabled": false,
 					"purchase_subscription_url": "",
@@ -1120,6 +1146,12 @@ func TestAPIContracts(t *testing.T) {
 					"custom_endpoints": [],
 					"default_concurrency": 0,
 					"default_balance": 0,
+					"user_private_group_daily_limit_usd": null,
+					"user_private_group_weekly_limit_usd": null,
+					"user_private_group_monthly_limit_usd": null,
+					"user_private_group_rate_multiplier": 1,
+					"user_private_group_rpm_limit": 0,
+					"user_private_group_commission_rate": 0.005,
 					"affiliate_rebate_rate": 20,
 					"affiliate_rebate_freeze_hours": 0,
 					"affiliate_rebate_duration_days": 0,
@@ -1190,6 +1222,10 @@ func TestAPIContracts(t *testing.T) {
 					"openai_advanced_scheduler_effective_weight_upstream_cost": "0",
 					"openai_advanced_scheduler_effective_weight_previous_response": "5",
 					"openai_advanced_scheduler_effective_weight_session_sticky": "3",
+					"openai_images_responses_reasoning_effort": "medium",
+					"openai_free_account_repair_enabled": false,
+					"openai_free_account_repair_weekly_threshold_usd": 60,
+					"auto_model_settings": {"enabled": false, "models": []},
 					"openai_codex_user_agent":           "",
 					"openai_fast_policy_settings": {
 						"rules": []
@@ -1225,6 +1261,11 @@ func TestAPIContracts(t *testing.T) {
 					"channel_monitor_enabled": true,
 					"channel_monitor_default_interval_seconds": 60,
 					"available_channels_enabled": false,
+					"free_models_enabled": false,
+					"carpool_enabled": false,
+					"carpool_base_service_fee_usd": 75,
+					"carpool_system_proxy_fee_usd": 10,
+					"carpool_risk_control_fee_usd": 15,
 					"risk_control_enabled": false,
 					"cyber_session_block_enabled": false,
 					"cyber_session_block_ttl_seconds": 3600,
@@ -1377,6 +1418,13 @@ func newContractDeps(t *testing.T) *contractDeps {
 
 	userService := service.NewUserService(userRepo, nil, nil, nil)
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, userSubRepo, nil, apiKeyCache, cfg)
+	// This contract fixture keeps the legacy nullable group shape. Production
+	// remains fail-closed unless the administrator enables this setting.
+	apiKeySettingRepo := newStubSettingRepo()
+	apiKeySettingRepo.SetAll(map[string]string{
+		service.SettingKeyAllowUngroupedKeyScheduling: "true",
+	})
+	apiKeyService.SetSettingService(service.NewSettingService(apiKeySettingRepo, cfg))
 
 	usageRepo := newStubUsageLogRepo()
 	usageService := service.NewUsageService(usageRepo, userRepo, nil, nil)
@@ -1696,6 +1744,10 @@ func (stubGroupRepo) ListWithFilters(ctx context.Context, params pagination.Pagi
 }
 
 func (r *stubGroupRepo) ListActive(ctx context.Context) ([]service.Group, error) {
+	return append([]service.Group(nil), r.active...), nil
+}
+
+func (r *stubGroupRepo) ListActiveVisibleToUser(context.Context, int64, []int64) ([]service.Group, error) {
 	return append([]service.Group(nil), r.active...), nil
 }
 
@@ -2667,6 +2719,10 @@ func (r *stubUsageLogRepo) GetGlobalStats(ctx context.Context, startTime, endTim
 }
 
 func (r *stubUsageLogRepo) GetAccountUsageStats(ctx context.Context, accountID int64, startTime, endTime time.Time) (*usagestats.AccountUsageStatsResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *stubUsageLogRepo) GetUserAccountSharingDashboard(ctx context.Context, userID int64, startTime, endTime time.Time, granularity string, accountPage, accountPageSize int) (*usagestats.AccountSharingDashboardStats, error) {
 	return nil, errors.New("not implemented")
 }
 

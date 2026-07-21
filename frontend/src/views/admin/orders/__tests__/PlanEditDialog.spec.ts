@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PlanEditDialog from '../PlanEditDialog.vue'
 
-vi.mock('vue-i18n', () => ({
+vi.mock('vue-i18n', async () => ({
+  ...(await vi.importActual<typeof import('vue-i18n')>('vue-i18n')),
   useI18n: () => ({
     t: (key: string, params?: Record<string, unknown>) => {
       if (key === 'payment.admin.subscriptionCnyPayPreview') return `preview ${params?.amount}`

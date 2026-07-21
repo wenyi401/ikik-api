@@ -11,61 +11,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shopspring/decimal"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/paymentorder"
 	"ikik-api/internal/payment"
 	"ikik-api/internal/payment/provider"
 	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/servertiming"
 )
 
 // --- Order Creation ---
 
-type paymentProviderOrderPossiblyCreatedError struct {
-	err error
-}
-
-func (e *paymentProviderOrderPossiblyCreatedError) Error() string {
-	if e == nil || e.err == nil {
-		return ""
-	}
-	return e.err.Error()
-}
-
-func (e *paymentProviderOrderPossiblyCreatedError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.err
-}
-
-func paymentProviderOrderPossiblyCreated(err error) bool {
-	var target *paymentProviderOrderPossiblyCreatedError
-	return errors.As(err, &target)
-}
-
 func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest) (*CreateOrderResponse, error) {
-	prep, err := s.prepareCreateOrder(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	if prep.OAuth != nil {
-		return prep.OAuth, nil
-	}
-	order, err := s.createOrderInTx(ctx, prep.Request, prep.User, prep.Plan, prep.Config, prep.OrderAmount, prep.LimitAmount, prep.FeeRate, prep.PayAmount, prep.Selection)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := s.invokeProvider(ctx, order, prep.Request, prep.Config, prep.LimitAmount, prep.PayAmountStr, prep.PayAmount, prep.Plan, prep.Selection)
-	if err != nil {
-		_, _ = s.entClient.PaymentOrder.UpdateOneID(order.ID).
-			SetStatus(OrderStatusFailed).
-			Save(ctx)
-		return nil, err
-	}
-	return resp, nil
-}
-
-func (s *PaymentService) prepareCreateOrder(ctx context.Context, req CreateOrderRequest) (*createOrderPreparation, error) {
 	if req.OrderType == "" {
 		req.OrderType = payment.OrderTypeBalance
 	}
@@ -93,6 +50,9 @@ func (s *PaymentService) prepareCreateOrder(ctx context.Context, req CreateOrder
 	if user.Status != payment.EntityStatusActive {
 		return nil, infraerrors.Forbidden("USER_INACTIVE", "user account is disabled")
 	}
+	if s.notificationEmailService != nil {
+		s.notificationEmailService.RememberRecipientLocale(ctx, req.UserID, user.Email, req.Locale)
+	}
 	orderAmount := req.Amount
 	limitAmount := req.Amount
 	if plan != nil {
@@ -109,7 +69,7 @@ func (s *PaymentService) prepareCreateOrder(ctx context.Context, req CreateOrder
 			return nil, err
 		}
 	}
-	payAmountStr, payAmount, err := calculateCreateOrderPayAmount(limitAmount, feeRate, methodCurrency)
+	payAmountStr, payAmount, err := calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, methodCurrency, req.OrderType, cfg.SubscriptionUSDToCNYRate)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +85,7 @@ func (s *PaymentService) prepareCreateOrder(ctx context.Context, req CreateOrder
 		selectedCurrency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
 	}
 	if selectedCurrency != methodCurrency {
-		payAmountStr, payAmount, err = calculateCreateOrderPayAmount(limitAmount, feeRate, selectedCurrency)
+		payAmountStr, payAmount, err = calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate, selectedCurrency, req.OrderType, cfg.SubscriptionUSDToCNYRate)
 		if err != nil {
 			return nil, err
 		}
@@ -137,19 +97,21 @@ func (s *PaymentService) prepareCreateOrder(ctx context.Context, req CreateOrder
 	if err != nil {
 		return nil, err
 	}
-	return &createOrderPreparation{
-		Request:      req,
-		Config:       cfg,
-		User:         user,
-		Plan:         plan,
-		OrderAmount:  orderAmount,
-		LimitAmount:  limitAmount,
-		FeeRate:      feeRate,
-		PayAmount:    payAmount,
-		PayAmountStr: payAmountStr,
-		Selection:    sel,
-		OAuth:        oauthResp,
-	}, nil
+	if oauthResp != nil {
+		return oauthResp, nil
+	}
+	order, err := s.createOrderInTx(ctx, req, user, plan, cfg, orderAmount, limitAmount, feeRate, payAmount, sel)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.invokeProvider(ctx, order, req, cfg, limitAmount, payAmountStr, payAmount, plan, sel)
+	if err != nil {
+		_, _ = s.entClient.PaymentOrder.UpdateOneID(order.ID).
+			SetStatus(OrderStatusFailed).
+			Save(ctx)
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (s *PaymentService) validateOrderInput(ctx context.Context, req CreateOrderRequest, cfg *PaymentConfig) (*dbent.SubscriptionPlan, error) {
@@ -196,17 +158,6 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	order, err := s.createOrderInExistingTx(ctx, tx, req, user, plan, cfg, orderAmount, limitAmount, feeRate, payAmount, sel)
-	if err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit order transaction: %w", err)
-	}
-	return order, nil
-}
-
-func (s *PaymentService) createOrderInExistingTx(ctx context.Context, tx *dbent.Tx, req CreateOrderRequest, user *User, plan *dbent.SubscriptionPlan, cfg *PaymentConfig, orderAmount, limitAmount, feeRate, payAmount float64, sel *payment.InstanceSelection) (*dbent.PaymentOrder, error) {
 	if err := s.checkPendingLimit(ctx, tx, req.UserID, cfg.MaxPendingOrders); err != nil {
 		return nil, err
 	}
@@ -261,9 +212,6 @@ func (s *PaymentService) createOrderInExistingTx(ctx context.Context, tx *dbent.
 	if plan != nil {
 		b.SetPlanID(plan.ID).SetSubscriptionGroupID(plan.GroupID).SetSubscriptionDays(psComputeValidityDays(plan.ValidityDays, plan.ValidityUnit))
 	}
-	if req.ShopOrderID > 0 {
-		b.SetShopOrderID(req.ShopOrderID)
-	}
 	order, err := b.Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("create order: %w", err)
@@ -272,6 +220,9 @@ func (s *PaymentService) createOrderInExistingTx(ctx context.Context, tx *dbent.
 	order, err = tx.PaymentOrder.UpdateOneID(order.ID).SetRechargeCode(code).Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("set recharge code: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit order transaction: %w", err)
 	}
 	return order, nil
 }
@@ -465,7 +416,7 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 		return nil, infraerrors.ServiceUnavailable("PAYMENT_PROVIDER_MISCONFIGURED", "provider_misconfigured").
 			WithMetadata(map[string]string{"provider": sel.ProviderKey, "instance_id": sel.InstanceID})
 	}
-	subject := s.buildPaymentSubject(req, plan, limitAmount, cfg, sel)
+	subject := s.buildPaymentSubject(plan, limitAmount, cfg, sel, req)
 	outTradeNo := order.OutTradeNo
 	canonicalReturnURL, err := CanonicalizeReturnURL(req.ReturnURL, req.SrcHost, req.SrcURL)
 	if err != nil {
@@ -498,14 +449,17 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 		IsMobile:    req.IsMobile,
 		ReturnURL:   providerReturnURL,
 	}, sel, outTradeNo, payAmountStr, subject)
+	finishProviderCall := servertiming.ObserveDependency(ctx, "payment")
 	pr, err := prov.CreatePayment(ctx, providerReq)
+	finishProviderCall()
 	if err != nil {
 		slog.Error("[PaymentService] CreatePayment failed", "provider", sel.ProviderKey, "instance", sel.InstanceID, "error", err)
 		if appErr := new(infraerrors.ApplicationError); errors.As(err, &appErr) {
-			return nil, &paymentProviderOrderPossiblyCreatedError{err: appErr}
+			return nil, appErr
 		}
-		return nil, &paymentProviderOrderPossiblyCreatedError{err: classifyCreatePaymentError(req, sel.ProviderKey, err)}
+		return nil, classifyCreatePaymentError(req, sel.ProviderKey, err)
 	}
+	sanitizeCreatePaymentResponseDetails(pr)
 	_, err = s.entClient.PaymentOrder.UpdateOneID(order.ID).
 		SetNillablePaymentTradeNo(psNilIfEmpty(pr.TradeNo)).
 		SetNillablePayURL(psNilIfEmpty(pr.PayURL)).
@@ -514,7 +468,7 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 		SetNillableProviderKey(psNilIfEmpty(sel.ProviderKey)).
 		Save(ctx)
 	if err != nil {
-		return nil, &paymentProviderOrderPossiblyCreatedError{err: fmt.Errorf("update order with payment details: %w", err)}
+		return nil, fmt.Errorf("update order with payment details: %w", err)
 	}
 	s.writeAuditLog(ctx, order.ID, "ORDER_CREATED", fmt.Sprintf("user:%d", req.UserID), map[string]any{
 		"paymentAmount":  req.Amount,
@@ -531,6 +485,22 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 	resp := buildCreateOrderResponse(order, req, payAmount, sel, pr, resultType)
 	resp.ResumeToken = resumeToken
 	return resp, nil
+}
+
+func sanitizeCreatePaymentResponseDetails(pr *payment.CreatePaymentResponse) {
+	if pr == nil {
+		return
+	}
+	pr.TradeNo = removePostgresTextNUL(pr.TradeNo)
+	pr.PayURL = removePostgresTextNUL(pr.PayURL)
+	pr.QRCode = removePostgresTextNUL(pr.QRCode)
+}
+
+func removePostgresTextNUL(value string) string {
+	if !strings.ContainsRune(value, 0) {
+		return value
+	}
+	return strings.ReplaceAll(value, "\x00", "")
 }
 
 func buildProviderCreatePaymentRequest(req CreateOrderRequest, sel *payment.InstanceSelection, orderID, amount, subject string) payment.CreatePaymentRequest {
@@ -554,15 +524,16 @@ func selectedInstanceSupportedTypes(sel *payment.InstanceSelection) string {
 	return sel.SupportedTypes
 }
 
-func (s *PaymentService) buildPaymentSubject(req CreateOrderRequest, plan *dbent.SubscriptionPlan, limitAmount float64, cfg *PaymentConfig, sel *payment.InstanceSelection) string {
+func (s *PaymentService) buildPaymentSubject(plan *dbent.SubscriptionPlan, limitAmount float64, cfg *PaymentConfig, sel *payment.InstanceSelection, requests ...CreateOrderRequest) string {
 	if plan != nil {
-		if plan.ProductName != "" {
-			return plan.ProductName
+		productName := plan.ProductName
+		if productName == "" {
+			productName = "Sub2API Subscription " + plan.Name
 		}
-		return "ikik-api Subscription " + plan.Name
+		return applyPaymentProductNameAffix(productName, cfg)
 	}
-	if req.OrderType == payment.OrderTypeShop {
-		if subject := strings.TrimSpace(req.Subject); subject != "" {
+	if len(requests) > 0 && requests[0].OrderType == payment.OrderTypeShop {
+		if subject := strings.TrimSpace(requests[0].Subject); subject != "" {
 			return subject
 		}
 		return "ikik-api Store Order"
@@ -572,12 +543,28 @@ func (s *PaymentService) buildPaymentSubject(req CreateOrderRequest, plan *dbent
 		currency = paymentProviderConfigCurrency(sel.ProviderKey, sel.Config)
 	}
 	amountStr := payment.FormatAmountForCurrency(limitAmount, currency)
+	if hasPaymentProductNameAffix(cfg) {
+		return applyPaymentProductNameAffix(amountStr, cfg)
+	}
+	return "Sub2API " + amountStr + " " + currency
+}
+
+func hasPaymentProductNameAffix(cfg *PaymentConfig) bool {
+	if cfg == nil {
+		return false
+	}
 	pf := strings.TrimSpace(cfg.ProductNamePrefix)
 	sf := strings.TrimSpace(cfg.ProductNameSuffix)
-	if pf != "" || sf != "" {
-		return strings.TrimSpace(pf + " " + amountStr + " " + sf)
+	return pf != "" || sf != ""
+}
+
+func applyPaymentProductNameAffix(productName string, cfg *PaymentConfig) string {
+	if !hasPaymentProductNameAffix(cfg) {
+		return productName
 	}
-	return "ikik-api " + amountStr + " " + currency
+	pf := strings.TrimSpace(cfg.ProductNamePrefix)
+	sf := strings.TrimSpace(cfg.ProductNameSuffix)
+	return strings.TrimSpace(pf + " " + productName + " " + sf)
 }
 
 func (s *PaymentService) maybeBuildWeChatOAuthRequiredResponse(ctx context.Context, req CreateOrderRequest, amount, payAmount, feeRate float64) (*CreateOrderResponse, error) {
@@ -603,19 +590,7 @@ func (s *PaymentService) buildWeChatOAuthRequiredResponse(ctx context.Context, r
 		return nil, err
 	}
 
-	contextToken, err := s.paymentResume().CreateWeChatPaymentOAuthContextToken(WeChatPaymentOAuthContextClaims{
-		UserID:      req.UserID,
-		PaymentType: req.PaymentType,
-		Amount:      strconv.FormatFloat(req.Amount, 'f', -1, 64),
-		OrderType:   req.OrderType,
-		PlanID:      req.PlanID,
-		RedirectTo:  paymentRedirectPathFromURL(req.SrcURL),
-		Scope:       "snsapi_base",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create wechat payment oauth context token: %w", err)
-	}
-	authorizeURL, err := buildWeChatPaymentOAuthStartURL(contextToken)
+	authorizeURL, err := buildWeChatPaymentOAuthStartURL(req, "snsapi_base")
 	if err != nil {
 		return nil, err
 	}
@@ -665,6 +640,28 @@ func calculateCreateOrderPayAmount(limitAmount, feeRate float64, currency string
 			WithMetadata(map[string]string{"currency": currency})
 	}
 	return payAmountStr, payAmount, nil
+}
+
+func calculateCreateOrderPayAmountForOrderType(limitAmount, feeRate float64, currency, orderType string, usdToCnyRate float64) (string, float64, error) {
+	paymentAmount := limitAmount
+	if orderType == payment.OrderTypeSubscription {
+		paymentAmount = calculateSubscriptionGatewayBaseAmount(limitAmount, usdToCnyRate, currency)
+	}
+	return calculateCreateOrderPayAmount(paymentAmount, feeRate, currency)
+}
+
+// calculateSubscriptionGatewayBaseAmount 计算订阅订单的网关扣款基数。
+// 换算是显式 opt-in：仅当管理员配置了订阅汇率（rate > 0，1 USD = rate CNY）
+// 且网关币种为 CNY 时，按 price × rate 换算；未配置时保持 price 直付的存量行为。
+func calculateSubscriptionGatewayBaseAmount(amount, usdToCnyRate float64, currency string) float64 {
+	rate := normalizeSubscriptionUSDToCNYRate(usdToCnyRate)
+	if rate <= 0 || currency != payment.DefaultPaymentCurrency {
+		return amount
+	}
+	return decimal.NewFromFloat(amount).
+		Mul(decimal.NewFromFloat(rate)).
+		Round(int32(payment.CurrencyMaxFractionDigits(currency))).
+		InexactFloat64()
 }
 
 func validateCreateOrderAmountCurrency(amount float64, currency string) error {
@@ -756,13 +753,28 @@ func buildCreateOrderResponse(order *dbent.PaymentOrder, req CreateOrderRequest,
 	}
 }
 
-func buildWeChatPaymentOAuthStartURL(contextToken string) (string, error) {
+func buildWeChatPaymentOAuthStartURL(req CreateOrderRequest, scope string) (string, error) {
 	u, err := url.Parse("/api/v1/auth/oauth/wechat/payment/start")
 	if err != nil {
 		return "", fmt.Errorf("build wechat payment oauth start url: %w", err)
 	}
 	q := u.Query()
-	q.Set("context_token", strings.TrimSpace(contextToken))
+	q.Set("payment_type", strings.TrimSpace(req.PaymentType))
+	if req.Amount > 0 {
+		q.Set("amount", strconv.FormatFloat(req.Amount, 'f', -1, 64))
+	}
+	if orderType := strings.TrimSpace(req.OrderType); orderType != "" {
+		q.Set("order_type", orderType)
+	}
+	if req.PlanID > 0 {
+		q.Set("plan_id", strconv.FormatInt(req.PlanID, 10))
+	}
+	if scope = strings.TrimSpace(scope); scope != "" {
+		q.Set("scope", scope)
+	}
+	if redirectTo := paymentRedirectPathFromURL(req.SrcURL); redirectTo != "" {
+		q.Set("redirect", redirectTo)
+	}
 	u.RawQuery = q.Encode()
 	return u.String(), nil
 }
@@ -827,23 +839,6 @@ func (s *PaymentService) GetOrderByID(ctx context.Context, orderID int64) (*dben
 	return o, nil
 }
 
-func (s *PaymentService) GetShopOrderForPaymentOrder(ctx context.Context, order *dbent.PaymentOrder) (*ShopOrderDTO, error) {
-	if order == nil {
-		return nil, infraerrors.BadRequest("INVALID_ORDER", "payment order is required")
-	}
-	if order.OrderType != payment.OrderTypeShop {
-		return nil, infraerrors.BadRequest("INVALID_ORDER_TYPE", "payment order is not a shop order")
-	}
-	if order.ShopOrderID == nil || *order.ShopOrderID <= 0 {
-		return nil, infraerrors.BadRequest("INVALID_ORDER", "payment order missing shop order id")
-	}
-	reader, ok := s.shopFulfillment.(ShopPaymentDeliveryReader)
-	if !ok || reader == nil {
-		return nil, infraerrors.ServiceUnavailable("SHOP_FULFILLMENT_NOT_CONFIGURED", "shop fulfillment service is not configured")
-	}
-	return reader.GetOrderForAdmin(ctx, *order.ShopOrderID)
-}
-
 func (s *PaymentService) GetUserOrders(ctx context.Context, userID int64, p OrderListParams) ([]*dbent.PaymentOrder, int, error) {
 	q := s.entClient.PaymentOrder.Query().Where(paymentorder.UserIDEQ(userID))
 	if p.Status != "" {
@@ -882,11 +877,11 @@ func (s *PaymentService) AdminListOrders(ctx context.Context, userID int64, p Or
 	if p.PaymentType != "" {
 		q = q.Where(paymentorder.PaymentTypeEQ(p.PaymentType))
 	}
-	if keyword := strings.TrimSpace(p.Keyword); keyword != "" {
+	if p.Keyword != "" {
 		q = q.Where(paymentorder.Or(
-			paymentorder.OutTradeNoContainsFold(keyword),
-			paymentorder.UserEmailContainsFold(keyword),
-			paymentorder.UserNameContainsFold(keyword),
+			paymentorder.OutTradeNoContainsFold(p.Keyword),
+			paymentorder.UserEmailContainsFold(p.Keyword),
+			paymentorder.UserNameContainsFold(p.Keyword),
 		))
 	}
 	total, err := q.Clone().Count(ctx)

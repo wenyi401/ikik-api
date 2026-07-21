@@ -136,6 +136,7 @@ type UpdateSettingsRequest struct {
 	ContactInfo                 string                `json:"contact_info"`
 	DocURL                      string                `json:"doc_url"`
 	HomeContent                 string                `json:"home_content"`
+	HomeStatsGroupID            *int64                `json:"home_stats_group_id"`
 	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
@@ -153,6 +154,12 @@ type UpdateSettingsRequest struct {
 	AffiliateRebatePerInviteeCap              *float64                          `json:"affiliate_rebate_per_invitee_cap"`
 	AdminRechargeRebateEnabled                *bool                             `json:"affiliate_admin_recharge_enabled"`
 	DefaultUserRPMLimit                       int                               `json:"default_user_rpm_limit"`
+	UserPrivateGroupDailyLimitUSD             *float64                          `json:"user_private_group_daily_limit_usd"`
+	UserPrivateGroupWeeklyLimitUSD            *float64                          `json:"user_private_group_weekly_limit_usd"`
+	UserPrivateGroupMonthlyLimitUSD           *float64                          `json:"user_private_group_monthly_limit_usd"`
+	UserPrivateGroupRateMultiplier            *float64                          `json:"user_private_group_rate_multiplier"`
+	UserPrivateGroupRPMLimit                  *int                              `json:"user_private_group_rpm_limit"`
+	UserPrivateGroupCommissionRate            *float64                          `json:"user_private_group_commission_rate"`
 	DefaultSubscriptions                      []dto.DefaultSubscriptionSetting  `json:"default_subscriptions"`
 	AuthSourceDefaultEmailBalance             *float64                          `json:"auth_source_default_email_balance"`
 	AuthSourceDefaultEmailConcurrency         *int                              `json:"auth_source_default_email_concurrency"`
@@ -225,6 +232,7 @@ type UpdateSettingsRequest struct {
 	ClaudeOAuthSystemPrompt                *string `json:"claude_oauth_system_prompt"`
 	ClaudeOAuthSystemPromptBlocks          *string `json:"claude_oauth_system_prompt_blocks"`
 	EnableAnthropicCacheTTL1hInjection     *bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
+	OpenAIImagesResponsesReasoningEffort   *string `json:"openai_images_responses_reasoning_effort"`
 	RewriteMessageCacheControl             *bool   `json:"rewrite_message_cache_control"`
 	EnableClientDatelineNormalization      *bool   `json:"enable_client_dateline_normalization"`
 	AntigravityUserAgentVersion            *string `json:"antigravity_user_agent_version"`
@@ -248,6 +256,8 @@ type UpdateSettingsRequest struct {
 	OpenAILowUpstreamRatePriorityEnabled               *bool    `json:"openai_low_upstream_rate_priority_enabled"`
 	OpenAIOAuthSchedulingRateMultiplier                *float64 `json:"openai_oauth_scheduling_rate_multiplier"`
 	OpenAIAdvancedSchedulerEnabled                     *bool    `json:"openai_advanced_scheduler_enabled"`
+	OpenAIFreeAccountRepairEnabled                     *bool    `json:"openai_free_account_repair_enabled"`
+	OpenAIFreeAccountRepairWeeklyThresholdUSD          *float64 `json:"openai_free_account_repair_weekly_threshold_usd"`
 	OpenAIAdvancedSchedulerStickyWeightedEnabled       *bool    `json:"openai_advanced_scheduler_sticky_weighted_enabled"`
 	OpenAIAdvancedSchedulerSubscriptionPriorityEnabled *bool    `json:"openai_advanced_scheduler_subscription_priority_enabled"`
 	OpenAIAdvancedSchedulerLBTopK                      *string  `json:"openai_advanced_scheduler_lb_top_k"`
@@ -303,7 +313,13 @@ type UpdateSettingsRequest struct {
 	ChannelMonitorDefaultIntervalSeconds *int  `json:"channel_monitor_default_interval_seconds"`
 
 	// Available Channels feature switch (user-facing)
-	AvailableChannelsEnabled *bool `json:"available_channels_enabled"`
+	AvailableChannelsEnabled *bool                  `json:"available_channels_enabled"`
+	AutoModelSettings        *dto.AutoModelSettings `json:"auto_model_settings"`
+	FreeModelsEnabled        *bool                  `json:"free_models_enabled"`
+	CarpoolEnabled           *bool                  `json:"carpool_enabled"`
+	CarpoolBaseServiceFeeUSD *float64               `json:"carpool_base_service_fee_usd"`
+	CarpoolSystemProxyFeeUSD *float64               `json:"carpool_system_proxy_fee_usd"`
+	CarpoolRiskControlFeeUSD *float64               `json:"carpool_risk_control_fee_usd"`
 
 	// Affiliate (邀请返利) feature switch
 	AffiliateEnabled *bool `json:"affiliate_enabled"`
@@ -1278,33 +1294,84 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ContactInfo:                            req.ContactInfo,
 		DocURL:                                 req.DocURL,
 		HomeContent:                            req.HomeContent,
-		HideCcsImportButton:                    req.HideCcsImportButton,
-		PurchaseSubscriptionEnabled:            purchaseEnabled,
-		PurchaseSubscriptionURL:                purchaseURL,
-		TableDefaultPageSize:                   req.TableDefaultPageSize,
-		TablePageSizeOptions:                   req.TablePageSizeOptions,
-		CustomMenuItems:                        customMenuJSON,
-		CustomEndpoints:                        customEndpointsJSON,
-		DefaultConcurrency:                     req.DefaultConcurrency,
-		DefaultBalance:                         req.DefaultBalance,
-		AffiliateRebateRate:                    affiliateRebateRate,
-		AffiliateRebateFreezeHours:             affiliateRebateFreezeHours,
-		AffiliateRebateDurationDays:            affiliateRebateDurationDays,
-		AffiliateRebatePerInviteeCap:           affiliateRebatePerInviteeCap,
-		AdminRechargeRebateEnabled:             adminRechargeRebateEnabled,
-		DefaultUserRPMLimit:                    req.DefaultUserRPMLimit,
-		DefaultSubscriptions:                   defaultSubscriptions,
-		EnableModelFallback:                    req.EnableModelFallback,
-		FallbackModelAnthropic:                 req.FallbackModelAnthropic,
-		FallbackModelOpenAI:                    req.FallbackModelOpenAI,
-		FallbackModelGemini:                    req.FallbackModelGemini,
-		FallbackModelAntigravity:               req.FallbackModelAntigravity,
-		EnableIdentityPatch:                    req.EnableIdentityPatch,
-		IdentityPatchPrompt:                    req.IdentityPatchPrompt,
-		MinClaudeCodeVersion:                   req.MinClaudeCodeVersion,
-		MaxClaudeCodeVersion:                   req.MaxClaudeCodeVersion,
-		AllowUngroupedKeyScheduling:            req.AllowUngroupedKeyScheduling,
-		BackendModeEnabled:                     req.BackendModeEnabled,
+		HomeStatsGroupID: func() int64 {
+			if req.HomeStatsGroupID != nil {
+				return *req.HomeStatsGroupID
+			}
+			return previousSettings.HomeStatsGroupID
+		}(),
+		HideCcsImportButton:          req.HideCcsImportButton,
+		PurchaseSubscriptionEnabled:  purchaseEnabled,
+		PurchaseSubscriptionURL:      purchaseURL,
+		TableDefaultPageSize:         req.TableDefaultPageSize,
+		TablePageSizeOptions:         req.TablePageSizeOptions,
+		CustomMenuItems:              customMenuJSON,
+		CustomEndpoints:              customEndpointsJSON,
+		DefaultConcurrency:           req.DefaultConcurrency,
+		DefaultBalance:               req.DefaultBalance,
+		AffiliateRebateRate:          affiliateRebateRate,
+		AffiliateRebateFreezeHours:   affiliateRebateFreezeHours,
+		AffiliateRebateDurationDays:  affiliateRebateDurationDays,
+		AffiliateRebatePerInviteeCap: affiliateRebatePerInviteeCap,
+		AdminRechargeRebateEnabled:   adminRechargeRebateEnabled,
+		DefaultUserRPMLimit:          req.DefaultUserRPMLimit,
+		UserPrivateGroupDailyLimitUSD: func() *float64 {
+			if req.UserPrivateGroupDailyLimitUSD == nil {
+				return previousSettings.UserPrivateGroupDailyLimitUSD
+			}
+			if *req.UserPrivateGroupDailyLimitUSD <= 0 {
+				return nil
+			}
+			return req.UserPrivateGroupDailyLimitUSD
+		}(),
+		UserPrivateGroupWeeklyLimitUSD: func() *float64 {
+			if req.UserPrivateGroupWeeklyLimitUSD == nil {
+				return previousSettings.UserPrivateGroupWeeklyLimitUSD
+			}
+			if *req.UserPrivateGroupWeeklyLimitUSD <= 0 {
+				return nil
+			}
+			return req.UserPrivateGroupWeeklyLimitUSD
+		}(),
+		UserPrivateGroupMonthlyLimitUSD: func() *float64 {
+			if req.UserPrivateGroupMonthlyLimitUSD == nil {
+				return previousSettings.UserPrivateGroupMonthlyLimitUSD
+			}
+			if *req.UserPrivateGroupMonthlyLimitUSD <= 0 {
+				return nil
+			}
+			return req.UserPrivateGroupMonthlyLimitUSD
+		}(),
+		UserPrivateGroupRateMultiplier: func() float64 {
+			if req.UserPrivateGroupRateMultiplier != nil {
+				return *req.UserPrivateGroupRateMultiplier
+			}
+			return previousSettings.UserPrivateGroupRateMultiplier
+		}(),
+		UserPrivateGroupRPMLimit: func() int {
+			if req.UserPrivateGroupRPMLimit != nil {
+				return *req.UserPrivateGroupRPMLimit
+			}
+			return previousSettings.UserPrivateGroupRPMLimit
+		}(),
+		UserPrivateGroupCommissionRate: func() float64 {
+			if req.UserPrivateGroupCommissionRate != nil {
+				return *req.UserPrivateGroupCommissionRate
+			}
+			return previousSettings.UserPrivateGroupCommissionRate
+		}(),
+		DefaultSubscriptions:        defaultSubscriptions,
+		EnableModelFallback:         req.EnableModelFallback,
+		FallbackModelAnthropic:      req.FallbackModelAnthropic,
+		FallbackModelOpenAI:         req.FallbackModelOpenAI,
+		FallbackModelGemini:         req.FallbackModelGemini,
+		FallbackModelAntigravity:    req.FallbackModelAntigravity,
+		EnableIdentityPatch:         req.EnableIdentityPatch,
+		IdentityPatchPrompt:         req.IdentityPatchPrompt,
+		MinClaudeCodeVersion:        req.MinClaudeCodeVersion,
+		MaxClaudeCodeVersion:        req.MaxClaudeCodeVersion,
+		AllowUngroupedKeyScheduling: req.AllowUngroupedKeyScheduling,
+		BackendModeEnabled:          req.BackendModeEnabled,
 		AllowUserViewErrorRequests: func() bool {
 			if req.AllowUserViewErrorRequests != nil {
 				return *req.AllowUserViewErrorRequests
@@ -1376,6 +1443,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return *req.EnableAnthropicCacheTTL1hInjection
 			}
 			return previousSettings.EnableAnthropicCacheTTL1hInjection
+		}(),
+		OpenAIImagesResponsesReasoningEffort: func() string {
+			if req.OpenAIImagesResponsesReasoningEffort != nil {
+				return strings.ToLower(strings.TrimSpace(*req.OpenAIImagesResponsesReasoningEffort))
+			}
+			return previousSettings.OpenAIImagesResponsesReasoningEffort
 		}(),
 		RewriteMessageCacheControl: func() bool {
 			if req.RewriteMessageCacheControl != nil {
@@ -1454,6 +1527,18 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.OpenAIAdvancedSchedulerEnabled
 		}(),
+		OpenAIFreeAccountRepairEnabled: func() bool {
+			if req.OpenAIFreeAccountRepairEnabled != nil {
+				return *req.OpenAIFreeAccountRepairEnabled
+			}
+			return previousSettings.OpenAIFreeAccountRepairEnabled
+		}(),
+		OpenAIFreeAccountRepairWeeklyThresholdUSD: func() float64 {
+			if req.OpenAIFreeAccountRepairWeeklyThresholdUSD != nil {
+				return *req.OpenAIFreeAccountRepairWeeklyThresholdUSD
+			}
+			return previousSettings.OpenAIFreeAccountRepairWeeklyThresholdUSD
+		}(),
 		OpenAIAdvancedSchedulerStickyWeightedEnabled: func() bool {
 			if req.OpenAIAdvancedSchedulerStickyWeightedEnabled != nil {
 				return *req.OpenAIAdvancedSchedulerStickyWeightedEnabled
@@ -1530,6 +1615,42 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return *req.AvailableChannelsEnabled
 			}
 			return previousSettings.AvailableChannelsEnabled
+		}(),
+		AutoModelSettings: func() service.AutoModelSettings {
+			if req.AutoModelSettings != nil {
+				return autoModelSettingsToService(*req.AutoModelSettings)
+			}
+			return previousSettings.AutoModelSettings
+		}(),
+		FreeModelsEnabled: func() bool {
+			if req.FreeModelsEnabled != nil {
+				return *req.FreeModelsEnabled
+			}
+			return previousSettings.FreeModelsEnabled
+		}(),
+		CarpoolEnabled: func() bool {
+			if req.CarpoolEnabled != nil {
+				return *req.CarpoolEnabled
+			}
+			return previousSettings.CarpoolEnabled
+		}(),
+		CarpoolBaseServiceFeeUSD: func() float64 {
+			if req.CarpoolBaseServiceFeeUSD != nil {
+				return *req.CarpoolBaseServiceFeeUSD
+			}
+			return previousSettings.CarpoolBaseServiceFeeUSD
+		}(),
+		CarpoolSystemProxyFeeUSD: func() float64 {
+			if req.CarpoolSystemProxyFeeUSD != nil {
+				return *req.CarpoolSystemProxyFeeUSD
+			}
+			return previousSettings.CarpoolSystemProxyFeeUSD
+		}(),
+		CarpoolRiskControlFeeUSD: func() float64 {
+			if req.CarpoolRiskControlFeeUSD != nil {
+				return *req.CarpoolRiskControlFeeUSD
+			}
+			return previousSettings.CarpoolRiskControlFeeUSD
 		}(),
 		AffiliateEnabled: func() bool {
 			if req.AffiliateEnabled != nil {
@@ -1801,6 +1922,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ContactInfo:                                            updatedSettings.ContactInfo,
 		DocURL:                                                 updatedSettings.DocURL,
 		HomeContent:                                            updatedSettings.HomeContent,
+		HomeStatsGroupID:                                       updatedSettings.HomeStatsGroupID,
 		HideCcsImportButton:                                    updatedSettings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:                            updatedSettings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                                updatedSettings.PurchaseSubscriptionURL,
@@ -1816,6 +1938,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		AffiliateRebatePerInviteeCap:                           updatedSettings.AffiliateRebatePerInviteeCap,
 		AdminRechargeRebateEnabled:                             updatedSettings.AdminRechargeRebateEnabled,
 		DefaultUserRPMLimit:                                    updatedSettings.DefaultUserRPMLimit,
+		UserPrivateGroupDailyLimitUSD:                          updatedSettings.UserPrivateGroupDailyLimitUSD,
+		UserPrivateGroupWeeklyLimitUSD:                         updatedSettings.UserPrivateGroupWeeklyLimitUSD,
+		UserPrivateGroupMonthlyLimitUSD:                        updatedSettings.UserPrivateGroupMonthlyLimitUSD,
+		UserPrivateGroupRateMultiplier:                         updatedSettings.UserPrivateGroupRateMultiplier,
+		UserPrivateGroupRPMLimit:                               updatedSettings.UserPrivateGroupRPMLimit,
+		UserPrivateGroupCommissionRate:                         updatedSettings.UserPrivateGroupCommissionRate,
 		DefaultSubscriptions:                                   updatedDefaultSubscriptions,
 		EnableModelFallback:                                    updatedSettings.EnableModelFallback,
 		FallbackModelAnthropic:                                 updatedSettings.FallbackModelAnthropic,
@@ -1839,6 +1967,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ClaudeOAuthSystemPrompt:                                updatedSettings.ClaudeOAuthSystemPrompt,
 		ClaudeOAuthSystemPromptBlocks:                          updatedSettings.ClaudeOAuthSystemPromptBlocks,
 		EnableAnthropicCacheTTL1hInjection:                     updatedSettings.EnableAnthropicCacheTTL1hInjection,
+		OpenAIImagesResponsesReasoningEffort:                   updatedSettings.OpenAIImagesResponsesReasoningEffort,
 		RewriteMessageCacheControl:                             updatedSettings.RewriteMessageCacheControl,
 		EnableClientDatelineNormalization:                      updatedSettings.EnableClientDatelineNormalization,
 		AntigravityUserAgentVersion:                            updatedSettings.AntigravityUserAgentVersion,
@@ -1856,6 +1985,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		OpenAILowUpstreamRatePriorityEnabled:                   updatedSettings.OpenAILowUpstreamRatePriorityEnabled,
 		OpenAIOAuthSchedulingRateMultiplier:                    updatedSettings.OpenAIOAuthSchedulingRateMultiplier,
 		OpenAIAdvancedSchedulerEnabled:                         updatedSettings.OpenAIAdvancedSchedulerEnabled,
+		OpenAIFreeAccountRepairEnabled:                         updatedSettings.OpenAIFreeAccountRepairEnabled,
+		OpenAIFreeAccountRepairWeeklyThresholdUSD:              updatedSettings.OpenAIFreeAccountRepairWeeklyThresholdUSD,
 		OpenAIAdvancedSchedulerStickyWeightedEnabled:           updatedSettings.OpenAIAdvancedSchedulerStickyWeightedEnabled,
 		OpenAIAdvancedSchedulerSubscriptionPriorityEnabled:     updatedSettings.OpenAIAdvancedSchedulerSubscriptionPriorityEnabled,
 		OpenAIAdvancedSchedulerLBTopK:                          updatedSettings.OpenAIAdvancedSchedulerLBTopK,
@@ -1913,6 +2044,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ChannelMonitorDefaultIntervalSeconds: updatedSettings.ChannelMonitorDefaultIntervalSeconds,
 
 		AvailableChannelsEnabled: updatedSettings.AvailableChannelsEnabled,
+		AutoModelSettings:        autoModelSettingsToDTO(updatedSettings.AutoModelSettings),
+		FreeModelsEnabled:        updatedSettings.FreeModelsEnabled,
+		CarpoolEnabled:           updatedSettings.CarpoolEnabled,
+		CarpoolBaseServiceFeeUSD: updatedSettings.CarpoolBaseServiceFeeUSD,
+		CarpoolSystemProxyFeeUSD: updatedSettings.CarpoolSystemProxyFeeUSD,
+		CarpoolRiskControlFeeUSD: updatedSettings.CarpoolRiskControlFeeUSD,
 
 		AffiliateEnabled: updatedSettings.AffiliateEnabled,
 

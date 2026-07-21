@@ -26,15 +26,31 @@ func TestNormalizeVisibleMethods(t *testing.T) {
 		" wxpay_direct ",
 		"wxpay",
 		"stripe",
+		"ldc",
 	})
 
-	want := []string{"alipay", "wxpay", "stripe"}
+	want := []string{"alipay", "wxpay", "stripe", "ldc"}
 	if len(got) != len(want) {
 		t.Fatalf("NormalizeVisibleMethods len = %d, want %d (%v)", len(got), len(want), got)
 	}
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("NormalizeVisibleMethods[%d] = %q, want %q (full=%v)", i, got[i], want[i], got)
+		}
+	}
+}
+
+func TestEnabledVisibleMethodsForEasyPayIncludesCustomSupportedTypes(t *testing.T) {
+	t.Parallel()
+
+	got := enabledVisibleMethodsForProvider(payment.TypeEasyPay, "alipay,ldc,usdt_trc20")
+	want := []string{"alipay", "ldc", "usdt_trc20"}
+	if len(got) != len(want) {
+		t.Fatalf("enabledVisibleMethodsForProvider len = %d, want %d (%v)", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("enabledVisibleMethodsForProvider[%d] = %q, want %q (full=%v)", i, got[i], want[i], got)
 		}
 	}
 }
@@ -801,7 +817,7 @@ func mustCreateFallbackSignedToken(t *testing.T, claims any) string {
 		t.Fatalf("marshal claims: %v", err)
 	}
 	encodedPayload := base64.RawURLEncoding.EncodeToString(payload)
-	mac := hmac.New(sha256.New, []byte("ikik-api-payment-resume"))
+	mac := hmac.New(sha256.New, []byte("sub2api-payment-resume"))
 	_, _ = mac.Write([]byte(encodedPayload))
 	signature := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 	return encodedPayload + "." + signature

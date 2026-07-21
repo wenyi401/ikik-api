@@ -85,7 +85,9 @@ func (ChannelMonitor) Fields() []ent.Field {
 			MaxLen(10),
 		// body_override: 同 ChannelMonitorRequestTemplate.body_override
 		field.JSON("body_override", map[string]any{}).
-			Optional(),
+			Optional(), field.String("api_mode").
+			Default("chat_completions").
+			MaxLen(32).Comment("OpenAI request protocol: chat_completions or responses; non-OpenAI uses chat_completions"),
 	}
 }
 
@@ -109,6 +111,8 @@ func (ChannelMonitor) Indexes() []ent.Index {
 		index.Fields("enabled", "last_checked_at"),
 		index.Fields("provider"),
 		index.Fields("group_name"),
-		index.Fields("template_id"),
+		index.Fields("template_id"), index.Fields("provider",
+
+			"api_mode"),
 	}
 }

@@ -70,7 +70,7 @@
         </div>
       </section>
       <section class="usage-records">
-      <UsageFilters v-model="filters" :start-date="startDate" :end-date="endDate" :exporting="exporting" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
+      <UsageFilters v-model="filters" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
         <template #after-reset>
           <div class="relative" ref="columnDropdownRef">
             <UiIconButton
@@ -198,6 +198,10 @@ const breakdownFilters = computed(() => {
   return f
 })
 
+const modelNameOptions = computed(() =>
+  Array.from(new Set(requestedModelStats.value.map((model) => model.model).filter(Boolean))).sort()
+)
+
 const toFiniteNumber = (value: unknown): number => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 0
@@ -226,13 +230,6 @@ const normalizeUsageStats = (
     endpoint_paths: raw?.endpoint_paths || []
   }
 }
-
-const isZeroUsageStats = (stats: AdminUsageStatsResponse) =>
-  stats.total_requests === 0 &&
-  stats.total_tokens === 0 &&
-  stats.total_cost === 0 &&
-  stats.total_actual_cost === 0 &&
-  stats.total_account_cost === 0
 
 const hasDetailedStatsFilters = () => {
   const f = filters.value
@@ -402,14 +399,7 @@ const loadStats = async () => {
   const seq = ++statsReqSeq
   endpointStatsLoading.value = true
   try {
-    const s = normalizeUsageStats(await adminAPI.usage.getStats(buildUsageStatsParams()))
-    let nextStats = s
-    if (isZeroUsageStats(s)) {
-      const fallbackStats = await loadDateRangeStatsFallback()
-      if (fallbackStats && !isZeroUsageStats(fallbackStats)) {
-        nextStats = fallbackStats
-      }
-    }
+    const nextStats = normalizeUsageStats(await adminAPI.usage.getStats(buildUsageStatsParams()))
     if (seq !== statsReqSeq) return
     usageStats.value = nextStats
     inboundEndpointStats.value = nextStats.endpoints || []

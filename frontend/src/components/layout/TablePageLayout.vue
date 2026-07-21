@@ -128,6 +128,10 @@ onUnmounted(() => {
   @apply flex-none min-h-fit;
 }
 
+.table-page-layout.mobile-mode .table-scroll-container :deep(.table-wrapper) {
+  @apply overflow-x-auto overflow-y-visible;
+}
+
 .table-page-layout.mobile-mode .table-scroll-container :deep(table) {
   @apply flex-none;
   display: table;

@@ -6,6 +6,11 @@
 import { apiClient } from './client'
 import type { Account, AccountUsageInfo, AccountUsageStatsResponse, AdminDataPayload, CreateAccountRequest, CreateProxyRequest, PaginatedResponse, Proxy, ProxyQualityCheckResult, UpdateAccountRequest, UpdateProxyRequest, UserAccountQuotaPoolDashboard, WindowStats } from '@/types'
 import type { KiroIDCAuthUrlResponse, KiroTokenInfo } from '@/api/admin/kiro'
+import {
+  getGrokSSOImportTimeout,
+  type GrokSSOToOAuthRequest,
+  type GrokSSOToOAuthResponse
+} from '@/api/admin/grok'
 
 const USER_ACCOUNT_BULK_OPERATION_TIMEOUT_MS = 120000
 
@@ -594,6 +599,17 @@ export async function refreshGrokToken(
   return data
 }
 
+export async function importGrokSSO(
+  payload: GrokSSOToOAuthRequest & { share_mode?: 'private' | 'public' }
+): Promise<GrokSSOToOAuthResponse> {
+  const { data } = await apiClient.post<GrokSSOToOAuthResponse>(
+    '/account-oauth/grok/sso-to-oauth',
+    compactPayload(payload),
+    { timeout: getGrokSSOImportTimeout(payload.sso_tokens.length) }
+  )
+  return data
+}
+
 export async function generateKiroOAuthUrl(
   payload?: UserKiroAuthUrlPayload
 ): Promise<UserOAuthAuthUrlResponse> {
@@ -701,6 +717,7 @@ export const accountsAPI = {
   generateGrokOAuthUrl,
   exchangeGrokOAuthCode,
   refreshGrokToken,
+  importGrokSSO,
   generateKiroOAuthUrl,
   generateKiroIDCAuthUrl,
   exchangeKiroOAuthCode,

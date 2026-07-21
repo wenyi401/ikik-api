@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/sync/singleflight"
 	"ikik-api/internal/pkg/antigravity"
 	"ikik-api/internal/pkg/openai"
-	"golang.org/x/sync/singleflight"
 )
 
 // cachedVersionBounds 缓存 Claude Code 版本号上下限（进程内缓存，60s TTL）

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"ikik-api/internal/pkg/antigravity"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/antigravity"
 )
 
 func TestCleanGeminiNativeThoughtSignatures_ReplacesNestedThoughtSignatures(t *testing.T) {

@@ -8,14 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/config"
 )
 
 type bmRepoStub struct {
-	getValueFn    func(ctx context.Context, key string) (string, error)
-	getMultipleFn func(ctx context.Context, keys []string) (map[string]string, error)
-	calls         int
+	getValueFn func(ctx context.Context, key string) (string, error)
+	calls      int
 }
 
 func (s *bmRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
@@ -35,11 +34,7 @@ func (s *bmRepoStub) Set(ctx context.Context, key, value string) error {
 }
 
 func (s *bmRepoStub) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
-	s.calls++
-	if s.getMultipleFn == nil {
-		panic("unexpected GetMultiple call")
-	}
-	return s.getMultipleFn(ctx, keys)
+	panic("unexpected GetMultiple call")
 }
 
 func (s *bmRepoStub) SetMultiple(ctx context.Context, settings map[string]string) error {

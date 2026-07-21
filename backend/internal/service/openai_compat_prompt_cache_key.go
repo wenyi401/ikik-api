@@ -13,10 +13,9 @@ const compatPromptCacheKeyPrefix = "compat_cc_"
 
 func shouldAutoInjectPromptCacheKeyForCompat(model string) bool {
 	trimmed := strings.TrimSpace(strings.ToLower(model))
-	canonical := canonicalizeOpenAIModelAliasSpelling(trimmed)
-	// Only auto-inject for GPT-5/Codex-compatible OAuth paths; normalizeCodexModel
-	// falls back to gpt-5.4 for unknown models, so prefilter first.
-	if !strings.Contains(trimmed, "gpt-5") && !strings.Contains(trimmed, "codex") && !strings.HasPrefix(canonical, "gpt-5") {
+	// 仅对 Codex OAuth 路径支持的 GPT-5 族开启自动注入，避免 normalizeCodexModel
+	// 的默认兜底把任意模型（如 gpt-4o、claude-*）误判为 gpt-5.4。
+	if !strings.Contains(trimmed, "gpt-5") && !strings.Contains(trimmed, "codex") {
 		return false
 	}
 	normalized := strings.TrimSpace(strings.ToLower(normalizeCodexModel(trimmed)))
@@ -120,34 +119,39 @@ func deriveAnthropicCacheControlPromptCacheKey(req *apicompat.AnthropicRequest) 
 	}
 
 	var parts []string
-	var systemBlocks []map[string]any
+	var systemBlocks []apicompat.AnthropicContentBlock
 	if len(req.System) > 0 && json.Unmarshal(req.System, &systemBlocks) == nil {
 		for _, block := range systemBlocks {
-			if text, ok := anthropicCompatCacheControlText(block); ok {
-				parts = append(parts, "system:"+text)
+			if block.Type == "text" &&
+				block.CacheControl != nil &&
+				strings.TrimSpace(block.CacheControl.Type) == "ephemeral" &&
+				strings.TrimSpace(block.Text) != "" {
+				parts = append(parts, "system:"+strings.TrimSpace(block.Text))
 			}
 		}
 	}
 
 	firstUserAnchor := ""
 	for _, msg := range req.Messages {
-		var blocks []map[string]any
+		var blocks []apicompat.AnthropicContentBlock
 		if len(msg.Content) == 0 || json.Unmarshal(msg.Content, &blocks) != nil {
 			continue
 		}
 		role := strings.TrimSpace(msg.Role)
 		for _, block := range blocks {
-			text, ok := anthropicCompatCacheControlText(block)
-			if !ok {
+			if block.Type != "text" ||
+				block.CacheControl == nil ||
+				strings.TrimSpace(block.CacheControl.Type) != "ephemeral" ||
+				strings.TrimSpace(block.Text) == "" {
 				continue
 			}
 			switch role {
 			case "user":
 				if firstUserAnchor == "" {
-					firstUserAnchor = text
+					firstUserAnchor = strings.TrimSpace(block.Text)
 				}
 			case "assistant":
-				parts = append(parts, "assistant:"+text)
+				parts = append(parts, "assistant:"+strings.TrimSpace(block.Text))
 			}
 		}
 	}
@@ -159,18 +163,6 @@ func deriveAnthropicCacheControlPromptCacheKey(req *apicompat.AnthropicRequest) 
 	}
 	sum := sha256.Sum256([]byte("anthropic-cache:" + strings.Join(parts, "\n")))
 	return fmt.Sprintf("anthropic-cache-%x", sum[:16])
-}
-
-func anthropicCompatCacheControlText(block map[string]any) (string, bool) {
-	if strings.TrimSpace(firstNonEmptyString(block["type"])) != "text" {
-		return "", false
-	}
-	cacheControl, ok := block["cache_control"].(map[string]any)
-	if !ok || strings.TrimSpace(firstNonEmptyString(cacheControl["type"])) != "ephemeral" {
-		return "", false
-	}
-	text := strings.TrimSpace(firstNonEmptyString(block["text"]))
-	return text, text != ""
 }
 
 func normalizeCompatSeedJSON(v json.RawMessage) string {

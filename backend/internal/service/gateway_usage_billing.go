@@ -70,16 +70,17 @@ type usageLogBestEffortWriter interface {
 
 // postUsageBillingParams 统一扣费所需的参数
 type postUsageBillingParams struct {
-	Cost                  *CostBreakdown
-	User                  *User
-	APIKey                *APIKey
-	Account               *Account
-	Subscription          *UserSubscription
-	RequestPayloadHash    string
-	IsSubscriptionBill    bool
-	AccountRateMultiplier float64
-	APIKeyService         APIKeyQuotaUpdater
-	Platform              string // 来自 APIKey 关联 Group 的平台标识
+	Cost                       *CostBreakdown
+	User                       *User
+	APIKey                     *APIKey
+	Account                    *Account
+	Subscription               *UserSubscription
+	RequestPayloadHash         string
+	IsSubscriptionBill         bool
+	AccountRateMultiplier      float64
+	PrivateGroupCommissionRate float64
+	APIKeyService              APIKeyQuotaUpdater
+	Platform                   string // 来自 APIKey 关联 Group 的平台标识
 }
 
 // PlatformFromAPIKey 从 APIKey 关联的 Group 推导 platform 名称。
@@ -228,14 +229,20 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 	}
 
 	cmd := &UsageBillingCommand{
-		RequestID:          requestID,
-		APIKeyID:           p.APIKey.ID,
-		UserID:             p.User.ID,
-		AccountID:          p.Account.ID,
-		AccountType:        p.Account.Type,
-		RequestPayloadHash: strings.TrimSpace(p.RequestPayloadHash),
+		RequestID:                  requestID,
+		APIKeyID:                   p.APIKey.ID,
+		UserID:                     p.User.ID,
+		AccountID:                  p.Account.ID,
+		AccountType:                p.Account.Type,
+		RequestPayloadHash:         strings.TrimSpace(p.RequestPayloadHash),
+		UsageOccurredAt:            time.Now(),
+		UsageLog:                   usageLog,
+		PrivateGroupCommissionCost: calculatePrivateGroupCommissionCost(p),
 	}
 	if usageLog != nil {
+		if !usageLog.CreatedAt.IsZero() {
+			cmd.UsageOccurredAt = usageLog.CreatedAt
+		}
 		cmd.Model = usageLog.Model
 		cmd.BillingType = usageLog.BillingType
 		cmd.InputTokens = usageLog.InputTokens
@@ -252,17 +259,23 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 		if usageLog.SubscriptionID != nil {
 			cmd.SubscriptionID = usageLog.SubscriptionID
 		}
+		if usageLog.GroupID != nil {
+			cmd.GroupID = usageLog.GroupID
+		}
 	}
 
 	// Record subscription / balance cost using ActualCost so the group (and any
 	// user-specific) rate multiplier consumes subscription quota at the expected
 	// speed. TotalCost remains the raw (pre-multiplier) value; downstream guards
 	// on "> 0" still correctly skip free subscriptions (RateMultiplier == 0).
-	if p.IsSubscriptionBill && p.Subscription != nil && p.Cost.TotalCost > 0 {
-		cmd.SubscriptionID = &p.Subscription.ID
-		cmd.SubscriptionCost = p.Cost.ActualCost
+	if p.IsSubscriptionBill {
+		if p.Subscription != nil && p.Cost.TotalCost > 0 {
+			cmd.SubscriptionID = &p.Subscription.ID
+			cmd.SubscriptionCost = p.Cost.ActualCost
+		}
 	} else if p.Cost.ActualCost > 0 {
 		cmd.BalanceCost = p.Cost.ActualCost
+		cmd.PreferPointsBilling = p.User.PreferPointsBilling
 	}
 
 	if p.shouldDeductAPIKeyQuota() {
@@ -292,6 +305,9 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 
 	billingCtx, cancel := detachedBillingContext(ctx)
 	defer cancel()
+	if err := attachAccountShareBillingSnapshot(billingCtx, cmd, p, deps); err != nil {
+		return false, err
+	}
 
 	result, err := repo.Apply(billingCtx, cmd)
 	if err != nil {
@@ -328,6 +344,20 @@ func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, de
 
 	if p.Cost.ActualCost > 0 && p.APIKey != nil && p.APIKey.HasRateLimits() {
 		deps.billingCacheService.QueueUpdateAPIKeyRateLimitUsage(p.APIKey.ID, p.Cost.ActualCost)
+	}
+
+	if result != nil && deps.billingCacheService != nil {
+		for _, userID := range result.BalanceCreditUserIDs {
+			if userID <= 0 {
+				continue
+			}
+			if err := deps.billingCacheService.InvalidateUserBalance(ctx, userID); err != nil {
+				slog.Warn("invalidate balance cache after account share credit failed",
+					"user_id", userID,
+					"error", err,
+				)
+			}
+		}
 	}
 
 	deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID)
@@ -489,26 +519,28 @@ func detachUpstreamContext(ctx context.Context) (context.Context, context.Cancel
 
 // billingDeps 扣费逻辑依赖的服务（由各 gateway service 提供）
 type billingDeps struct {
-	accountRepo           AccountRepository
-	userRepo              UserRepository
-	userSubRepo           UserSubscriptionRepository
-	billingCacheService   *BillingCacheService
-	deferredService       *DeferredService
-	balanceNotifyService  *BalanceNotifyService
-	userPlatformQuotaRepo UserPlatformQuotaRepository
-	cfg                   *config.Config
+	accountRepo            AccountRepository
+	accountSharePolicyRepo AccountSharePolicyRepository
+	userRepo               UserRepository
+	userSubRepo            UserSubscriptionRepository
+	billingCacheService    *BillingCacheService
+	deferredService        *DeferredService
+	balanceNotifyService   *BalanceNotifyService
+	userPlatformQuotaRepo  UserPlatformQuotaRepository
+	cfg                    *config.Config
 }
 
 func (s *GatewayService) billingDeps() *billingDeps {
 	return &billingDeps{
-		accountRepo:           s.accountRepo,
-		userRepo:              s.userRepo,
-		userSubRepo:           s.userSubRepo,
-		billingCacheService:   s.billingCacheService,
-		deferredService:       s.deferredService,
-		balanceNotifyService:  s.balanceNotifyService,
-		userPlatformQuotaRepo: s.userPlatformQuotaRepo,
-		cfg:                   s.cfg,
+		accountRepo:            s.accountRepo,
+		accountSharePolicyRepo: s.accountSharePolicyRepo,
+		userRepo:               s.userRepo,
+		userSubRepo:            s.userSubRepo,
+		billingCacheService:    s.billingCacheService,
+		deferredService:        s.deferredService,
+		balanceNotifyService:   s.balanceNotifyService,
+		userPlatformQuotaRepo:  s.userPlatformQuotaRepo,
+		cfg:                    s.cfg,
 	}
 }
 

@@ -25,6 +25,7 @@ type Usage struct {
 	OutputTokens             int
 	CacheCreationInputTokens int
 	CacheReadInputTokens     int
+	ImageOutputTokens        int
 }
 
 type RelayResult struct {
@@ -55,15 +56,18 @@ type RelayExit struct {
 }
 
 type RelayOptions struct {
-	WriteTimeout         time.Duration
-	IdleTimeout          time.Duration
-	UpstreamDrainTimeout time.Duration
-	FirstMessageType     coderws.MessageType
-	OnUsageParseFailure  func(eventType string, usageRaw string)
-	OnTurnComplete       func(turn RelayTurnResult)
-	BeforeClientFrame    func(msgType coderws.MessageType, payload []byte) error
-	OnTrace              func(event RelayTraceEvent)
-	Now                  func() time.Time
+	WriteTimeout                    time.Duration
+	IdleTimeout                     time.Duration
+	UpstreamDrainTimeout            time.Duration
+	FirstMessageType                coderws.MessageType
+	FirstMessageSent                bool
+	StartClientAfterFirstDownstream bool
+	OnUsageParseFailure             func(eventType string, usageRaw string)
+	OnTurnComplete                  func(turn RelayTurnResult)
+	BeforeWriteClient               func(msgType coderws.MessageType, payload []byte, wroteDownstream bool) error
+	ReadClientFrame                 func(ctx context.Context, clientConn FrameConn) (coderws.MessageType, []byte, error)
+	OnTrace                         func(event RelayTraceEvent)
+	Now                             func() time.Time
 }
 
 type RelayTraceEvent struct {
@@ -83,6 +87,7 @@ type relayState struct {
 	terminalEventType string
 	firstTokenMs      *int
 	turnTimingByID    map[string]*relayTurnTiming
+	activeTurn        *relayTurnTiming
 }
 
 type relayExitSignal struct {
@@ -170,42 +175,47 @@ func Relay(
 		MessageType:  relayMessageTypeString(firstMessageType),
 	})
 
-	if options.BeforeClientFrame != nil {
-		if err := options.BeforeClientFrame(firstMessageType, firstClientMessage); err != nil {
+	if options.FirstMessageSent {
+		emitRelayTrace(onTrace, RelayTraceEvent{
+			Stage:        "write_first_message_skipped",
+			Direction:    "client_to_upstream",
+			MessageType:  relayMessageTypeString(firstMessageType),
+			PayloadBytes: len(firstClientMessage),
+		})
+	} else {
+		if err := writeUpstream(firstMessageType, firstClientMessage); err != nil {
 			result.Duration = nowFn().Sub(startAt)
 			emitRelayTrace(onTrace, RelayTraceEvent{
-				Stage:        "before_first_client_frame_failed",
+				Stage:        "write_first_message_failed",
 				Direction:    "client_to_upstream",
 				MessageType:  relayMessageTypeString(firstMessageType),
 				PayloadBytes: len(firstClientMessage),
 				Error:        err.Error(),
 			})
-			return result, &RelayExit{Stage: "before_client_frame", Err: err}
+			return result, &RelayExit{Stage: "write_upstream", Err: err}
 		}
-	}
-	if err := writeUpstream(firstMessageType, firstClientMessage); err != nil {
-		result.Duration = nowFn().Sub(startAt)
 		emitRelayTrace(onTrace, RelayTraceEvent{
-			Stage:        "write_first_message_failed",
+			Stage:        "write_first_message_ok",
 			Direction:    "client_to_upstream",
 			MessageType:  relayMessageTypeString(firstMessageType),
 			PayloadBytes: len(firstClientMessage),
-			Error:        err.Error(),
 		})
-		return result, &RelayExit{Stage: "write_upstream", Err: err}
 	}
 	clientToUpstreamFrames.Add(1)
-	emitRelayTrace(onTrace, RelayTraceEvent{
-		Stage:        "write_first_message_ok",
-		Direction:    "client_to_upstream",
-		MessageType:  relayMessageTypeString(firstMessageType),
-		PayloadBytes: len(firstClientMessage),
-	})
 	markActivity()
 
 	exitCh := make(chan relayExitSignal, 3)
 	dropDownstreamWrites := atomic.Bool{}
-	go runClientToUpstream(relayCtx, clientConn, writeUpstream, markActivity, clientToUpstreamFrames, options.BeforeClientFrame, onTrace, exitCh)
+	clientReaderStarted := atomic.Bool{}
+	startClientReader := func() {
+		if !clientReaderStarted.CompareAndSwap(false, true) {
+			return
+		}
+		go runClientToUpstream(relayCtx, clientConn, options.ReadClientFrame, writeUpstream, markActivity, clientToUpstreamFrames, onTrace, exitCh)
+	}
+	if !options.StartClientAfterFirstDownstream {
+		startClientReader()
+	}
 	go runUpstreamToClient(
 		relayCtx,
 		upstreamConn,
@@ -215,6 +225,12 @@ func Relay(
 		state,
 		options.OnUsageParseFailure,
 		options.OnTurnComplete,
+		options.BeforeWriteClient,
+		func() {
+			if options.StartClientAfterFirstDownstream {
+				startClientReader()
+			}
+		},
 		&dropDownstreamWrites,
 		upstreamToClientFrames,
 		droppedDownstreamFrames,
@@ -243,7 +259,9 @@ func Relay(
 	} else {
 		relayCancel()
 		_ = upstreamConn.Close()
-		secondExit, hasSecondExit = waitRelayExit(exitCh, 200*time.Millisecond)
+		if clientReaderStarted.Load() {
+			secondExit, hasSecondExit = waitRelayExit(exitCh, 200*time.Millisecond)
+		}
 	}
 	if hasSecondExit {
 		combinedWroteDownstream = combinedWroteDownstream || secondExit.wroteDownstream
@@ -263,6 +281,14 @@ func Relay(
 	result.ClientToUpstreamFrames = clientToUpstreamFrames.Load()
 	result.UpstreamToClientFrames = upstreamToClientFrames.Load()
 	result.DroppedDownstreamFrames = droppedDownstreamFrames.Load()
+	if options.FirstMessageSent && firstExit.stage == "read_client" && firstExit.graceful {
+		emitRelayTrace(onTrace, RelayTraceEvent{
+			Stage:           "relay_client_closed",
+			Graceful:        true,
+			WroteDownstream: combinedWroteDownstream,
+		})
+		return result, nil
+	}
 	if firstExit.stage == "read_client" && firstExit.graceful {
 		stage := "client_disconnected"
 		exitErr := firstExit.err
@@ -323,6 +349,14 @@ func Relay(
 			WroteDownstream: combinedWroteDownstream,
 		}
 	}
+	if options.FirstMessageSent {
+		emitRelayTrace(onTrace, RelayTraceEvent{
+			Stage:           "relay_client_closed",
+			Graceful:        true,
+			WroteDownstream: combinedWroteDownstream,
+		})
+		return result, nil
+	}
 	emitRelayTrace(onTrace, RelayTraceEvent{
 		Stage:           "relay_complete",
 		Graceful:        true,
@@ -335,15 +369,20 @@ func Relay(
 func runClientToUpstream(
 	ctx context.Context,
 	clientConn FrameConn,
+	readClientFrame func(context.Context, FrameConn) (coderws.MessageType, []byte, error),
 	writeUpstream func(msgType coderws.MessageType, payload []byte) error,
 	markActivity func(),
 	forwardedFrames *atomic.Int64,
-	beforeClientFrame func(msgType coderws.MessageType, payload []byte) error,
 	onTrace func(event RelayTraceEvent),
 	exitCh chan<- relayExitSignal,
 ) {
+	if readClientFrame == nil {
+		readClientFrame = func(ctx context.Context, conn FrameConn) (coderws.MessageType, []byte, error) {
+			return conn.ReadFrame(ctx)
+		}
+	}
 	for {
-		msgType, payload, err := clientConn.ReadFrame(ctx)
+		msgType, payload, err := readClientFrame(ctx, clientConn)
 		if err != nil {
 			emitRelayTrace(onTrace, RelayTraceEvent{
 				Stage:     "read_client_failed",
@@ -355,19 +394,6 @@ func runClientToUpstream(
 			return
 		}
 		markActivity()
-		if beforeClientFrame != nil {
-			if err := beforeClientFrame(msgType, payload); err != nil {
-				emitRelayTrace(onTrace, RelayTraceEvent{
-					Stage:        "before_client_frame_failed",
-					Direction:    "client_to_upstream",
-					MessageType:  relayMessageTypeString(msgType),
-					PayloadBytes: len(payload),
-					Error:        err.Error(),
-				})
-				exitCh <- relayExitSignal{stage: "before_client_frame", err: err}
-				return
-			}
-		}
 		if err := writeUpstream(msgType, payload); err != nil {
 			emitRelayTrace(onTrace, RelayTraceEvent{
 				Stage:        "write_upstream_failed",
@@ -395,6 +421,8 @@ func runUpstreamToClient(
 	state *relayState,
 	onUsageParseFailure func(eventType string, usageRaw string),
 	onTurnComplete func(turn RelayTurnResult),
+	beforeWriteClient func(msgType coderws.MessageType, payload []byte, wroteDownstream bool) error,
+	afterWriteClient func(),
 	dropDownstreamWrites *atomic.Bool,
 	forwardedFrames *atomic.Int64,
 	droppedFrames *atomic.Int64,
@@ -422,6 +450,24 @@ func runUpstreamToClient(
 			return
 		}
 		markActivity()
+		if beforeWriteClient != nil {
+			if err := beforeWriteClient(msgType, payload, wroteDownstream); err != nil {
+				emitRelayTrace(onTrace, RelayTraceEvent{
+					Stage:           "upstream_message_rejected",
+					Direction:       "upstream_to_client",
+					MessageType:     relayMessageTypeString(msgType),
+					PayloadBytes:    len(payload),
+					WroteDownstream: wroteDownstream,
+					Error:           err.Error(),
+				})
+				exitCh <- relayExitSignal{
+					stage:           "upstream_message",
+					err:             err,
+					wroteDownstream: wroteDownstream,
+				}
+				return
+			}
+		}
 		observedEvent := observedUpstreamEvent{}
 		switch msgType {
 		case coderws.MessageText:
@@ -465,6 +511,9 @@ func runUpstreamToClient(
 			return
 		}
 		wroteDownstream = true
+		if afterWriteClient != nil {
+			afterWriteClient()
+		}
 		if forwardedFrames != nil {
 			forwardedFrames.Add(1)
 		}
@@ -578,6 +627,12 @@ func observeUpstreamMessage(
 		if ms >= 0 {
 			state.firstTokenMs = &ms
 		}
+		if state.activeTurn != nil && state.activeTurn.firstTokenMs == nil {
+			tms := int(now.Sub(state.activeTurn.startAt).Milliseconds())
+			if tms >= 0 {
+				state.activeTurn.firstTokenMs = &tms
+			}
+		}
 	}
 	parsedUsage := parseUsageAndAccumulate(state, message, eventType, onUsageParseFailure)
 	observed := observedUpstreamEvent{
@@ -650,6 +705,7 @@ func openAIWSRelayGetOrInitTurnTiming(state *relayState, responseID string, now 
 	if !ok || timing == nil || timing.startAt.IsZero() {
 		timing = &relayTurnTiming{startAt: now}
 		state.turnTimingByID[responseID] = timing
+		state.activeTurn = timing
 		return timing
 	}
 	return timing
@@ -664,6 +720,9 @@ func openAIWSRelayDeleteTurnTiming(state *relayState, responseID string) (relayT
 		return relayTurnTiming{}, false
 	}
 	delete(state.turnTimingByID, responseID)
+	if state.activeTurn == timing {
+		state.activeTurn = nil
+	}
 	return *timing, true
 }
 
@@ -697,19 +756,22 @@ func parseUsageAndAccumulate(
 		return Usage{}
 	}
 
-	inputResult := usageResult.Get("input_tokens")
+	inputResult := gjson.GetBytes(message, "response.usage.input_tokens")
 	if !inputResult.Exists() {
-		inputResult = usageResult.Get("prompt_tokens")
+		inputResult = gjson.GetBytes(message, "response.usage.prompt_tokens")
 	}
-	outputResult := usageResult.Get("output_tokens")
+	outputResult := gjson.GetBytes(message, "response.usage.output_tokens")
 	if !outputResult.Exists() {
-		outputResult = usageResult.Get("completion_tokens")
+		outputResult = gjson.GetBytes(message, "response.usage.completion_tokens")
 	}
-	cachedResult := usageResult.Get("input_tokens_details.cached_tokens")
+	cachedResult := gjson.GetBytes(message, "response.usage.input_tokens_details.cached_tokens")
 	if !cachedResult.Exists() {
-		cachedResult = usageResult.Get("prompt_tokens_details.cached_tokens")
+		cachedResult = gjson.GetBytes(message, "response.usage.prompt_tokens_details.cached_tokens")
 	}
-	cacheCreationTokens := openAICacheCreationTokensFromUsage(usageResult)
+	imageTokens := usageResult.Get("output_tokens_details.image_tokens").Int()
+	if imageTokens == 0 {
+		imageTokens = usageResult.Get("completion_tokens_details.image_tokens").Int()
+	}
 
 	inputTokens, inputOK := parseUsageIntField(inputResult, true)
 	outputTokens, outputOK := parseUsageIntField(outputResult, true)
@@ -722,20 +784,19 @@ func parseUsageAndAccumulate(
 		// 解析失败时不做部分字段累加，避免计费 usage 出现“半有效”状态。
 		return Usage{}
 	}
-	if cachedTokens == 0 {
-		cachedTokens = openAICacheReadTokensFromUsage(usageResult)
-	}
 	parsedUsage := Usage{
 		InputTokens:              inputTokens,
 		OutputTokens:             outputTokens,
-		CacheCreationInputTokens: cacheCreationTokens,
+		CacheCreationInputTokens: openAICacheCreationTokensFromUsage(usageResult),
 		CacheReadInputTokens:     cachedTokens,
+		ImageOutputTokens:        int(imageTokens),
 	}
 
 	state.usage.InputTokens += parsedUsage.InputTokens
 	state.usage.OutputTokens += parsedUsage.OutputTokens
 	state.usage.CacheCreationInputTokens += parsedUsage.CacheCreationInputTokens
 	state.usage.CacheReadInputTokens += parsedUsage.CacheReadInputTokens
+	state.usage.ImageOutputTokens += parsedUsage.ImageOutputTokens
 	return parsedUsage
 }
 
@@ -766,21 +827,6 @@ func openAICacheCreationTokensFromUsage(value gjson.Result) int {
 		"cache_creation_input_tokens",
 		"cache_write_input_tokens",
 		"cache_creation_tokens",
-	} {
-		if tokens := int(value.Get(field).Int()); tokens > 0 {
-			return tokens
-		}
-	}
-	return 0
-}
-
-func openAICacheReadTokensFromUsage(value gjson.Result) int {
-	for _, field := range []string{
-		"input_tokens_details.cached_tokens",
-		"prompt_tokens_details.cached_tokens",
-		"cache_read_input_tokens",
-		"cache_read_tokens",
-		"cached_tokens",
 	} {
 		if tokens := int(value.Get(field).Int()); tokens > 0 {
 			return tokens
@@ -837,7 +883,7 @@ func isTerminalEvent(eventType string) bool {
 
 func shouldParseUsage(eventType string) bool {
 	switch eventType {
-	case "response.completed", "response.done", "response.failed":
+	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
 		return true
 	default:
 		return false

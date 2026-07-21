@@ -65,3 +65,37 @@ func TestAccountFromServiceShallow_NilCredentialsOmitsStatus(t *testing.T) {
 	require.Nil(t, got.Credentials)
 	require.Nil(t, got.CredentialsStatus)
 }
+
+func TestAccountFromServiceShallow_PreservesOwnershipAndShareState(t *testing.T) {
+	ownerUserID := int64(1056)
+	sharePolicyID := int64(27)
+	src := &service.Account{
+		ID:            36399,
+		Name:          "shared-account",
+		Platform:      "openai",
+		AccountLevel:  "PLUS",
+		Type:          "oauth",
+		OwnerUserID:   &ownerUserID,
+		ShareMode:     "PUBLIC",
+		ShareStatus:   "APPROVED",
+		SharePolicyID: &sharePolicyID,
+	}
+
+	got := AccountFromServiceShallow(src)
+	require.NotNil(t, got)
+	require.Equal(t, "plus", got.AccountLevel)
+	require.Equal(t, &ownerUserID, got.OwnerUserID)
+	require.Equal(t, "public", got.ShareMode)
+	require.Equal(t, "approved", got.ShareStatus)
+	require.Equal(t, &sharePolicyID, got.SharePolicyID)
+
+	raw, err := json.Marshal(got)
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(raw, &payload))
+	require.Equal(t, "plus", payload["account_level"])
+	require.Equal(t, float64(ownerUserID), payload["owner_user_id"])
+	require.Equal(t, "public", payload["share_mode"])
+	require.Equal(t, "approved", payload["share_status"])
+	require.Equal(t, float64(sharePolicyID), payload["share_policy_id"])
+}

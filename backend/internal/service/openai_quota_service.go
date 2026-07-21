@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	infraerrors "ikik-api/internal/pkg/errors"
 	"github.com/imroc/req/v3"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 // ErrSparkShadowResetNotSupported is returned when ResetCredit is called on a

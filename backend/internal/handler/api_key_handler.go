@@ -28,27 +28,6 @@ func NewAPIKeyHandler(apiKeyService *service.APIKeyService) *APIKeyHandler {
 	}
 }
 
-func apiKeyGroupRouteRequestsToService(routes []APIKeyGroupRouteRequest) []service.APIKeyGroupRoute {
-	if len(routes) == 0 {
-		return nil
-	}
-	out := make([]service.APIKeyGroupRoute, 0, len(routes))
-	for _, route := range routes {
-		enabled := true
-		if route.Enabled != nil {
-			enabled = *route.Enabled
-		}
-		out = append(out, service.APIKeyGroupRoute{
-			GroupID:         route.GroupID,
-			Priority:        route.Priority,
-			Weight:          route.Weight,
-			Enabled:         enabled,
-			CooldownSeconds: route.CooldownSeconds,
-		})
-	}
-	return out
-}
-
 // CreateAPIKeyRequest represents the create API key request payload
 type CreateAPIKeyRequest struct {
 	Name          string                    `json:"name" binding:"required"`
@@ -83,14 +62,6 @@ type UpdateAPIKeyRequest struct {
 	RateLimit1d         *float64 `json:"rate_limit_1d"`
 	RateLimit7d         *float64 `json:"rate_limit_7d"`
 	ResetRateLimitUsage *bool    `json:"reset_rate_limit_usage"` // 重置限速用量
-}
-
-type APIKeyGroupRouteRequest struct {
-	GroupID         int64 `json:"group_id"`
-	Priority        int   `json:"priority"`
-	Weight          int   `json:"weight"`
-	Enabled         *bool `json:"enabled"`
-	CooldownSeconds int   `json:"cooldown_seconds"`
 }
 
 // List handles listing user's API keys with pagination
@@ -162,7 +133,7 @@ func (h *APIKeyHandler) GetByID(c *gin.Context) {
 
 	// 验证所有权
 	if key.UserID != subject.UserID {
-		response.Forbidden(c, "Not authorized to access this key")
+		response.NotFound(c, "API key not found")
 		return
 	}
 

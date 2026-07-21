@@ -18,13 +18,13 @@ import (
 	"time"
 	"unsafe"
 
-	"ikik-api/internal/config"
-	"ikik-api/internal/pkg/logger"
-	"ikik-api/internal/util/responseheaders"
 	"github.com/cespare/xxhash/v2"
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/tidwall/gjson"
 	"golang.org/x/sync/singleflight"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/logger"
+	"ikik-api/internal/util/responseheaders"
 )
 
 const (
@@ -531,7 +531,9 @@ type ClaudeUsage struct {
 	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 	CacheCreation5mTokens    int // 5分钟缓存创建token（来自嵌套 cache_creation 对象）
 	CacheCreation1hTokens    int // 1小时缓存创建token（来自嵌套 cache_creation 对象）
+	ReasoningTokens          int `json:"reasoning_tokens,omitempty"`
 	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
+	KiroCredits              float64
 }
 
 // ForwardResult 转发结果
@@ -660,42 +662,46 @@ func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accou
 
 // GatewayService handles API gateway operations
 type GatewayService struct {
-	accountRepo           AccountRepository
-	groupRepo             GroupRepository
-	usageLogRepo          UsageLogRepository
-	usageBillingRepo      UsageBillingRepository
-	userRepo              UserRepository
-	userSubRepo           UserSubscriptionRepository
-	userGroupRateRepo     UserGroupRateRepository
-	cache                 GatewayCache
-	digestStore           *DigestSessionStore
-	cfg                   *config.Config
-	schedulerSnapshot     *SchedulerSnapshotService
-	billingService        *BillingService
-	rateLimitService      *RateLimitService
-	billingCacheService   *BillingCacheService
-	identityService       *IdentityService
-	httpUpstream          HTTPUpstream
-	deferredService       *DeferredService
-	concurrencyService    *ConcurrencyService
-	claudeTokenProvider   *ClaudeTokenProvider
-	sessionLimitCache     SessionLimitCache // 会话数量限制缓存（仅 Anthropic OAuth/SetupToken）
-	rpmCache              RPMCache          // RPM 计数缓存（仅 Anthropic OAuth/SetupToken）
-	userGroupRateResolver *userGroupRateResolver
-	userGroupRateCache    *gocache.Cache
-	userGroupRateSF       singleflight.Group
-	modelsListCache       *gocache.Cache
-	modelsListCacheTTL    time.Duration
-	settingService        *SettingService
-	responseHeaderFilter  *responseheaders.CompiledHeaderFilter
-	debugModelRouting     atomic.Bool
-	debugClaudeMimic      atomic.Bool
-	channelService        *ChannelService
-	resolver              *ModelPricingResolver
-	debugGatewayBodyFile  atomic.Pointer[os.File] // non-nil when SUB2API_DEBUG_GATEWAY_BODY is set
-	tlsFPProfileService   *TLSFingerprintProfileService
-	balanceNotifyService  *BalanceNotifyService
-	userPlatformQuotaRepo UserPlatformQuotaRepository
+	accountRepo            AccountRepository
+	accountSharePolicyRepo AccountSharePolicyRepository
+	groupRepo              GroupRepository
+	usageLogRepo           UsageLogRepository
+	usageBillingRepo       UsageBillingRepository
+	userRepo               UserRepository
+	userSubRepo            UserSubscriptionRepository
+	userGroupRateRepo      UserGroupRateRepository
+	cache                  GatewayCache
+	digestStore            *DigestSessionStore
+	cfg                    *config.Config
+	schedulerSnapshot      *SchedulerSnapshotService
+	billingService         *BillingService
+	rateLimitService       *RateLimitService
+	billingCacheService    *BillingCacheService
+	identityService        *IdentityService
+	httpUpstream           HTTPUpstream
+	deferredService        *DeferredService
+	concurrencyService     *ConcurrencyService
+	claudeTokenProvider    *ClaudeTokenProvider
+	kiroTokenProvider      *KiroTokenProvider
+	kiroCooldownStore      KiroCooldownStore
+	sessionLimitCache      SessionLimitCache // 会话数量限制缓存（仅 Anthropic OAuth/SetupToken）
+	rpmCache               RPMCache          // RPM 计数缓存（仅 Anthropic OAuth/SetupToken）
+	userGroupRateResolver  *userGroupRateResolver
+	userGroupRateCache     *gocache.Cache
+	userGroupRateSF        singleflight.Group
+	modelsListCache        *gocache.Cache
+	modelsListCacheTTL     time.Duration
+	carpoolRepo            CarpoolRepository
+	settingService         *SettingService
+	responseHeaderFilter   *responseheaders.CompiledHeaderFilter
+	debugModelRouting      atomic.Bool
+	debugClaudeMimic       atomic.Bool
+	channelService         *ChannelService
+	resolver               *ModelPricingResolver
+	debugGatewayBodyFile   atomic.Pointer[os.File] // non-nil when SUB2API_DEBUG_GATEWAY_BODY is set
+	tlsFPProfileService    *TLSFingerprintProfileService
+	balanceNotifyService   *BalanceNotifyService
+	userPlatformQuotaRepo  UserPlatformQuotaRepository
 }
 
 // NewGatewayService creates a new GatewayService

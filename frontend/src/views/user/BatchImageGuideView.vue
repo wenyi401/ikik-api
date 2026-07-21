@@ -8,7 +8,7 @@
               <div class="min-w-0">
                 <SearchInput
                   v-model="filters.taskName"
-                  placeholder="搜索任务名称"
+                  :placeholder="uiText('searchPlaceholder')"
                   class="w-full"
                   @search="applyFilters"
                 />
@@ -19,18 +19,18 @@
             </div>
             <div class="flex flex-wrap items-center justify-start gap-2 sm:justify-end 2xl:flex-shrink-0">
               <button type="button" class="btn btn-secondary" :disabled="loadingJobs" @click="resetFilters">
-                重置
+                {{ uiText('reset') }}
               </button>
-              <button type="button" class="btn btn-secondary" :disabled="loadingKeys || loadingJobs" :title="'刷新'" @click="refreshPage">
+              <button type="button" class="btn btn-secondary" :disabled="loadingKeys || loadingJobs" :title="uiText('refresh')" @click="refreshPage">
                 <Icon name="refresh" size="md" :class="loadingKeys || loadingJobs ? 'animate-spin' : ''" />
               </button>
               <button type="button" class="btn btn-secondary" @click="showGuideModal = true">
                 <Icon name="book" size="md" class="mr-2" />
-                使用说明
+                {{ uiText('guide') }}
               </button>
               <button type="button" class="btn btn-primary" @click="openCreateModal">
                 <Icon name="plus" size="md" class="mr-2" />
-                创建批量任务
+                {{ uiText('createJob') }}
               </button>
             </div>
           </div>
@@ -40,7 +40,7 @@
             class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm dark:border-dark-700 dark:bg-dark-800"
           >
             <span class="text-sm text-gray-600 dark:text-gray-300">
-              已选择 <span class="font-medium text-gray-900 dark:text-white">{{ selectedJobIds.size }}</span> 个任务
+              {{ uiText('selectedJobs', { count: selectedJobIds.size }) }}
             </span>
             <div class="flex flex-wrap items-center gap-2">
               <button
@@ -50,7 +50,7 @@
                 @click="downloadSelectedJobs"
               >
                 <Icon :name="bulkDownloading ? 'refresh' : 'download'" size="sm" class="mr-1.5" :class="bulkDownloading ? 'animate-spin' : ''" />
-                下载选中
+                {{ uiText('downloadSelected') }}
               </button>
               <button
                 type="button"
@@ -59,7 +59,7 @@
                 @click="deleteSelectedJobs"
               >
                 <Icon :name="bulkDeleting ? 'refresh' : 'trash'" size="sm" class="mr-1.5" :class="bulkDeleting ? 'animate-spin' : ''" />
-                删除记录
+                {{ uiText('deleteRecord') }}
               </button>
             </div>
           </div>
@@ -100,7 +100,7 @@
 	                v-if="row.child_count > 0 && !row.is_child"
 	                type="button"
 	                class="mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 dark:text-gray-400 dark:hover:bg-dark-700 dark:hover:text-white"
-	                :title="expandedParentIds.has(row.id) ? '收起子任务' : `展开 ${row.child_count} 个子任务`"
+                :title="expandedParentIds.has(row.id) ? uiText('collapseChildren') : uiText('expandChildren', { count: row.child_count })"
 	                @click.stop="toggleChildRows(row.id)"
 	              >
 	                <Icon :name="expandedParentIds.has(row.id) ? 'chevronDown' : 'chevronRight'" size="xs" />
@@ -113,10 +113,10 @@
                 >
                   <span class="min-w-0 truncate">{{ row.task_name || defaultTaskName(row.created_at) }}</span>
                   <span v-if="row.child_count > 0 && !row.is_child" class="flex-shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-normal text-gray-600 dark:bg-dark-700 dark:text-gray-300">
-                    {{ row.child_count }} 子任务
+                    {{ uiText('childCount', { count: row.child_count }) }}
                   </span>
                   <span v-if="row.is_child" class="flex-shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-normal text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-                    子任务
+                    {{ uiText('childJob') }}
                   </span>
 	                </span>
 	                <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
@@ -134,7 +134,7 @@
 
           <template #cell-api_key_name="{ value }">
             <span class="block truncate text-center text-sm text-gray-700 dark:text-gray-300">
-              {{ value || '未记录' }}
+              {{ value || uiText('notRecorded') }}
             </span>
           </template>
 
@@ -151,7 +151,7 @@
               <span class="text-emerald-600 dark:text-emerald-300">{{ displayJob(row).success_count }}</span>
               <span class="text-gray-300 dark:text-dark-500">/</span>
               <span :class="displayJob(row).fail_count > 0 ? 'text-red-600 dark:text-red-300' : 'text-gray-400 dark:text-gray-500'">{{ displayJob(row).fail_count }}</span>
-              <span class="text-xs text-gray-400 dark:text-gray-500">共 {{ displayJob(row).item_count }}</span>
+              <span class="text-xs text-gray-400 dark:text-gray-500">{{ uiText('totalCount', { count: displayJob(row).item_count }) }}</span>
             </div>
           </template>
 
@@ -163,7 +163,7 @@
 
           <template #cell-downloaded="{ row }">
             <span class="block text-center text-sm" :class="row.downloaded_at ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-500 dark:text-gray-400'">
-              {{ row.downloaded_at ? formatDate(row.downloaded_at) : '未下载' }}
+              {{ row.downloaded_at ? formatDate(row.downloaded_at) : uiText('notDownloaded') }}
             </span>
           </template>
 
@@ -172,18 +172,18 @@
               <button
                 type="button"
                 class="batch-row-action flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 dark:hover:bg-dark-700 dark:hover:text-primary-400"
-                title="查看详情"
+                :title="uiText('viewDetails')"
                 @click="selectJob(row.id)"
               >
                 <Icon name="eye" size="sm" />
-                <span class="text-xs">查看</span>
+                <span class="text-xs">{{ uiText('view') }}</span>
               </button>
               <button
                 type="button"
                 class="batch-row-action flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30"
                 :class="canDownload(row) ? 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400' : 'text-gray-300 dark:text-dark-500'"
                 :disabled="!canDownload(row) || downloading"
-                title="下载 ZIP"
+                :title="uiText('downloadZip')"
                 @click="downloadJob(row)"
               >
                 <Icon
@@ -191,18 +191,18 @@
 	                  size="sm"
 	                  :class="isDownloadingJob(row.id) ? 'animate-spin' : ''"
 	                />
-                <span class="text-xs">下载</span>
+                <span class="text-xs">{{ uiText('download') }}</span>
 	              </button>
               <div v-if="canRetry(row) || canDeleteRecord(row)">
                 <button
                   type="button"
                   class="batch-row-action flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 dark:hover:bg-dark-700 dark:hover:text-white"
                   :class="{ 'bg-gray-100 text-gray-900 dark:bg-dark-700 dark:text-white': openMoreJobId === row.id }"
-                  title="更多操作"
+                  :title="uiText('moreActions')"
                   @click.stop="toggleMoreMenu(row, $event)"
                 >
                   <Icon name="more" size="sm" />
-                  <span class="text-xs">更多</span>
+                  <span class="text-xs">{{ uiText('more') }}</span>
                 </button>
               </div>
 	            </div>
@@ -211,9 +211,9 @@
           <template #empty>
             <div class="flex min-h-[260px] flex-col items-center justify-center py-6 md:min-h-[300px]">
               <Icon name="sparkles" size="xl" class="mb-4 h-12 w-12 text-gray-400 dark:text-dark-500" />
-              <p class="text-lg font-medium text-gray-900 dark:text-gray-100">暂无批量任务</p>
+              <p class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ uiText('emptyTitle') }}</p>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                点击右上角创建批量任务。
+                {{ uiText('emptyHint') }}
               </p>
             </div>
           </template>
@@ -226,14 +226,10 @@
           class="flex flex-col gap-3 border-t border-gray-200 bg-white px-4 py-3 dark:border-dark-700 dark:bg-dark-800 sm:flex-row sm:items-center sm:justify-between sm:px-6"
         >
           <div class="flex flex-wrap items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
-            <span>
-              第 <span class="font-medium">{{ pagination.page }}</span> 页
-            </span>
-            <span>
-              本页 <span class="font-medium">{{ visibleBatchJobs.length }}</span> 条
-            </span>
+            <span>{{ uiText('pageNumber', { page: pagination.page }) }}</span>
+            <span>{{ uiText('pageItemCount', { count: visibleBatchJobs.length }) }}</span>
             <div class="flex items-center gap-2">
-              <span>每页</span>
+              <span>{{ uiText('perPage') }}</span>
               <Select
                 v-model="pagination.page_size"
                 :options="batchPageSizeOptions"
@@ -250,7 +246,7 @@
               @click="handlePageChange(pagination.page - 1)"
             >
               <Icon name="chevronLeft" size="sm" class="mr-1" />
-              上一页
+              {{ uiText('previousPage') }}
             </button>
             <button
               type="button"
@@ -258,7 +254,7 @@
               :disabled="!pagination.has_more || loadingJobs"
               @click="handlePageChange(pagination.page + 1)"
             >
-              下一页
+              {{ uiText('nextPage') }}
               <Icon name="chevronRight" size="sm" class="ml-1" />
             </button>
           </div>
@@ -283,7 +279,7 @@
               @click="retryFailedJob(job)"
             >
               <Icon name="refresh" size="sm" :class="retryingBatchId === job.id ? 'animate-spin' : ''" />
-              重试失败项
+              {{ uiText('retryFailed') }}
             </button>
             <button
               v-if="canDeleteRecord(job)"
@@ -293,7 +289,7 @@
               @click="deleteJob(job)"
             >
               <Icon :name="deletingBatchId === job.id ? 'refresh' : 'trash'" size="sm" :class="deletingBatchId === job.id ? 'animate-spin' : ''" />
-              删除记录
+              {{ uiText('deleteRecord') }}
             </button>
           </template>
         </template>
@@ -309,13 +305,13 @@
         @mouseleave="schedulePromptPopoverClose"
       >
         <div class="mb-2 flex items-center justify-between gap-3">
-          <span class="text-xs font-medium text-gray-500 dark:text-gray-400">完整 Prompt</span>
+          <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ uiText('fullPrompt') }}</span>
           <button
             type="button"
             class="rounded-md px-2 py-1 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 dark:text-primary-300 dark:hover:bg-primary-900/20"
             @click="copyPromptPopover"
           >
-            复制
+            {{ uiText('copy') }}
           </button>
         </div>
         <p class="max-h-48 overflow-y-auto whitespace-pre-wrap break-words leading-6 selection:bg-primary-100 selection:text-primary-900 dark:selection:bg-primary-900/60 dark:selection:text-primary-100">
@@ -324,12 +320,12 @@
       </div>
     </Teleport>
 
-    <BaseDialog :show="!!currentJob" title="任务详情" width="extra-wide" @close="closeDetail">
+    <BaseDialog :show="!!currentJob" :title="uiText('jobDetails')" width="extra-wide" @close="closeDetail">
       <div v-if="currentJob" class="space-y-4">
         <div class="rounded-lg border border-gray-200 bg-gray-50/70 px-4 py-3 dark:border-dark-700 dark:bg-dark-900/40">
           <div class="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
             <div class="min-w-0 text-center">
-              <p class="text-xs text-gray-500 dark:text-gray-400">状态</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">{{ uiText('status') }}</p>
               <div class="mt-1 flex justify-center">
                 <span :class="statusBadgeClass(currentDisplayJob || currentJob)" class="badge whitespace-nowrap">
                   {{ statusLabel(currentDisplayJob || currentJob) }}
@@ -337,7 +333,7 @@
               </div>
             </div>
             <div class="min-w-0 text-center">
-              <p class="text-xs text-gray-500 dark:text-gray-400">{{ hasChildJobs(currentJob.id) ? '汇总结果' : '结果' }}</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">{{ hasChildJobs(currentJob.id) ? uiText('summaryResult') : uiText('result') }}</p>
               <p class="mt-1 flex items-center justify-center gap-2 font-medium tabular-nums">
               <span class="text-emerald-600 dark:text-emerald-300">{{ (currentDisplayJob || currentJob).success_count }}</span>
               <span class="text-gray-300 dark:text-dark-500">/</span>
@@ -345,23 +341,23 @@
             </p>
             </div>
             <div class="min-w-0 text-center">
-              <p class="text-xs text-gray-500 dark:text-gray-400">费用</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">{{ uiText('cost') }}</p>
               <p class="mt-1 truncate font-medium text-gray-900 dark:text-white">{{ costLabel(currentDisplayJob || currentJob) }}</p>
             </div>
             <div class="min-w-0 text-center">
-              <p class="text-xs text-gray-500 dark:text-gray-400">下载状态</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">{{ uiText('downloadStatus') }}</p>
               <p class="mt-1 truncate font-medium text-gray-900 dark:text-white">
-              {{ currentJob.downloaded_at ? formatDate(currentJob.downloaded_at) : '未下载' }}
+              {{ currentJob.downloaded_at ? formatDate(currentJob.downloaded_at) : uiText('notDownloaded') }}
             </p>
             </div>
           </div>
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">明细</h3>
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ uiText('details') }}</h3>
           <button type="button" class="btn btn-secondary btn-sm" :disabled="refreshing || loadingItems" @click="refreshDetail">
             <Icon name="refresh" size="sm" class="mr-1.5" :class="refreshing || loadingItems ? 'animate-spin' : ''" />
-            刷新
+            {{ uiText('refresh') }}
           </button>
         </div>
 
@@ -378,9 +374,9 @@
               <tr>
                 <th class="px-3 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">Custom ID</th>
                 <th class="px-3 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">Prompt</th>
-                <th class="px-3 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">状态</th>
-                <th class="px-3 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">预览</th>
-                <th class="px-3 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">结果</th>
+                <th class="px-3 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">{{ uiText('status') }}</th>
+                <th class="px-3 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">{{ uiText('preview') }}</th>
+                <th class="px-3 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">{{ uiText('result') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
@@ -426,7 +422,7 @@
                       v-if="itemPreviewUrls[itemPreviewKey(item)] && !previewErrorIds.has(itemPreviewKey(item))"
                       type="button"
                       class="block h-full w-full overflow-hidden"
-                      :title="`放大压缩预览 ${item.custom_id}`"
+                      :title="uiText('zoomPreview', { id: item.custom_id })"
                       @click="openImagePreview(item)"
                     >
                       <img
@@ -441,12 +437,12 @@
                       type="button"
                       class="flex h-full w-full items-center justify-center text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 disabled:cursor-wait disabled:opacity-70 dark:text-gray-400 dark:hover:bg-dark-700"
                       :disabled="previewLoadingIds.has(itemPreviewKey(item))"
-                      :title="previewErrorIds.has(itemPreviewKey(item)) ? '重新加载压缩预览' : '加载压缩预览'"
+                      :title="previewErrorIds.has(itemPreviewKey(item)) ? uiText('reloadPreview') : uiText('loadPreview')"
                       @click="loadItemPreview(item)"
                     >
                       <Icon :name="previewLoadingIds.has(itemPreviewKey(item)) ? 'refresh' : 'eye'" size="sm" :class="previewLoadingIds.has(itemPreviewKey(item)) ? 'animate-spin' : ''" />
                     </button>
-                    <div v-else class="flex h-full w-full items-center justify-center text-gray-400" :title="item.image_count > 0 ? '不可预览' : '无图片'">
+                    <div v-else class="flex h-full w-full items-center justify-center text-gray-400" :title="item.image_count > 0 ? uiText('unavailablePreview') : uiText('noImage')">
                       <Icon name="document" size="sm" />
                     </div>
                   </div>
@@ -467,10 +463,10 @@
         <div v-else class="rounded-lg border border-dashed border-gray-200 py-10 text-center dark:border-dark-700">
           <Icon name="refresh" size="lg" class="mx-auto mb-3 text-gray-400" :class="loadingItems ? 'animate-spin' : ''" />
           <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
-            {{ loadingItems ? '正在加载明细...' : '暂无明细' }}
+            {{ loadingItems ? uiText('loadingDetails') : uiText('noDetails') }}
           </p>
           <p v-if="!loadingItems" class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            排队或生成中的任务会先显示已提交的 prompt，结果整理完成后会更新图片状态。
+            {{ uiText('pendingDetailsHint') }}
           </p>
         </div>
       </div>
@@ -479,7 +475,7 @@
         <div class="flex justify-end gap-3">
 	          <button type="button" class="btn btn-secondary" :disabled="!currentJob || !canCancel(currentJob) || cancelling" @click="cancelSelected">
 	            <Icon v-if="cancelling" name="refresh" size="sm" class="mr-2 animate-spin" />
-	            取消任务
+	            {{ uiText('cancelJob') }}
 	          </button>
 	          <button
 	            v-if="currentJob && currentDisplayJob && canRetry(currentDisplayJob)"
@@ -489,7 +485,7 @@
 	            @click="retrySelected"
 	          >
 	            <Icon name="refresh" size="sm" class="mr-2" :class="currentJob && retryingBatchId === currentJob.id ? 'animate-spin' : ''" />
-	            重试失败项
+	            {{ uiText('retryFailed') }}
 	          </button>
 	          <button
             type="button"
@@ -503,16 +499,16 @@
               class="mr-2"
               :class="currentJob && isDownloadingJob(currentJob.id) ? 'animate-spin' : ''"
             />
-            下载 ZIP
+            {{ uiText('downloadZip') }}
           </button>
         </div>
       </template>
     </BaseDialog>
 
-    <BaseDialog :show="!!previewImageItem" :title="previewImageItem?.custom_id || '图片预览'" width="extra-wide" :z-index="60" @close="closeImagePreview">
+    <BaseDialog :show="!!previewImageItem" :title="previewImageItem?.custom_id || uiText('imagePreview')" width="extra-wide" :z-index="60" @close="closeImagePreview">
       <div class="space-y-3">
         <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
-          当前显示的是浏览器本地缓存的压缩缩略图，清晰度会有影响；需要查看原图请下载 ZIP。
+          {{ uiText('previewCacheHint') }}
         </div>
         <div class="flex min-h-[420px] items-center justify-center rounded-lg bg-gray-50 p-4 dark:bg-dark-900">
           <img
@@ -525,35 +521,35 @@
       </div>
     </BaseDialog>
 
-    <BaseDialog :show="showCreateModal" title="创建批量任务" width="wide" @close="closeCreateModal">
+    <BaseDialog :show="showCreateModal" :title="uiText('createJob')" width="wide" @close="closeCreateModal">
       <form class="space-y-5" @submit.prevent="submitJob">
         <div class="grid gap-4 md:grid-cols-2">
           <div class="md:col-span-2">
-            <label class="input-label">任务名称</label>
+            <label class="input-label">{{ uiText('taskName') }}</label>
             <input
               v-model="form.taskName"
               type="text"
               maxlength="255"
               class="input"
-              placeholder="不填写则默认使用当前时间"
+              :placeholder="uiText('taskNamePlaceholder')"
             />
           </div>
 
           <div class="md:col-span-2">
             <label class="input-label">API Key</label>
             <select v-model.number="form.apiKeyId" class="input" :disabled="loadingKeys">
-              <option :value="0">{{ loadingKeys ? '加载 API Key 中...' : '请选择 Gemini API Key' }}</option>
+              <option :value="0">{{ loadingKeys ? uiText('loadingApiKeys') : uiText('selectGeminiKey') }}</option>
               <option v-for="key in geminiApiKeys" :key="key.id" :value="key.id">
                 {{ key.name }} · {{ key.group?.name || 'Gemini' }}
               </option>
             </select>
             <p v-if="!loadingKeys && geminiApiKeys.length === 0" class="input-hint text-amber-600 dark:text-amber-400">
-              当前没有可用于批量生图的 Gemini API Key。请先创建并绑定已开启批量生图的 Gemini 分组。
+              {{ uiText('noApiKeysHint') }}
             </p>
           </div>
 
           <div>
-            <label class="input-label">模型</label>
+            <label class="input-label">{{ uiText('model') }}</label>
             <select v-model="form.model" class="input" :disabled="loadingModels || availableBatchImageModels.length === 0">
               <option v-if="loadingModels" value="">{{ batchImageText('loadingModels') }}</option>
               <option v-else-if="availableBatchImageModels.length === 0" value="">{{ batchImageText('noModels') }}</option>
@@ -570,15 +566,15 @@
           </div>
 
           <div>
-            <label class="input-label">图片尺寸</label>
+            <label class="input-label">{{ uiText('imageSize') }}</label>
             <div class="input flex items-center bg-gray-50 text-gray-600 dark:bg-dark-900 dark:text-gray-300">
               1K
             </div>
-            <p class="input-hint">当前批量任务固定按 1K 图片提交。</p>
+            <p class="input-hint">{{ uiText('fixed1kHint') }}</p>
           </div>
 
           <div>
-            <label class="input-label">输出格式</label>
+            <label class="input-label">{{ uiText('outputFormat') }}</label>
             <select v-model="form.responseMimeType" class="input">
               <option value="image/png">PNG</option>
               <option value="image/jpeg">JPEG</option>
@@ -587,9 +583,9 @@
           </div>
 
           <div>
-            <label class="input-label">预计生成</label>
+            <label class="input-label">{{ uiText('expectedOutput') }}</label>
             <div class="input flex items-center bg-gray-50 text-gray-600 dark:bg-dark-900 dark:text-gray-300">
-              {{ estimatedOutputCount }} 张 / {{ promptRows.length }} 条
+              {{ uiText('outputSummary', { images: estimatedOutputCount, prompts: promptRows.length }) }}
             </div>
           </div>
         </div>
@@ -597,14 +593,14 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between gap-3">
             <label class="input-label mb-0">Prompt</label>
-            <span class="text-xs text-gray-500 dark:text-gray-400">已添加 {{ promptRows.length }} 条</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ uiText('addedPrompts', { count: promptRows.length }) }}</span>
           </div>
           <div class="rounded-lg border border-gray-200 p-3 dark:border-dark-700">
             <textarea
               v-model="promptDraft"
               rows="3"
               class="h-[76px] w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm leading-5 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 dark:border-dark-600 dark:bg-dark-900 dark:text-gray-100 dark:focus:border-primary-500 dark:focus:ring-primary-900/40"
-              placeholder="粘贴 prompt，添加后进入下方列表"
+              :placeholder="uiText('promptPlaceholder')"
             />
             <div class="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_112px_132px_112px] md:items-center">
               <input
@@ -612,16 +608,16 @@
                 type="text"
                 maxlength="255"
                 class="input h-9 text-sm"
-                placeholder="Custom ID 可选"
+                :placeholder="uiText('customIdPlaceholder')"
               />
               <select
                 v-model.number="outputCountDraft"
                 class="batch-output-count-select input h-9 text-sm"
-                title="每条生成张数"
-                aria-label="每条生成张数"
+                :title="uiText('outputCountTitle')"
+                :aria-label="uiText('outputCountTitle')"
               >
                 <option v-for="count in outputCountOptions" :key="count" :value="count">
-                  {{ count }} 张
+                  {{ uiText('imagesCount', { count }) }}
                 </option>
               </select>
               <label
@@ -629,7 +625,7 @@
                 :class="referenceImageDrafts.length >= selectedModelReferenceLimit ? 'pointer-events-none opacity-60' : ''"
               >
                 <Icon name="upload" size="sm" class="mr-1.5" />
-                参考图
+                {{ uiText('referenceImage') }}
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
@@ -641,7 +637,7 @@
               </label>
               <button type="button" class="btn btn-secondary h-9 justify-center whitespace-nowrap px-4 text-sm" :disabled="!promptDraft.trim()" @click="addPromptRow">
                 <Icon name="plus" size="sm" class="mr-1.5" />
-                添加
+                {{ uiText('add') }}
               </button>
             </div>
             <div v-if="referenceImageDrafts.length" class="mt-3 flex flex-wrap gap-2">
@@ -651,13 +647,13 @@
                 class="inline-flex max-w-full items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200"
               >
                 <span class="max-w-[180px] truncate">{{ ref.name }}</span>
-                <button type="button" class="text-gray-400 hover:text-red-600" title="移除参考图" @click="removeReferenceImageDraft(refIndex)">
+                <button type="button" class="text-gray-400 hover:text-red-600" :title="uiText('removeReferenceImage')" @click="removeReferenceImageDraft(refIndex)">
                   <Icon name="x" size="xs" />
                 </button>
               </span>
             </div>
             <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              每条最多 {{ BATCH_IMAGE_MAX_OUTPUTS_PER_ITEM }} 张，整组最多 {{ BATCH_IMAGE_MAX_OUTPUTS_PER_JOB }} 张；当前模型每条最多 {{ selectedModelReferenceLimit }} 张参考图，参考图按生成张数重复消耗输入 token。
+              {{ uiText('limitsHint', { perItem: BATCH_IMAGE_MAX_OUTPUTS_PER_ITEM, perJob: BATCH_IMAGE_MAX_OUTPUTS_PER_JOB, references: selectedModelReferenceLimit }) }}
             </p>
           </div>
           <div v-if="promptRows.length" class="overflow-hidden rounded-lg border border-gray-200 dark:border-dark-700">
@@ -672,52 +668,52 @@
                 x{{ row.output_count }}
               </span>
               <span v-if="row.reference_images.length" class="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                {{ row.reference_images.length }} 参考图
+                {{ uiText('referenceCount', { count: row.reference_images.length }) }}
               </span>
-              <button type="button" class="btn-ghost btn-icon flex-shrink-0 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20" title="删除" @click="removePromptRow(index)">
+              <button type="button" class="btn-ghost btn-icon flex-shrink-0 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20" :title="uiText('delete')" @click="removePromptRow(index)">
                 <Icon name="trash" size="sm" />
               </button>
             </div>
           </div>
           <div v-else class="rounded-lg border border-dashed border-gray-200 px-3 py-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-gray-400">
-            还没有添加 prompt。
+            {{ uiText('noPrompts') }}
           </div>
         </div>
 
 	        <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
-	          取消任务会请求上游取消；已被系统索引为成功的图片仍会按成功项结算扣费，其余冻结金额会释放。
+	          {{ uiText('cancelBillingHint') }}
 	        </div>
 	        <div v-if="submitting" class="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm leading-6 text-sky-800 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-100">
-	          正在创建上游批量任务，通常需要几秒，请不要重复提交。
+	          {{ uiText('submittingHint') }}
 	        </div>
 	      </form>
 
       <template #footer>
         <div class="flex justify-end gap-3">
-          <button type="button" class="btn btn-secondary" :disabled="submitting" @click="closeCreateModal">取消</button>
+          <button type="button" class="btn btn-secondary" :disabled="submitting" @click="closeCreateModal">{{ uiText('cancel') }}</button>
 	          <button type="button" class="btn btn-primary inline-flex min-w-[120px] justify-center" :disabled="submitting || loadingModels || (parsedItems.length === 0 && !promptDraft.trim()) || !selectedApiKey || !form.model" @click="submitJob">
             <Icon v-if="submitting" name="refresh" size="sm" class="mr-2 animate-spin" />
-            {{ submitting ? '提交中...' : '提交任务' }}
+            {{ submitting ? uiText('submitting') : uiText('submitJob') }}
           </button>
         </div>
       </template>
     </BaseDialog>
 
-    <BaseDialog :show="showGuideModal" title="批量生图使用说明" width="wide" @close="showGuideModal = false">
+    <BaseDialog :show="showGuideModal" :title="uiText('guideTitle')" width="wide" @close="showGuideModal = false">
 	      <div class="space-y-5">
 	        <section class="space-y-3">
-	          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">当前界面如何使用</h3>
+	          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ uiText('guideUsageTitle') }}</h3>
 	          <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm leading-6 text-gray-700 dark:border-dark-700 dark:bg-dark-900/50 dark:text-gray-200">
-	            <p>1. 选择已开启批量生图的 Gemini API Key，模型列表会按该 Key 所属分组可用模型展示。</p>
-	            <p>2. 任务名称可以留空，提交时会自动使用当前时间；Prompt 需要一条条添加到列表里，每条 Prompt 可附参考图，也可以设置重复生成张数。</p>
-	            <p>3. 提交后任务会先排队，明细会展示已提交的 Prompt；图片预览默认不加载，点击明细里的预览按钮才会加载单张图。</p>
-	            <p>4. 完成后可以下载 ZIP；部分失败时，更多菜单里可以只重试失败项。当前结算仍按成功输出图张数计算，不单独对参考图加价。</p>
+	            <p>{{ uiText('guideStep1') }}</p>
+	            <p>{{ uiText('guideStep2') }}</p>
+	            <p>{{ uiText('guideStep3') }}</p>
+	            <p>{{ uiText('guideStep4') }}</p>
 	          </div>
 	        </section>
 	        <section class="space-y-3">
 	          <div class="flex flex-wrap items-center justify-between gap-3">
-	            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">给 Codex 的 Skill 说明</h3>
-	            <p class="text-xs text-gray-500 dark:text-gray-400">用于告诉 Codex 如何代替用户整理 prompt、提交任务和下载结果。</p>
+	            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ uiText('agentGuideTitle') }}</h3>
+	            <p class="text-xs text-gray-500 dark:text-gray-400">{{ uiText('agentGuideHint') }}</p>
 	          </div>
 	        <textarea
 	          :value="agentInstruction"
@@ -728,10 +724,10 @@
 	      </div>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <button type="button" class="btn btn-secondary" @click="showGuideModal = false">关闭</button>
+          <button type="button" class="btn btn-secondary" @click="showGuideModal = false">{{ uiText('close') }}</button>
           <button type="button" class="btn btn-primary" @click="copyInstruction">
             <Icon name="copy" size="sm" class="mr-2" />
-            复制说明
+            {{ uiText('copyGuide') }}
           </button>
         </div>
       </template>
@@ -749,6 +745,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { createBatchImageGuideUiText } from './batchImageGuideUiText'
 import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize, setPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useAppStore } from '@/stores/app'
@@ -825,6 +822,7 @@ const batchPageSizeOptions: SelectOption[] = [20, 50, 100].map(size => ({ value:
 const appStore = useAppStore()
 const { copyToClipboard } = useClipboard()
 const { locale } = useI18n()
+const uiText = createBatchImageGuideUiText(locale)
 
 const columns: Column[] = [
   { key: 'select', label: '', sortable: false, class: 'w-12 text-center' },

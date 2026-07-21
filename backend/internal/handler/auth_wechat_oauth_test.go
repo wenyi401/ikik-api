@@ -386,7 +386,7 @@ func TestWeChatPaymentOAuthCallbackRedirectsWithOpaqueResumeToken(t *testing.T) 
 	req.Host = "api.example.com"
 	req.AddCookie(encodedCookie(wechatPaymentOAuthStateName, "state-123"))
 	req.AddCookie(encodedCookie(wechatPaymentOAuthRedirect, "/purchase?from=wechat"))
-	req.AddCookie(encodedCookie(wechatPaymentOAuthContextName, `{"user_id":42,"payment_type":"wxpay","amount":"12.5","order_type":"subscription","plan_id":7}`))
+	req.AddCookie(encodedCookie(wechatPaymentOAuthContextName, `{"payment_type":"wxpay","amount":"12.5","order_type":"subscription","plan_id":7}`))
 	req.AddCookie(encodedCookie(wechatPaymentOAuthScope, "snsapi_base"))
 	c.Request = req
 
@@ -408,7 +408,6 @@ func TestWeChatPaymentOAuthCallbackRedirectsWithOpaqueResumeToken(t *testing.T) 
 
 	claims, err := handler.wechatPaymentResumeService().ParseWeChatPaymentResumeToken(fragment.Get("wechat_resume_token"))
 	require.NoError(t, err)
-	require.EqualValues(t, 42, claims.UserID)
 	require.Equal(t, "openid-123", claims.OpenID)
 	require.Equal(t, payment.TypeWxpay, claims.PaymentType)
 	require.Equal(t, "12.5", claims.Amount)
@@ -449,7 +448,7 @@ func TestWeChatPaymentOAuthCallbackUsesExplicitPaymentResumeSigningKeyWhenMixedK
 	req.Host = "api.example.com"
 	req.AddCookie(encodedCookie(wechatPaymentOAuthStateName, "state-mixed"))
 	req.AddCookie(encodedCookie(wechatPaymentOAuthRedirect, "/purchase?from=wechat"))
-	req.AddCookie(encodedCookie(wechatPaymentOAuthContextName, `{"user_id":84,"payment_type":"wxpay","amount":"18.8","order_type":"subscription","plan_id":9}`))
+	req.AddCookie(encodedCookie(wechatPaymentOAuthContextName, `{"payment_type":"wxpay","amount":"18.8","order_type":"subscription","plan_id":9}`))
 	req.AddCookie(encodedCookie(wechatPaymentOAuthScope, "snsapi_base"))
 	c.Request = req
 
@@ -467,7 +466,6 @@ func TestWeChatPaymentOAuthCallbackUsesExplicitPaymentResumeSigningKeyWhenMixedK
 
 	claims, err := service.NewPaymentResumeService([]byte(explicitSigningKey)).ParseWeChatPaymentResumeToken(token)
 	require.NoError(t, err)
-	require.EqualValues(t, 84, claims.UserID)
 	require.Equal(t, "openid-mixed-key", claims.OpenID)
 	require.Equal(t, payment.TypeWxpay, claims.PaymentType)
 	require.Equal(t, "18.8", claims.Amount)
@@ -1396,6 +1394,7 @@ func newWeChatOAuthTestHandlerWithSettings(t *testing.T, invitationEnabled bool,
 		&wechatOAuthRefreshTokenCacheStub{},
 		cfg,
 		settingSvc,
+		nil,
 		nil,
 		nil,
 		nil,

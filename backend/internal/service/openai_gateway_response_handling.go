@@ -13,12 +13,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"ikik-api/internal/pkg/apicompat"
-	"ikik-api/internal/pkg/logger"
-	"ikik-api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"ikik-api/internal/pkg/apicompat"
+	"ikik-api/internal/pkg/logger"
+	"ikik-api/internal/util/responseheaders"
 )
 
 // openaiStreamingResult streaming response result
@@ -1028,7 +1028,12 @@ func openAIUsageFromGJSON(value gjson.Result) (OpenAIUsage, bool) {
 		OutputTokens:             int(outputTokens),
 		CacheCreationInputTokens: cacheCreationTokens,
 		CacheReadInputTokens:     cacheReadTokens,
-		ImageOutputTokens:        int(imageOutputTokens),
+		ReasoningTokens: firstPositiveGJSONInt(
+			value.Get("output_tokens_details.reasoning_tokens"),
+			value.Get("completion_tokens_details.reasoning_tokens"),
+			value.Get("reasoning_tokens"),
+		),
+		ImageOutputTokens: int(imageOutputTokens),
 	}, true
 }
 

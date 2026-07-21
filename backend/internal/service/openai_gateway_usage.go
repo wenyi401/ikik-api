@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/zap"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/timezone"
-	"go.uber.org/zap"
 )
 
 // OpenAIRecordUsageInput input for recording usage

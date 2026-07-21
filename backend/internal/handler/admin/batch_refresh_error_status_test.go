@@ -67,12 +67,11 @@ func TestBatchRefreshHTTPStatusClassifier(t *testing.T) {
 func newBatchRefreshTestHandler(svc *stubAdminService) *AccountHandler {
 	return NewAccountHandler(
 		svc,
-		nil, // accountService
 		nil, // oauthService
 		nil, // openaiOAuthService
 		nil, // geminiOAuthService
 		nil, // antigravityOAuthService
-		nil, // kiroOAuthService
+		nil, // grokOAuthService
 		nil, // rateLimitService
 		nil, // accountUsageService
 		nil, // accountTestService

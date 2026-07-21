@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -26,41 +25,26 @@ const (
 	SettingLoadBalanceStrategy = "LOAD_BALANCE_STRATEGY"
 	SettingBalancePayDisabled  = "BALANCE_PAYMENT_DISABLED"
 	SettingBalanceRechargeMult = "BALANCE_RECHARGE_MULTIPLIER"
-	SettingRechargeFeeRate     = "RECHARGE_FEE_RATE"
-	SettingProductNamePrefix   = "PRODUCT_NAME_PREFIX"
-	SettingProductNameSuffix   = "PRODUCT_NAME_SUFFIX"
-	SettingHelpImageURL        = "PAYMENT_HELP_IMAGE_URL"
-	SettingHelpText            = "PAYMENT_HELP_TEXT"
-	SettingCancelRateLimitOn   = "CANCEL_RATE_LIMIT_ENABLED"
-	SettingCancelRateLimitMax  = "CANCEL_RATE_LIMIT_MAX"
-	SettingCancelWindowSize    = "CANCEL_RATE_LIMIT_WINDOW"
-	SettingCancelWindowUnit    = "CANCEL_RATE_LIMIT_UNIT"
-	SettingCancelWindowMode    = "CANCEL_RATE_LIMIT_WINDOW_MODE"
-
-	SettingPaymentReceiptCodeOSSEnabled              = "payment_receipt_code_oss_enabled"
-	SettingPaymentReceiptCodeOSSEndpoint             = "payment_receipt_code_oss_endpoint"
-	SettingPaymentReceiptCodeOSSRegion               = "payment_receipt_code_oss_region"
-	SettingPaymentReceiptCodeOSSBucket               = "payment_receipt_code_oss_bucket"
-	SettingPaymentReceiptCodeOSSAccessKeyID          = "payment_receipt_code_oss_access_key_id"
-	SettingPaymentReceiptCodeOSSSecretAccessKey      = "payment_receipt_code_oss_secret_access_key"
-	SettingPaymentReceiptCodeOSSPrefix               = "payment_receipt_code_oss_prefix"
-	SettingPaymentReceiptCodeOSSPublicBaseURL        = "payment_receipt_code_oss_public_base_url"
-	SettingPaymentReceiptCodeOSSForcePathStyle       = "payment_receipt_code_oss_force_path_style"
-	SettingPaymentReceiptCodeOSSMaxSizeBytes         = "payment_receipt_code_oss_max_size_bytes"
-	SettingPaymentReceiptCodeOSSPresignExpireSeconds = "payment_receipt_code_oss_presign_expire_seconds"
+	// SettingSubscriptionUSDToCNYRate 是订阅 CNY 换算汇率（1 USD = X CNY）。
+	// 0/未配置 = 关闭换算（订阅按 price 数值直付），显式配置后 CNY 通道订阅按 price × rate 收款。
+	SettingSubscriptionUSDToCNYRate = "SUBSCRIPTION_USD_TO_CNY_RATE"
+	SettingRechargeFeeRate          = "RECHARGE_FEE_RATE"
+	SettingProductNamePrefix        = "PRODUCT_NAME_PREFIX"
+	SettingProductNameSuffix        = "PRODUCT_NAME_SUFFIX"
+	SettingHelpImageURL             = "PAYMENT_HELP_IMAGE_URL"
+	SettingHelpText                 = "PAYMENT_HELP_TEXT"
+	SettingCancelRateLimitOn        = "CANCEL_RATE_LIMIT_ENABLED"
+	SettingCancelRateLimitMax       = "CANCEL_RATE_LIMIT_MAX"
+	SettingCancelWindowSize         = "CANCEL_RATE_LIMIT_WINDOW"
+	SettingCancelWindowUnit         = "CANCEL_RATE_LIMIT_UNIT"
+	SettingCancelWindowMode         = "CANCEL_RATE_LIMIT_WINDOW_MODE"
+	SettingAlipayForceQRCode        = "ALIPAY_FORCE_QRCODE"
 )
 
 // Default values for payment configuration settings.
 const (
 	defaultOrderTimeoutMin  = 30
 	defaultMaxPendingOrders = 3
-)
-
-const (
-	defaultReceiptCodeOSSRegion               = "oss-cn-hangzhou"
-	defaultReceiptCodeOSSPrefix               = "receipt-codes/"
-	defaultReceiptCodeOSSMaxSizeBytes         = int64(1024 * 1024)
-	defaultReceiptCodeOSSPresignExpireSeconds = 300
 )
 
 // PaymentConfig holds the payment system configuration.
@@ -74,13 +58,15 @@ type PaymentConfig struct {
 	EnabledTypes              []string `json:"enabled_payment_types"`
 	BalanceDisabled           bool     `json:"balance_disabled"`
 	BalanceRechargeMultiplier float64  `json:"balance_recharge_multiplier"`
-	RechargeFeeRate           float64  `json:"recharge_fee_rate"`
-	LoadBalanceStrategy       string   `json:"load_balance_strategy"`
-	ProductNamePrefix         string   `json:"product_name_prefix"`
-	ProductNameSuffix         string   `json:"product_name_suffix"`
-	HelpImageURL              string   `json:"help_image_url"`
-	HelpText                  string   `json:"help_text"`
-	StripePublishableKey      string   `json:"stripe_publishable_key,omitempty"`
+	// SubscriptionUSDToCNYRate 为 0 时订阅换算关闭（兼容存量行为）。
+	SubscriptionUSDToCNYRate float64 `json:"subscription_usd_to_cny_rate"`
+	RechargeFeeRate          float64 `json:"recharge_fee_rate"`
+	LoadBalanceStrategy      string  `json:"load_balance_strategy"`
+	ProductNamePrefix        string  `json:"product_name_prefix"`
+	ProductNameSuffix        string  `json:"product_name_suffix"`
+	HelpImageURL             string  `json:"help_image_url"`
+	HelpText                 string  `json:"help_text"`
+	StripePublishableKey     string  `json:"stripe_publishable_key,omitempty"`
 
 	// Cancel rate limit settings
 	CancelRateLimitEnabled bool   `json:"cancel_rate_limit_enabled"`
@@ -89,22 +75,9 @@ type PaymentConfig struct {
 	CancelRateLimitUnit    string `json:"cancel_rate_limit_unit"`
 	CancelRateLimitMode    string `json:"cancel_rate_limit_window_mode"`
 
-	ReceiptCodeOSS ReceiptCodeOSSConfig `json:"receipt_code_oss"`
-}
-
-type ReceiptCodeOSSConfig struct {
-	Enabled                   bool   `json:"enabled"`
-	Endpoint                  string `json:"endpoint"`
-	Region                    string `json:"region"`
-	Bucket                    string `json:"bucket"`
-	AccessKeyID               string `json:"access_key_id"`
-	SecretAccessKey           string `json:"-"`
-	SecretAccessKeyConfigured bool   `json:"secret_access_key_configured"`
-	Prefix                    string `json:"prefix"`
-	PublicBaseURL             string `json:"public_base_url"`
-	ForcePathStyle            bool   `json:"force_path_style"`
-	MaxSizeBytes              int64  `json:"max_size_bytes"`
-	PresignExpireSeconds      int    `json:"presign_expire_seconds"`
+	// Force Alipay mobile users to use QR code instead of mobile redirect
+	AlipayForceQRCode bool                 `json:"alipay_force_qrcode"`
+	ReceiptCodeOSS    ReceiptCodeOSSConfig `json:"receipt_code_oss"`
 }
 
 // UpdatePaymentConfigRequest contains fields to update payment configuration.
@@ -118,6 +91,7 @@ type UpdatePaymentConfigRequest struct {
 	EnabledTypes              []string `json:"enabled_payment_types"`
 	BalanceDisabled           *bool    `json:"balance_disabled"`
 	BalanceRechargeMultiplier *float64 `json:"balance_recharge_multiplier"`
+	SubscriptionUSDToCNYRate  *float64 `json:"subscription_usd_to_cny_rate"`
 	RechargeFeeRate           *float64 `json:"recharge_fee_rate"`
 	LoadBalanceStrategy       *string  `json:"load_balance_strategy"`
 	ProductNamePrefix         *string  `json:"product_name_prefix"`
@@ -131,6 +105,9 @@ type UpdatePaymentConfigRequest struct {
 	CancelRateLimitWindow  *int    `json:"cancel_rate_limit_window"`
 	CancelRateLimitUnit    *string `json:"cancel_rate_limit_unit"`
 	CancelRateLimitMode    *string `json:"cancel_rate_limit_window_mode"`
+
+	// Force Alipay mobile users to use QR code instead of mobile redirect
+	AlipayForceQRCode *bool `json:"alipay_force_qrcode"`
 
 	VisibleMethodAlipaySource  *string `json:"payment_visible_method_alipay_source"`
 	VisibleMethodWxpaySource   *string `json:"payment_visible_method_wxpay_source"`
@@ -153,7 +130,8 @@ type UpdatePaymentConfigRequest struct {
 // MethodLimits holds per-payment-type limits.
 type MethodLimits struct {
 	PaymentType string  `json:"payment_type"`
-	Currency    string  `json:"currency,omitempty"`
+	DisplayName string  `json:"display_name,omitempty"`
+	Currency    string  `json:"currency"`
 	FeeRate     float64 `json:"fee_rate"`
 	DailyLimit  float64 `json:"daily_limit"`
 	SingleMin   float64 `json:"single_min"`
@@ -232,8 +210,12 @@ type PaymentConfigService struct {
 }
 
 // NewPaymentConfigService creates a new PaymentConfigService.
-func NewPaymentConfigService(entClient *dbent.Client, settingRepo SettingRepository, encryptionKey []byte, envConfig *config.Config) *PaymentConfigService {
-	return &PaymentConfigService{entClient: entClient, settingRepo: settingRepo, encryptionKey: encryptionKey, envConfig: envConfig}
+func NewPaymentConfigService(entClient *dbent.Client, settingRepo SettingRepository, encryptionKey []byte, envConfigs ...*config.Config) *PaymentConfigService {
+	service := &PaymentConfigService{entClient: entClient, settingRepo: settingRepo, encryptionKey: encryptionKey}
+	if len(envConfigs) > 0 {
+		service.envConfig = envConfigs[0]
+	}
+	return service
 }
 
 // IsPaymentEnabled returns whether the payment system is enabled.
@@ -250,11 +232,12 @@ func (s *PaymentConfigService) GetPaymentConfig(ctx context.Context) (*PaymentCo
 	keys := []string{
 		SettingPaymentEnabled, SettingMinRechargeAmount, SettingMaxRechargeAmount,
 		SettingDailyRechargeLimit, SettingOrderTimeoutMinutes, SettingMaxPendingOrders,
-		SettingEnabledPaymentTypes, SettingBalancePayDisabled, SettingBalanceRechargeMult, SettingRechargeFeeRate, SettingLoadBalanceStrategy,
+		SettingEnabledPaymentTypes, SettingBalancePayDisabled, SettingBalanceRechargeMult, SettingSubscriptionUSDToCNYRate, SettingRechargeFeeRate, SettingLoadBalanceStrategy,
 		SettingProductNamePrefix, SettingProductNameSuffix,
 		SettingHelpImageURL, SettingHelpText,
 		SettingCancelRateLimitOn, SettingCancelRateLimitMax,
 		SettingCancelWindowSize, SettingCancelWindowUnit, SettingCancelWindowMode,
+		SettingAlipayForceQRCode,
 		SettingPaymentVisibleMethodAlipayEnabled, SettingPaymentVisibleMethodAlipaySource,
 		SettingPaymentVisibleMethodWxpayEnabled, SettingPaymentVisibleMethodWxpaySource,
 		SettingPaymentReceiptCodeOSSEnabled, SettingPaymentReceiptCodeOSSEndpoint,
@@ -284,6 +267,7 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 		MaxPendingOrders:          pcParseInt(vals[SettingMaxPendingOrders], defaultMaxPendingOrders),
 		BalanceDisabled:           vals[SettingBalancePayDisabled] == "true",
 		BalanceRechargeMultiplier: normalizeBalanceRechargeMultiplier(pcParseFloat(vals[SettingBalanceRechargeMult], defaultBalanceRechargeMultiplier)),
+		SubscriptionUSDToCNYRate:  normalizeSubscriptionUSDToCNYRate(pcParseFloat(vals[SettingSubscriptionUSDToCNYRate], 0)),
 		RechargeFeeRate:           pcParseFloat(vals[SettingRechargeFeeRate], 0),
 		LoadBalanceStrategy:       vals[SettingLoadBalanceStrategy],
 		ProductNamePrefix:         vals[SettingProductNamePrefix],
@@ -296,8 +280,10 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 		CancelRateLimitWindow:  pcParseInt(vals[SettingCancelWindowSize], 1),
 		CancelRateLimitUnit:    vals[SettingCancelWindowUnit],
 		CancelRateLimitMode:    vals[SettingCancelWindowMode],
+
+		AlipayForceQRCode: vals[SettingAlipayForceQRCode] == "true",
+		ReceiptCodeOSS:    s.parseReceiptCodeOSSConfig(vals),
 	}
-	cfg.ReceiptCodeOSS = s.parseReceiptCodeOSSConfig(vals)
 	if cfg.LoadBalanceStrategy == "" {
 		cfg.LoadBalanceStrategy = payment.DefaultLoadBalanceStrategy
 	}
@@ -312,60 +298,6 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 		cfg.EnabledTypes = NormalizeVisibleMethods(types)
 	}
 	return cfg
-}
-
-func (s *PaymentConfigService) parseReceiptCodeOSSConfig(vals map[string]string) ReceiptCodeOSSConfig {
-	env := config.ReceiptCodeStorageConfig{}
-	if s != nil && s.envConfig != nil {
-		env = s.envConfig.ReceiptCodeStorage
-	}
-
-	rawSecret := strings.TrimSpace(vals[SettingPaymentReceiptCodeOSSSecretAccessKey])
-	secret := s.decryptReceiptCodeOSSSecret(rawSecret)
-	if secret == "" && env.Enabled {
-		secret = strings.TrimSpace(env.SecretAccessKey)
-	}
-
-	cfg := ReceiptCodeOSSConfig{
-		Enabled:                   parseBoolWithDefault(vals[SettingPaymentReceiptCodeOSSEnabled], env.Enabled),
-		Endpoint:                  firstNonEmpty(vals[SettingPaymentReceiptCodeOSSEndpoint], env.Endpoint),
-		Region:                    firstNonEmpty(vals[SettingPaymentReceiptCodeOSSRegion], env.Region, defaultReceiptCodeOSSRegion),
-		Bucket:                    firstNonEmpty(vals[SettingPaymentReceiptCodeOSSBucket], env.Bucket),
-		AccessKeyID:               firstNonEmpty(vals[SettingPaymentReceiptCodeOSSAccessKeyID], env.AccessKeyID),
-		SecretAccessKey:           secret,
-		SecretAccessKeyConfigured: secret != "",
-		Prefix:                    firstNonEmpty(vals[SettingPaymentReceiptCodeOSSPrefix], env.Prefix, defaultReceiptCodeOSSPrefix),
-		PublicBaseURL:             firstNonEmpty(vals[SettingPaymentReceiptCodeOSSPublicBaseURL], env.PublicBaseURL),
-		ForcePathStyle:            parseBoolWithDefault(vals[SettingPaymentReceiptCodeOSSForcePathStyle], env.ForcePathStyle),
-		MaxSizeBytes:              parseInt64WithDefault(vals[SettingPaymentReceiptCodeOSSMaxSizeBytes], firstPositiveInt64(env.MaxSizeBytes, defaultReceiptCodeOSSMaxSizeBytes)),
-		PresignExpireSeconds:      pcParseInt(vals[SettingPaymentReceiptCodeOSSPresignExpireSeconds], firstPositiveInt(env.PresignExpireSeconds, defaultReceiptCodeOSSPresignExpireSeconds)),
-	}
-	if !cfg.Enabled && strings.TrimSpace(vals[SettingPaymentReceiptCodeOSSEnabled]) == "" {
-		cfg.Enabled = env.Enabled
-	}
-	cfg.Prefix = normalizeReceiptCodeOSSPrefix(cfg.Prefix)
-	return cfg
-}
-
-func (s *PaymentConfigService) GetReceiptCodeStorageConfig(ctx context.Context) (config.ReceiptCodeStorageConfig, error) {
-	cfg, err := s.GetPaymentConfig(ctx)
-	if err != nil {
-		return config.ReceiptCodeStorageConfig{}, err
-	}
-	oss := cfg.ReceiptCodeOSS
-	return config.ReceiptCodeStorageConfig{
-		Enabled:              oss.Enabled,
-		Endpoint:             oss.Endpoint,
-		Region:               oss.Region,
-		Bucket:               oss.Bucket,
-		AccessKeyID:          oss.AccessKeyID,
-		SecretAccessKey:      oss.SecretAccessKey,
-		Prefix:               oss.Prefix,
-		PublicBaseURL:        oss.PublicBaseURL,
-		ForcePathStyle:       oss.ForcePathStyle,
-		MaxSizeBytes:         oss.MaxSizeBytes,
-		PresignExpireSeconds: oss.PresignExpireSeconds,
-	}, nil
 }
 
 // getStripePublishableKey finds the publishable key from the first enabled Stripe provider instance.
@@ -398,6 +330,12 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 			return infraerrors.BadRequest("INVALID_BALANCE_RECHARGE_MULTIPLIER", "balance recharge multiplier must be greater than 0")
 		}
 	}
+	if req.SubscriptionUSDToCNYRate != nil {
+		v := *req.SubscriptionUSDToCNYRate
+		if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 {
+			return infraerrors.BadRequest("INVALID_SUBSCRIPTION_USD_TO_CNY_RATE", "subscription USD to CNY rate must be 0 (disabled) or a positive number")
+		}
+	}
 	if req.RechargeFeeRate != nil {
 		v := *req.RechargeFeeRate
 		if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 || v > 100 {
@@ -417,6 +355,7 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 		SettingMaxPendingOrders:                  formatPositiveInt(req.MaxPendingOrders),
 		SettingBalancePayDisabled:                formatBoolOrEmpty(req.BalanceDisabled),
 		SettingBalanceRechargeMult:               formatPositiveFloat(req.BalanceRechargeMultiplier),
+		SettingSubscriptionUSDToCNYRate:          formatPositiveFloatExact(req.SubscriptionUSDToCNYRate),
 		SettingRechargeFeeRate:                   formatNonNegativeFloat(req.RechargeFeeRate),
 		SettingLoadBalanceStrategy:               derefStr(req.LoadBalanceStrategy),
 		SettingProductNamePrefix:                 derefStr(req.ProductNamePrefix),
@@ -428,122 +367,27 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 		SettingCancelWindowSize:                  formatPositiveInt(req.CancelRateLimitWindow),
 		SettingCancelWindowUnit:                  derefStr(req.CancelRateLimitUnit),
 		SettingCancelWindowMode:                  derefStr(req.CancelRateLimitMode),
+		SettingAlipayForceQRCode:                 formatBoolOrEmpty(req.AlipayForceQRCode),
 		SettingPaymentVisibleMethodAlipaySource:  derefStr(req.VisibleMethodAlipaySource),
 		SettingPaymentVisibleMethodWxpaySource:   derefStr(req.VisibleMethodWxpaySource),
 		SettingPaymentVisibleMethodAlipayEnabled: formatBoolOrEmpty(req.VisibleMethodAlipayEnabled),
 		SettingPaymentVisibleMethodWxpayEnabled:  formatBoolOrEmpty(req.VisibleMethodWxpayEnabled),
-	}
-	if receiptCodeOSSFieldsProvided(req) {
-		receiptCodeUpdates, err := s.buildReceiptCodeOSSUpdates(ctx, req)
-		if err != nil {
-			return err
-		}
-		for key, value := range receiptCodeUpdates {
-			m[key] = value
-		}
 	}
 	if req.EnabledTypes != nil {
 		m[SettingEnabledPaymentTypes] = strings.Join(req.EnabledTypes, ",")
 	} else {
 		m[SettingEnabledPaymentTypes] = ""
 	}
+	if receiptCodeOSSFieldsProvided(req) {
+		updates, err := s.buildReceiptCodeOSSUpdates(ctx, req)
+		if err != nil {
+			return err
+		}
+		for key, value := range updates {
+			m[key] = value
+		}
+	}
 	return s.settingRepo.SetMultiple(ctx, m)
-}
-
-func receiptCodeOSSFieldsProvided(req UpdatePaymentConfigRequest) bool {
-	return req.ReceiptCodeOSSEnabled != nil ||
-		req.ReceiptCodeOSSEndpoint != nil ||
-		req.ReceiptCodeOSSRegion != nil ||
-		req.ReceiptCodeOSSBucket != nil ||
-		req.ReceiptCodeOSSAccessKeyID != nil ||
-		req.ReceiptCodeOSSSecretAccessKey != nil ||
-		req.ReceiptCodeOSSPrefix != nil ||
-		req.ReceiptCodeOSSPublicBaseURL != nil ||
-		req.ReceiptCodeOSSForcePathStyle != nil ||
-		req.ReceiptCodeOSSMaxSizeBytes != nil ||
-		req.ReceiptCodeOSSPresignExpireSeconds != nil
-}
-
-func (s *PaymentConfigService) buildReceiptCodeOSSUpdates(ctx context.Context, req UpdatePaymentConfigRequest) (map[string]string, error) {
-	current, err := s.GetReceiptCodeStorageConfig(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("get receipt code oss config: %w", err)
-	}
-	next := current
-	if req.ReceiptCodeOSSEnabled != nil {
-		next.Enabled = *req.ReceiptCodeOSSEnabled
-	}
-	if req.ReceiptCodeOSSEndpoint != nil {
-		next.Endpoint = strings.TrimSpace(*req.ReceiptCodeOSSEndpoint)
-	}
-	if req.ReceiptCodeOSSRegion != nil {
-		next.Region = strings.TrimSpace(*req.ReceiptCodeOSSRegion)
-	}
-	if req.ReceiptCodeOSSBucket != nil {
-		next.Bucket = strings.TrimSpace(*req.ReceiptCodeOSSBucket)
-	}
-	secretProvided := req.ReceiptCodeOSSSecretAccessKey != nil && strings.TrimSpace(*req.ReceiptCodeOSSSecretAccessKey) != ""
-	if req.ReceiptCodeOSSAccessKeyID != nil &&
-		strings.TrimSpace(*req.ReceiptCodeOSSAccessKeyID) != strings.TrimSpace(current.AccessKeyID) &&
-		!secretProvided {
-		return nil, infraerrors.BadRequest(
-			"RECEIPT_CODE_OSS_SECRET_REQUIRED_FOR_NEW_ACCESS_KEY",
-			"enter the Secret Access Key that belongs to the new Access Key ID",
-		)
-	}
-	if req.ReceiptCodeOSSAccessKeyID != nil {
-		next.AccessKeyID = strings.TrimSpace(*req.ReceiptCodeOSSAccessKeyID)
-	}
-	if secretProvided {
-		next.SecretAccessKey = strings.TrimSpace(*req.ReceiptCodeOSSSecretAccessKey)
-	}
-	if req.ReceiptCodeOSSPrefix != nil {
-		next.Prefix = normalizeReceiptCodeOSSPrefix(*req.ReceiptCodeOSSPrefix)
-	}
-	if req.ReceiptCodeOSSPublicBaseURL != nil {
-		next.PublicBaseURL = strings.TrimRight(strings.TrimSpace(*req.ReceiptCodeOSSPublicBaseURL), "/")
-	}
-	if req.ReceiptCodeOSSForcePathStyle != nil {
-		next.ForcePathStyle = *req.ReceiptCodeOSSForcePathStyle
-	}
-	if req.ReceiptCodeOSSMaxSizeBytes != nil {
-		next.MaxSizeBytes = *req.ReceiptCodeOSSMaxSizeBytes
-	}
-	if req.ReceiptCodeOSSPresignExpireSeconds != nil {
-		next.PresignExpireSeconds = *req.ReceiptCodeOSSPresignExpireSeconds
-	}
-	if next.Region == "" {
-		next.Region = defaultReceiptCodeOSSRegion
-	}
-	if next.Prefix == "" {
-		next.Prefix = defaultReceiptCodeOSSPrefix
-	}
-	if next.MaxSizeBytes <= 0 {
-		next.MaxSizeBytes = defaultReceiptCodeOSSMaxSizeBytes
-	}
-	if next.PresignExpireSeconds <= 0 {
-		next.PresignExpireSeconds = defaultReceiptCodeOSSPresignExpireSeconds
-	}
-	if err := validateReceiptCodeOSSConfig(next); err != nil {
-		return nil, err
-	}
-	secret, err := s.encryptReceiptCodeOSSSecret(next.SecretAccessKey)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]string{
-		SettingPaymentReceiptCodeOSSEnabled:              strconv.FormatBool(next.Enabled),
-		SettingPaymentReceiptCodeOSSEndpoint:             strings.TrimSpace(next.Endpoint),
-		SettingPaymentReceiptCodeOSSRegion:               strings.TrimSpace(next.Region),
-		SettingPaymentReceiptCodeOSSBucket:               strings.TrimSpace(next.Bucket),
-		SettingPaymentReceiptCodeOSSAccessKeyID:          strings.TrimSpace(next.AccessKeyID),
-		SettingPaymentReceiptCodeOSSSecretAccessKey:      secret,
-		SettingPaymentReceiptCodeOSSPrefix:               normalizeReceiptCodeOSSPrefix(next.Prefix),
-		SettingPaymentReceiptCodeOSSPublicBaseURL:        strings.TrimRight(strings.TrimSpace(next.PublicBaseURL), "/"),
-		SettingPaymentReceiptCodeOSSForcePathStyle:       strconv.FormatBool(next.ForcePathStyle),
-		SettingPaymentReceiptCodeOSSMaxSizeBytes:         strconv.FormatInt(next.MaxSizeBytes, 10),
-		SettingPaymentReceiptCodeOSSPresignExpireSeconds: strconv.Itoa(next.PresignExpireSeconds),
-	}, nil
 }
 
 func formatBoolOrEmpty(v *bool) string {
@@ -558,6 +402,14 @@ func formatPositiveFloat(v *float64) string {
 		return "" // empty → parsePaymentConfig uses default
 	}
 	return strconv.FormatFloat(*v, 'f', 2, 64)
+}
+
+// formatPositiveFloatExact 保留完整精度，用于汇率等对小数位敏感的配置。
+func formatPositiveFloatExact(v *float64) string {
+	if v == nil || *v <= 0 {
+		return "" // empty → parsePaymentConfig 视为未配置（换算关闭）
+	}
+	return strconv.FormatFloat(*v, 'f', -1, 64)
 }
 
 func formatNonNegativeFloat(v *float64) string {
@@ -579,131 +431,6 @@ func derefStr(v *string) string {
 		return ""
 	}
 	return *v
-}
-
-func parseBoolWithDefault(raw string, fallback bool) bool {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "true", "1", "yes", "on":
-		return true
-	case "false", "0", "no", "off":
-		return false
-	default:
-		return fallback
-	}
-}
-
-func parseInt64WithDefault(raw string, fallback int64) int64 {
-	if strings.TrimSpace(raw) == "" {
-		return fallback
-	}
-	v, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
-	if err != nil {
-		return fallback
-	}
-	return v
-}
-
-func firstPositiveInt(v int, fallback int) int {
-	if v > 0 {
-		return v
-	}
-	return fallback
-}
-
-func firstPositiveInt64(v int64, fallback int64) int64 {
-	if v > 0 {
-		return v
-	}
-	return fallback
-}
-
-func normalizeReceiptCodeOSSPrefix(raw string) string {
-	prefix := strings.Trim(strings.ReplaceAll(strings.TrimSpace(raw), "\\", "/"), "/")
-	if prefix == "" {
-		return defaultReceiptCodeOSSPrefix
-	}
-	return prefix + "/"
-}
-
-func validateReceiptCodeOSSConfig(cfg config.ReceiptCodeStorageConfig) error {
-	if cfg.MaxSizeBytes <= 0 {
-		return infraerrors.BadRequest("INVALID_RECEIPT_CODE_OSS_MAX_SIZE", "receipt code OSS max size must be greater than 0")
-	}
-	if cfg.MaxSizeBytes > 5*1024*1024 {
-		return infraerrors.BadRequest("INVALID_RECEIPT_CODE_OSS_MAX_SIZE", "receipt code OSS max size must be <= 5242880")
-	}
-	if cfg.PresignExpireSeconds <= 0 || cfg.PresignExpireSeconds > 3600 {
-		return infraerrors.BadRequest("INVALID_RECEIPT_CODE_OSS_PRESIGN_EXPIRE", "receipt code OSS presign expire seconds must be between 1 and 3600")
-	}
-	if endpoint := strings.TrimSpace(cfg.Endpoint); endpoint != "" {
-		if err := config.ValidateAbsoluteHTTPURL(endpoint); err != nil {
-			return infraerrors.BadRequest("INVALID_RECEIPT_CODE_OSS_ENDPOINT", "receipt code OSS endpoint must be an absolute http(s) URL")
-		}
-	}
-	if publicBaseURL := strings.TrimSpace(cfg.PublicBaseURL); publicBaseURL != "" {
-		if err := config.ValidateAbsoluteHTTPURL(publicBaseURL); err != nil {
-			return infraerrors.BadRequest("INVALID_RECEIPT_CODE_OSS_PUBLIC_BASE_URL", "receipt code OSS public base URL must be an absolute http(s) URL")
-		}
-	}
-	if !cfg.Enabled {
-		return nil
-	}
-	if strings.TrimSpace(cfg.Endpoint) == "" {
-		return infraerrors.BadRequest("RECEIPT_CODE_OSS_ENDPOINT_REQUIRED", "receipt code OSS endpoint is required when enabled")
-	}
-	if strings.TrimSpace(cfg.Bucket) == "" {
-		return infraerrors.BadRequest("RECEIPT_CODE_OSS_BUCKET_REQUIRED", "receipt code OSS bucket is required when enabled")
-	}
-	if strings.TrimSpace(cfg.AccessKeyID) == "" {
-		return infraerrors.BadRequest("RECEIPT_CODE_OSS_ACCESS_KEY_REQUIRED", "receipt code OSS access key ID is required when enabled")
-	}
-	if strings.TrimSpace(cfg.SecretAccessKey) == "" {
-		return infraerrors.BadRequest("RECEIPT_CODE_OSS_SECRET_REQUIRED", "receipt code OSS secret access key is required when enabled")
-	}
-	return nil
-}
-
-func (s *PaymentConfigService) encryptReceiptCodeOSSSecret(secret string) (string, error) {
-	secret = strings.TrimSpace(secret)
-	if secret == "" {
-		return "", nil
-	}
-	payload, err := json.Marshal(map[string]string{"secret": secret})
-	if err != nil {
-		return "", fmt.Errorf("marshal receipt code oss secret: %w", err)
-	}
-	if len(s.encryptionKey) != payment.AES256KeySize {
-		return "", infraerrors.BadRequest("PAYMENT_ENCRYPTION_KEY_REQUIRED", "TOTP_ENCRYPTION_KEY must be configured before saving receipt code OSS secret")
-	}
-	//nolint:staticcheck // SA1019: reused for settings secret storage until a shared secret-store abstraction exists.
-	encrypted, err := payment.Encrypt(string(payload), s.encryptionKey)
-	if err != nil {
-		return "", fmt.Errorf("encrypt receipt code oss secret: %w", err)
-	}
-	return encrypted, nil
-}
-
-func (s *PaymentConfigService) decryptReceiptCodeOSSSecret(stored string) string {
-	stored = strings.TrimSpace(stored)
-	if stored == "" {
-		return ""
-	}
-	if len(s.encryptionKey) == payment.AES256KeySize {
-		//nolint:staticcheck // SA1019: see encryptReceiptCodeOSSSecret.
-		if plaintext, err := payment.Decrypt(stored, s.encryptionKey); err == nil {
-			var payload map[string]string
-			if err := json.Unmarshal([]byte(plaintext), &payload); err == nil {
-				return strings.TrimSpace(payload["secret"])
-			}
-		}
-	}
-	if strings.HasPrefix(stored, "{") {
-		var payload map[string]string
-		if err := json.Unmarshal([]byte(stored), &payload); err == nil {
-			return strings.TrimSpace(payload["secret"])
-		}
-	}
-	return ""
 }
 
 func splitTypes(s string) []string {

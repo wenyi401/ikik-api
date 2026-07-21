@@ -22,6 +22,8 @@ vi.mock('vue-i18n', async () => {
     useI18n: () => ({
       t: (key: string, params?: Record<string, unknown>) => key === 'pagination.pageOf'
         ? `${params?.page} / ${params?.total}`
+        : key === 'admin.accounts.quotaDashboard.rateMultiplier'
+          ? `${params?.rate}x`
         : key,
     }),
   }
@@ -42,6 +44,8 @@ function makeGroup(index: number): AccountQuotaGroupSummary {
     group_name: `Group ${index}`,
     group_status: 'active',
     platform: 'openai',
+    account_level: 'plus',
+    rate_multiplier: 0.08,
     account_count: 10,
     active_account_count: 10,
     schedulable_account_count: 9,
@@ -189,5 +193,40 @@ describe('ChannelQuotaSummary pagination', () => {
 
     expect(wrapper.findAll('.quota-windows')).toHaveLength(1)
     expect(wrapper.get('.quota-windows').findAll('.quota-window-card')).toHaveLength(2)
+  })
+
+  it('orders shared pools by account level and shows the configured multiplier', () => {
+    mobileViewport.value = false
+    const dashboard = makeDashboard(3)
+    dashboard.group_summaries = [
+      { ...makeGroup(1), group_name: 'K12 Pool', account_level: 'k12', rate_multiplier: 0.3 },
+      { ...makeGroup(2), group_name: 'Pro Pool', account_level: 'pro', rate_multiplier: 0.2 },
+      { ...makeGroup(3), group_name: 'Free Pool', account_level: 'free', rate_multiplier: 0.05 },
+    ]
+    const wrapper = mount(ChannelQuotaSummary, {
+      props: {
+        dashboard,
+        loading: false,
+        error: false,
+        title: 'Quota pool',
+        emptyMessage: 'Empty',
+        loadFailedMessage: 'Failed',
+        prioritizeAccountLevels: true,
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          PlatformIcon: true,
+          UiIconButton: {
+            props: ['label'],
+            template: '<button type="button" :aria-label="label"><slot /></button>',
+          },
+        },
+      },
+    })
+
+    const cards = wrapper.findAll('.quota-group-card')
+    expect(cards.map(card => card.get('h3').text())).toEqual(['Free Pool', 'Pro Pool', 'K12 Pool'])
+    expect(cards[0]?.text()).toContain('0.05x')
   })
 })

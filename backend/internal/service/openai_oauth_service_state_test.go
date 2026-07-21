@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/pkg/openai"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/openai"
 )
 
 type openaiOAuthClientStateStub struct {

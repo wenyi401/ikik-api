@@ -5,8 +5,8 @@ package service
 import (
 	"testing"
 
-	"ikik-api/internal/pkg/apicompat"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/apicompat"
 )
 
 func TestCopyOpenAIUsageFromResponsesUsageTrustsCanonicalCacheCreationValue(t *testing.T) {

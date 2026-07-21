@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"ikik-api/internal/config"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/config"
 )
 
 // userRPMCacheStub 记录每种计数器被调用的次数，并可注入返回值与错误。
@@ -74,7 +74,7 @@ func newBillingServiceForRPM(t *testing.T, cache UserRPMCache, rateRepo UserGrou
 	t.Helper()
 	// 用 nil BillingCache 走 "无缓存" 分支，避免 CheckBillingEligibility 副作用。
 	// 我们只直接测 checkRPM。
-	svc := NewBillingCacheService(nil, nil, nil, nil, nil, cache, rateRepo, &config.Config{})
+	svc := NewBillingCacheService(nil, nil, nil, nil, cache, rateRepo, &config.Config{}, nil)
 	t.Cleanup(svc.Stop)
 	return svc
 }

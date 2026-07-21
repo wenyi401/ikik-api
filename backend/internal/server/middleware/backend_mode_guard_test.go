@@ -8,10 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"ikik-api/internal/config"
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/config"
+	"ikik-api/internal/service"
 )
 
 type bmSettingRepo struct {
@@ -244,6 +244,72 @@ func TestBackendModeAuthGuard(t *testing.T) {
 			name:       "enabled_allows_oidc_oauth_callback",
 			enabled:    "true",
 			path:       "/api/v1/auth/oauth/oidc/callback",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "enabled_blocks_github_oauth_start",
+			enabled:    "true",
+			path:       "/api/v1/auth/oauth/github/start",
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "enabled_allows_github_oauth_callback",
+			enabled:    "true",
+			path:       "/api/v1/auth/oauth/github/callback",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "enabled_allows_github_complete_registration",
+			enabled:    "true",
+			path:       "/api/v1/auth/oauth/github/complete-registration",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "enabled_blocks_google_oauth_start",
+			enabled:    "true",
+			path:       "/api/v1/auth/oauth/google/start",
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "enabled_allows_google_oauth_callback",
+			enabled:    "true",
+			path:       "/api/v1/auth/oauth/google/callback",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "enabled_allows_google_complete_registration",
+			enabled:    "true",
+			path:       "/api/v1/auth/oauth/google/complete-registration",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "enabled_blocks_dingtalk_oauth_start",
+			enabled:    "true",
+			path:       "/api/v1/auth/oauth/dingtalk/start",
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "enabled_allows_dingtalk_oauth_callback",
+			enabled:    "true",
+			path:       "/api/v1/auth/oauth/dingtalk/callback",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "enabled_allows_dingtalk_complete_registration",
+			enabled:    "true",
+			path:       "/api/v1/auth/oauth/dingtalk/complete-registration",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "enabled_allows_dingtalk_create_account",
+			enabled:    "true",
+			path:       "/api/v1/auth/oauth/dingtalk/create-account",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "enabled_allows_dingtalk_bind_login",
+			enabled:    "true",
+			path:       "/api/v1/auth/oauth/dingtalk/bind-login",
 			wantStatus: http.StatusOK,
 		},
 		{

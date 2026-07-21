@@ -21,16 +21,7 @@
     <header class="home-shell home-nav">
       <router-link class="brand" to="/home" aria-label="Home">
         <span class="brand-mark" aria-hidden="true">
-          <img v-if="siteLogo" :src="siteLogo" alt="" />
-          <svg v-else viewBox="0 0 100 100" fill="none">
-            <path d="M 33 41 L 59 41 L 52 56 L 33 56 Z" fill="currentColor" opacity=".72" />
-            <path d="M 33 56 L 52 56 L 43 83 L 33 83 Z" fill="currentColor" opacity=".48" />
-            <rect x="16" y="19" width="20" height="64" rx="9" fill="currentColor" opacity=".78" />
-            <path
-              d="M 71 29 L 87 29 Q 91.5 29 89 34 L 61 90 Q 58.5 95 53.5 95 L 38 95 Q 33.5 95 36 90 L 64 34 Q 66.5 29 71 29 Z"
-              fill="currentColor"
-            />
-          </svg>
+          <img :src="siteLogo || '/ik-logo.svg'" alt="" />
         </span>
         <span>{{ siteName }}</span>
       </router-link>
@@ -144,6 +135,9 @@
           <code>{{ publicBaseUrl }}</code>
         </div>
         <div class="footer-meta-links">
+          <a v-if="docUrl" :href="docUrl" target="_blank" rel="noopener noreferrer">
+            {{ t('home.docs') }}
+          </a>
           <router-link to="/key-usage">{{ t('home.nav.usage') }}</router-link>
           <router-link :to="isAuthenticated ? '/models' : '/login'">{{ t('nav.modelMarket') }}</router-link>
           <router-link :to="isAuthenticated ? '/purchase' : '/login'">{{ t('nav.buySubscription') }}</router-link>
@@ -166,6 +160,7 @@ import { useAuthStore, useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { getPublicTodayStats } from '@/api/usage'
+import { sanitizeUrl } from '@/utils/url'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -174,7 +169,13 @@ const appStore = useAppStore()
 const pageRef = ref<HTMLElement | null>(null)
 
 const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'ikik-api')
-const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
+const siteLogo = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '', {
+  allowRelative: true,
+  allowDataUrl: true
+}))
+const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '', {
+  allowRelative: true
+}))
 const homeContent = computed(() => appStore.cachedPublicSettings?.home_content || '')
 const sanitizedHomeContent = computed(() => DOMPurify.sanitize(homeContent.value))
 const isHomeContentUrl = computed(() => {

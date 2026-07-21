@@ -2,51 +2,15 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/require"
 )
 
 type accountUsageCodexProbeRepo struct {
 	stubOpenAIAccountRepo
 	updateExtraCh chan map[string]any
 	rateLimitCh   chan time.Time
-}
-
-func TestAccountUsageService_GetUsageForClaudeWebSessionDoesNotQueryOAuthUsage(t *testing.T) {
-	t.Parallel()
-
-	service := &AccountUsageService{}
-	usage, err := service.getUsageForAccount(context.Background(), &Account{
-		Platform: PlatformAnthropic,
-		Type:     AccountTypeOAuth,
-		Extra: map[string]any{
-			ClaudeWebSessionExtraKey: true,
-		},
-	}, false)
-
-	require.NoError(t, err)
-	require.NotNil(t, usage)
-	require.Equal(t, "unsupported", usage.Source)
-	require.Nil(t, usage.FiveHour)
-	require.Nil(t, usage.SevenDay)
-}
-
-func TestAccountCanGetUsage_ExcludesClaudeWebSession(t *testing.T) {
-	t.Parallel()
-
-	account := &Account{
-		Platform: PlatformAnthropic,
-		Type:     AccountTypeOAuth,
-		Extra: map[string]any{
-			ClaudeWebSessionExtraKey: true,
-		},
-	}
-
-	require.False(t, account.CanGetUsage())
 }
 
 func (r *accountUsageCodexProbeRepo) UpdateExtra(_ context.Context, _ int64, updates map[string]any) error {
@@ -99,6 +63,55 @@ func TestShouldRefreshOpenAICodexSnapshot(t *testing.T) {
 		},
 	}, usage, now) {
 		t.Fatal("expected stale ws snapshot to trigger refresh")
+	}
+}
+
+// TestShouldRefreshOpenAICodexSnapshot_SparkShadowIgnoresWSv2 外审第9轮 P1:spark 影子用量走
+// QueryUsage(/wham/usage,与 WSv2 无关),staleness 不得被 WSv2 门控,否则首刷后窗口永久冻结。
+func TestShouldRefreshOpenAICodexSnapshot_SparkShadowIgnoresWSv2(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	usage := &UsageInfo{
+		FiveHour: &UsageProgress{Utilization: 0},
+		SevenDay: &UsageProgress{Utilization: 0},
+	}
+	staleAt := now.Add(-(openAIProbeCacheTTL + time.Minute)).Format(time.RFC3339)
+	freshAt := now.Add(-time.Minute).Format(time.RFC3339)
+	parentID := int64(7001)
+
+	// 影子无 WSv2,但首刷后窗口已存在;过期 codex_usage_updated_at 必须触发再刷新。
+	shadowStale := &Account{
+		Platform:        PlatformOpenAI,
+		Type:            AccountTypeOAuth,
+		ParentAccountID: &parentID,
+		QuotaDimension:  QuotaDimensionSpark,
+		Extra:           map[string]any{"codex_usage_updated_at": staleAt},
+	}
+	if !shouldRefreshOpenAICodexSnapshot(shadowStale, usage, now) {
+		t.Fatal("expected stale spark shadow (no WSv2) to trigger refresh")
+	}
+
+	// 影子时间戳仍新鲜→不刷(TTL 生效)。
+	shadowFresh := &Account{
+		Platform:        PlatformOpenAI,
+		Type:            AccountTypeOAuth,
+		ParentAccountID: &parentID,
+		QuotaDimension:  QuotaDimensionSpark,
+		Extra:           map[string]any{"codex_usage_updated_at": freshAt},
+	}
+	if shouldRefreshOpenAICodexSnapshot(shadowFresh, usage, now) {
+		t.Fatal("expected fresh spark shadow to skip refresh (TTL not elapsed)")
+	}
+
+	// 反向对照:普通账号无 WSv2 + 过期时间戳→仍不刷(WSv2 门控普通账号的 probe 刷新)。
+	normalNoWS := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Extra:    map[string]any{"codex_usage_updated_at": staleAt},
+	}
+	if shouldRefreshOpenAICodexSnapshot(normalNoWS, usage, now) {
+		t.Fatal("expected non-WSv2 normal account to skip codex probe refresh")
 	}
 }
 
@@ -176,7 +189,7 @@ func TestAccountUsageService_GetOpenAIUsage_DoesNotPromoteCodexExtraToRateLimit(
 		},
 	}
 
-	usage, err := svc.getOpenAIUsage(context.Background(), account)
+	usage, err := svc.getOpenAIUsage(context.Background(), account, false)
 	if err != nil {
 		t.Fatalf("getOpenAIUsage() error = %v", err)
 	}
@@ -242,110 +255,4 @@ func TestBuildCodexUsageProgressFromExtra_ZerosExpiredWindow(t *testing.T) {
 			t.Fatalf("expected Utilization=0 for expired 7d window, got %v", progress.Utilization)
 		}
 	})
-}
-
-func TestUsageWindowElapsedHours(t *testing.T) {
-	t.Parallel()
-
-	if got := usageWindowElapsedHours("5h", 2*60*60); got != 3 {
-		t.Fatalf("usageWindowElapsedHours(5h, 2h remaining) = %v, want 3", got)
-	}
-	if got := usageWindowElapsedHours("5h", 5*60*60); got != 0 {
-		t.Fatalf("usageWindowElapsedHours(5h, full remaining) = %v, want 0", got)
-	}
-	if got := usageWindowElapsedHours("unknown", 0); got != 0 {
-		t.Fatalf("usageWindowElapsedHours(unknown) = %v, want 0", got)
-	}
-}
-
-func TestClaudeUsageResponse_FableWindowDecoding(t *testing.T) {
-	raw := `{
-  "five_hour": {"utilization": 12.0, "resets_at": "2026-07-03T10:00:00Z"},
-  "seven_day": {"utilization": 34.0, "resets_at": "2026-07-08T00:00:00Z"},
-  "seven_day_overage_included": {"utilization": 56.0, "resets_at": "2026-07-08T03:00:00Z"}
-}`
-
-	var resp ClaudeUsageResponse
-	require.NoError(t, json.Unmarshal([]byte(raw), &resp))
-	require.Equal(t, 56.0, resp.SevenDayOverageIncluded.Utilization)
-	require.Equal(t, "2026-07-08T03:00:00Z", resp.SevenDayOverageIncluded.ResetsAt)
-}
-
-func TestBuildUsageInfo_SevenDayFable(t *testing.T) {
-	svc := &AccountUsageService{}
-	now := time.Now()
-	resetAt := now.Add(72 * time.Hour).UTC().Truncate(time.Second)
-
-	var resp ClaudeUsageResponse
-	resp.FiveHour.Utilization = 10
-	resp.SevenDayOverageIncluded = ClaudeUsageWindow{
-		Utilization: 88,
-		ResetsAt:    resetAt.Format(time.RFC3339),
-	}
-
-	info := svc.buildUsageInfo(&resp, &now)
-	require.NotNil(t, info.SevenDayFable)
-	require.Equal(t, 88.0, info.SevenDayFable.Utilization)
-	require.NotNil(t, info.SevenDayFable.ResetsAt)
-	require.True(t, info.SevenDayFable.ResetsAt.Equal(resetAt))
-	require.Greater(t, info.SevenDayFable.RemainingSeconds, 0)
-
-	var empty ClaudeUsageResponse
-	empty.FiveHour.Utilization = 10
-	info = svc.buildUsageInfo(&empty, &now)
-	require.Nil(t, info.SevenDayFable)
-}
-
-func TestBuildPassiveUsageWindow(t *testing.T) {
-	future := time.Now().Add(48 * time.Hour).Unix()
-
-	window := buildPassiveUsageWindow(map[string]any{
-		"passive_usage_7d_oi_utilization": 0.87,
-		"passive_usage_7d_oi_reset":       float64(future),
-	}, "passive_usage_7d_oi_utilization", "passive_usage_7d_oi_reset")
-	require.NotNil(t, window)
-	require.InDelta(t, 87.0, window.Utilization, 1e-9)
-	require.NotNil(t, window.ResetsAt)
-	require.Equal(t, future, window.ResetsAt.Unix())
-	require.Greater(t, window.RemainingSeconds, 0)
-
-	require.Nil(t, buildPassiveUsageWindow(nil, "u", "r"))
-	require.Nil(t, buildPassiveUsageWindow(map[string]any{}, "u", "r"))
-
-	past := time.Now().Add(-time.Hour).Unix()
-	window = buildPassiveUsageWindow(map[string]any{
-		"u": 0.5,
-		"r": float64(past),
-	}, "u", "r")
-	require.NotNil(t, window)
-	require.Equal(t, 0, window.RemainingSeconds)
-
-	window = buildPassiveUsageWindow(map[string]any{"u": 0.25}, "u", "r")
-	require.NotNil(t, window)
-	require.InDelta(t, 25.0, window.Utilization, 1e-9)
-	require.Nil(t, window.ResetsAt)
-}
-
-func TestSyncActiveToPassive_WritesFableExtras(t *testing.T) {
-	repo := &accountUsageCodexProbeRepo{updateExtraCh: make(chan map[string]any, 1)}
-	svc := &AccountUsageService{accountRepo: repo}
-
-	resetAt := time.Now().Add(72 * time.Hour).Truncate(time.Second)
-	usage := &UsageInfo{
-		SevenDayFable: &UsageProgress{
-			Utilization: 87,
-			ResetsAt:    &resetAt,
-		},
-	}
-
-	svc.syncActiveToPassive(context.Background(), 1, usage)
-
-	select {
-	case updates := <-repo.updateExtraCh:
-		require.InDelta(t, 0.87, updates["passive_usage_7d_oi_utilization"], 1e-9)
-		require.Equal(t, resetAt.Unix(), updates["passive_usage_7d_oi_reset"])
-		require.Contains(t, updates, "passive_usage_sampled_at")
-	case <-time.After(2 * time.Second):
-		t.Fatal("expected UpdateExtra to be called with fable extras")
-	}
 }

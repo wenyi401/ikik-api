@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	dbent "ikik-api/ent"
 	dbaccount "ikik-api/ent/account"
 	dbaccountgroup "ikik-api/ent/accountgroup"
@@ -28,7 +29,6 @@ import (
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/service"
-	"github.com/lib/pq"
 
 	entsql "entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqljson"
@@ -105,9 +105,12 @@ func createAccountRecord(ctx context.Context, client *dbent.Client, account *ser
 		SetName(account.Name).
 		SetNillableNotes(account.Notes).
 		SetPlatform(account.Platform).
+		SetAccountLevel(service.NormalizeAccountLevel(account.AccountLevel)).
 		SetType(account.Type).
 		SetCredentials(normalizeJSONMap(account.Credentials)).
 		SetExtra(normalizeJSONMap(account.Extra)).
+		SetShareMode(service.NormalizeAccountShareMode(account.ShareMode)).
+		SetShareStatus(service.NormalizeAccountShareStatus(account.ShareStatus)).
 		SetConcurrency(account.Concurrency).
 		SetPriority(account.Priority).
 		SetStatus(account.Status).
@@ -120,6 +123,12 @@ func createAccountRecord(ctx context.Context, client *dbent.Client, account *ser
 	}
 	if account.LoadFactor != nil {
 		builder.SetLoadFactor(*account.LoadFactor)
+	}
+	if account.OwnerUserID != nil {
+		builder.SetOwnerUserID(*account.OwnerUserID)
+	}
+	if account.SharePolicyID != nil {
+		builder.SetSharePolicyID(*account.SharePolicyID)
 	}
 
 	if account.ProxyID != nil {
@@ -157,7 +166,7 @@ func createAccountRecord(ctx context.Context, client *dbent.Client, account *ser
 
 	created, err := builder.Save(ctx)
 	if err != nil {
-		return translatePersistenceError(err, service.ErrAccountNotFound, nil)
+		return translateAccountPersistenceError(err, service.ErrAccountNotFound)
 	}
 
 	account.ID = created.ID
@@ -431,7 +440,7 @@ func (r *accountRepository) updateAccount(ctx context.Context, account *service.
 
 	updated, err := r.updateLockedAccount(ctx, client, account, explicitProbeEnabled)
 	if err != nil {
-		return translatePersistenceError(err, service.ErrAccountNotFound, nil)
+		return translateAccountPersistenceError(err, service.ErrAccountNotFound)
 	}
 	if err := enqueueSchedulerOutbox(ctx, client, service.SchedulerOutboxEventAccountChanged, &account.ID, nil, buildSchedulerGroupPayload(account.GroupIDs)); err != nil {
 		return err
@@ -467,9 +476,12 @@ func (r *accountRepository) updateLockedAccount(ctx context.Context, client *dbe
 		SetName(account.Name).
 		SetNillableNotes(account.Notes).
 		SetPlatform(account.Platform).
+		SetAccountLevel(service.NormalizeAccountLevel(account.AccountLevel)).
 		SetType(account.Type).
 		SetCredentials(normalizeJSONMap(account.Credentials)).
 		SetExtra(extra).
+		SetShareMode(service.NormalizeAccountShareMode(account.ShareMode)).
+		SetShareStatus(service.NormalizeAccountShareStatus(account.ShareStatus)).
 		SetConcurrency(account.Concurrency).
 		SetPriority(account.Priority).
 		SetStatus(account.Status).
@@ -484,6 +496,16 @@ func (r *accountRepository) updateLockedAccount(ctx context.Context, client *dbe
 		builder.SetLoadFactor(*account.LoadFactor)
 	} else {
 		builder.ClearLoadFactor()
+	}
+	if account.OwnerUserID != nil {
+		builder.SetOwnerUserID(*account.OwnerUserID)
+	} else {
+		builder.ClearOwnerUserID()
+	}
+	if account.SharePolicyID != nil {
+		builder.SetSharePolicyID(*account.SharePolicyID)
+	} else {
+		builder.ClearSharePolicyID()
 	}
 
 	if account.ProxyID != nil {
@@ -2575,6 +2597,11 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 		args = append(args, *updates.Schedulable)
 		idx++
 	}
+	if updates.AccountLevel != nil {
+		setClauses = append(setClauses, "account_level = $"+itoa(idx))
+		args = append(args, service.NormalizeAccountLevel(*updates.AccountLevel))
+		idx++
+	}
 	// JSONB 需要合并而非覆盖，使用 raw SQL 保持旧行为。
 	if len(updates.Credentials) > 0 {
 		payload, err := json.Marshal(updates.Credentials)
@@ -2629,7 +2656,7 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 
 	result, err := exec.ExecContext(ctx, query, args...)
 	if err != nil {
-		return 0, err
+		return 0, translateAccountPersistenceError(err, nil)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
@@ -2986,9 +3013,14 @@ func accountEntityToService(m *dbent.Account) *service.Account {
 		Name:                    m.Name,
 		Notes:                   m.Notes,
 		Platform:                m.Platform,
+		AccountLevel:            service.NormalizeAccountLevel(m.AccountLevel),
 		Type:                    m.Type,
 		Credentials:             copyJSONMap(m.Credentials),
 		Extra:                   copyJSONMap(m.Extra),
+		OwnerUserID:             m.OwnerUserID,
+		ShareMode:               service.NormalizeAccountShareMode(m.ShareMode),
+		ShareStatus:             service.NormalizeAccountShareStatus(m.ShareStatus),
+		SharePolicyID:           m.SharePolicyID,
 		ProxyID:                 m.ProxyID,
 		ProxyFallbackOriginID:   m.ProxyFallbackOriginID,
 		Concurrency:             m.Concurrency,

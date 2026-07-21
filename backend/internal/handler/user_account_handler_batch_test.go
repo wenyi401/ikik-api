@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/pagination"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 )
 
 type userAccountBatchRepoStub struct {
@@ -84,8 +84,11 @@ func (s *userAccountBatchRepoStub) Delete(context.Context, int64) error {
 func (s *userAccountBatchRepoStub) List(context.Context, pagination.PaginationParams) ([]service.Account, *pagination.PaginationResult, error) {
 	panic("unexpected List call")
 }
-func (s *userAccountBatchRepoStub) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, string, int64, int64, string) ([]service.Account, *pagination.PaginationResult, error) {
+func (s *userAccountBatchRepoStub) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, string, int64, string) ([]service.Account, *pagination.PaginationResult, error) {
 	panic("unexpected ListWithFilters call")
+}
+func (s *userAccountBatchRepoStub) ListAllWithFilters(context.Context, string, string, string, string, int64, string) ([]service.Account, error) {
+	panic("unexpected ListAllWithFilters call")
 }
 func (s *userAccountBatchRepoStub) ListByGroup(context.Context, int64) ([]service.Account, error) {
 	panic("unexpected ListByGroup call")
@@ -144,7 +147,7 @@ func (s *userAccountBatchRepoStub) ListSchedulableUngroupedByPlatforms(context.C
 func (s *userAccountBatchRepoStub) SetRateLimited(context.Context, int64, time.Time) error {
 	panic("unexpected SetRateLimited call")
 }
-func (s *userAccountBatchRepoStub) SetModelRateLimit(context.Context, int64, string, time.Time) error {
+func (s *userAccountBatchRepoStub) SetModelRateLimit(context.Context, int64, string, time.Time, ...string) error {
 	panic("unexpected SetModelRateLimit call")
 }
 func (s *userAccountBatchRepoStub) SetOverloaded(context.Context, int64, time.Time) error {
@@ -168,6 +171,9 @@ func (s *userAccountBatchRepoStub) ClearModelRateLimits(context.Context, int64) 
 func (s *userAccountBatchRepoStub) UpdateSessionWindow(context.Context, int64, *time.Time, *time.Time, string) error {
 	panic("unexpected UpdateSessionWindow call")
 }
+func (s *userAccountBatchRepoStub) UpdateSessionWindowEnd(context.Context, int64, time.Time) error {
+	panic("unexpected UpdateSessionWindowEnd call")
+}
 func (s *userAccountBatchRepoStub) UpdateExtra(context.Context, int64, map[string]any) error {
 	panic("unexpected UpdateExtra call")
 }
@@ -179,6 +185,12 @@ func (s *userAccountBatchRepoStub) IncrementQuotaUsed(context.Context, int64, fl
 }
 func (s *userAccountBatchRepoStub) ResetQuotaUsed(context.Context, int64) error {
 	panic("unexpected ResetQuotaUsed call")
+}
+func (s *userAccountBatchRepoStub) RevertProxyFallback(context.Context, int64) error {
+	panic("unexpected RevertProxyFallback call")
+}
+func (s *userAccountBatchRepoStub) ListShadowsByParent(context.Context, int64) ([]*service.Account, error) {
+	panic("unexpected ListShadowsByParent call")
 }
 
 func (s *userAccountBatchRepoStub) GetTask(context.Context, int64) (*service.AccountBatchTask, error) {

@@ -13,11 +13,11 @@ import (
 	"strings"
 	"testing"
 
-	"ikik-api/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/imroc/req/v3"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"ikik-api/internal/config"
 )
 
 type failingOpenAIImageWriter struct {

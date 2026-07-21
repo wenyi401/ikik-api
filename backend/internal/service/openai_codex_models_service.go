@@ -16,10 +16,10 @@ import (
 	"sync"
 	"time"
 
-	infraerrors "ikik-api/internal/pkg/errors"
-	"ikik-api/internal/pkg/httpclient"
 	"golang.org/x/net/http2"
 	"golang.org/x/sync/singleflight"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/httpclient"
 )
 
 // chatgptCodexModelsURL is the ChatGPT Codex models manifest endpoint.

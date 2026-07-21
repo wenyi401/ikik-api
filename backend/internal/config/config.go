@@ -96,6 +96,8 @@ type Config struct {
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
+	ReceiptCodeStorage      ReceiptCodeStorageConfig      `mapstructure:"receipt_code_storage"`
+	Modules                 map[string]map[string]any     `mapstructure:"-" yaml:"-"`
 }
 
 type LogConfig struct {
@@ -795,7 +797,8 @@ type GatewayConfig struct {
 	// 0 表示回退到 OpenAIFirstOutputTimeoutSeconds。
 	OpenAIHighEffortFirstOutputTimeoutSeconds int `mapstructure:"openai_high_effort_first_output_timeout_seconds"`
 	// 请求体最大字节数，用于网关请求体大小限制
-	MaxBodySize int64 `mapstructure:"max_body_size"`
+	MaxBodySize                          int64  `mapstructure:"max_body_size"`
+	OpenAIImagesResponsesReasoningEffort string `mapstructure:"openai_images_responses_reasoning_effort"`
 	// 非流式上游响应体读取上限（字节），用于防止无界读取导致内存放大
 	UpstreamResponseReadMaxBytes int64 `mapstructure:"upstream_response_read_max_bytes"`
 	// 代理探测响应体读取上限（字节）
@@ -810,6 +813,8 @@ type GatewayConfig struct {
 	// CodexImageGenerationBridgeEnabled: 是否为 Codex `/v1/responses` 自动注入 image_generation 工具和桥接指令。
 	// 默认关闭，避免纯文本 Codex 请求被意外改写；显式携带 image_generation 工具的请求仍按分组能力转发。
 	CodexImageGenerationBridgeEnabled bool `mapstructure:"codex_image_generation_bridge_enabled"`
+	// CodexBlockConnectorTools strips ChatGPT connector/App tools before Codex OAuth forwarding.
+	CodexBlockConnectorTools bool `mapstructure:"codex_block_connector_tools"`
 	// ForcedCodexInstructionsTemplateFile: 服务端强制附加到 Codex 顶层 instructions 的模板文件路径。
 	// 模板渲染后会直接覆盖最终 instructions；若需要保留客户端 system 转换结果，请在模板中显式引用 {{ .ExistingInstructions }}。
 	ForcedCodexInstructionsTemplateFile string `mapstructure:"forced_codex_instructions_template_file"`
@@ -1493,6 +1498,17 @@ type UsageCleanupConfig struct {
 	WorkerIntervalSeconds int `mapstructure:"worker_interval_seconds"`
 	// TaskTimeoutSeconds: 单次任务最大执行时长（秒）
 	TaskTimeoutSeconds int `mapstructure:"task_timeout_seconds"`
+	// AutoRetention controls automatic archive-before-delete retention.
+	AutoRetention UsageCleanupAutoRetentionConfig `mapstructure:"auto_retention"`
+}
+
+// UsageCleanupAutoRetentionConfig controls automatic usage-log retention.
+type UsageCleanupAutoRetentionConfig struct {
+	Enabled          bool `mapstructure:"enabled"`
+	RetainDays       int  `mapstructure:"retain_days"`
+	RunIntervalHours int  `mapstructure:"run_interval_hours"`
+	WindowDays       int  `mapstructure:"window_days"`
+	BackupExpireDays int  `mapstructure:"backup_expire_days"`
 }
 
 func NormalizeRunMode(value string) string {
@@ -1556,6 +1572,11 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal config error: %w", err)
 	}
+	modules, err := normalizeModulesSubtree(viper.Get("modules"))
+	if err != nil {
+		return nil, fmt.Errorf("parse modules config error: %w", err)
+	}
+	cfg.Modules = modules
 	if cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs == 0 {
 		cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs = 15000
 	}
@@ -2038,6 +2059,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.max_account_switches_gemini", 3)
 	viper.SetDefault("gateway.force_codex_cli", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)
+	viper.SetDefault("gateway.codex_block_connector_tools", false)
 	viper.SetDefault("gateway.openai_passthrough_allow_timeout_headers", false)
 	viper.SetDefault("gateway.openai_compact_model", "gpt-5.4")
 	// OpenAI Responses WebSocket（默认开启；可通过 force_http 紧急回滚）

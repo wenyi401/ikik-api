@@ -4,17 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/pagination"
-	"github.com/stretchr/testify/require"
 )
 
 type cleanupDeleteResponse struct {
@@ -34,57 +33,31 @@ type cleanupMarkCall struct {
 }
 
 type cleanupRepoStub struct {
-	mu               sync.Mutex
-	created          []*UsageCleanupTask
-	autoClaimCreated bool
-	createErr        error
-	listTasks        []UsageCleanupTask
-	listResult       *pagination.PaginationResult
-	listErr          error
-	claimQueue       []*UsageCleanupTask
-	claimErr         error
-	oldestUsage      *time.Time
-	oldestErr        error
-	snapshotErr      error
-	snapshotCalls    []UsageCleanupFilters
-	exportErr        error
-	exportData       string
-	deleteQueue      []cleanupDeleteResponse
-	deleteCalls      []cleanupDeleteCall
-	markSucceeded    []cleanupMarkCall
-	markFailed       []cleanupMarkCall
-	statusByID       map[int64]string
-	statusErr        error
-	progressCalls    []cleanupMarkCall
-	updateErr        error
-	cancelCalls      []int64
-	cancelErr        error
-	cancelResult     *bool
-	markFailedErr    error
+	mu            sync.Mutex
+	created       []*UsageCleanupTask
+	createErr     error
+	listTasks     []UsageCleanupTask
+	listResult    *pagination.PaginationResult
+	listErr       error
+	claimQueue    []*UsageCleanupTask
+	claimErr      error
+	deleteQueue   []cleanupDeleteResponse
+	deleteCalls   []cleanupDeleteCall
+	markSucceeded []cleanupMarkCall
+	markFailed    []cleanupMarkCall
+	statusByID    map[int64]string
+	statusErr     error
+	progressCalls []cleanupMarkCall
+	updateErr     error
+	cancelCalls   []int64
+	cancelErr     error
+	cancelResult  *bool
+	markFailedErr error
 }
 
 type dashboardRepoStub struct {
-	recomputeErr    error
-	recomputeCalls  int
-	recomputeRanges []cleanupDateRange
-}
-
-type cleanupDateRange struct {
-	start time.Time
-	end   time.Time
-}
-
-type cleanupBackupStub struct {
-	records []*BackupRecord
-	err     error
-	calls   []cleanupBackupCall
-}
-
-type cleanupBackupCall struct {
-	startTime  time.Time
-	endTime    time.Time
-	expireDays int
-	data       string
+	recomputeErr   error
+	recomputeCalls int
 }
 
 func (s *dashboardRepoStub) AggregateRange(ctx context.Context, start, end time.Time) error {
@@ -93,7 +66,6 @@ func (s *dashboardRepoStub) AggregateRange(ctx context.Context, start, end time.
 
 func (s *dashboardRepoStub) RecomputeRange(ctx context.Context, start, end time.Time) error {
 	s.recomputeCalls++
-	s.recomputeRanges = append(s.recomputeRanges, cleanupDateRange{start: start, end: end})
 	return s.recomputeErr
 }
 
@@ -141,10 +113,6 @@ func (s *cleanupRepoStub) CreateTask(ctx context.Context, task *UsageCleanupTask
 	}
 	clone := *task
 	s.created = append(s.created, &clone)
-	if s.autoClaimCreated {
-		claimed := clone
-		s.claimQueue = append(s.claimQueue, &claimed)
-	}
 	return nil
 }
 
@@ -170,56 +138,6 @@ func (s *cleanupRepoStub) ClaimNextPendingTask(ctx context.Context, staleRunning
 	}
 	s.statusByID[task.ID] = UsageCleanupStatusRunning
 	return task, nil
-}
-
-func (s *cleanupRepoStub) FindOldestUsageLogBefore(ctx context.Context, cutoff time.Time) (*time.Time, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.oldestErr != nil {
-		return nil, s.oldestErr
-	}
-	if s.oldestUsage == nil {
-		return nil, nil
-	}
-	oldest := s.oldestUsage.UTC()
-	return &oldest, nil
-}
-
-func (s *cleanupRepoStub) ExportUsageLogs(ctx context.Context, filters UsageCleanupFilters) (io.ReadCloser, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.exportErr != nil {
-		return nil, s.exportErr
-	}
-	data := s.exportData
-	if data == "" {
-		data = "{\"id\":1}\n"
-	}
-	return io.NopCloser(strings.NewReader(data)), nil
-}
-
-func (s *cleanupRepoStub) SnapshotUsageLogs(ctx context.Context, filters UsageCleanupFilters) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.snapshotCalls = append(s.snapshotCalls, filters)
-	return s.snapshotErr
-}
-
-func (s *cleanupBackupStub) CreateUsageLogsArchive(ctx context.Context, input UsageLogsArchiveInput) (*BackupRecord, error) {
-	data, readErr := io.ReadAll(input.Stream)
-	s.calls = append(s.calls, cleanupBackupCall{startTime: input.StartTime, endTime: input.EndTime, expireDays: input.ExpireDays, data: string(data)})
-	if readErr != nil {
-		return nil, readErr
-	}
-	if s.err != nil {
-		return nil, s.err
-	}
-	if len(s.records) == 0 {
-		return &BackupRecord{ID: "backup-1", Status: "completed"}, nil
-	}
-	record := s.records[0]
-	s.records = s.records[1:]
-	return record, nil
 }
 
 func (s *cleanupRepoStub) GetTaskStatus(ctx context.Context, taskID int64) (string, error) {
@@ -343,124 +261,6 @@ func TestUsageCleanupServiceCreateTaskSanitizeFilters(t *testing.T) {
 	require.Equal(t, "gpt-4", *task.Filters.Model)
 	require.Nil(t, task.Filters.BillingType)
 	require.Equal(t, int64(9), task.CreatedBy)
-	require.Equal(t, "admin", task.CreatedSource)
-}
-
-func TestUsageCleanupServiceCreateSystemTaskUsesSystemSource(t *testing.T) {
-	repo := &cleanupRepoStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	svc := NewUsageCleanupService(repo, nil, nil, cfg)
-
-	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	task, err := svc.createSystemTask(context.Background(), UsageCleanupFilters{
-		StartTime: start,
-		EndTime:   start.Add(24 * time.Hour),
-	})
-	require.NoError(t, err)
-	require.Equal(t, UsageCleanupSystemActor, task.CreatedBy)
-	require.Equal(t, "system_auto_retention", task.CreatedSource)
-}
-
-func TestUsageCleanupServiceAutoRetentionBacksUpThenCreatesSystemTask(t *testing.T) {
-	oldest := time.Now().UTC().AddDate(0, 0, -10)
-	dashboardRepo := &dashboardRepoStub{}
-	dashboard := NewDashboardAggregationService(dashboardRepo, nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true},
-	})
-	repo := &cleanupRepoStub{
-		autoClaimCreated: true,
-		oldestUsage:      &oldest,
-		deleteQueue: []cleanupDeleteResponse{
-			{deleted: 0},
-		},
-	}
-	backup := &cleanupBackupStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{
-		Enabled:   true,
-		BatchSize: 2,
-		AutoRetention: config.UsageCleanupAutoRetentionConfig{
-			Enabled:          true,
-			RetainDays:       3,
-			RunIntervalHours: 24,
-			WindowDays:       1,
-			BackupExpireDays: 7,
-		},
-	}}
-	svc := NewUsageCleanupServiceWithBackup(repo, nil, dashboard, backup, nil, cfg)
-
-	svc.runAutoRetentionOnce()
-
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	require.Len(t, dashboardRepo.recomputeRanges, 1)
-	require.Len(t, repo.snapshotCalls, 1)
-	require.Len(t, backup.calls, 1)
-	require.Equal(t, 7, backup.calls[0].expireDays)
-	require.NotEmpty(t, backup.calls[0].data)
-	require.Len(t, repo.created, 1)
-	require.Equal(t, UsageCleanupCreatedSourceAutoRetention, repo.created[0].CreatedSource)
-	require.Len(t, repo.deleteCalls, 1)
-	require.Empty(t, dashboardRepo.recomputeRanges[1:])
-}
-
-func TestUsageCleanupServiceAutoRetentionBackupFailureDoesNotCreateTask(t *testing.T) {
-	oldest := time.Now().UTC().AddDate(0, 0, -8)
-	dashboardRepo := &dashboardRepoStub{}
-	dashboard := NewDashboardAggregationService(dashboardRepo, nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true},
-	})
-	repo := &cleanupRepoStub{oldestUsage: &oldest}
-	backup := &cleanupBackupStub{err: errors.New("backup failed")}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{
-		Enabled: true,
-		AutoRetention: config.UsageCleanupAutoRetentionConfig{
-			Enabled:          true,
-			RetainDays:       3,
-			RunIntervalHours: 24,
-			WindowDays:       1,
-		},
-	}}
-	svc := NewUsageCleanupServiceWithBackup(repo, nil, dashboard, backup, nil, cfg)
-
-	svc.runAutoRetentionOnce()
-
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	require.Len(t, dashboardRepo.recomputeRanges, 1)
-	require.Len(t, repo.snapshotCalls, 1)
-	require.Len(t, backup.calls, 1)
-	require.Empty(t, repo.created)
-	require.Empty(t, repo.deleteCalls)
-}
-
-func TestUsageCleanupServiceAutoRetentionSnapshotFailureDoesNotBackupOrDelete(t *testing.T) {
-	oldest := time.Now().UTC().AddDate(0, 0, -8)
-	dashboardRepo := &dashboardRepoStub{}
-	dashboard := NewDashboardAggregationService(dashboardRepo, nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true},
-	})
-	repo := &cleanupRepoStub{oldestUsage: &oldest, snapshotErr: errors.New("snapshot failed")}
-	backup := &cleanupBackupStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{
-		Enabled: true,
-		AutoRetention: config.UsageCleanupAutoRetentionConfig{
-			Enabled:          true,
-			RetainDays:       3,
-			RunIntervalHours: 24,
-			WindowDays:       1,
-		},
-	}}
-	svc := NewUsageCleanupServiceWithBackup(repo, nil, dashboard, backup, nil, cfg)
-
-	svc.runAutoRetentionOnce()
-
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	require.Len(t, dashboardRepo.recomputeRanges, 1)
-	require.Len(t, repo.snapshotCalls, 1)
-	require.Empty(t, backup.calls)
-	require.Empty(t, repo.created)
-	require.Empty(t, repo.deleteCalls)
 }
 
 func TestSanitizeUsageCleanupFiltersRequestTypePriority(t *testing.T) {

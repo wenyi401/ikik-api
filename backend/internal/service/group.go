@@ -28,15 +28,18 @@ type Group struct {
 	IsExclusive        bool
 	Status             string
 	Hydrated           bool // indicates the group was loaded from a trusted repository source
+	OwnerUserID        *int64
+	Scope              string
 	// DuplicateOperationID is internal persistence metadata used only to recover
 	// an already committed one-click copy. It must never be mapped to API DTOs.
 	DuplicateOperationID string
 
-	SubscriptionType    string
-	DailyLimitUSD       *float64
-	WeeklyLimitUSD      *float64
-	MonthlyLimitUSD     *float64
-	DefaultValidityDays int
+	SubscriptionType     string
+	RequiredAccountLevel string
+	DailyLimitUSD        *float64
+	WeeklyLimitUSD       *float64
+	MonthlyLimitUSD      *float64
+	DefaultValidityDays  int
 
 	// 图片生成计费配置（antigravity 和 gemini 平台使用）
 	AllowImageGeneration         bool
@@ -90,6 +93,12 @@ type Group struct {
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）。
 	// 一旦设置即接管该分组用户的限流（覆盖用户级 rpm_limit），可被 user-group rpm_override 进一步覆盖。
 	RPMLimit int
+
+	KiroCacheEmulationEnabled   bool
+	KiroAutoStickyEnabled       bool
+	KiroStickySessionTTLSeconds int
+	KiroCacheEmulationRatio     float64
+	KiroEndpointMode            string
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

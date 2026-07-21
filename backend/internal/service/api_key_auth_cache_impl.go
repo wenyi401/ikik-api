@@ -10,11 +10,11 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"ikik-api/internal/config"
 	"github.com/dgraph-io/ristretto"
+	"ikik-api/internal/config"
 )
 
-const apiKeyAuthSnapshotVersion = 14 // v14: include owner_user_id for API key route groups
+const apiKeyAuthSnapshotVersion = 16 // v16: include API key group routes
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -210,6 +210,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 		APIKeyID:    apiKey.ID,
 		UserID:      apiKey.UserID,
 		GroupID:     apiKey.GroupID,
+		Name:        apiKey.Name,
 		Status:      apiKey.Status,
 		IPWhitelist: apiKey.IPWhitelist,
 		IPBlacklist: apiKey.IPBlacklist,
@@ -224,8 +225,6 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			Status:                     apiKey.User.Status,
 			Role:                       apiKey.User.Role,
 			Balance:                    apiKey.User.Balance,
-			PointsBalance:              apiKey.User.PointsBalance,
-			PreferPointsBilling:        apiKey.User.PreferPointsBilling,
 			Concurrency:                apiKey.User.Concurrency,
 			AllowedGroups:              apiKey.User.AllowedGroups,
 			Email:                      apiKey.User.Email,
@@ -252,21 +251,26 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			ID:                              apiKey.Group.ID,
 			Name:                            apiKey.Group.Name,
 			Platform:                        apiKey.Group.Platform,
-			Status:                          apiKey.Group.Status,
 			IsExclusive:                     apiKey.Group.IsExclusive,
-			OwnerUserID:                     apiKey.Group.OwnerUserID,
-			Scope:                           apiKey.Group.Scope,
+			Status:                          apiKey.Group.Status,
 			SubscriptionType:                apiKey.Group.SubscriptionType,
 			RateMultiplier:                  apiKey.Group.RateMultiplier,
 			DailyLimitUSD:                   apiKey.Group.DailyLimitUSD,
 			WeeklyLimitUSD:                  apiKey.Group.WeeklyLimitUSD,
 			MonthlyLimitUSD:                 apiKey.Group.MonthlyLimitUSD,
 			AllowImageGeneration:            apiKey.Group.AllowImageGeneration,
+			AllowBatchImageGeneration:       apiKey.Group.AllowBatchImageGeneration,
 			ImageRateIndependent:            apiKey.Group.ImageRateIndependent,
 			ImageRateMultiplier:             apiKey.Group.ImageRateMultiplier,
 			ImagePrice1K:                    apiKey.Group.ImagePrice1K,
 			ImagePrice2K:                    apiKey.Group.ImagePrice2K,
 			ImagePrice4K:                    apiKey.Group.ImagePrice4K,
+			VideoRateIndependent:            apiKey.Group.VideoRateIndependent,
+			VideoRateMultiplier:             apiKey.Group.VideoRateMultiplier,
+			VideoPrice480P:                  apiKey.Group.VideoPrice480P,
+			VideoPrice720P:                  apiKey.Group.VideoPrice720P,
+			VideoPrice1080P:                 apiKey.Group.VideoPrice1080P,
+			WebSearchPricePerCall:           apiKey.Group.WebSearchPricePerCall,
 			ClaudeCodeOnly:                  apiKey.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 apiKey.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: apiKey.Group.FallbackGroupIDOnInvalidRequest,
@@ -279,29 +283,13 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			MessagesDispatchModelConfig:     apiKey.Group.MessagesDispatchModelConfig,
 			ModelsListConfig:                apiKey.Group.ModelsListConfig,
 			RPMLimit:                        apiKey.Group.RPMLimit,
-			KiroCacheEmulationEnabled:       apiKey.Group.EffectiveKiroCacheEmulationEnabled(),
-			KiroAutoStickyEnabled:           apiKey.Group.EffectiveKiroAutoStickyEnabled(),
-			KiroStickySessionTTLSeconds:     apiKey.Group.EffectiveKiroStickySessionTTLSeconds(),
-			KiroCacheEmulationRatio:         apiKey.Group.EffectiveKiroCacheEmulationRatio(),
-			KiroEndpointMode:                apiKey.Group.EffectiveKiroEndpointMode(),
+			PeakRateEnabled:                 apiKey.Group.PeakRateEnabled,
+			PeakStart:                       apiKey.Group.PeakStart,
+			PeakEnd:                         apiKey.Group.PeakEnd,
+			PeakRateMultiplier:              apiKey.Group.PeakRateMultiplier,
 		}
 	}
-	if len(apiKey.GroupRoutes) > 0 {
-		snapshot.GroupRoutes = make([]APIKeyAuthGroupRouteSnapshot, 0, len(apiKey.GroupRoutes))
-		for i := range apiKey.GroupRoutes {
-			route := apiKey.GroupRoutes[i]
-			snapshot.GroupRoutes = append(snapshot.GroupRoutes, APIKeyAuthGroupRouteSnapshot{
-				ID:              route.ID,
-				APIKeyID:        route.APIKeyID,
-				GroupID:         route.GroupID,
-				Priority:        route.Priority,
-				Weight:          route.Weight,
-				Enabled:         route.Enabled,
-				CooldownSeconds: route.CooldownSeconds,
-				Group:           groupAuthSnapshotFromService(route.Group),
-			})
-		}
-	}
+	attachAPIKeyGroupRoutesToAuthSnapshot(snapshot, apiKey)
 	return snapshot
 }
 
@@ -314,6 +302,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 		UserID:      snapshot.UserID,
 		GroupID:     snapshot.GroupID,
 		Key:         key,
+		Name:        snapshot.Name,
 		Status:      snapshot.Status,
 		IPWhitelist: snapshot.IPWhitelist,
 		IPBlacklist: snapshot.IPBlacklist,
@@ -328,8 +317,6 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			Status:                     snapshot.User.Status,
 			Role:                       snapshot.User.Role,
 			Balance:                    snapshot.User.Balance,
-			PointsBalance:              snapshot.User.PointsBalance,
-			PreferPointsBilling:        snapshot.User.PreferPointsBilling,
 			Concurrency:                snapshot.User.Concurrency,
 			AllowedGroups:              snapshot.User.AllowedGroups,
 			Email:                      snapshot.User.Email,
@@ -344,113 +331,50 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 		},
 	}
 	if snapshot.Group != nil {
-		apiKey.Group = groupFromAuthSnapshot(snapshot.Group)
-	}
-	if len(snapshot.GroupRoutes) > 0 {
-		apiKey.GroupRoutes = make([]APIKeyGroupRoute, 0, len(snapshot.GroupRoutes))
-		for i := range snapshot.GroupRoutes {
-			route := snapshot.GroupRoutes[i]
-			apiKey.GroupRoutes = append(apiKey.GroupRoutes, APIKeyGroupRoute{
-				ID:              route.ID,
-				APIKeyID:        route.APIKeyID,
-				GroupID:         route.GroupID,
-				Priority:        route.Priority,
-				Weight:          route.Weight,
-				Enabled:         route.Enabled,
-				CooldownSeconds: route.CooldownSeconds,
-				Group:           groupFromAuthSnapshot(route.Group),
-			})
+		apiKey.Group = &Group{
+			ID:                              snapshot.Group.ID,
+			Name:                            snapshot.Group.Name,
+			Platform:                        snapshot.Group.Platform,
+			IsExclusive:                     snapshot.Group.IsExclusive,
+			Status:                          snapshot.Group.Status,
+			Hydrated:                        true,
+			SubscriptionType:                snapshot.Group.SubscriptionType,
+			RateMultiplier:                  snapshot.Group.RateMultiplier,
+			DailyLimitUSD:                   snapshot.Group.DailyLimitUSD,
+			WeeklyLimitUSD:                  snapshot.Group.WeeklyLimitUSD,
+			MonthlyLimitUSD:                 snapshot.Group.MonthlyLimitUSD,
+			AllowImageGeneration:            snapshot.Group.AllowImageGeneration,
+			AllowBatchImageGeneration:       snapshot.Group.AllowBatchImageGeneration,
+			ImageRateIndependent:            snapshot.Group.ImageRateIndependent,
+			ImageRateMultiplier:             snapshot.Group.ImageRateMultiplier,
+			ImagePrice1K:                    snapshot.Group.ImagePrice1K,
+			ImagePrice2K:                    snapshot.Group.ImagePrice2K,
+			ImagePrice4K:                    snapshot.Group.ImagePrice4K,
+			VideoRateIndependent:            snapshot.Group.VideoRateIndependent,
+			VideoRateMultiplier:             snapshot.Group.VideoRateMultiplier,
+			VideoPrice480P:                  snapshot.Group.VideoPrice480P,
+			VideoPrice720P:                  snapshot.Group.VideoPrice720P,
+			VideoPrice1080P:                 snapshot.Group.VideoPrice1080P,
+			WebSearchPricePerCall:           snapshot.Group.WebSearchPricePerCall,
+			ClaudeCodeOnly:                  snapshot.Group.ClaudeCodeOnly,
+			FallbackGroupID:                 snapshot.Group.FallbackGroupID,
+			FallbackGroupIDOnInvalidRequest: snapshot.Group.FallbackGroupIDOnInvalidRequest,
+			ModelRouting:                    snapshot.Group.ModelRouting,
+			ModelRoutingEnabled:             snapshot.Group.ModelRoutingEnabled,
+			MCPXMLInject:                    snapshot.Group.MCPXMLInject,
+			SupportedModelScopes:            snapshot.Group.SupportedModelScopes,
+			AllowMessagesDispatch:           snapshot.Group.AllowMessagesDispatch,
+			DefaultMappedModel:              snapshot.Group.DefaultMappedModel,
+			MessagesDispatchModelConfig:     snapshot.Group.MessagesDispatchModelConfig,
+			ModelsListConfig:                snapshot.Group.ModelsListConfig,
+			RPMLimit:                        snapshot.Group.RPMLimit,
+			PeakRateEnabled:                 snapshot.Group.PeakRateEnabled,
+			PeakStart:                       snapshot.Group.PeakStart,
+			PeakEnd:                         snapshot.Group.PeakEnd,
+			PeakRateMultiplier:              snapshot.Group.PeakRateMultiplier,
 		}
 	}
+	attachAPIKeyGroupRoutesFromAuthSnapshot(apiKey, snapshot)
 	s.compileAPIKeyIPRules(apiKey)
 	return apiKey
-}
-
-func groupAuthSnapshotFromService(group *Group) *APIKeyAuthGroupSnapshot {
-	if group == nil {
-		return nil
-	}
-	return &APIKeyAuthGroupSnapshot{
-		ID:                              group.ID,
-		Name:                            group.Name,
-		Platform:                        group.Platform,
-		Status:                          group.Status,
-		IsExclusive:                     group.IsExclusive,
-		OwnerUserID:                     group.OwnerUserID,
-		Scope:                           group.Scope,
-		SubscriptionType:                group.SubscriptionType,
-		RateMultiplier:                  group.RateMultiplier,
-		DailyLimitUSD:                   group.DailyLimitUSD,
-		WeeklyLimitUSD:                  group.WeeklyLimitUSD,
-		MonthlyLimitUSD:                 group.MonthlyLimitUSD,
-		AllowImageGeneration:            group.AllowImageGeneration,
-		ImageRateIndependent:            group.ImageRateIndependent,
-		ImageRateMultiplier:             group.ImageRateMultiplier,
-		ImagePrice1K:                    group.ImagePrice1K,
-		ImagePrice2K:                    group.ImagePrice2K,
-		ImagePrice4K:                    group.ImagePrice4K,
-		ClaudeCodeOnly:                  group.ClaudeCodeOnly,
-		FallbackGroupID:                 group.FallbackGroupID,
-		FallbackGroupIDOnInvalidRequest: group.FallbackGroupIDOnInvalidRequest,
-		ModelRouting:                    group.ModelRouting,
-		ModelRoutingEnabled:             group.ModelRoutingEnabled,
-		MCPXMLInject:                    group.MCPXMLInject,
-		SupportedModelScopes:            group.SupportedModelScopes,
-		AllowMessagesDispatch:           group.AllowMessagesDispatch,
-		DefaultMappedModel:              group.DefaultMappedModel,
-		MessagesDispatchModelConfig:     group.MessagesDispatchModelConfig,
-		ModelsListConfig:                group.ModelsListConfig,
-		RPMLimit:                        group.RPMLimit,
-		KiroCacheEmulationEnabled:       group.EffectiveKiroCacheEmulationEnabled(),
-		KiroAutoStickyEnabled:           group.EffectiveKiroAutoStickyEnabled(),
-		KiroStickySessionTTLSeconds:     group.EffectiveKiroStickySessionTTLSeconds(),
-		KiroCacheEmulationRatio:         group.EffectiveKiroCacheEmulationRatio(),
-		KiroEndpointMode:                group.EffectiveKiroEndpointMode(),
-	}
-}
-
-func groupFromAuthSnapshot(snapshot *APIKeyAuthGroupSnapshot) *Group {
-	if snapshot == nil {
-		return nil
-	}
-	group := &Group{
-		ID:                              snapshot.ID,
-		Name:                            snapshot.Name,
-		Platform:                        snapshot.Platform,
-		Status:                          snapshot.Status,
-		Hydrated:                        true,
-		IsExclusive:                     snapshot.IsExclusive,
-		OwnerUserID:                     snapshot.OwnerUserID,
-		Scope:                           snapshot.Scope,
-		SubscriptionType:                snapshot.SubscriptionType,
-		RateMultiplier:                  snapshot.RateMultiplier,
-		DailyLimitUSD:                   snapshot.DailyLimitUSD,
-		WeeklyLimitUSD:                  snapshot.WeeklyLimitUSD,
-		MonthlyLimitUSD:                 snapshot.MonthlyLimitUSD,
-		AllowImageGeneration:            snapshot.AllowImageGeneration,
-		ImageRateIndependent:            snapshot.ImageRateIndependent,
-		ImageRateMultiplier:             snapshot.ImageRateMultiplier,
-		ImagePrice1K:                    snapshot.ImagePrice1K,
-		ImagePrice2K:                    snapshot.ImagePrice2K,
-		ImagePrice4K:                    snapshot.ImagePrice4K,
-		ClaudeCodeOnly:                  snapshot.ClaudeCodeOnly,
-		FallbackGroupID:                 snapshot.FallbackGroupID,
-		FallbackGroupIDOnInvalidRequest: snapshot.FallbackGroupIDOnInvalidRequest,
-		ModelRouting:                    snapshot.ModelRouting,
-		ModelRoutingEnabled:             snapshot.ModelRoutingEnabled,
-		MCPXMLInject:                    snapshot.MCPXMLInject,
-		SupportedModelScopes:            snapshot.SupportedModelScopes,
-		AllowMessagesDispatch:           snapshot.AllowMessagesDispatch,
-		DefaultMappedModel:              snapshot.DefaultMappedModel,
-		MessagesDispatchModelConfig:     snapshot.MessagesDispatchModelConfig,
-		ModelsListConfig:                snapshot.ModelsListConfig,
-		RPMLimit:                        snapshot.RPMLimit,
-		KiroCacheEmulationEnabled:       snapshot.KiroCacheEmulationEnabled,
-		KiroAutoStickyEnabled:           snapshot.KiroAutoStickyEnabled,
-		KiroStickySessionTTLSeconds:     snapshot.KiroStickySessionTTLSeconds,
-		KiroCacheEmulationRatio:         snapshot.KiroCacheEmulationRatio,
-		KiroEndpointMode:                snapshot.KiroEndpointMode,
-	}
-	normalizeKiroCacheEmulationFields(group)
-	return group
 }

@@ -12,10 +12,10 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 	_ "modernc.org/sqlite"
 
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/enttest"
 	"ikik-api/internal/payment"
-	"github.com/stretchr/testify/require"
 )
 
 // newOrderNotFoundTestClient wires an in-memory sqlite-backed ent.Client so

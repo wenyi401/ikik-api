@@ -6,6 +6,7 @@
       class="ui-icon-button"
       :class="[`ui-icon-button--${size}`, `ui-icon-button--${tone}`]"
       :aria-label="label"
+      :title="label"
     >
       <slot />
     </button>

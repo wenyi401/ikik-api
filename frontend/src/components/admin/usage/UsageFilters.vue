@@ -35,7 +35,12 @@
               @click="selectUser(u)"
               class="w-full rounded-md px-3 py-2 text-left hover:bg-[var(--app-surface-muted)]"
             >
-              <span>{{ u.email }}</span>
+              <span>
+                {{ u.email }}
+                <span v-if="u.deleted" class="ml-1 text-xs text-gray-400">
+                  ({{ t('admin.usage.userDeletedBadge') }})
+                </span>
+              </span>
               <span class="ml-2 text-xs text-gray-400">#{{ u.id }}</span>
             </button>
           </div>
@@ -168,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, toRef, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
@@ -184,10 +189,12 @@ interface Props {
   startDate: string
   endDate: string
   showActions?: boolean
+  modelOptions?: string[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  showActions: true
+  showActions: true,
+  modelOptions: () => []
 })
 const emit = defineEmits([
   'update:modelValue',
@@ -224,7 +231,10 @@ const accountResults = ref<SimpleAccount[]>([])
 const showAccountDropdown = ref(false)
 let accountSearchTimeout: ReturnType<typeof setTimeout> | null = null
 
-const modelOptions = ref<SelectOption[]>([{ value: null, label: t('admin.usage.allModels') }])
+const modelOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('admin.usage.allModels') },
+  ...props.modelOptions.map((model) => ({ value: model, label: model }))
+])
 const groupOptions = ref<SelectOption[]>([{ value: null, label: t('admin.usage.allGroups') }])
 
 const requestTypeOptions = ref<SelectOption[]>([
@@ -257,7 +267,8 @@ const debounceUserSearch = () => {
       return
     }
     try {
-      userResults.value = await adminAPI.usage.searchUsers(userKeyword.value)
+      const results = await adminAPI.usage.searchUsers(userKeyword.value)
+      userResults.value = results.sort((a, b) => Number(a.deleted) - Number(b.deleted))
     } catch {
       userResults.value = []
     }
@@ -424,24 +435,8 @@ onMounted(async () => {
   document.addEventListener('click', onDocumentClick)
 
   try {
-    const [gs, ms] = await Promise.all([
-      adminAPI.groups.list(1, 1000),
-      adminAPI.dashboard.getModelStats({ start_date: props.startDate, end_date: props.endDate })
-    ])
-
+    const gs = await adminAPI.groups.list(1, 1000)
     groupOptions.value.push(...gs.items.map((g: any) => ({ value: g.id, label: g.name })))
-
-    const uniqueModels = new Set<string>()
-    ms.models?.forEach((s: any) => {
-      if (s.model) {
-        uniqueModels.add(s.model)
-      }
-    })
-    modelOptions.value.push(
-      ...Array.from(uniqueModels)
-        .sort()
-        .map((m) => ({ value: m, label: m }))
-    )
   } catch {
     // Ignore filter option loading errors (page still usable)
   }

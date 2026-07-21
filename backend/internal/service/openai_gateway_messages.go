@@ -10,13 +10,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"ikik-api/internal/pkg/apicompat"
 	"ikik-api/internal/pkg/claude"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/openai_compat"
 	"ikik-api/internal/util/responseheaders"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 // ForwardAsAnthropic accepts an Anthropic Messages request body, converts it
@@ -161,6 +161,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			return nil, fmt.Errorf("unmarshal for codex transform: %w", err)
 		}
 		codexResult := applyCodexOAuthTransformWithOptions(reqBody, codexOAuthTransformOptions{
+			BlockConnectorTools:     s.codexBlockConnectorTools(),
 			SkipDefaultInstructions: true,
 			PreserveToolCallIDs:     true,
 		})

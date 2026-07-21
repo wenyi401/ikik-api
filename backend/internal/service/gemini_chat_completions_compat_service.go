@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"ikik-api/internal/pkg/apicompat"
 	"ikik-api/internal/pkg/geminicli"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/util/responseheaders"
-	"github.com/gin-gonic/gin"
 )
 
 // ForwardAsChatCompletions serves OpenAI Chat Completions clients through

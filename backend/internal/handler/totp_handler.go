@@ -182,7 +182,7 @@ func (h *TotpHandler) SendVerifyCode(c *gin.Context) {
 		return
 	}
 
-	if err := h.totpService.SendVerifyCode(c.Request.Context(), subject.UserID); err != nil {
+	if err := h.totpService.SendVerifyCode(c.Request.Context(), subject.UserID, c.GetHeader("Accept-Language")); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}

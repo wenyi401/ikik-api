@@ -18,6 +18,11 @@ func UserFromServiceShallow(u *service.User) *User {
 		Username:                   u.Username,
 		Role:                       u.Role,
 		Balance:                    u.Balance,
+		RechargeBalance:            u.RechargeBalance,
+		InviteIncomeBalance:        u.InviteIncomeBalance,
+		ShareIncomeBalance:         u.ShareIncomeBalance,
+		PointsBalance:              u.PointsBalance,
+		PreferPointsBilling:        u.PreferPointsBilling,
 		FrozenBalance:              u.FrozenBalance,
 		Concurrency:                u.Concurrency,
 		Status:                     u.Status,
@@ -30,6 +35,8 @@ func UserFromServiceShallow(u *service.User) *User {
 		BalanceNotifyThreshold:     u.BalanceNotifyThreshold,
 		BalanceNotifyExtraEmails:   NotifyEmailEntriesFromService(u.BalanceNotifyExtraEmails),
 		TotalRecharged:             u.TotalRecharged,
+		TotalInviteIncome:          u.TotalInviteIncome,
+		TotalShareIncome:           u.TotalShareIncome,
 		RPMLimit:                   u.RPMLimit,
 		DeletedAt:                  u.DeletedAt,
 	}
@@ -108,6 +115,7 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		User:               UserFromServiceShallow(k.User),
 		Group:              GroupFromServiceShallow(k.Group),
 	}
+	attachAPIKeyGroupRoutes(out, k)
 	if k.Window5hStart != nil && !service.IsWindowExpired(k.Window5hStart, service.RateLimitWindow5h) {
 		t := k.Window5hStart.Add(service.RateLimitWindow5h)
 		out.Reset5hAt = &t
@@ -222,10 +230,15 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		Name:                    a.Name,
 		Notes:                   a.Notes,
 		Platform:                a.Platform,
+		AccountLevel:            service.NormalizeAccountLevel(a.AccountLevel),
 		Type:                    a.Type,
 		Credentials:             redactedCreds,
 		CredentialsStatus:       credsStatus,
 		Extra:                   a.Extra,
+		OwnerUserID:             a.OwnerUserID,
+		ShareMode:               service.NormalizeAccountShareMode(a.ShareMode),
+		ShareStatus:             service.NormalizeAccountShareStatus(a.ShareStatus),
+		SharePolicyID:           a.SharePolicyID,
 		ProxyID:                 a.ProxyID,
 		ProxyFallbackOriginID:   a.ProxyFallbackOriginID,
 		ProxyFallbackOriginName: a.ProxyFallbackOriginName,

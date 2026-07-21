@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/pkg/xai"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/xai"
 )
 
 type grokOAuthClientStub struct {

@@ -12,7 +12,7 @@
         default-sort-key="created_at"
         default-sort-order="desc"
         @sort="onSort"
-        @rowClick="(row) => openDetail(row.id)"
+        @rowClick="onRowClick"
       >
         <template #cell-model="{ row }">
           <span v-if="row.model" class="text-sm font-medium text-gray-900 dark:text-white">{{ row.model }}</span>
@@ -198,6 +198,10 @@ const selectedId = ref<number | null>(null)
 function openDetail(id: number) {
   selectedId.value = id
   showDetail.value = true
+}
+
+function onRowClick(row: UserErrorRequest) {
+  openDetail(row.id)
 }
 
 const statusClass = statusCodeBadgeClass

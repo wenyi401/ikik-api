@@ -77,6 +77,8 @@ type User struct {
 	TotalShareIncome float64 `json:"total_share_income,omitempty"`
 	// RpmLimit holds the value of the "rpm_limit" field.
 	RpmLimit int `json:"rpm_limit,omitempty"`
+	// FrozenBalance holds the value of the "frozen_balance" field.
+	FrozenBalance float64 `json:"frozen_balance,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the UserQuery when eager-loading is set.
 	Edges        UserEdges `json:"edges"`
@@ -117,11 +119,13 @@ type UserEdges struct {
 	AuthIdentities []*AuthIdentity `json:"auth_identities,omitempty"`
 	// PendingAuthSessions holds the value of the pending_auth_sessions edge.
 	PendingAuthSessions []*PendingAuthSession `json:"pending_auth_sessions,omitempty"`
+	// PlatformQuotas holds the value of the platform_quotas edge.
+	PlatformQuotas []*UserPlatformQuota `json:"platform_quotas,omitempty"`
 	// UserAllowedGroups holds the value of the user_allowed_groups edge.
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [17]bool
+	loadedTypes [18]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -268,10 +272,19 @@ func (e UserEdges) PendingAuthSessionsOrErr() ([]*PendingAuthSession, error) {
 	return nil, &NotLoadedError{edge: "pending_auth_sessions"}
 }
 
+// PlatformQuotasOrErr returns the PlatformQuotas value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) PlatformQuotasOrErr() ([]*UserPlatformQuota, error) {
+	if e.loadedTypes[16] {
+		return e.PlatformQuotas, nil
+	}
+	return nil, &NotLoadedError{edge: "platform_quotas"}
+}
+
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[16] {
+	if e.loadedTypes[17] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
@@ -284,7 +297,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldPreferPointsBilling, user.FieldTotpEnabled, user.FieldBalanceNotifyEnabled:
 			values[i] = new(sql.NullBool)
-		case user.FieldBalance, user.FieldRechargeBalance, user.FieldInviteIncomeBalance, user.FieldShareIncomeBalance, user.FieldPointsBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged, user.FieldTotalInviteIncome, user.FieldTotalShareIncome:
+		case user.FieldBalance, user.FieldRechargeBalance, user.FieldInviteIncomeBalance, user.FieldShareIncomeBalance, user.FieldPointsBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged, user.FieldTotalInviteIncome, user.FieldTotalShareIncome, user.FieldFrozenBalance:
 			values[i] = new(sql.NullFloat64)
 		case user.FieldID, user.FieldConcurrency, user.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
@@ -499,6 +512,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.RpmLimit = int(value.Int64)
 			}
+		case user.FieldFrozenBalance:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field frozen_balance", values[i])
+			} else if value.Valid {
+				_m.FrozenBalance = value.Float64
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -590,6 +609,11 @@ func (_m *User) QueryAuthIdentities() *AuthIdentityQuery {
 // QueryPendingAuthSessions queries the "pending_auth_sessions" edge of the User entity.
 func (_m *User) QueryPendingAuthSessions() *PendingAuthSessionQuery {
 	return NewUserClient(_m.config).QueryPendingAuthSessions(_m)
+}
+
+// QueryPlatformQuotas queries the "platform_quotas" edge of the User entity.
+func (_m *User) QueryPlatformQuotas() *UserPlatformQuotaQuery {
+	return NewUserClient(_m.config).QueryPlatformQuotas(_m)
 }
 
 // QueryUserAllowedGroups queries the "user_allowed_groups" edge of the User entity.
@@ -721,6 +745,9 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("rpm_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RpmLimit))
+	builder.WriteString(", ")
+	builder.WriteString("frozen_balance=")
+	builder.WriteString(fmt.Sprintf("%v", _m.FrozenBalance))
 	builder.WriteByte(')')
 	return builder.String()
 }

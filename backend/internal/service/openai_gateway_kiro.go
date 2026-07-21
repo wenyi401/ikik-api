@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,6 +22,82 @@ import (
 
 func isKiroOAuthAccount(account *Account) bool {
 	return account != nil && account.Platform == PlatformKiro && account.Type == AccountTypeOAuth
+}
+
+func (s *OpenAIGatewayService) SetKiroTokenProvider(provider *KiroTokenProvider) {
+	if s != nil {
+		s.kiroTokenProvider = provider
+	}
+}
+
+func (s *OpenAIGatewayService) getKiroAccessToken(ctx context.Context, account *Account) (string, error) {
+	if s != nil && s.kiroTokenProvider != nil {
+		return s.kiroTokenProvider.GetAccessToken(ctx, account)
+	}
+	if account == nil {
+		return "", errors.New("kiro account is nil")
+	}
+	token := strings.TrimSpace(account.GetCredential("access_token"))
+	if token == "" {
+		return "", errors.New("access_token not found in credentials")
+	}
+	return token, nil
+}
+
+func (s *OpenAIGatewayService) forwardKiroOAuthChatFromResponses(
+	ctx context.Context,
+	c *gin.Context,
+	account *Account,
+	responsesReq *apicompat.ResponsesRequest,
+	originalBody []byte,
+	originalModel string,
+	billingModel string,
+	upstreamModel string,
+	clientStream bool,
+	startTime time.Time,
+) (*OpenAIForwardResult, error) {
+	if responsesReq == nil {
+		return nil, fmt.Errorf("convert chat completions to kiro: responses request is nil")
+	}
+	anthropicReq, err := apicompat.ResponsesToAnthropicRequest(responsesReq)
+	if err != nil {
+		return nil, fmt.Errorf("convert responses to kiro anthropic: %w", err)
+	}
+	anthropicReq.Model = billingModel
+	// Kiro runtime always streams upstream. The existing bridge buffers when the
+	// downstream client requested a non-streaming Chat Completions response.
+	anthropicReq.Stream = true
+	anthropicBody, err := json.Marshal(anthropicReq)
+	if err != nil {
+		return nil, fmt.Errorf("marshal kiro anthropic request: %w", err)
+	}
+
+	reasoningEffort := extractCCReasoningEffortFromBody(originalBody)
+	if reasoningEffort == nil && responsesReq.Reasoning != nil && responsesReq.Reasoning.Effort != "" {
+		effort := responsesReq.Reasoning.Effort
+		reasoningEffort = &effort
+	}
+	result, err := s.forwardKiroOAuthAsChatCompletions(
+		ctx,
+		c,
+		account,
+		anthropicBody,
+		originalModel,
+		billingModel,
+		upstreamModel,
+		clientStream,
+		true,
+		reasoningEffort,
+		startTime,
+	)
+	if err == nil && result != nil {
+		if responsesReq.ServiceTier != "" {
+			serviceTier := responsesReq.ServiceTier
+			result.ServiceTier = &serviceTier
+		}
+		result.ReasoningEffort = reasoningEffort
+	}
+	return result, err
 }
 
 func normalizeKiroRuntimeModel(model string) string {
@@ -55,7 +132,7 @@ func (s *OpenAIGatewayService) sendKiroOAuthRuntimeRequest(
 	anthropicBody []byte,
 	upstreamModel string,
 ) (*http.Response, *kiro.KiroBuildResult, error) {
-	token, _, err := s.GetAccessToken(ctx, account)
+	token, err := s.getKiroAccessToken(ctx, account)
 	token = strings.TrimSpace(token)
 	if err != nil || token == "" {
 		if err != nil {
@@ -77,15 +154,41 @@ func (s *OpenAIGatewayService) sendKiroOAuthRuntimeRequest(
 	}
 	accountKey := buildKiroAccountKey(account)
 	endpoint := endpoints[0]
-	req, err := newKiroJSONRequest(ctx, endpoint.URL, buildResult.Payload, token, accountKey, buildKiroMachineID(account), endpoint.AmzTarget, account)
-	if err != nil {
-		return nil, nil, fmt.Errorf("create kiro request: %w", err)
-	}
-	resp, err := s.httpUpstream.Do(req, kiroProxyURL(account), account.ID, account.Concurrency)
+	resp, err := s.doOpenAICompatibleKiroRequest(ctx, account, endpoint, buildResult.Payload, token, accountKey)
 	if err != nil {
 		return nil, nil, err
 	}
+	if s.kiroTokenProvider != nil && resp != nil && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) {
+		respBody := s.readUpstreamErrorBody(resp)
+		_ = resp.Body.Close()
+		resp.Body = io.NopCloser(bytes.NewReader(respBody))
+		if resp.StatusCode == http.StatusUnauthorized || isKiroTokenErrorBody(respBody) {
+			refreshedToken, refreshErr := s.kiroTokenProvider.ForceRefreshAccessToken(ctx, account)
+			if refreshErr == nil && strings.TrimSpace(refreshedToken) != "" {
+				_ = resp.Body.Close()
+				resp, err = s.doOpenAICompatibleKiroRequest(ctx, account, endpoint, buildResult.Payload, refreshedToken, accountKey)
+				if err != nil {
+					return nil, nil, err
+				}
+			}
+		}
+	}
 	return resp, buildResult, nil
+}
+
+func (s *OpenAIGatewayService) doOpenAICompatibleKiroRequest(
+	ctx context.Context,
+	account *Account,
+	endpoint kiroEndpointConfig,
+	payload []byte,
+	token string,
+	accountKey string,
+) (*http.Response, error) {
+	req, err := newKiroJSONRequest(ctx, endpoint.URL, payload, token, accountKey, buildKiroMachineID(account), endpoint.AmzTarget, account)
+	if err != nil {
+		return nil, fmt.Errorf("create kiro request: %w", err)
+	}
+	return s.httpUpstream.Do(req, kiroProxyURL(account), account.ID, account.Concurrency)
 }
 
 func gjsonModel(body []byte) string {
@@ -255,9 +358,9 @@ func (s *OpenAIGatewayService) forwardKiroOAuthAsChatCompletions(
 	var result *OpenAIForwardResult
 	var handleErr error
 	if clientStream {
-		result, handleErr = s.handleChatStreamingResponse(&convertedResp, c, originalModel, billingModel, normalizeKiroRuntimeModel(upstreamModel), includeUsage, startTime)
+		result, handleErr = s.handleChatStreamingResponse(&convertedResp, c, account, originalModel, billingModel, normalizeKiroRuntimeModel(upstreamModel), startTime, len(anthropicBody))
 	} else {
-		result, handleErr = s.handleChatBufferedStreamingResponse(&convertedResp, c, originalModel, billingModel, normalizeKiroRuntimeModel(upstreamModel), startTime)
+		result, handleErr = s.handleChatBufferedStreamingResponse(&convertedResp, c, account, originalModel, billingModel, normalizeKiroRuntimeModel(upstreamModel), startTime)
 	}
 	if handleErr == nil && result != nil && reasoningEffort != nil {
 		result.ReasoningEffort = reasoningEffort

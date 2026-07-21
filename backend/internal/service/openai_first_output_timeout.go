@@ -15,8 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"ikik-api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"ikik-api/internal/pkg/logger"
 )
 
 const (

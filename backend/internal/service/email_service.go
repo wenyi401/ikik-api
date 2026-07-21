@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"fmt"
+	"html"
 	"log/slog"
 	"math/big"
 	"net"
@@ -94,8 +95,9 @@ type SMTPConfig struct {
 
 // EmailService 邮件服务
 type EmailService struct {
-	settingRepo SettingRepository
-	cache       EmailCache
+	settingRepo              SettingRepository
+	cache                    EmailCache
+	notificationEmailService *NotificationEmailService
 }
 
 // NewEmailService 创建邮件服务实例
@@ -104,6 +106,28 @@ func NewEmailService(settingRepo SettingRepository, cache EmailCache) *EmailServ
 		settingRepo: settingRepo,
 		cache:       cache,
 	}
+}
+
+func (s *EmailService) SetNotificationEmailService(notificationEmailService *NotificationEmailService) {
+	s.notificationEmailService = notificationEmailService
+}
+
+func firstEmailLocale(locales []string) string {
+	if len(locales) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(locales[0])
+}
+
+func emailRecipientName(email string) string {
+	trimmed := strings.TrimSpace(email)
+	if trimmed == "" {
+		return ""
+	}
+	if at := strings.Index(trimmed, "@"); at > 0 {
+		return trimmed[:at]
+	}
+	return trimmed
 }
 
 // GetSMTPConfig 从数据库获取SMTP配置
@@ -160,32 +184,19 @@ func (s *EmailService) SendEmail(ctx context.Context, to, subject, body string) 
 const smtpDialTimeout = 10 * time.Second
 const smtpIOTimeout = 20 * time.Second
 
-// SendEmailWithConfig 使用指定配置发送邮件 (默认 text/html 内容类型，保持向后兼容).
+// SendEmailWithConfig 使用指定配置发送邮件
 func (s *EmailService) SendEmailWithConfig(config *SMTPConfig, to, subject, body string) error {
-	return s.SendEmailWithConfigAndContentType(config, to, subject, body, "text/html; charset=UTF-8")
-}
-
-// SendEmailWithConfigAndContentType 允许调用方指定 MIME Content-Type，
-// 例如 "text/plain; charset=UTF-8" 用于纯文本邮件。
-//
-// SendEmailWithConfigAndContentType lets callers pick the MIME content type
-// (e.g. "text/plain; charset=UTF-8" for plain-text mails).
-func (s *EmailService) SendEmailWithConfigAndContentType(config *SMTPConfig, to, subject, body, contentType string) error {
 	// Sanitize all SMTP header fields to prevent header injection (CR/LF removal).
 	to = sanitizeEmailHeader(to)
 	subject = sanitizeEmailHeader(subject)
-	contentType = sanitizeEmailHeader(contentType)
-	if contentType == "" {
-		contentType = "text/html; charset=UTF-8"
-	}
 
 	from := sanitizeEmailHeader(config.From)
 	if config.FromName != "" {
 		from = fmt.Sprintf("%s <%s>", sanitizeEmailHeader(config.FromName), sanitizeEmailHeader(config.From))
 	}
 
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: %s\r\n\r\n%s",
-		from, to, subject, contentType, body)
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		from, to, subject, body)
 
 	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
 	auth := smtp.PlainAuth("", config.Username, config.Password, config.Host)
@@ -314,7 +325,7 @@ func (s *EmailService) GenerateVerifyCode() (string, error) {
 }
 
 // SendVerifyCode 发送验证码邮件
-func (s *EmailService) SendVerifyCode(ctx context.Context, email, siteName string) error {
+func (s *EmailService) SendVerifyCode(ctx context.Context, email, siteName string, locale ...string) error {
 	// 检查是否在冷却期内
 	existing, err := s.cache.GetVerificationCode(ctx, email)
 	if err == nil && existing != nil {
@@ -338,6 +349,26 @@ func (s *EmailService) SendVerifyCode(ctx context.Context, email, siteName strin
 	}
 	if err := s.cache.SetVerificationCode(ctx, email, data, verifyCodeTTL); err != nil {
 		return fmt.Errorf("save verify code: %w", err)
+	}
+
+	if s.notificationEmailService != nil {
+		err := s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
+			Event:          NotificationEmailEventAuthVerifyCode,
+			Locale:         firstEmailLocale(locale),
+			RecipientEmail: email,
+			RecipientName:  emailRecipientName(email),
+			Variables: map[string]string{
+				"verification_code":  code,
+				"expires_in_minutes": strconv.Itoa(int(verifyCodeTTL / time.Minute)),
+			},
+		})
+		if err == nil {
+			return nil
+		}
+		if !shouldFallbackNotificationEmail(err) {
+			return err
+		}
+		slog.Warn("failed to send templated verification email, falling back to legacy template", "recipient_hash", notificationEmailHash(email), "error", err)
 	}
 
 	// 构建邮件内容
@@ -395,14 +426,14 @@ func (s *EmailService) buildVerifyCodeEmailBody(code, siteName string) string {
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background-color: #f7f7f8; margin: 0; padding: 20px; color: #202123; }
-        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; }
-        .header { background: #ffffff; color: #0d0d0d; padding: 28px 30px; text-align: left; border-bottom: 1px solid #e5e5e5; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 30px; text-align: center; }
         .header h1 { margin: 0; font-size: 24px; }
         .content { padding: 40px 30px; text-align: center; }
-        .code { font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #0d0d0d; background-color: #f7f7f8; border: 1px solid #e5e5e5; padding: 20px 30px; border-radius: 8px; display: inline-block; margin: 20px 0; font-family: monospace; }
-        .info { color: #6e6e80; font-size: 14px; line-height: 1.6; margin-top: 20px; }
-        .footer { background-color: #ffffff; padding: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6e6e80; font-size: 12px; }
+        .code { font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #333; background-color: #f8f9fa; padding: 20px 30px; border-radius: 8px; display: inline-block; margin: 20px 0; font-family: monospace; }
+        .info { color: #666; font-size: 14px; line-height: 1.6; margin-top: 20px; }
+        .footer { background-color: #f8f9fa; padding: 20px; text-align: center; color: #999; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -411,7 +442,7 @@ func (s *EmailService) buildVerifyCodeEmailBody(code, siteName string) string {
             <h1>%s</h1>
         </div>
         <div class="content">
-            <p style="font-size: 18px; color: #202123;">Your verification code is:</p>
+            <p style="font-size: 18px; color: #333;">Your verification code is:</p>
             <div class="code">%s</div>
             <div class="info">
                 <p>This code will expire in <strong>15 minutes</strong>.</p>
@@ -424,7 +455,7 @@ func (s *EmailService) buildVerifyCodeEmailBody(code, siteName string) string {
     </div>
 </body>
 </html>
-`, siteName, code)
+`, html.EscapeString(siteName), code)
 }
 
 // TestSMTPConnectionWithConfig 使用指定配置测试SMTP连接
@@ -482,7 +513,7 @@ func (s *EmailService) GeneratePasswordResetToken() (string, error) {
 }
 
 // SendPasswordResetEmail sends a password reset email with a reset link
-func (s *EmailService) SendPasswordResetEmail(ctx context.Context, email, siteName, resetURL string) error {
+func (s *EmailService) SendPasswordResetEmail(ctx context.Context, email, siteName, resetURL string, locale ...string) error {
 	var token string
 	var needSaveToken bool
 
@@ -515,6 +546,26 @@ func (s *EmailService) SendPasswordResetEmail(ctx context.Context, email, siteNa
 	// Build full reset URL with URL-encoded token and email
 	fullResetURL := fmt.Sprintf("%s?email=%s&token=%s", resetURL, url.QueryEscape(email), url.QueryEscape(token))
 
+	if s.notificationEmailService != nil {
+		err := s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
+			Event:          NotificationEmailEventAuthPasswordReset,
+			Locale:         firstEmailLocale(locale),
+			RecipientEmail: email,
+			RecipientName:  emailRecipientName(email),
+			Variables: map[string]string{
+				"reset_url":          fullResetURL,
+				"expires_in_minutes": strconv.Itoa(int(passwordResetTokenTTL / time.Minute)),
+			},
+		})
+		if err == nil {
+			return nil
+		}
+		if !shouldFallbackNotificationEmail(err) {
+			return err
+		}
+		slog.Warn("failed to send templated password reset email, falling back to legacy template", "recipient_hash", notificationEmailHash(email), "error", err)
+	}
+
 	// Build email content
 	subject := fmt.Sprintf("[%s] 密码重置请求", siteName)
 	body := s.buildPasswordResetEmailBody(fullResetURL, siteName)
@@ -529,7 +580,7 @@ func (s *EmailService) SendPasswordResetEmail(ctx context.Context, email, siteNa
 
 // SendPasswordResetEmailWithCooldown sends password reset email with cooldown check (called by queue worker)
 // This method wraps SendPasswordResetEmail with email cooldown to prevent email bombing
-func (s *EmailService) SendPasswordResetEmailWithCooldown(ctx context.Context, email, siteName, resetURL string) error {
+func (s *EmailService) SendPasswordResetEmailWithCooldown(ctx context.Context, email, siteName, resetURL string, locale ...string) error {
 	// Check email cooldown to prevent email bombing
 	if s.cache.IsPasswordResetEmailInCooldown(ctx, email) {
 		slog.Info("password reset email skipped due to cooldown", "email", email)
@@ -537,7 +588,7 @@ func (s *EmailService) SendPasswordResetEmailWithCooldown(ctx context.Context, e
 	}
 
 	// Send email using core method
-	if err := s.SendPasswordResetEmail(ctx, email, siteName, resetURL); err != nil {
+	if err := s.SendPasswordResetEmail(ctx, email, siteName, resetURL, firstEmailLocale(locale)); err != nil {
 		return err
 	}
 
@@ -586,17 +637,17 @@ func (s *EmailService) buildPasswordResetEmailBody(resetURL, siteName string) st
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background-color: #f7f7f8; margin: 0; padding: 20px; color: #202123; }
-        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; }
-        .header { background: #ffffff; color: #0d0d0d; padding: 28px 30px; text-align: left; border-bottom: 1px solid #e5e5e5; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 30px; text-align: center; }
         .header h1 { margin: 0; font-size: 24px; }
         .content { padding: 40px 30px; text-align: center; }
-        .button { display: inline-block; background: #0d0d0d; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600; margin: 20px 0; }
+        .button { display: inline-block; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600; margin: 20px 0; }
         .button:hover { opacity: 0.9; }
-        .info { color: #6e6e80; font-size: 14px; line-height: 1.6; margin-top: 20px; }
-        .link-fallback { color: #6e6e80; font-size: 12px; word-break: break-all; margin-top: 20px; padding: 15px; background-color: #f7f7f8; border: 1px solid #e5e5e5; border-radius: 8px; }
-        .footer { background-color: #ffffff; padding: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6e6e80; font-size: 12px; }
-        .warning { color: #dc2626; font-weight: 500; }
+        .info { color: #666; font-size: 14px; line-height: 1.6; margin-top: 20px; }
+        .link-fallback { color: #666; font-size: 12px; word-break: break-all; margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 4px; }
+        .footer { background-color: #f8f9fa; padding: 20px; text-align: center; color: #999; font-size: 12px; }
+        .warning { color: #e74c3c; font-weight: 500; }
     </style>
 </head>
 <body>
@@ -605,8 +656,8 @@ func (s *EmailService) buildPasswordResetEmailBody(resetURL, siteName string) st
             <h1>%s</h1>
         </div>
         <div class="content">
-            <p style="font-size: 18px; color: #202123;">密码重置请求</p>
-            <p style="color: #6e6e80;">您已请求重置密码。请点击下方按钮设置新密码：</p>
+            <p style="font-size: 18px; color: #333;">密码重置请求</p>
+            <p style="color: #666;">您已请求重置密码。请点击下方按钮设置新密码：</p>
             <a href="%s" class="button">重置密码</a>
             <div class="info">
                 <p>此链接将在 <strong>30 分钟</strong>后失效。</p>
@@ -623,5 +674,5 @@ func (s *EmailService) buildPasswordResetEmailBody(resetURL, siteName string) st
     </div>
 </body>
 </html>
-`, siteName, resetURL, resetURL)
+`, html.EscapeString(siteName), html.EscapeString(resetURL), html.EscapeString(resetURL))
 }

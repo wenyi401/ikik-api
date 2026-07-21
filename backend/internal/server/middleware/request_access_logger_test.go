@@ -8,9 +8,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"ikik-api/internal/pkg/ctxkey"
 	"ikik-api/internal/pkg/logger"
-	"github.com/gin-gonic/gin"
 )
 
 type testLogSink struct {
@@ -45,7 +45,7 @@ func initMiddlewareTestLoggerWithLevel(t *testing.T, level string) *testLogSink 
 	if err := logger.Init(logger.InitOptions{
 		Level:       level,
 		Format:      "json",
-		ServiceName: "ikik-api",
+		ServiceName: "sub2api",
 		Environment: "test",
 		Output: logger.OutputOptions{
 			ToStdout: false,
@@ -178,6 +178,37 @@ func TestLogger_AccessLogIncludesCoreFields(t *testing.T) {
 	if !found {
 		t.Fatalf("access log event not found")
 	}
+}
+
+func TestLogger_AccessLogUsesForwardedClientIP(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	sink := initMiddlewareTestLogger(t)
+
+	r := gin.New()
+	r.Use(Logger())
+	r.GET("/api/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+	req.RemoteAddr = "104.23.251.120:443"
+	req.Header.Set("CF-Connecting-IP", "203.0.113.42")
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d", w.Code)
+	}
+
+	for _, event := range sink.list() {
+		if event == nil || event.Message != "http request completed" {
+			continue
+		}
+		if got := event.Fields["client_ip"]; got != "203.0.113.42" {
+			t.Fatalf("client_ip=%q, want real forwarded ip", got)
+		}
+		return
+	}
+	t.Fatalf("access log event not found")
 }
 
 func TestLogger_HealthPathSkipped(t *testing.T) {

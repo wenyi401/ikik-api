@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"ikik-api/internal/pkg/httpclient"
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/nacl/box"
+	"ikik-api/internal/pkg/httpclient"
 )
 
 const (

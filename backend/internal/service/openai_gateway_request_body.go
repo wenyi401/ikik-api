@@ -9,12 +9,12 @@ import (
 	"net/http"
 	"strings"
 
-	"ikik-api/internal/pkg/ctxkey"
-	"ikik-api/internal/util/urlvalidator"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"ikik-api/internal/pkg/ctxkey"
+	"ikik-api/internal/util/urlvalidator"
 )
 
 func (s *OpenAIGatewayService) validateUpstreamBaseURL(raw string) (string, error) {

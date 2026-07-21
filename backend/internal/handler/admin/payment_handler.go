@@ -2,9 +2,9 @@ package admin
 
 import (
 	"strconv"
+	"time"
 
 	dbent "ikik-api/ent"
-	"ikik-api/internal/payment"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/service"
 
@@ -84,16 +84,7 @@ func (h *PaymentHandler) GetOrderDetail(c *gin.Context) {
 		return
 	}
 	auditLogs, _ := h.paymentService.GetOrderAuditLogs(c.Request.Context(), orderID)
-	payload := gin.H{"order": sanitizeAdminPaymentOrderForResponse(order), "auditLogs": auditLogs}
-	if order.OrderType == payment.OrderTypeShop && order.ShopOrderID != nil {
-		shopOrder, err := h.paymentService.GetShopOrderForPaymentOrder(c.Request.Context(), order)
-		if err != nil {
-			response.ErrorFrom(c, err)
-			return
-		}
-		payload["shop_order"] = shopOrder
-	}
-	response.Success(c, payload)
+	response.Success(c, gin.H{"order": sanitizeAdminPaymentOrderForResponse(order), "auditLogs": auditLogs})
 }
 
 // CancelOrder cancels a pending order (admin).
@@ -125,43 +116,105 @@ func (h *PaymentHandler) RetryFulfillment(c *gin.Context) {
 	response.Success(c, gin.H{"message": "fulfillment retried"})
 }
 
-// ManualFulfillOrder marks an externally verified order as paid and executes fulfillment.
-// POST /api/v1/admin/payment/orders/:id/manual-fulfill
-func (h *PaymentHandler) ManualFulfillOrder(c *gin.Context) {
-	orderID, ok := parseIDParam(c, "id")
-	if !ok {
-		return
-	}
-	var req service.AdminManualFulfillmentRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-	if err := h.paymentService.AdminManualFulfillOrder(c.Request.Context(), orderID, req); err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, gin.H{"message": "manual fulfillment completed"})
+type AdminPaymentOrderResult struct {
+	ID                  int64      `json:"id"`
+	UserID              int64      `json:"user_id"`
+	UserEmail           string     `json:"user_email,omitempty"`
+	UserName            string     `json:"user_name,omitempty"`
+	UserNotes           *string    `json:"user_notes,omitempty"`
+	Amount              float64    `json:"amount"`
+	PayAmount           float64    `json:"pay_amount"`
+	FeeRate             float64    `json:"fee_rate"`
+	Currency            string     `json:"currency"`
+	RechargeCode        string     `json:"recharge_code,omitempty"`
+	OutTradeNo          string     `json:"out_trade_no"`
+	PaymentType         string     `json:"payment_type"`
+	PaymentTradeNo      string     `json:"payment_trade_no,omitempty"`
+	PayURL              *string    `json:"pay_url,omitempty"`
+	QRCode              *string    `json:"qr_code,omitempty"`
+	QRCodeImg           *string    `json:"qr_code_img,omitempty"`
+	OrderType           string     `json:"order_type"`
+	PlanID              *int64     `json:"plan_id,omitempty"`
+	SubscriptionGroupID *int64     `json:"subscription_group_id,omitempty"`
+	SubscriptionDays    *int       `json:"subscription_days,omitempty"`
+	ProviderInstanceID  *string    `json:"provider_instance_id,omitempty"`
+	ProviderKey         *string    `json:"provider_key,omitempty"`
+	Status              string     `json:"status"`
+	RefundAmount        float64    `json:"refund_amount"`
+	RefundReason        *string    `json:"refund_reason,omitempty"`
+	RefundAt            *time.Time `json:"refund_at,omitempty"`
+	ForceRefund         bool       `json:"force_refund,omitempty"`
+	RefundRequestedAt   *time.Time `json:"refund_requested_at,omitempty"`
+	RefundRequestReason *string    `json:"refund_request_reason,omitempty"`
+	RefundRequestedBy   *string    `json:"refund_requested_by,omitempty"`
+	ExpiresAt           time.Time  `json:"expires_at"`
+	PaidAt              *time.Time `json:"paid_at,omitempty"`
+	CompletedAt         *time.Time `json:"completed_at,omitempty"`
+	FailedAt            *time.Time `json:"failed_at,omitempty"`
+	FailedReason        *string    `json:"failed_reason,omitempty"`
+	ClientIP            string     `json:"client_ip,omitempty"`
+	SrcHost             string     `json:"src_host,omitempty"`
+	SrcURL              *string    `json:"src_url,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 
-func sanitizeAdminPaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*dbent.PaymentOrder {
-	if len(orders) == 0 {
-		return orders
-	}
-	out := make([]*dbent.PaymentOrder, 0, len(orders))
+func sanitizeAdminPaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*AdminPaymentOrderResult {
+	out := make([]*AdminPaymentOrderResult, 0, len(orders))
 	for _, order := range orders {
-		out = append(out, sanitizeAdminPaymentOrderForResponse(order))
+		if item := sanitizeAdminPaymentOrderForResponse(order); item != nil {
+			out = append(out, item)
+		}
 	}
 	return out
 }
 
-func sanitizeAdminPaymentOrderForResponse(order *dbent.PaymentOrder) *dbent.PaymentOrder {
+func sanitizeAdminPaymentOrderForResponse(order *dbent.PaymentOrder) *AdminPaymentOrderResult {
 	if order == nil {
 		return nil
 	}
-	cloned := *order
-	cloned.ProviderSnapshot = nil
-	return &cloned
+	return &AdminPaymentOrderResult{
+		ID:                  order.ID,
+		UserID:              order.UserID,
+		UserEmail:           order.UserEmail,
+		UserName:            order.UserName,
+		UserNotes:           order.UserNotes,
+		Amount:              order.Amount,
+		PayAmount:           order.PayAmount,
+		FeeRate:             order.FeeRate,
+		Currency:            service.PaymentOrderCurrency(order),
+		RechargeCode:        order.RechargeCode,
+		OutTradeNo:          order.OutTradeNo,
+		PaymentType:         order.PaymentType,
+		PaymentTradeNo:      order.PaymentTradeNo,
+		PayURL:              order.PayURL,
+		QRCode:              order.QrCode,
+		QRCodeImg:           order.QrCodeImg,
+		OrderType:           order.OrderType,
+		PlanID:              order.PlanID,
+		SubscriptionGroupID: order.SubscriptionGroupID,
+		SubscriptionDays:    order.SubscriptionDays,
+		ProviderInstanceID:  order.ProviderInstanceID,
+		ProviderKey:         order.ProviderKey,
+		Status:              order.Status,
+		RefundAmount:        order.RefundAmount,
+		RefundReason:        order.RefundReason,
+		RefundAt:            order.RefundAt,
+		ForceRefund:         order.ForceRefund,
+		RefundRequestedAt:   order.RefundRequestedAt,
+		RefundRequestReason: order.RefundRequestReason,
+		RefundRequestedBy:   order.RefundRequestedBy,
+		ExpiresAt:           order.ExpiresAt,
+		PaidAt:              order.PaidAt,
+		CompletedAt:         order.CompletedAt,
+		FailedAt:            order.FailedAt,
+		FailedReason:        order.FailedReason,
+		ClientIP:            order.ClientIP,
+		SrcHost:             order.SrcHost,
+		SrcURL:              order.SrcURL,
+		CreatedAt:           order.CreatedAt,
+		UpdatedAt:           order.UpdatedAt,
+	}
 }
 
 // AdminProcessRefundRequest is the request body for admin refund processing.
@@ -204,13 +257,14 @@ func (h *PaymentHandler) ProcessRefund(c *gin.Context) {
 	response.Success(c, result)
 }
 
-// QueryAndFinalizeRefund queries a pending upstream refund and finalizes the local order when possible.
+// QueryAndFinalizeRefund queries the provider refund status and finalizes a pending refund.
 // POST /api/v1/admin/payment/orders/:id/refund/query
 func (h *PaymentHandler) QueryAndFinalizeRefund(c *gin.Context) {
 	orderID, ok := parseIDParam(c, "id")
 	if !ok {
 		return
 	}
+
 	result, err := h.paymentService.QueryAndFinalizeRefund(c.Request.Context(), orderID)
 	if err != nil {
 		response.ErrorFrom(c, err)

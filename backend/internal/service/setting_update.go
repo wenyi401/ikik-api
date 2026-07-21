@@ -54,6 +54,12 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	if err := s.validateDefaultSubscriptionGroups(ctx, settings.DefaultSubscriptions); err != nil {
 		return nil, err
 	}
+	if settings.HomeStatsGroupID < 0 {
+		settings.HomeStatsGroupID = 0
+	}
+	if err := s.validateHomeStatsGroup(ctx, settings.HomeStatsGroupID); err != nil {
+		return nil, err
+	}
 	normalizedWhitelist, err := NormalizeRegistrationEmailSuffixWhitelist(settings.RegistrationEmailSuffixWhitelist)
 	if err != nil {
 		return nil, infraerrors.BadRequest("INVALID_REGISTRATION_EMAIL_SUFFIX_WHITELIST", err.Error())
@@ -260,6 +266,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyContactInfo] = settings.ContactInfo
 	updates[SettingKeyDocURL] = settings.DocURL
 	updates[SettingKeyHomeContent] = settings.HomeContent
+	updates[SettingKeyHomeStatsGroupID] = strconv.FormatInt(settings.HomeStatsGroupID, 10)
 	updates[SettingKeyHideCcsImportButton] = strconv.FormatBool(settings.HideCcsImportButton)
 	updates[SettingKeyPurchaseSubscriptionEnabled] = strconv.FormatBool(settings.PurchaseSubscriptionEnabled)
 	updates[SettingKeyPurchaseSubscriptionURL] = strings.TrimSpace(settings.PurchaseSubscriptionURL)
@@ -301,6 +308,22 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyAffiliateRebatePerInviteeCap] = strconv.FormatFloat(settings.AffiliateRebatePerInviteeCap, 'f', 8, 64)
 	updates[SettingKeyAffiliateAdminRechargeEnabled] = strconv.FormatBool(settings.AdminRechargeRebateEnabled)
 	updates[SettingKeyDefaultUserRPMLimit] = strconv.Itoa(settings.DefaultUserRPMLimit)
+	updates[SettingKeyUserPrivateGroupDailyLimitUSD] = formatPositiveOptionalFloat(settings.UserPrivateGroupDailyLimitUSD)
+	updates[SettingKeyUserPrivateGroupWeeklyLimitUSD] = formatPositiveOptionalFloat(settings.UserPrivateGroupWeeklyLimitUSD)
+	updates[SettingKeyUserPrivateGroupMonthlyLimitUSD] = formatPositiveOptionalFloat(settings.UserPrivateGroupMonthlyLimitUSD)
+	if settings.UserPrivateGroupRateMultiplier <= 0 || math.IsNaN(settings.UserPrivateGroupRateMultiplier) || math.IsInf(settings.UserPrivateGroupRateMultiplier, 0) {
+		settings.UserPrivateGroupRateMultiplier = 1
+	}
+	updates[SettingKeyUserPrivateGroupRateMultiplier] = strconv.FormatFloat(settings.UserPrivateGroupRateMultiplier, 'f', 8, 64)
+	if settings.UserPrivateGroupRPMLimit < 0 {
+		settings.UserPrivateGroupRPMLimit = 0
+	}
+	updates[SettingKeyUserPrivateGroupRPMLimit] = strconv.Itoa(settings.UserPrivateGroupRPMLimit)
+	if settings.UserPrivateGroupCommissionRate < 0 || math.IsNaN(settings.UserPrivateGroupCommissionRate) || math.IsInf(settings.UserPrivateGroupCommissionRate, 0) {
+		settings.UserPrivateGroupCommissionRate = 0
+	}
+	settings.UserPrivateGroupCommissionRate = math.Min(settings.UserPrivateGroupCommissionRate, 1)
+	updates[SettingKeyUserPrivateGroupCommissionRate] = strconv.FormatFloat(settings.UserPrivateGroupCommissionRate, 'f', 8, 64)
 	defaultSubsJSON, err := json.Marshal(settings.DefaultSubscriptions)
 	if err != nil {
 		return nil, fmt.Errorf("marshal default subscriptions: %w", err)
@@ -334,6 +357,17 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 
 	// Available channels feature switch
 	updates[SettingKeyAvailableChannelsEnabled] = strconv.FormatBool(settings.AvailableChannelsEnabled)
+	updates[SettingKeyFreeModelsEnabled] = strconv.FormatBool(settings.FreeModelsEnabled)
+	settings.AutoModelSettings = NormalizeAutoModelSettings(settings.AutoModelSettings)
+	autoModelSettingsJSON, err := json.Marshal(settings.AutoModelSettings)
+	if err != nil {
+		return nil, fmt.Errorf("marshal auto model settings: %w", err)
+	}
+	updates[SettingKeyAutoModelSettings] = string(autoModelSettingsJSON)
+	updates[SettingKeyCarpoolEnabled] = strconv.FormatBool(settings.CarpoolEnabled)
+	updates[SettingKeyCarpoolBaseServiceFeeUSD] = formatNonNegativeSettingFloat(settings.CarpoolBaseServiceFeeUSD, CarpoolBaseServiceFeeUSDDefault)
+	updates[SettingKeyCarpoolSystemProxyFeeUSD] = formatNonNegativeSettingFloat(settings.CarpoolSystemProxyFeeUSD, CarpoolSystemProxyFeeUSDDefault)
+	updates[SettingKeyCarpoolRiskControlFeeUSD] = formatNonNegativeSettingFloat(settings.CarpoolRiskControlFeeUSD, CarpoolRiskControlFeeUSDDefault)
 
 	// Affiliate (邀请返利) feature switch
 	updates[SettingKeyAffiliateEnabled] = strconv.FormatBool(settings.AffiliateEnabled)
@@ -368,6 +402,18 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 	updates[SettingKeyClaudeOAuthSystemPromptBlocks] = settings.ClaudeOAuthSystemPromptBlocks
 	updates[SettingKeyEnableAnthropicCacheTTL1hInjection] = strconv.FormatBool(settings.EnableAnthropicCacheTTL1hInjection)
+	openAIImagesResponsesReasoningEffort := strings.TrimSpace(settings.OpenAIImagesResponsesReasoningEffort)
+	if openAIImagesResponsesReasoningEffort == "" {
+		openAIImagesResponsesReasoningEffort = s.defaultOpenAIImagesResponsesReasoningEffort()
+	}
+	if !IsValidOpenAIImagesResponsesReasoningEffort(openAIImagesResponsesReasoningEffort) {
+		return nil, infraerrors.BadRequest(
+			"INVALID_OPENAI_IMAGES_RESPONSES_REASONING_EFFORT",
+			"openai_images_responses_reasoning_effort must be one of: low, medium, high, xhigh",
+		)
+	}
+	settings.OpenAIImagesResponsesReasoningEffort = NormalizeOpenAIImagesResponsesReasoningEffort(openAIImagesResponsesReasoningEffort)
+	updates[SettingKeyOpenAIImagesResponsesReasoningEffort] = settings.OpenAIImagesResponsesReasoningEffort
 	updates[SettingKeyRewriteMessageCacheControl] = strconv.FormatBool(settings.RewriteMessageCacheControl)
 	updates[SettingKeyEnableClientDatelineNormalization] = strconv.FormatBool(settings.EnableClientDatelineNormalization)
 	updates[SettingKeyAntigravityUserAgentVersion] = antigravity.NormalizeUserAgentVersion(settings.AntigravityUserAgentVersion)
@@ -386,6 +432,11 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyOpenAILowUpstreamRatePriorityEnabled] = strconv.FormatBool(settings.OpenAILowUpstreamRatePriorityEnabled)
 	updates[SettingKeyOpenAIOAuthSchedulingRateMultiplier] = strconv.FormatFloat(settings.OpenAIOAuthSchedulingRateMultiplier, 'f', -1, 64)
 	updates[openAIAdvancedSchedulerSettingKey] = strconv.FormatBool(settings.OpenAIAdvancedSchedulerEnabled)
+	updates[SettingKeyOpenAIFreeAccountRepairEnabled] = strconv.FormatBool(settings.OpenAIFreeAccountRepairEnabled)
+	if settings.OpenAIFreeAccountRepairWeeklyThresholdUSD < 0 || math.IsNaN(settings.OpenAIFreeAccountRepairWeeklyThresholdUSD) || math.IsInf(settings.OpenAIFreeAccountRepairWeeklyThresholdUSD, 0) {
+		settings.OpenAIFreeAccountRepairWeeklyThresholdUSD = 0
+	}
+	updates[SettingKeyOpenAIFreeAccountRepairWeeklyThresholdUSD] = strconv.FormatFloat(settings.OpenAIFreeAccountRepairWeeklyThresholdUSD, 'f', 8, 64)
 	updates[SettingKeyOpenAIAdvancedSchedulerStickyWeightedEnabled] = strconv.FormatBool(settings.OpenAIAdvancedSchedulerStickyWeightedEnabled)
 	updates[SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled] = strconv.FormatBool(settings.OpenAIAdvancedSchedulerSubscriptionPriorityEnabled)
 	updates[SettingKeyOpenAIAdvancedSchedulerLBTopK] = settings.OpenAIAdvancedSchedulerLBTopK
@@ -500,6 +551,11 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 	if settings == nil {
 		return
 	}
+	autoModelSettingsSF.Forget("auto_model_settings")
+	autoModelSettingsCache.Store(&cachedAutoModelSettings{
+		value:     NormalizeAutoModelSettings(settings.AutoModelSettings),
+		expiresAt: time.Now().Add(autoModelSettingsCacheTTL).UnixNano(),
+	})
 
 	// 先使 inflight singleflight 失效，再刷新缓存，缩小旧值覆盖新值的竞态窗口
 	versionBoundsSF.Forget("version_bounds")

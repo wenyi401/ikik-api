@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
-	"ikik-api/internal/pkg/xai"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/xai"
 )
 
 func TestResolveOpenAIWSClientFirstMessageTimeout(t *testing.T) {

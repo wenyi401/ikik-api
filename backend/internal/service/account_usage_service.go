@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	httppool "ikik-api/internal/pkg/httpclient"
 	openaipkg "ikik-api/internal/pkg/openai"
 	"ikik-api/internal/pkg/pagination"
@@ -20,8 +22,6 @@ import (
 	"ikik-api/internal/pkg/tlsfingerprint"
 	"ikik-api/internal/pkg/usagestats"
 	"ikik-api/internal/pkg/xai"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/singleflight"
 )
 
 type UsageLogRepository interface {
@@ -57,6 +57,7 @@ type UsageLogRepository interface {
 	GetUserSpendingRanking(ctx context.Context, startTime, endTime time.Time, limit int) (*usagestats.UserSpendingRankingResponse, error)
 	GetBatchUserUsageStats(ctx context.Context, userIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchUserUsageStats, error)
 	GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchAPIKeyUsageStats, error)
+	GetUserAccountSharingDashboard(ctx context.Context, userID int64, startTime, endTime time.Time, granularity string, accountPage, accountPageSize int) (*usagestats.AccountSharingDashboardStats, error)
 
 	// User dashboard stats
 	GetUserDashboardStats(ctx context.Context, userID int64) (*usagestats.UserDashboardStats, error)
@@ -104,12 +105,18 @@ type antigravityUsageCache struct {
 	timestamp time.Time
 }
 
+type kiroUsageCache struct {
+	usageInfo *UsageInfo
+	timestamp time.Time
+}
+
 const (
 	apiCacheTTL             = 3 * time.Minute
 	apiErrorCacheTTL        = 1 * time.Minute        // 负缓存 TTL：429 等错误缓存 1 分钟
 	antigravityErrorTTL     = 1 * time.Minute        // Antigravity 错误缓存 TTL（可恢复错误）
 	apiQueryMaxJitter       = 800 * time.Millisecond // 用量查询最大随机延迟
 	windowStatsCacheTTL     = 1 * time.Minute
+	kiroUsageErrorTTL       = 1 * time.Minute
 	openAIProbeCacheTTL     = 10 * time.Minute
 	grokProbeRetryTTL       = 1 * time.Minute
 	grokFreeQuotaWindow     = 24 * time.Hour
@@ -121,9 +128,11 @@ type UsageCache struct {
 	apiCache          sync.Map           // accountID -> *apiUsageCache
 	windowStatsCache  sync.Map           // accountID -> *windowStatsCache
 	antigravityCache  sync.Map           // accountID -> *antigravityUsageCache
+	kiroUsageCache    sync.Map           // accountID -> *kiroUsageCache
 	apiFlight         singleflight.Group // 防止同一账号的并发请求击穿缓存（Anthropic）
 	antigravityFlight singleflight.Group // 防止同一 Antigravity 账号的并发请求击穿缓存
 	openAIProbeCache  sync.Map           // accountID -> time.Time
+	kiroUsageFlight   singleflight.Group // prevent concurrent Kiro usage cache misses
 	grokProbeCache    sync.Map           // accountID -> last billing probe attempt
 }
 
@@ -180,6 +189,21 @@ type AICredit struct {
 	MinimumBalance float64 `json:"minimum_balance,omitempty"`
 }
 
+type KiroCreditProgress struct {
+	CurrentUsage   float64    `json:"current_usage"`
+	UsageLimit     float64    `json:"usage_limit"`
+	PercentageUsed float64    `json:"percentage_used"`
+	DaysRemaining  int        `json:"days_remaining,omitempty"`
+	ExpiryDate     *time.Time `json:"expiry_date,omitempty"`
+}
+
+type KiroOverageInfo struct {
+	CurrentOverages float64 `json:"current_overages"`
+	OverageCharges  float64 `json:"overage_charges"`
+	CurrencyCode    string  `json:"currency_code,omitempty"`
+	CurrencySymbol  string  `json:"currency_symbol,omitempty"`
+}
+
 // UsageInfo 账号使用量信息
 type UsageInfo struct {
 	Source             string         `json:"source,omitempty"`               // "passive" or "active"
@@ -212,6 +236,20 @@ type UsageInfo struct {
 	GrokLocalUsage7d       *WindowStats        `json:"grok_local_usage_7d,omitempty"`
 	GrokLocalUsageMonthly  *WindowStats        `json:"grok_local_usage_monthly,omitempty"`
 	GrokBilling            *xai.BillingSummary `json:"grok_billing,omitempty"`
+
+	KiroSubscriptionName string              `json:"kiro_subscription_name,omitempty"`
+	KiroSubscriptionType string              `json:"kiro_subscription_type,omitempty"`
+	KiroResetAt          *time.Time          `json:"kiro_reset_at,omitempty"`
+	KiroOveragesEnabled  bool                `json:"kiro_overages_enabled,omitempty"`
+	KiroCredit           *KiroCreditProgress `json:"kiro_credit,omitempty"`
+	KiroBonus            *KiroCreditProgress `json:"kiro_bonus,omitempty"`
+	KiroOverage          *KiroOverageInfo    `json:"kiro_overage,omitempty"`
+	KiroQuotaState       string              `json:"kiro_quota_state,omitempty"`
+	KiroQuotaReason      string              `json:"kiro_quota_reason,omitempty"`
+	KiroQuotaResetAt     *time.Time          `json:"kiro_quota_reset_at,omitempty"`
+	KiroRuntimeState     string              `json:"kiro_runtime_state,omitempty"`
+	KiroRuntimeReason    string              `json:"kiro_runtime_reason,omitempty"`
+	KiroRuntimeResetAt   *time.Time          `json:"kiro_runtime_reset_at,omitempty"`
 
 	// Antigravity 账号级信息
 	SubscriptionTier    string `json:"subscription_tier,omitempty"`     // 归一化订阅等级: FREE/PRO/ULTRA/UNKNOWN
@@ -301,6 +339,8 @@ type AccountUsageService struct {
 	tlsFPProfileService     *TLSFingerprintProfileService
 	agentIdentityTaskMu     sync.Mutex
 	agentIdentityWS         agentIdentityWSConnectionInvalidator
+	kiroTokenProvider       *KiroTokenProvider
+	kiroCooldownStore       KiroCooldownStore
 }
 
 // NewAccountUsageService 创建AccountUsageService实例

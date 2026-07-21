@@ -14,8 +14,7 @@ if [ "$(id -u)" = "0" ]; then
 fi
 
 # Compatibility: if the first arg looks like a flag (e.g. --help),
-# prepend the default binary so it behaves the same as the old
-# ENTRYPOINT ["/app/ikik-api"] style.
+# prepend the default binary so command-line flags target the server binary.
 if [ "${1#-}" != "$1" ]; then
     set -- /app/ikik-api "$@"
 fi

@@ -296,6 +296,14 @@
           color="emerald"
         />
 
+        <UsageProgressBar
+          v-if="antigravity3ImageUsageFromAPI !== null"
+          :label="t('admin.accounts.usageWindow.gemini3Image')"
+          :utilization="antigravity3ImageUsageFromAPI.utilization"
+          :resets-at="antigravity3ImageUsageFromAPI.resetTime"
+          color="purple"
+        />
+
         <!-- Claude -->
         <UsageProgressBar
           v-if="antigravityClaudeUsageFromAPI !== null"
@@ -752,6 +760,14 @@ const antigravity3ProUsageFromAPI = computed(() =>
 
 // Gemini 3 Flash from API
 const antigravity3FlashUsageFromAPI = computed(() => getAntigravityUsageFromAPI(['gemini-3-flash']))
+
+const antigravity3ImageUsageFromAPI = computed(() =>
+  getAntigravityUsageFromAPI([
+    'gemini-2.5-flash-image',
+    'gemini-3.1-flash-image',
+    'gemini-3-pro-image'
+  ])
+)
 
 // Claude from API (all Claude model variants)
 const antigravityClaudeUsageFromAPI = computed(() =>

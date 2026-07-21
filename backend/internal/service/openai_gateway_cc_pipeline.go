@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"ikik-api/internal/pkg/apicompat"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/util/responseheaders"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 // 本文件收敛三个 CC（Chat Completions）forwarder 之间重复的 HTTP 管线与 SSE

@@ -133,6 +133,7 @@ export function useAntigravityOAuth(scope: AccountApiScope = 'admin') {
     } else if (typeof tokenInfo.expires_at === 'string' && tokenInfo.expires_at.trim()) {
       expiresAt = tokenInfo.expires_at.trim()
     }
+
     const refreshToken = tokenInfo.refresh_token?.trim()
       ? tokenInfo.refresh_token
       : fallbackRefreshToken

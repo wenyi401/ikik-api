@@ -35,20 +35,24 @@ const (
 
 var (
 	// registerSessionScript 注册会话活动
-	// 当前时间由 Go 侧通过 Redis TIME 获取后传入，避免 Lua 中非确定性命令后写入失败。
+	// 使用 Redis TIME 命令获取服务器时间，避免多实例时钟不同步
 	// KEYS[1] = session_limit:account:{accountID}
 	// ARGV[1] = maxSessions
 	// ARGV[2] = idleTimeout（秒）
 	// ARGV[3] = sessionUUID
-	// ARGV[4] = 当前 Redis Unix 时间戳（秒）
 	// 返回: 1 = 允许, 0 = 拒绝
 	registerSessionScript = redis.NewScript(`
+		-- Redis 3.2-4.x compat: opt into effects replication so redis.call('TIME')
+		-- replicates correctly. No-op on Redis 5.0+ (effects replication is default).
+		redis.replicate_commands()
 		local key = KEYS[1]
 		local maxSessions = tonumber(ARGV[1])
 		local idleTimeout = tonumber(ARGV[2])
 		local sessionUUID = ARGV[3]
 
-		local now = tonumber(ARGV[4])
+		-- 使用 Redis 服务器时间，确保多实例时钟一致
+		local timeResult = redis.call('TIME')
+		local now = tonumber(timeResult[1])
 		local expireBefore = now - idleTimeout
 
 		-- 清理过期会话
@@ -81,11 +85,15 @@ var (
 	// ARGV[1] = idleTimeout（秒）
 	// ARGV[2] = sessionUUID
 	refreshSessionScript = redis.NewScript(`
+		-- Redis 3.2-4.x compat: opt into effects replication so redis.call('TIME')
+		-- replicates correctly. No-op on Redis 5.0+ (effects replication is default).
+		redis.replicate_commands()
 		local key = KEYS[1]
 		local idleTimeout = tonumber(ARGV[1])
 		local sessionUUID = ARGV[2]
 
-		local now = tonumber(ARGV[3])
+		local timeResult = redis.call('TIME')
+		local now = tonumber(timeResult[1])
 
 		-- 检查会话是否存在
 		local exists = redis.call('ZSCORE', key, sessionUUID)
@@ -100,10 +108,14 @@ var (
 	// KEYS[1] = session_limit:account:{accountID}
 	// ARGV[1] = idleTimeout（秒）
 	getActiveSessionCountScript = redis.NewScript(`
+		-- Redis 3.2-4.x compat: opt into effects replication so redis.call('TIME')
+		-- replicates correctly. No-op on Redis 5.0+ (effects replication is default).
+		redis.replicate_commands()
 		local key = KEYS[1]
 		local idleTimeout = tonumber(ARGV[1])
 
-		local now = tonumber(ARGV[2])
+		local timeResult = redis.call('TIME')
+		local now = tonumber(timeResult[1])
 		local expireBefore = now - idleTimeout
 
 		-- 清理过期会话
@@ -117,11 +129,15 @@ var (
 	// ARGV[1] = idleTimeout（秒）
 	// ARGV[2] = sessionUUID
 	isSessionActiveScript = redis.NewScript(`
+		-- Redis 3.2-4.x compat: opt into effects replication so redis.call('TIME')
+		-- replicates correctly. No-op on Redis 5.0+ (effects replication is default).
+		redis.replicate_commands()
 		local key = KEYS[1]
 		local idleTimeout = tonumber(ARGV[1])
 		local sessionUUID = ARGV[2]
 
-		local now = tonumber(ARGV[3])
+		local timeResult = redis.call('TIME')
+		local now = tonumber(timeResult[1])
 		local expireBefore = now - idleTimeout
 
 		-- 获取会话的时间戳
@@ -181,14 +197,6 @@ func windowCostKey(accountID int64) string {
 	return fmt.Sprintf("%s%d", windowCostKeyPrefix, accountID)
 }
 
-func (c *sessionLimitCache) redisUnixTime(ctx context.Context) (int64, error) {
-	now, err := c.rdb.Time(ctx).Result()
-	if err != nil {
-		return 0, fmt.Errorf("redis TIME: %w", err)
-	}
-	return now.Unix(), nil
-}
-
 // RegisterSession 注册会话活动
 func (c *sessionLimitCache) RegisterSession(ctx context.Context, accountID int64, sessionUUID string, maxSessions int, idleTimeout time.Duration) (bool, error) {
 	if sessionUUID == "" || maxSessions <= 0 {
@@ -201,12 +209,7 @@ func (c *sessionLimitCache) RegisterSession(ctx context.Context, accountID int64
 		idleTimeoutSeconds = int(c.defaultIdleTimeout.Seconds())
 	}
 
-	now, err := c.redisUnixTime(ctx)
-	if err != nil {
-		return true, err
-	}
-
-	result, err := registerSessionScript.Run(ctx, c.rdb, []string{key}, maxSessions, idleTimeoutSeconds, sessionUUID, now).Int()
+	result, err := registerSessionScript.Run(ctx, c.rdb, []string{key}, maxSessions, idleTimeoutSeconds, sessionUUID).Int()
 	if err != nil {
 		return true, err // 失败开放：缓存错误时允许请求通过
 	}
@@ -225,12 +228,7 @@ func (c *sessionLimitCache) RefreshSession(ctx context.Context, accountID int64,
 		idleTimeoutSeconds = int(c.defaultIdleTimeout.Seconds())
 	}
 
-	now, err := c.redisUnixTime(ctx)
-	if err != nil {
-		return err
-	}
-
-	_, err = refreshSessionScript.Run(ctx, c.rdb, []string{key}, idleTimeoutSeconds, sessionUUID, now).Result()
+	_, err := refreshSessionScript.Run(ctx, c.rdb, []string{key}, idleTimeoutSeconds, sessionUUID).Result()
 	return err
 }
 
@@ -239,12 +237,7 @@ func (c *sessionLimitCache) GetActiveSessionCount(ctx context.Context, accountID
 	key := sessionLimitKey(accountID)
 	idleTimeoutSeconds := int(c.defaultIdleTimeout.Seconds())
 
-	now, err := c.redisUnixTime(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	result, err := getActiveSessionCountScript.Run(ctx, c.rdb, []string{key}, idleTimeoutSeconds, now).Int()
+	result, err := getActiveSessionCountScript.Run(ctx, c.rdb, []string{key}, idleTimeoutSeconds).Int()
 	if err != nil {
 		return 0, err
 	}
@@ -258,11 +251,6 @@ func (c *sessionLimitCache) GetActiveSessionCountBatch(ctx context.Context, acco
 	}
 
 	results := make(map[int64]int, len(accountIDs))
-
-	now, err := c.redisUnixTime(ctx)
-	if err != nil {
-		return nil, err
-	}
 
 	// 使用 pipeline 批量执行
 	pipe := c.rdb.Pipeline()
@@ -278,7 +266,7 @@ func (c *sessionLimitCache) GetActiveSessionCountBatch(ctx context.Context, acco
 			}
 		}
 		idleTimeoutSeconds := int(idleTimeout.Seconds())
-		cmds[accountID] = getActiveSessionCountScript.Run(ctx, pipe, []string{key}, idleTimeoutSeconds, now)
+		cmds[accountID] = getActiveSessionCountScript.Run(ctx, pipe, []string{key}, idleTimeoutSeconds)
 	}
 
 	// 执行 pipeline，即使部分失败也尝试获取成功的结果
@@ -302,12 +290,7 @@ func (c *sessionLimitCache) IsSessionActive(ctx context.Context, accountID int64
 	key := sessionLimitKey(accountID)
 	idleTimeoutSeconds := int(c.defaultIdleTimeout.Seconds())
 
-	now, err := c.redisUnixTime(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	result, err := isSessionActiveScript.Run(ctx, c.rdb, []string{key}, idleTimeoutSeconds, sessionUUID, now).Int()
+	result, err := isSessionActiveScript.Run(ctx, c.rdb, []string{key}, idleTimeoutSeconds, sessionUUID).Int()
 	if err != nil {
 		return false, err
 	}

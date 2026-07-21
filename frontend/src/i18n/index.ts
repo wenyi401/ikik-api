@@ -8,8 +8,8 @@ const LOCALE_KEY = 'ikik-api_locale'
 const DEFAULT_LOCALE: LocaleCode = 'en'
 
 const localeLoaders: Record<LocaleCode, () => Promise<{ default: LocaleMessages }>> = {
-  en: () => import('./locales/en'),
-  zh: () => import('./locales/zh')
+  en: () => import('./locales/runtime-en'),
+  zh: () => import('./locales/runtime-zh')
 }
 
 function isLocaleCode(value: string): value is LocaleCode {

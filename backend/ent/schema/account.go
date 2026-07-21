@@ -213,7 +213,9 @@ func (Account) Fields() []ent.Field {
 		field.String("session_window_status").
 			Optional().
 			Nillable().
-			MaxLen(20),
+			MaxLen(20), field.Int64("parent_account_id").Optional().Nillable().
+			Comment("Parent account id for a linked spark shadow (NULL = normal)."), field.Enum("quota_dimension").Values("global", "spark").
+			Default("global").Comment("'global' (default) or 'spark' (shadow reads codex_bengalfox)."),
 	}
 }
 
@@ -235,7 +237,7 @@ func (Account) Edges() []ent.Edge {
 			Field("owner_user_id").
 			Unique(),
 		// usage_logs: 该账户的使用日志
-		edge.To("usage_logs", UsageLog.Type),
+		edge.To("usage_logs", UsageLog.Type), edge.To("children", Account.Type).Annotations(entsql.OnDelete(entsql.Restrict)).From("parent").Field("parent_account_id").Unique(),
 	}
 }
 
@@ -258,6 +260,8 @@ func (Account) Indexes() []ent.Index {
 		index.Fields("priority", "status"),
 		index.Fields("owner_user_id"),
 		index.Fields("share_mode", "share_status"),
-		index.Fields("deleted_at"), // 软删除查询优化
+		index.Fields("deleted_at"), index.Fields("parent_account_id"),
+
+		// 软删除查询优化
 	}
 }

@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBatchImagePublicService_Submit(t *testing.T) {

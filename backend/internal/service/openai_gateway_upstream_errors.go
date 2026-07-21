@@ -9,12 +9,12 @@ import (
 	"net/http"
 	"strings"
 
-	"ikik-api/internal/config"
-	"ikik-api/internal/pkg/logger"
-	"ikik-api/internal/pkg/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/logger"
+	"ikik-api/internal/pkg/openai"
 )
 
 func logOpenAIInstructionsRequiredDebug(

@@ -5,14 +5,16 @@
 
 import { apiClient } from '../client'
 
-export type Provider = 'openai' | 'anthropic' | 'gemini'
+export type Provider = 'openai' | 'anthropic' | 'gemini' | 'grok'
 export type MonitorStatus = 'operational' | 'degraded' | 'failed' | 'error'
 export type BodyOverrideMode = 'off' | 'merge' | 'replace'
+export type APIMode = 'chat_completions' | 'responses'
 
 export interface ChannelMonitor {
   id: number
   name: string
   provider: Provider
+  api_mode: APIMode
   endpoint: string
   api_key_masked: string
   /**
@@ -74,6 +76,7 @@ export interface ListResponse {
 export interface CreateParams {
   name: string
   provider: Provider
+  api_mode?: APIMode
   endpoint: string
   api_key: string
   primary_model: string
@@ -155,11 +158,6 @@ export async function create(params: CreateParams): Promise<ChannelMonitor> {
   return data
 }
 
-/**
- * Duplicate a monitor without exposing its stored API key to the browser.
- * Keep the operation key after ambiguous failures so a retry replays the
- * original server-side operation instead of creating another monitor.
- */
 const duplicateOperationKeys = new Map<string, string>()
 
 interface DuplicateOperationScope {
@@ -189,7 +187,7 @@ function duplicateOperationScope(id: number): DuplicateOperationScope | null {
 
   return {
     adminID,
-    key: `sub2api:admin:channel-monitor-duplicate:${adminID}:${id}`,
+    key: `sub2api:admin:channel-monitor-duplicate:${adminID}:${id}`
   }
 }
 

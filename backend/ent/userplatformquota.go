@@ -4,13 +4,13 @@ package ent
 
 import (
 	"fmt"
+	"ikik-api/ent/user"
+	"ikik-api/ent/userplatformquota"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/user"
-	"ikik-api/ent/userplatformquota"
 )
 
 // UserPlatformQuota is the model entity for the UserPlatformQuota schema.

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"ikik-api/internal/domain"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/domain"
 )
 
 func TestDescribeInvalidJSON_TruncatedBody(t *testing.T) {

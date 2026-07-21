@@ -111,6 +111,10 @@ func (r *passCharModerationRepo) CleanupExpiredLogs(context.Context, time.Time, 
 	return &service.ContentModerationCleanupResult{}, nil
 }
 
+func (r *passCharModerationRepo) UpdateLogEmailSent(context.Context, int64, bool) error {
+	return nil
+}
+
 // passCharInterceptFixture 构造完整的 Messages 链路夹具（拦截预热账号 + 上下文注入）。
 func passCharInterceptFixture(t *testing.T) (*GatewayHandler, func()) {
 	t.Helper()
@@ -256,7 +260,9 @@ func TestGatewayCharacterization_ContentModerationBlock(t *testing.T) {
 
 	h, cleanup := passCharInterceptFixture(t)
 	defer cleanup()
-	h.preFlightHooks = ProvideGatewayHookChain(passCharModerationService(t, moderationSrv.URL))
+	moderationSvc := passCharModerationService(t, moderationSrv.URL)
+	h.contentModerationService = moderationSvc
+	h.preFlightHooks = ProvideGatewayHookChain(moderationSvc)
 
 	c, rec := passCharNewMessagesContext(t, "/v1/messages", passCharWarmupBody())
 	h.Messages(c)
@@ -278,7 +284,9 @@ func TestGatewayCharacterization_ContentModerationFailOpen(t *testing.T) {
 
 	h, cleanup := passCharInterceptFixture(t)
 	defer cleanup()
-	h.preFlightHooks = ProvideGatewayHookChain(passCharModerationService(t, moderationSrv.URL))
+	moderationSvc := passCharModerationService(t, moderationSrv.URL)
+	h.contentModerationService = moderationSvc
+	h.preFlightHooks = ProvideGatewayHookChain(moderationSvc)
 
 	c, rec := passCharNewMessagesContext(t, "/v1/messages", passCharWarmupBody())
 	h.Messages(c)

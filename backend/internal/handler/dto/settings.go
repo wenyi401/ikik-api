@@ -9,13 +9,14 @@ import (
 
 // CustomMenuItem represents a user-configured custom menu entry.
 type CustomMenuItem struct {
-	ID         string `json:"id"`
-	Label      string `json:"label"`
-	IconSVG    string `json:"icon_svg"`
-	URL        string `json:"url"`
-	PageSlug   string `json:"page_slug,omitempty"`
-	Visibility string `json:"visibility"` // "user" or "admin"
-	SortOrder  int    `json:"sort_order"`
+	ID              string `json:"id"`
+	Label           string `json:"label"`
+	IconSVG         string `json:"icon_svg"`
+	URL             string `json:"url"`
+	PageSlug        string `json:"page_slug,omitempty"`
+	Visibility      string `json:"visibility"` // "user" or "admin"
+	SortOrder       int    `json:"sort_order"`
+	OpenInNewWindow bool   `json:"open_in_new_window"`
 }
 
 // CustomEndpoint represents an admin-configured API endpoint for quick copy.
@@ -23,6 +24,36 @@ type CustomEndpoint struct {
 	Name        string `json:"name"`
 	Endpoint    string `json:"endpoint"`
 	Description string `json:"description"`
+}
+
+type AutoModelSettings struct {
+	Enabled bool            `json:"enabled"`
+	Models  []AutoModelRule `json:"models"`
+}
+
+type AutoModelRule struct {
+	Name               string   `json:"name"`
+	Enabled            bool     `json:"enabled"`
+	Description        string   `json:"description,omitempty"`
+	AllowedGroupIDs    []int64  `json:"allowed_group_ids,omitempty"`
+	RoutingMode        string   `json:"routing_mode,omitempty"`
+	SmallModel         string   `json:"small_model"`
+	BalancedModel      string   `json:"balanced_model"`
+	LargeModel         string   `json:"large_model"`
+	BalancedThreshold  int      `json:"balanced_threshold"`
+	LargeThreshold     int      `json:"large_threshold"`
+	AllowedModels      []string `json:"allowed_models,omitempty"`
+	CostQuality        int      `json:"cost_quality_tradeoff"`
+	StickySession      bool     `json:"sticky_session"`
+	AIRouterEnabled    bool     `json:"ai_router_enabled"`
+	RouterModel        string   `json:"router_model,omitempty"`
+	RouterBaseURL      string   `json:"router_base_url,omitempty"`
+	RouterAPIKey       string   `json:"router_api_key,omitempty"`
+	RouterTimeoutMS    int      `json:"router_timeout_ms"`
+	RouterMaxTokens    int      `json:"router_max_tokens"`
+	RouterReasoning    string   `json:"router_reasoning_effort,omitempty"`
+	RouterPrompt       string   `json:"router_prompt,omitempty"`
+	RouterConservative bool     `json:"router_conservative"`
 }
 
 // SystemSettings represents the admin settings API response payload.
@@ -136,6 +167,7 @@ type SystemSettings struct {
 	ContactInfo                 string           `json:"contact_info"`
 	DocURL                      string           `json:"doc_url"`
 	HomeContent                 string           `json:"home_content"`
+	HomeStatsGroupID            int64            `json:"home_stats_group_id"`
 	HideCcsImportButton         bool             `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled bool             `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL     string           `json:"purchase_subscription_url"`
@@ -144,15 +176,21 @@ type SystemSettings struct {
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
 
-	DefaultConcurrency           int                          `json:"default_concurrency"`
-	DefaultBalance               float64                      `json:"default_balance"`
-	AffiliateRebateRate          float64                      `json:"affiliate_rebate_rate"`
-	AffiliateRebateFreezeHours   int                          `json:"affiliate_rebate_freeze_hours"`
-	AffiliateRebateDurationDays  int                          `json:"affiliate_rebate_duration_days"`
-	AffiliateRebatePerInviteeCap float64                      `json:"affiliate_rebate_per_invitee_cap"`
-	AdminRechargeRebateEnabled   bool                         `json:"affiliate_admin_recharge_enabled"`
-	DefaultUserRPMLimit          int                          `json:"default_user_rpm_limit"`
-	DefaultSubscriptions         []DefaultSubscriptionSetting `json:"default_subscriptions"`
+	DefaultConcurrency              int                          `json:"default_concurrency"`
+	DefaultBalance                  float64                      `json:"default_balance"`
+	AffiliateRebateRate             float64                      `json:"affiliate_rebate_rate"`
+	AffiliateRebateFreezeHours      int                          `json:"affiliate_rebate_freeze_hours"`
+	AffiliateRebateDurationDays     int                          `json:"affiliate_rebate_duration_days"`
+	AffiliateRebatePerInviteeCap    float64                      `json:"affiliate_rebate_per_invitee_cap"`
+	AdminRechargeRebateEnabled      bool                         `json:"affiliate_admin_recharge_enabled"`
+	DefaultUserRPMLimit             int                          `json:"default_user_rpm_limit"`
+	UserPrivateGroupDailyLimitUSD   *float64                     `json:"user_private_group_daily_limit_usd"`
+	UserPrivateGroupWeeklyLimitUSD  *float64                     `json:"user_private_group_weekly_limit_usd"`
+	UserPrivateGroupMonthlyLimitUSD *float64                     `json:"user_private_group_monthly_limit_usd"`
+	UserPrivateGroupRateMultiplier  float64                      `json:"user_private_group_rate_multiplier"`
+	UserPrivateGroupRPMLimit        int                          `json:"user_private_group_rpm_limit"`
+	UserPrivateGroupCommissionRate  float64                      `json:"user_private_group_commission_rate"`
+	DefaultSubscriptions            []DefaultSubscriptionSetting `json:"default_subscriptions"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -188,6 +226,7 @@ type SystemSettings struct {
 	ClaudeOAuthSystemPrompt                string `json:"claude_oauth_system_prompt"`
 	ClaudeOAuthSystemPromptBlocks          string `json:"claude_oauth_system_prompt_blocks"`
 	EnableAnthropicCacheTTL1hInjection     bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
+	OpenAIImagesResponsesReasoningEffort   string `json:"openai_images_responses_reasoning_effort"`
 	RewriteMessageCacheControl             bool   `json:"rewrite_message_cache_control"`
 	EnableClientDatelineNormalization      bool   `json:"enable_client_dateline_normalization"`
 	AntigravityUserAgentVersion            string `json:"antigravity_user_agent_version"`
@@ -214,6 +253,8 @@ type SystemSettings struct {
 	OpenAILowUpstreamRatePriorityEnabled                   bool    `json:"openai_low_upstream_rate_priority_enabled"`
 	OpenAIOAuthSchedulingRateMultiplier                    float64 `json:"openai_oauth_scheduling_rate_multiplier"`
 	OpenAIAdvancedSchedulerEnabled                         bool    `json:"openai_advanced_scheduler_enabled"`
+	OpenAIFreeAccountRepairEnabled                         bool    `json:"openai_free_account_repair_enabled"`
+	OpenAIFreeAccountRepairWeeklyThresholdUSD              float64 `json:"openai_free_account_repair_weekly_threshold_usd"`
 	OpenAIAdvancedSchedulerStickyWeightedEnabled           bool    `json:"openai_advanced_scheduler_sticky_weighted_enabled"`
 	OpenAIAdvancedSchedulerSubscriptionPriorityEnabled     bool    `json:"openai_advanced_scheduler_subscription_priority_enabled"`
 	OpenAIAdvancedSchedulerLBTopK                          string  `json:"openai_advanced_scheduler_lb_top_k"`
@@ -280,7 +321,13 @@ type SystemSettings struct {
 	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
 
 	// Available Channels feature switch (user-facing aggregate view)
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+	AvailableChannelsEnabled bool              `json:"available_channels_enabled"`
+	AutoModelSettings        AutoModelSettings `json:"auto_model_settings"`
+	FreeModelsEnabled        bool              `json:"free_models_enabled"`
+	CarpoolEnabled           bool              `json:"carpool_enabled"`
+	CarpoolBaseServiceFeeUSD float64           `json:"carpool_base_service_fee_usd"`
+	CarpoolSystemProxyFeeUSD float64           `json:"carpool_system_proxy_fee_usd"`
+	CarpoolRiskControlFeeUSD float64           `json:"carpool_risk_control_fee_usd"`
 
 	// 风控中心功能开关
 	RiskControlEnabled bool `json:"risk_control_enabled"`
@@ -363,7 +410,12 @@ type PublicSettings struct {
 	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
 	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
 
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+	AvailableChannelsEnabled bool    `json:"available_channels_enabled"`
+	FreeModelsEnabled        bool    `json:"free_models_enabled"`
+	CarpoolEnabled           bool    `json:"carpool_enabled"`
+	CarpoolBaseServiceFeeUSD float64 `json:"carpool_base_service_fee_usd"`
+	CarpoolSystemProxyFeeUSD float64 `json:"carpool_system_proxy_fee_usd"`
+	CarpoolRiskControlFeeUSD float64 `json:"carpool_risk_control_fee_usd"`
 
 	AffiliateEnabled bool `json:"affiliate_enabled"`
 

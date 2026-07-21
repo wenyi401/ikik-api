@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"ikik-api/internal/config"
 	"github.com/gin-gonic/gin"
+	"ikik-api/internal/config"
 )
 
 var corsWarningOnce sync.Once

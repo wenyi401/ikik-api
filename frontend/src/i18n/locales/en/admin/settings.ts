@@ -1027,7 +1027,7 @@ export default {
         scopeAPIKey: 'API Key only',
         scopeBedrock: 'Bedrock only',
         userIds: 'Specific users',
-        userIdsHint: 'Type any part of a user email to search. Leave empty to apply to all Sub2API users. Selected users match requests from their API keys and take precedence over global rules.',
+        userIdsHint: 'Type any part of a user email to search. Leave empty to apply to all ikik-api users. Selected users match requests from their API keys and take precedence over global rules.',
         userSearchPlaceholder: 'Search by user email',
         userSearchEmpty: 'No matching users found',
         userDeleted: '(deleted)',

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/ctxkey"
 	"ikik-api/internal/pkg/pagination"
-	"github.com/stretchr/testify/require"
 )
 
 // mockAccountRepoForGemini Gemini 测试用的 mock
@@ -79,8 +79,11 @@ func (m *mockAccountRepoForGemini) Delete(ctx context.Context, id int64) error  
 func (m *mockAccountRepoForGemini) List(ctx context.Context, params pagination.PaginationParams) ([]Account, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
-func (m *mockAccountRepoForGemini) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID, proxyID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
+func (m *mockAccountRepoForGemini) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
 	return nil, nil, nil
+}
+func (m *mockAccountRepoForGemini) ListAllWithFilters(ctx context.Context, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, error) {
+	return nil, nil
 }
 func (m *mockAccountRepoForGemini) ListByGroup(ctx context.Context, groupID int64) ([]Account, error) {
 	return nil, nil
@@ -147,7 +150,7 @@ func (m *mockAccountRepoForGemini) ListSchedulableUngroupedByPlatforms(ctx conte
 func (m *mockAccountRepoForGemini) SetRateLimited(ctx context.Context, id int64, resetAt time.Time) error {
 	return nil
 }
-func (m *mockAccountRepoForGemini) SetModelRateLimit(ctx context.Context, id int64, scope string, resetAt time.Time) error {
+func (m *mockAccountRepoForGemini) SetModelRateLimit(ctx context.Context, id int64, scope string, resetAt time.Time, reason ...string) error {
 	return nil
 }
 func (m *mockAccountRepoForGemini) SetOverloaded(ctx context.Context, id int64, until time.Time) error {
@@ -169,6 +172,9 @@ func (m *mockAccountRepoForGemini) ClearModelRateLimits(ctx context.Context, id 
 func (m *mockAccountRepoForGemini) UpdateSessionWindow(ctx context.Context, id int64, start, end *time.Time, status string) error {
 	return nil
 }
+func (m *mockAccountRepoForGemini) UpdateSessionWindowEnd(ctx context.Context, id int64, end time.Time) error {
+	return nil
+}
 func (m *mockAccountRepoForGemini) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
 	return nil
 }
@@ -182,6 +188,14 @@ func (m *mockAccountRepoForGemini) IncrementQuotaUsed(ctx context.Context, id in
 
 func (m *mockAccountRepoForGemini) ResetQuotaUsed(ctx context.Context, id int64) error {
 	return nil
+}
+
+func (m *mockAccountRepoForGemini) RevertProxyFallback(ctx context.Context, accountID int64) error {
+	return nil
+}
+
+func (m *mockAccountRepoForGemini) ListShadowsByParent(ctx context.Context, parentID int64) ([]*Account, error) {
+	return nil, nil
 }
 
 // Verify interface implementation
@@ -255,7 +269,6 @@ var _ GroupRepository = (*mockGroupRepoForGemini)(nil)
 type mockGatewayCacheForGemini struct {
 	sessionBindings map[string]int64
 	deletedSessions map[string]int
-	stringBindings  map[string]string
 }
 
 func (m *mockGatewayCacheForGemini) GetSessionAccountID(ctx context.Context, groupID int64, sessionHash string) (int64, error) {
@@ -286,30 +299,6 @@ func (m *mockGatewayCacheForGemini) DeleteSessionAccountID(ctx context.Context, 
 	}
 	m.deletedSessions[sessionHash]++
 	delete(m.sessionBindings, sessionHash)
-	return nil
-}
-
-func (m *mockGatewayCacheForGemini) GetSessionString(ctx context.Context, groupID int64, sessionHash string) (string, error) {
-	if m.stringBindings != nil {
-		if value, ok := m.stringBindings[sessionHash]; ok {
-			return value, nil
-		}
-	}
-	return "", errors.New("not found")
-}
-
-func (m *mockGatewayCacheForGemini) SetSessionString(ctx context.Context, groupID int64, sessionHash string, value string, ttl time.Duration) error {
-	if m.stringBindings == nil {
-		m.stringBindings = make(map[string]string)
-	}
-	m.stringBindings[sessionHash] = value
-	return nil
-}
-
-func (m *mockGatewayCacheForGemini) DeleteSessionString(ctx context.Context, groupID int64, sessionHash string) error {
-	if m.stringBindings != nil {
-		delete(m.stringBindings, sessionHash)
-	}
 	return nil
 }
 
@@ -344,62 +333,6 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_GeminiP
 	require.NotNil(t, acc)
 	require.Equal(t, int64(1), acc.ID, "应选择优先级最高的 gemini 账户")
 	require.Equal(t, PlatformGemini, acc.Platform, "无分组时应只返回 gemini 平台账户")
-}
-
-func TestGeminiMessagesCompatService_SelectAccountForModelFiltersInvisibleOwnedAccounts(t *testing.T) {
-	ownerID := int64(101)
-	ctx := context.WithValue(context.Background(), ctxkey.AuthenticatedUserID, int64(999))
-	repo := &mockAccountRepoForGemini{
-		accounts: []Account{
-			{ID: 1, Platform: PlatformGemini, Priority: 2, Status: StatusActive, Schedulable: true},
-			{ID: 2, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true, OwnerUserID: &ownerID, ShareMode: AccountShareModePrivate, ShareStatus: AccountShareStatusApproved},
-		},
-		accountsByID: map[int64]*Account{},
-	}
-	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
-	}
-	svc := &GeminiMessagesCompatService{
-		accountRepo: repo,
-		groupRepo:   &mockGroupRepoForGemini{groups: map[int64]*Group{}},
-		cache:       &mockGatewayCacheForGemini{},
-	}
-
-	acc, err := svc.SelectAccountForModelWithExclusions(ctx, nil, "", "gemini-2.5-flash", nil)
-
-	require.NoError(t, err)
-	require.NotNil(t, acc)
-	require.Equal(t, int64(1), acc.ID)
-}
-
-func TestGeminiMessagesCompatService_StickySessionClearsInvisibleOwnedAccount(t *testing.T) {
-	ownerID := int64(101)
-	ctx := context.WithValue(context.Background(), ctxkey.AuthenticatedUserID, int64(999))
-	repo := &mockAccountRepoForGemini{
-		accounts: []Account{
-			{ID: 1, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true, OwnerUserID: &ownerID, ShareMode: AccountShareModePrivate, ShareStatus: AccountShareStatusApproved},
-			{ID: 2, Platform: PlatformGemini, Priority: 2, Status: StatusActive, Schedulable: true},
-		},
-		accountsByID: map[int64]*Account{},
-	}
-	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
-	}
-	cache := &mockGatewayCacheForGemini{
-		sessionBindings: map[string]int64{"gemini:session-private": 1},
-	}
-	svc := &GeminiMessagesCompatService{
-		accountRepo: repo,
-		groupRepo:   &mockGroupRepoForGemini{groups: map[int64]*Group{}},
-		cache:       cache,
-	}
-
-	acc, err := svc.SelectAccountForModelWithExclusions(ctx, nil, "session-private", "gemini-2.5-flash", nil)
-
-	require.NoError(t, err)
-	require.NotNil(t, acc)
-	require.Equal(t, int64(2), acc.ID)
-	require.Equal(t, 1, cache.deletedSessions["gemini:session-private"])
 }
 
 func TestGeminiMessagesCompatService_GroupResolution_ReusesContextGroup(t *testing.T) {

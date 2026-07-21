@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/pagination"
-	"github.com/stretchr/testify/require"
 )
 
 type redeemRejectRepo struct {

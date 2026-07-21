@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/handler"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProvideServiceBuildInfo(t *testing.T) {
@@ -59,6 +59,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		&service.OpsScheduledReportService{},
 		opsSystemLogSinkSvc,
 		schedulerSnapshotSvc,
+		nil, // groupRateSchedule
 		tokenRefreshSvc,
 		accountExpirySvc,
 		proxyExpirySvc,
@@ -77,6 +78,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		geminiOAuthSvc,
 		antigravityOAuthSvc,
 		nil, // grokOAuth
+		nil, // kiroOAuth
 		nil, // openAIGateway
 		nil, // scheduledTestRunner
 		nil, // backupSvc
@@ -85,6 +87,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // quotaFlusher
 		nil, // upstreamBillingProbe
 		nil, // auditLog
+		nil, // plugin runtime
 	)
 
 	require.NotPanics(t, func() {

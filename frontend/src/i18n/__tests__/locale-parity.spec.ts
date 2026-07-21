@@ -9,8 +9,8 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import en from '../locales/en'
-import zh from '../locales/zh'
+import en from '../locales/runtime-en'
+import zh from '../locales/runtime-zh'
 import baseline from './locale-parity-baseline.json'
 
 interface LocaleParityBaseline {

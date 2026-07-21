@@ -18,6 +18,7 @@ import (
 
 // PaymentHandler handles user-facing payment requests.
 type PaymentHandler struct {
+	channelService *service.ChannelService
 	paymentService *service.PaymentService
 	configService  *service.PaymentConfigService
 }

@@ -5,6 +5,9 @@ package ent
 import (
 	"context"
 	"fmt"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/user"
+	"ikik-api/ent/userplatformquota"
 	"math"
 
 	"entgo.io/ent"
@@ -12,9 +15,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/predicate"
-	"ikik-api/ent/user"
-	"ikik-api/ent/userplatformquota"
 )
 
 // UserPlatformQuotaQuery is the builder for querying UserPlatformQuota entities.

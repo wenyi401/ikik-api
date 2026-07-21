@@ -3,24 +3,22 @@ package service
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"entgo.io/ent/dialect"
-	"github.com/shopspring/decimal"
 	dbent "ikik-api/ent"
 	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/pagination"
 )
 
 var (
 	ErrRedeemCodeNotFound  = infraerrors.NotFound("REDEEM_CODE_NOT_FOUND", "redeem code not found")
 	ErrRedeemCodeUsed      = infraerrors.Conflict("REDEEM_CODE_USED", "redeem code already used")
+	ErrRedeemCodeExpired   = infraerrors.Conflict("REDEEM_CODE_EXPIRED", "redeem code expired")
 	ErrInsufficientBalance = infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient balance")
 	ErrRedeemRateLimited   = infraerrors.TooManyRequests("REDEEM_RATE_LIMITED", "too many failed attempts, please try again later")
 	ErrRedeemCodeLocked    = infraerrors.Conflict("REDEEM_CODE_LOCKED", "redeem code is being processed, please try again")
@@ -31,6 +29,15 @@ const (
 	redeemRateLimitDuration = time.Hour
 	redeemLockDuration      = 10 * time.Second // 锁超时时间，防止死锁
 )
+
+type ctxKeySkipRedeemAffiliate struct{}
+
+// ContextSkipRedeemAffiliate returns a context that suppresses the redeem-level
+// affiliate rebate. Used by payment fulfillment which handles rebate separately
+// via applyAffiliateRebateForOrder (with audit-log deduplication).
+func ContextSkipRedeemAffiliate(ctx context.Context) context.Context {
+	return context.WithValue(ctx, ctxKeySkipRedeemAffiliate{}, true)
+}
 
 // RedeemCache defines cache operations for redeem service
 type RedeemCache interface {
@@ -47,6 +54,7 @@ type RedeemCodeRepository interface {
 	GetByID(ctx context.Context, id int64) (*RedeemCode, error)
 	GetByCode(ctx context.Context, code string) (*RedeemCode, error)
 	Update(ctx context.Context, code *RedeemCode) error
+	BatchUpdate(ctx context.Context, ids []int64, fields RedeemCodeBatchUpdateFields) (int64, error)
 	Delete(ctx context.Context, id int64) error
 	Use(ctx context.Context, id, userID int64) error
 
@@ -75,31 +83,65 @@ type RedeemCodeResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func validateRedeemCodeValue(codeType string, value float64) error {
-	switch codeType {
-	case RedeemTypeInvitation:
-		return nil
-	case RedeemTypePoints:
-		if value <= 0 {
-			return errors.New("points value must be greater than 0")
-		}
-	default:
-		if value == 0 {
-			return errors.New("value must not be zero")
-		}
-	}
-	return nil
+type NullableTimeUpdate struct {
+	Set   bool
+	Value *time.Time
+}
+
+type NullableInt64Update struct {
+	Set   bool
+	Value *int64
+}
+
+type RedeemCodeBatchUpdateFields struct {
+	Status    *string
+	ExpiresAt NullableTimeUpdate
+	Notes     *string
+	GroupID   NullableInt64Update
+
+	// Core fields are intentionally modeled only so service validation can
+	// reject payloads that try to mutate redemption value semantics in bulk.
+	Type  *string
+	Value *float64
+}
+
+func (f RedeemCodeBatchUpdateFields) HasChanges() bool {
+	return f.Status != nil ||
+		f.ExpiresAt.Set ||
+		f.Notes != nil ||
+		f.GroupID.Set ||
+		f.Type != nil ||
+		f.Value != nil
+}
+
+func (f RedeemCodeBatchUpdateFields) HasCoreFieldChanges() bool {
+	return f.Type != nil || f.Value != nil
+}
+
+func (f RedeemCodeBatchUpdateFields) TouchesUsedSensitiveFields() bool {
+	return f.Status != nil || f.ExpiresAt.Set || f.GroupID.Set
+}
+
+type RedeemCodeBatchUpdateInput struct {
+	IDs    []int64
+	Fields RedeemCodeBatchUpdateFields
+}
+
+type RedeemCodeBatchUpdateResult struct {
+	Updated int64 `json:"updated"`
 }
 
 // RedeemService 兑换码服务
 type RedeemService struct {
 	redeemRepo           RedeemCodeRepository
 	userRepo             UserRepository
+	redeemUserRepo       RedeemUserAdjustmentRepository
 	subscriptionService  *SubscriptionService
 	cache                RedeemCache
 	billingCacheService  *BillingCacheService
 	entClient            *dbent.Client
 	authCacheInvalidator APIKeyAuthCacheInvalidator
+	affiliateService     *AffiliateService
 }
 
 // NewRedeemService 创建兑换码服务实例
@@ -111,15 +153,19 @@ func NewRedeemService(
 	billingCacheService *BillingCacheService,
 	entClient *dbent.Client,
 	authCacheInvalidator APIKeyAuthCacheInvalidator,
+	affiliateService *AffiliateService,
 ) *RedeemService {
+	redeemUserRepo, _ := userRepo.(RedeemUserAdjustmentRepository)
 	return &RedeemService{
 		redeemRepo:           redeemRepo,
 		userRepo:             userRepo,
+		redeemUserRepo:       redeemUserRepo,
 		subscriptionService:  subscriptionService,
 		cache:                cache,
 		billingCacheService:  billingCacheService,
 		entClient:            entClient,
 		authCacheInvalidator: authCacheInvalidator,
+		affiliateService:     affiliateService,
 	}
 }
 
@@ -151,17 +197,18 @@ func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequ
 		return nil, errors.New("count must be greater than 0")
 	}
 
-	codeType := req.Type
-	if codeType == "" {
-		codeType = RedeemTypeBalance
+	// 邀请码类型不需要数值，其他类型需要非零值（支持负数用于退款）
+	if req.Type != RedeemTypeInvitation && req.Value == 0 {
+		return nil, errors.New("value must not be zero")
 	}
 
 	if req.Count > 1000 {
 		return nil, errors.New("cannot generate more than 1000 codes at once")
 	}
 
-	if err := validateRedeemCodeValue(codeType, req.Value); err != nil {
-		return nil, err
+	codeType := req.Type
+	if codeType == "" {
+		codeType = RedeemTypeBalance
 	}
 
 	// 邀请码类型的 value 设为 0
@@ -207,17 +254,75 @@ func (s *RedeemService) CreateCode(ctx context.Context, code *RedeemCode) error 
 	if code.Type == "" {
 		code.Type = RedeemTypeBalance
 	}
-	if err := validateRedeemCodeValue(code.Type, code.Value); err != nil {
-		return err
+	if code.Type != RedeemTypeInvitation && code.Value == 0 {
+		return errors.New("value must not be zero")
 	}
 	if code.Status == "" {
 		code.Status = StatusUnused
+	}
+	if code.IsExpired() {
+		return ErrRedeemCodeExpired
 	}
 
 	if err := s.redeemRepo.Create(ctx, code); err != nil {
 		return fmt.Errorf("create redeem code: %w", err)
 	}
 	return nil
+}
+
+func (s *RedeemService) BatchUpdate(ctx context.Context, input *RedeemCodeBatchUpdateInput) (*RedeemCodeBatchUpdateResult, error) {
+	if input == nil {
+		return nil, infraerrors.BadRequest("REDEEM_CODE_BATCH_UPDATE_INVALID", "batch update input is required")
+	}
+	if len(input.IDs) == 0 {
+		return nil, infraerrors.BadRequest("REDEEM_CODE_BATCH_UPDATE_IDS_REQUIRED", "ids are required")
+	}
+	if !input.Fields.HasChanges() {
+		return nil, infraerrors.BadRequest("REDEEM_CODE_BATCH_UPDATE_EMPTY", "at least one field must be selected")
+	}
+	if input.Fields.HasCoreFieldChanges() {
+		return nil, infraerrors.BadRequest("REDEEM_CODE_CORE_FIELDS_IMMUTABLE", "type and value cannot be batch updated")
+	}
+
+	ids := make([]int64, 0, len(input.IDs))
+	seen := make(map[int64]struct{}, len(input.IDs))
+	for _, id := range input.IDs {
+		if id <= 0 {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_BATCH_UPDATE_INVALID_ID", "ids must be positive")
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return nil, infraerrors.BadRequest("REDEEM_CODE_BATCH_UPDATE_IDS_REQUIRED", "ids are required")
+	}
+
+	if input.Fields.Status != nil {
+		switch *input.Fields.Status {
+		case StatusUnused, StatusDisabled:
+		default:
+			return nil, infraerrors.BadRequest("REDEEM_CODE_STATUS_INVALID", "status must be unused or disabled")
+		}
+	}
+	if input.Fields.ExpiresAt.Set && input.Fields.ExpiresAt.Value != nil {
+		expiresAt := input.Fields.ExpiresAt.Value.UTC()
+		if !expiresAt.After(time.Now().UTC()) {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_EXPIRES_AT_INVALID", "expires_at must be in the future")
+		}
+		input.Fields.ExpiresAt.Value = &expiresAt
+	}
+	if input.Fields.GroupID.Set && input.Fields.GroupID.Value != nil && *input.Fields.GroupID.Value <= 0 {
+		return nil, infraerrors.BadRequest("REDEEM_CODE_GROUP_ID_INVALID", "group_id must be positive")
+	}
+
+	updated, err := s.redeemRepo.BatchUpdate(ctx, ids, input.Fields)
+	if err != nil {
+		return nil, err
+	}
+	return &RedeemCodeBatchUpdateResult{Updated: updated}, nil
 }
 
 // checkRedeemRateLimit 检查用户兑换错误次数是否超限
@@ -302,7 +407,11 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 		return nil, fmt.Errorf("get redeem code: %w", err)
 	}
 
-	// 检查兑换码状态
+	// 检查兑换码状态和码本身的过期时间
+	if redeemCode.IsExpired() {
+		s.incrementRedeemErrorCount(ctx, userID)
+		return nil, ErrRedeemCodeExpired
+	}
 	if !redeemCode.CanUse() {
 		s.incrementRedeemErrorCount(ctx, userID)
 		return nil, ErrRedeemCodeUsed
@@ -311,10 +420,6 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	// 验证兑换码类型的前置条件。邀请码属于注册流程，不能通过普通兑换接口使用。
 	switch redeemCode.Type {
 	case RedeemTypeBalance, RedeemTypeConcurrency:
-	case RedeemTypePoints:
-		if redeemCode.Value <= 0 {
-			return nil, infraerrors.BadRequest("REDEEM_CODE_INVALID", "invalid points redeem code: value must be greater than 0")
-		}
 	case RedeemTypeSubscription:
 		if redeemCode.GroupID == nil {
 			return nil, infraerrors.BadRequest("REDEEM_CODE_INVALID", "invalid subscription redeem code: missing group_id")
@@ -324,7 +429,7 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	}
 
 	// 获取用户信息
-	user, err := s.userRepo.GetByID(ctx, userID)
+	_, err = s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
 	}
@@ -352,42 +457,27 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	switch redeemCode.Type {
 	case RedeemTypeBalance:
 		amount := redeemCode.Value
-		// 负数为退款扣减，余额最低为 0
-		if amount < 0 && user.Balance+amount < 0 {
-			amount = -user.Balance
-		}
-		if err := s.userRepo.UpdateBalance(txCtx, userID, amount); err != nil {
+		if amount < 0 {
+			if s.redeemUserRepo == nil {
+				return nil, errors.New("user repository does not support atomic redeem balance adjustments")
+			}
+			if err := s.redeemUserRepo.ApplyRedeemBalanceAdjustment(txCtx, userID, amount); err != nil {
+				return nil, fmt.Errorf("update user balance: %w", err)
+			}
+		} else if err := s.userRepo.UpdateBalance(txCtx, userID, amount); err != nil {
 			return nil, fmt.Errorf("update user balance: %w", err)
-		}
-
-	case RedeemTypePoints:
-		if err := applyPointsAdjustmentInTx(txCtx, tx, pointsAdjustmentInput{
-			UserID:    userID,
-			Delta:     redeemCode.Value,
-			Reason:    "redeem_code",
-			RefType:   "redeem_code",
-			RefID:     redeemCode.ID,
-			Metadata:  map[string]any{"code": redeemCode.Code},
-			ClampZero: true,
-		}); err != nil {
-			return nil, fmt.Errorf("update user points: %w", err)
 		}
 
 	case RedeemTypeConcurrency:
 		delta := int(redeemCode.Value)
-		if user.Role == RoleUser {
-			nextConcurrency := user.Concurrency + delta
-			if nextConcurrency < UserMinConcurrency {
-				delta = UserMinConcurrency - user.Concurrency
-				nextConcurrency = UserMinConcurrency
+		if delta < 0 {
+			if s.redeemUserRepo == nil {
+				return nil, errors.New("user repository does not support atomic redeem concurrency adjustments")
 			}
-			if err := validatePersonalUserConcurrency(nextConcurrency); err != nil {
-				return nil, err
+			if err := s.redeemUserRepo.ApplyRedeemConcurrencyAdjustment(txCtx, userID, delta); err != nil {
+				return nil, fmt.Errorf("update user concurrency: %w", err)
 			}
-		} else if delta < 0 && user.Concurrency+delta < 0 {
-			delta = -user.Concurrency
-		}
-		if err := s.userRepo.UpdateConcurrency(txCtx, userID, delta); err != nil {
+		} else if err := s.userRepo.UpdateConcurrency(txCtx, userID, delta); err != nil {
 			return nil, fmt.Errorf("update user concurrency: %w", err)
 		}
 
@@ -426,6 +516,11 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	// 事务提交成功后失效缓存
 	s.invalidateRedeemCaches(ctx, userID, redeemCode)
 
+	// 余额类正数兑换码触发邀请返利（best-effort，失败不影响兑换结果）
+	if redeemCode.Type == RedeemTypeBalance && redeemCode.Value > 0 {
+		s.tryAccrueAffiliateRebateForRedeem(ctx, userID, redeemCode.Value)
+	}
+
 	// 重新获取更新后的兑换码
 	redeemCode, err = s.redeemRepo.GetByID(ctx, redeemCode.ID)
 	if err != nil {
@@ -438,7 +533,7 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 // invalidateRedeemCaches 失效兑换相关的缓存
 func (s *RedeemService) invalidateRedeemCaches(ctx context.Context, userID int64, redeemCode *RedeemCode) {
 	switch redeemCode.Type {
-	case RedeemTypeBalance, RedeemTypePoints:
+	case RedeemTypeBalance:
 		if s.authCacheInvalidator != nil {
 			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 		}
@@ -472,6 +567,26 @@ func (s *RedeemService) invalidateRedeemCaches(ctx context.Context, userID int64
 				_ = s.billingCacheService.InvalidateSubscription(cacheCtx, userID, groupID)
 			}()
 		}
+	}
+}
+
+func (s *RedeemService) tryAccrueAffiliateRebateForRedeem(ctx context.Context, userID int64, amount float64) {
+	if ctx.Value(ctxKeySkipRedeemAffiliate{}) != nil {
+		return
+	}
+	if s.affiliateService == nil {
+		return
+	}
+	if !s.affiliateService.IsEnabled(ctx) {
+		return
+	}
+	rebate, err := s.affiliateService.AccrueInviteRebate(ctx, userID, amount)
+	if err != nil {
+		logger.LegacyPrintf("service.redeem", "[Redeem] affiliate rebate failed for user %d amount %.2f: %v", userID, amount, err)
+		return
+	}
+	if rebate > 0 {
+		logger.LegacyPrintf("service.redeem", "[Redeem] affiliate rebate accrued %.8f for inviter of user %d", rebate, userID)
 	}
 }
 
@@ -545,192 +660,6 @@ func (s *RedeemService) GetUserHistory(ctx context.Context, userID int64, limit 
 		return nil, fmt.Errorf("get user redeem history: %w", err)
 	}
 	return codes, nil
-}
-
-type serviceSQLQueryer interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}
-
-type serviceSQLExecer interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-}
-
-type pointsAdjustmentInput struct {
-	UserID         int64
-	Delta          float64
-	Reason         string
-	RefType        string
-	RefID          int64
-	OperatorUserID int64
-	Metadata       map[string]any
-	ClampZero      bool
-}
-
-func currentPointsBalanceInTx(ctx context.Context, tx *dbent.Tx, userID int64) (float64, error) {
-	if tx == nil {
-		return 0, errors.New("points balance lookup requires transaction")
-	}
-	if userID <= 0 {
-		return 0, ErrUserNotFound
-	}
-	queryer, ok := tx.Driver().(serviceSQLQueryer)
-	if !ok {
-		return 0, errors.New("points balance lookup requires QueryContext support")
-	}
-	return currentPointsBalanceWithQueryer(ctx, queryer, userID, tx.Driver().Dialect() == dialect.Postgres)
-}
-
-func applyPointsAdjustmentInTx(ctx context.Context, tx *dbent.Tx, in pointsAdjustmentInput) error {
-	if tx == nil {
-		return errors.New("points adjustment requires transaction")
-	}
-	if in.UserID <= 0 {
-		return ErrUserNotFound
-	}
-	if in.Delta == 0 {
-		return nil
-	}
-	queryer, ok := tx.Driver().(serviceSQLQueryer)
-	if !ok {
-		return errors.New("points adjustment requires QueryContext support")
-	}
-	execer, ok := tx.Driver().(serviceSQLExecer)
-	if !ok {
-		return errors.New("points adjustment requires ExecContext support")
-	}
-
-	balanceBefore, err := currentPointsBalanceWithQueryer(ctx, queryer, in.UserID, tx.Driver().Dialect() == dialect.Postgres)
-	if err != nil {
-		return err
-	}
-
-	delta := in.Delta
-	if in.ClampZero && delta < 0 && balanceBefore+delta < 0 {
-		delta = -balanceBefore
-	}
-	balanceAfter := balanceBefore + delta
-	if balanceAfter < -1e-9 {
-		return infraerrors.BadRequest("POINTS_BALANCE_NEGATIVE", "points balance cannot be negative")
-	}
-	if balanceAfter < 0 {
-		balanceAfter = 0
-	}
-
-	amount := delta
-	direction := "credit"
-	if amount < 0 {
-		direction = "debit"
-		amount = -amount
-	}
-	dialectName := tx.Driver().Dialect()
-	amountValue := decimal.NewFromFloat(amount).Round(10).StringFixed(10)
-	balanceBeforeValue := decimal.NewFromFloat(balanceBefore).Round(10).StringFixed(10)
-	balanceAfterValue := decimal.NewFromFloat(balanceAfter).Round(10).StringFixed(10)
-	updateQuery := `
-		UPDATE users
-		SET points_balance = $1,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $2 AND deleted_at IS NULL
-	`
-	if dialectName == dialect.Postgres {
-		updateQuery = `
-			UPDATE users
-			SET points_balance = $1::numeric,
-				updated_at = NOW()
-			WHERE id = $2 AND deleted_at IS NULL
-		`
-	}
-	if _, err := execer.ExecContext(ctx, updateQuery, balanceAfterValue, in.UserID); err != nil {
-		return err
-	}
-
-	if amount == 0 {
-		return nil
-	}
-	metadata := in.Metadata
-	if metadata == nil {
-		metadata = map[string]any{}
-	}
-	rawMetadata, err := json.Marshal(metadata)
-	if err != nil {
-		return err
-	}
-	var refID any
-	if in.RefID > 0 {
-		refID = in.RefID
-	}
-	var operatorUserID any
-	if in.OperatorUserID > 0 {
-		operatorUserID = in.OperatorUserID
-	}
-	insertQuery := `
-		INSERT INTO points_ledger (
-			user_id, direction, amount, reason, ref_type, ref_id,
-			balance_before, balance_after, operator_user_id, metadata
-		) VALUES (
-			$1, $2, $3, $4, $5, $6,
-			$7, $8, $9, $10
-		)
-		ON CONFLICT DO NOTHING
-	`
-	if dialectName == dialect.Postgres {
-		insertQuery = `
-			INSERT INTO points_ledger (
-				user_id, direction, amount, reason, ref_type, ref_id,
-				balance_before, balance_after, operator_user_id, metadata
-			) VALUES (
-				$1, $2, $3::numeric, $4, $5, $6,
-				$7::numeric, $8::numeric, $9, $10::jsonb
-			)
-			ON CONFLICT DO NOTHING
-		`
-	}
-	_, err = execer.ExecContext(ctx, insertQuery,
-		in.UserID,
-		direction,
-		amountValue,
-		strings.TrimSpace(in.Reason),
-		strings.TrimSpace(in.RefType),
-		refID,
-		balanceBeforeValue,
-		balanceAfterValue,
-		operatorUserID,
-		string(rawMetadata),
-	)
-	return err
-}
-
-func currentPointsBalanceWithQueryer(ctx context.Context, queryer serviceSQLQueryer, userID int64, forUpdate bool) (float64, error) {
-	var balanceBefore float64
-	query := `
-		SELECT points_balance
-		FROM users
-		WHERE id = $1 AND deleted_at IS NULL
-	`
-	if forUpdate {
-		query += " FOR UPDATE"
-	}
-	rows, err := queryer.QueryContext(ctx, query, userID)
-	if err != nil {
-		return 0, err
-	}
-	if rows.Next() {
-		if err := rows.Scan(&balanceBefore); err != nil {
-			_ = rows.Close()
-			return 0, err
-		}
-	} else {
-		if err := rows.Err(); err != nil {
-			_ = rows.Close()
-			return 0, err
-		}
-		_ = rows.Close()
-		return 0, ErrUserNotFound
-	}
-	if err := rows.Close(); err != nil {
-		return 0, err
-	}
-	return balanceBefore, nil
 }
 
 // reduceOrCancelSubscription 缩短订阅天数，剩余天数 <= 0 时取消订阅

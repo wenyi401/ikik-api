@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 
-	"ikik-api/internal/config"
 	"github.com/gin-gonic/gin"
+	"ikik-api/internal/config"
 )
 
 var ErrUpstreamResponseBodyTooLarge = errors.New("upstream response body too large")

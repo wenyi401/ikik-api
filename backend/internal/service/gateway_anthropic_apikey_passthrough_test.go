@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
-	"ikik-api/internal/pkg/claude"
-	"ikik-api/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/claude"
+	"ikik-api/internal/pkg/tlsfingerprint"
 )
 
 type anthropicHTTPUpstreamRecorder struct {

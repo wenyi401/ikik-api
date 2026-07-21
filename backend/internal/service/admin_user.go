@@ -153,6 +153,11 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 		logger.LegacyPrintf("service.admin", "audit: admin user created actor_admin_id=%d target_user_id=%d",
 			input.ActorAdminID, user.ID)
 	}
+	if s.privateGroupProvisioner != nil {
+		if err := s.privateGroupProvisioner.ProvisionUserPrivateGroups(ctx, user.ID); err != nil {
+			return nil, err
+		}
+	}
 	s.assignDefaultSubscriptions(ctx, user.ID)
 	return user, nil
 }

@@ -14,6 +14,7 @@ import (
 
 	"ikik-api/internal/config"
 	"ikik-api/internal/domain"
+	"ikik-api/internal/pkg/kiro"
 	"ikik-api/internal/pkg/openai_compat"
 	"ikik-api/internal/pkg/xai"
 )
@@ -23,12 +24,18 @@ type Account struct {
 	Name                    string
 	Notes                   *string
 	Platform                string
+	AccountLevel            string
 	Type                    string
 	Credentials             map[string]any
 	Extra                   map[string]any
+	OwnerUserID             *int64
+	ShareMode               string
+	ShareStatus             string
+	SharePolicyID           *int64
 	ProxyID                 *int64
 	ProxyFallbackOriginID   *int64
 	ProxyFallbackOriginName *string // 仅展示用
+	ProxyFallbackOrigin     *Proxy
 	Concurrency             int
 	Priority                int
 	// RateMultiplier 账号计费倍率（>=0，允许 0 表示该账号计费为 0）。
@@ -51,6 +58,12 @@ type Account struct {
 
 	TempUnschedulableUntil  *time.Time
 	TempUnschedulableReason string
+	KiroQuotaState          string
+	KiroQuotaReason         string
+	KiroQuotaResetAt        *time.Time
+	KiroRuntimeState        string
+	KiroRuntimeReason       string
+	KiroRuntimeResetAt      *time.Time
 
 	SessionWindowStart  *time.Time
 	SessionWindowEnd    *time.Time
@@ -153,10 +166,13 @@ func (a *Account) EffectiveLoadFactor() int {
 }
 
 func (a *Account) IsSchedulable() bool {
+	return a.IsSchedulableAt(time.Now())
+}
+
+func (a *Account) IsSchedulableAt(now time.Time) bool {
 	if !a.IsActive() || !a.Schedulable {
 		return false
 	}
-	now := time.Now()
 	if a.AutoPauseOnExpired && a.ExpiresAt != nil && !now.Before(*a.ExpiresAt) {
 		return false
 	}
@@ -169,7 +185,7 @@ func (a *Account) IsSchedulable() bool {
 	if a.TempUnschedulableUntil != nil && now.Before(*a.TempUnschedulableUntil) {
 		return false
 	}
-	if a.IsAPIKeyOrBedrock() && a.IsQuotaExceeded() {
+	if a.IsAPIKeyOrBedrock() && a.IsQuotaExceededAt(now) {
 		return false
 	}
 	return true
@@ -242,12 +258,16 @@ func (a *Account) IsGrok() bool {
 	return a.Platform == PlatformGrok
 }
 
+func (a *Account) IsKiro() bool {
+	return a.Platform == PlatformKiro
+}
+
 func (a *Account) IsGrokOAuth() bool {
 	return a.IsGrok() && a.Type == AccountTypeOAuth
 }
 
 func (a *Account) IsOpenAICompatible() bool {
-	return a != nil && (a.Platform == PlatformOpenAI || a.Platform == PlatformGrok)
+	return a != nil && (a.Platform == PlatformOpenAI || a.Platform == PlatformGrok || a.Platform == PlatformKiro)
 }
 
 func (a *Account) GeminiOAuthType() string {
@@ -571,6 +591,9 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 		if a.Platform == domain.PlatformGrok {
 			return xai.DefaultModelMapping()
 		}
+		if a.Platform == domain.PlatformKiro {
+			return kiro.DefaultModelMapping()
+		}
 		// Bedrock 默认映射由 forwardBedrock 统一处理（需配合 region prefix 调整）
 		return nil
 	}
@@ -581,6 +604,9 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 		}
 		if a.Platform == domain.PlatformGrok {
 			return xai.DefaultModelMapping()
+		}
+		if a.Platform == domain.PlatformKiro {
+			return kiro.DefaultModelMapping()
 		}
 		return nil
 	}
@@ -609,6 +635,9 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 	}
 	if a.Platform == domain.PlatformGrok {
 		return xai.DefaultModelMapping()
+	}
+	if a.Platform == domain.PlatformKiro {
+		return kiro.DefaultModelMapping()
 	}
 	return nil
 }
@@ -1242,13 +1271,16 @@ func (a *Account) IsOpenAIApiKey() bool {
 }
 
 func (a *Account) GetOpenAIBaseURL() string {
-	if !a.IsOpenAI() {
+	if !a.IsOpenAI() && !a.IsKiro() {
 		return ""
 	}
 	if a.Type == AccountTypeAPIKey {
 		baseURL := a.GetCredential("base_url")
 		if baseURL != "" {
 			return baseURL
+		}
+		if a.IsKiro() {
+			return ""
 		}
 	}
 	return "https://api.openai.com"
@@ -1336,7 +1368,7 @@ func (a *Account) GetOpenAIIDToken() string {
 }
 
 func (a *Account) GetOpenAIApiKey() string {
-	if !a.IsOpenAIApiKey() {
+	if !a.IsOpenAIApiKey() && (!a.IsKiro() || a.Type != AccountTypeAPIKey) {
 		return ""
 	}
 	return a.GetCredential("api_key")
@@ -1407,6 +1439,9 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	}
 	if !a.IsOpenAICompatible() {
 		return false
+	}
+	if a.IsKiro() {
+		return capability == OpenAIEndpointCapabilityChatCompletions
 	}
 	if a.IsGrok() {
 		return capability == OpenAIEndpointCapabilityChatCompletions

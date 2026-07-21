@@ -221,6 +221,33 @@ func (s *ownedAccountDuplicateRepoStub) ListOwnedWithFilters(_ context.Context, 
 	return filtered[offset:end], &pagination.PaginationResult{Total: int64(len(filtered))}, nil
 }
 
+func (s *ownedAccountDuplicateRepoStub) ListAllWithFilters(_ context.Context, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, error) {
+	var out []Account
+	for _, accounts := range s.listOwnedByPlatform {
+		for _, account := range accounts {
+			if platform != "" && account.Platform != platform {
+				continue
+			}
+			if accountType != "" && account.Type != accountType {
+				continue
+			}
+			if status != "" && account.Status != status {
+				continue
+			}
+			out = append(out, account)
+		}
+	}
+	return out, nil
+}
+
+func (s *ownedAccountDuplicateRepoStub) ListShadowsByParent(context.Context, int64) ([]*Account, error) {
+	return nil, nil
+}
+
+func (s *ownedAccountDuplicateRepoStub) RevertProxyFallback(context.Context, int64) error {
+	return nil
+}
+
 func (s *ownedAccountDuplicateRepoStub) ExistsByID(context.Context, int64) (bool, error) {
 	panic("unexpected ExistsByID call")
 }
@@ -245,7 +272,7 @@ func (s *ownedAccountDuplicateRepoStub) List(context.Context, pagination.Paginat
 	panic("unexpected List call")
 }
 
-func (s *ownedAccountDuplicateRepoStub) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, string, int64, int64, string) ([]Account, *pagination.PaginationResult, error) {
+func (s *ownedAccountDuplicateRepoStub) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, string, int64, string) ([]Account, *pagination.PaginationResult, error) {
 	panic("unexpected ListWithFilters call")
 }
 
@@ -321,7 +348,7 @@ func (s *ownedAccountDuplicateRepoStub) SetRateLimited(context.Context, int64, t
 	panic("unexpected SetRateLimited call")
 }
 
-func (s *ownedAccountDuplicateRepoStub) SetModelRateLimit(context.Context, int64, string, time.Time) error {
+func (s *ownedAccountDuplicateRepoStub) SetModelRateLimit(context.Context, int64, string, time.Time, ...string) error {
 	panic("unexpected SetModelRateLimit call")
 }
 
@@ -351,6 +378,10 @@ func (s *ownedAccountDuplicateRepoStub) ClearModelRateLimits(context.Context, in
 
 func (s *ownedAccountDuplicateRepoStub) UpdateSessionWindow(context.Context, int64, *time.Time, *time.Time, string) error {
 	panic("unexpected UpdateSessionWindow call")
+}
+
+func (s *ownedAccountDuplicateRepoStub) UpdateSessionWindowEnd(context.Context, int64, time.Time) error {
+	return nil
 }
 
 func (s *ownedAccountDuplicateRepoStub) UpdateExtra(context.Context, int64, map[string]any) error {
@@ -738,6 +769,9 @@ func TestAccountServiceCreateOwnedAllowsPublicShareWithOwnedProxy(t *testing.T) 
 		Credentials: map[string]any{"access_token": "token"},
 		ProxyID:     &proxyID,
 		ShareMode:   AccountShareModePublic,
+		Concurrency: 99,
+		LoadFactor:  intPtr(8),
+		Priority:    9,
 	})
 
 	require.NoError(t, err)
@@ -746,6 +780,8 @@ func TestAccountServiceCreateOwnedAllowsPublicShareWithOwnedProxy(t *testing.T) 
 	require.Equal(t, AccountShareStatusPending, account.ShareStatus)
 	require.Equal(t, &proxyID, account.ProxyID)
 	require.Equal(t, ownedPersonalDefaultConcurrency, account.Concurrency)
+	require.Nil(t, account.LoadFactor)
+	require.Equal(t, ownedPersonalDefaultPriority, account.Priority)
 	require.Equal(t, []int64{99}, account.GroupIDs)
 	require.Len(t, repo.createdAccounts, 1)
 }
@@ -910,6 +946,75 @@ func TestValidateOwnedAccountSourceAllowsAPIKeyAccountAndRejectsOAuthBaseURL(t *
 	}, nil)
 
 	require.ErrorIs(t, err, ErrOwnedAccountCredentialsNotAllowed)
+}
+
+func TestValidateOwnedAccountSourceAllowsUserCredentialAccountTypes(t *testing.T) {
+	tests := []struct {
+		name        string
+		accountType string
+		credentials map[string]any
+	}{
+		{
+			name:        "setup token",
+			accountType: AccountTypeSetupToken,
+			credentials: map[string]any{"access_token": "setup-token"},
+		},
+		{
+			name:        "bedrock sigv4",
+			accountType: AccountTypeBedrock,
+			credentials: map[string]any{
+				"auth_mode":             "sigv4",
+				"aws_access_key_id":     "AKIAEXAMPLE",
+				"aws_secret_access_key": "secret",
+			},
+		},
+		{
+			name:        "bedrock api key",
+			accountType: AccountTypeBedrock,
+			credentials: map[string]any{"auth_mode": "api_key", "api_key": "bedrock-key"},
+		},
+		{
+			name:        "vertex service account",
+			accountType: AccountTypeServiceAccount,
+			credentials: map[string]any{"service_account_json": `{"type":"service_account"}`},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, validateOwnedAccountSource(tt.accountType, tt.credentials, nil))
+		})
+	}
+}
+
+func TestAccountServiceCreateOwnedCredentialAccountIsPrivateAndKeepsConcurrency(t *testing.T) {
+	ownerID := int64(101)
+	repo := &ownedAccountDuplicateRepoStub{}
+	svc := &AccountService{
+		accountRepo: repo,
+		privateGroupProvisioner: &ownedPrivateGroupProvisionerStub{
+			group: &Group{ID: 99, Platform: PlatformOpenAI, Status: StatusActive, Scope: GroupScopeUserPrivate},
+		},
+	}
+
+	account, err := svc.CreateOwned(context.Background(), ownerID, CreateAccountRequest{
+		Name:        "private-api-key",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "sk-test"},
+		ShareMode:   AccountShareModePublic,
+		Concurrency: 4,
+		LoadFactor:  intPtr(3),
+		Priority:    2,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, AccountShareModePrivate, account.ShareMode)
+	require.Equal(t, AccountShareStatusApproved, account.ShareStatus)
+	require.Equal(t, 4, account.Concurrency)
+	require.NotNil(t, account.LoadFactor)
+	require.Equal(t, 3, *account.LoadFactor)
+	require.Equal(t, []int64{99}, account.GroupIDs)
 }
 
 func TestAccountServiceCreateAllowsAdminOpenAIAPIKeyBaseURL(t *testing.T) {
@@ -1286,8 +1391,15 @@ func TestAccountServiceUpdateOwnedSwitchesApprovedPublicAccountBackToPrivateGrou
 		},
 	}
 	shareMode := AccountShareModePrivate
+	redactedCredentials := map[string]any{
+		"chatgpt_account_id": "acct-1",
+		"model_mapping":      map[string]any{"gpt-5.5": "gpt-5.5"},
+	}
 
-	account, err := svc.UpdateOwned(context.Background(), ownerID, accountID, UpdateAccountRequest{ShareMode: &shareMode})
+	account, err := svc.UpdateOwned(context.Background(), ownerID, accountID, UpdateAccountRequest{
+		ShareMode:   &shareMode,
+		Credentials: &redactedCredentials,
+	})
 
 	require.NoError(t, err)
 	require.Equal(t, AccountShareModePrivate, account.ShareMode)
@@ -1295,6 +1407,8 @@ func TestAccountServiceUpdateOwnedSwitchesApprovedPublicAccountBackToPrivateGrou
 	require.Equal(t, []int64{99}, account.GroupIDs)
 	require.Len(t, repo.updatedAccounts, 1)
 	require.Equal(t, AccountShareModePrivate, repo.updatedAccounts[0].ShareMode)
+	require.Equal(t, "token", repo.updatedAccounts[0].Credentials["access_token"])
+	require.Equal(t, redactedCredentials["model_mapping"], repo.updatedAccounts[0].Credentials["model_mapping"])
 	require.Equal(t, []int64{99}, repo.boundGroupIDs[accountID])
 }
 
@@ -1333,8 +1447,15 @@ func TestAccountServiceUpdateOwnedAllowsProxiedAccountToEnterPublicPool(t *testi
 		},
 	}
 	shareMode := AccountShareModePublic
+	redactedCredentials := map[string]any{
+		"chatgpt_account_id": "acct-1",
+		"model_mapping":      map[string]any{"gpt-5.5": "gpt-5.5"},
+	}
 
-	account, err := svc.UpdateOwned(context.Background(), ownerID, accountID, UpdateAccountRequest{ShareMode: &shareMode})
+	account, err := svc.UpdateOwned(context.Background(), ownerID, accountID, UpdateAccountRequest{
+		ShareMode:   &shareMode,
+		Credentials: &redactedCredentials,
+	})
 
 	require.NoError(t, err)
 	require.Equal(t, AccountShareModePublic, account.ShareMode)
@@ -1342,6 +1463,8 @@ func TestAccountServiceUpdateOwnedAllowsProxiedAccountToEnterPublicPool(t *testi
 	require.Equal(t, &proxyID, account.ProxyID)
 	require.Equal(t, ownedPersonalDefaultConcurrency, account.Concurrency)
 	require.Equal(t, []int64{99}, account.GroupIDs)
+	require.Equal(t, "token", account.Credentials["access_token"])
+	require.Equal(t, redactedCredentials["model_mapping"], account.Credentials["model_mapping"])
 	require.Equal(t, []int64{99}, repo.boundGroupIDs[accountID])
 }
 
@@ -1627,11 +1750,13 @@ func TestAccountQuotaGroupDashboardUsesGeneratedAtForSchedulability(t *testing.T
 	now := time.Date(2026, 5, 13, 10, 0, 0, 0, time.UTC)
 	limitedUntil := now.Add(time.Hour)
 	group := &Group{
-		ID:       101,
-		Name:     "OpenAI shared pool",
-		Platform: PlatformOpenAI,
-		Status:   StatusActive,
-		Scope:    GroupScopePublic,
+		ID:                   101,
+		Name:                 "OpenAI shared pool",
+		Platform:             PlatformOpenAI,
+		Status:               StatusActive,
+		Scope:                GroupScopePublic,
+		RequiredAccountLevel: AccountLevelPlus,
+		RateMultiplier:       0.08,
 	}
 
 	builder := newAccountQuotaGroupDashboardBuilder(now)
@@ -1650,4 +1775,6 @@ func TestAccountQuotaGroupDashboardUsesGeneratedAtForSchedulability(t *testing.T
 	require.Equal(t, 1, summaries[0].AccountCount)
 	require.Equal(t, 0, summaries[0].SchedulableAccountCount)
 	require.Equal(t, 1, summaries[0].RateLimitedAccountCount)
+	require.Equal(t, AccountLevelPlus, summaries[0].AccountLevel)
+	require.InDelta(t, 0.08, summaries[0].RateMultiplier, 1e-12)
 }

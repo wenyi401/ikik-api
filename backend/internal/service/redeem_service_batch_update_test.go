@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	infraerrors "ikik-api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 func TestRedeemService_BatchUpdate_PartialFields(t *testing.T) {

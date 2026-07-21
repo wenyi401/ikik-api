@@ -5,12 +5,12 @@ package ent
 import (
 	"encoding/json"
 	"fmt"
+	"ikik-api/ent/batchimageevent"
 	"strings"
 	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"ikik-api/ent/batchimageevent"
 )
 
 // BatchImageEvent is the model entity for the BatchImageEvent schema.

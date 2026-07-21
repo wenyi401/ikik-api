@@ -93,7 +93,7 @@ const (
 	totpLoginTTL    = 5 * time.Minute
 	totpAttemptsTTL = 15 * time.Minute
 	maxTotpAttempts = 5
-	totpIssuer      = "ikik-api"
+	totpIssuer      = "Sub2API"
 )
 
 // TotpService handles TOTP operations
@@ -541,7 +541,7 @@ func (s *TotpService) GetVerificationMethod(ctx context.Context, userID int64) (
 }
 
 // SendVerifyCode sends an email verification code for TOTP operations
-func (s *TotpService) SendVerifyCode(ctx context.Context, userID int64) error {
+func (s *TotpService) SendVerifyCode(ctx context.Context, userID int64, locale ...string) error {
 	// Check if email verification is enabled
 	if !s.settingService.IsEmailVerifyEnabled(ctx) {
 		return infraerrors.BadRequest("EMAIL_VERIFY_NOT_ENABLED", "email verification is not enabled")
@@ -557,5 +557,5 @@ func (s *TotpService) SendVerifyCode(ctx context.Context, userID int64) error {
 	siteName := s.settingService.GetSiteName(ctx)
 
 	// Send verification code via queue
-	return s.emailQueueService.EnqueueVerifyCode(user.Email, siteName)
+	return s.emailQueueService.EnqueueVerifyCode(user.Email, siteName, firstEmailLocale(locale))
 }

@@ -13,17 +13,17 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
-	pkghttputil "ikik-api/internal/pkg/httputil"
-	"ikik-api/internal/pkg/pagination"
-	"ikik-api/internal/server/middleware"
-	"ikik-api/internal/service"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"ikik-api/internal/config"
+	pkghttputil "ikik-api/internal/pkg/httputil"
+	"ikik-api/internal/pkg/pagination"
+	"ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 )
 
 func TestOpenAIHandleStreamingAwareError_JSONEscaping(t *testing.T) {
@@ -1156,7 +1156,7 @@ func (r *contentModerationHandlerTestRepo) ListLogs(ctx context.Context, filter 
 	return nil, nil, nil
 }
 
-func (r *contentModerationHandlerTestRepo) CountFlaggedByUserSince(ctx context.Context, userID int64, since time.Time, excludeCyberPolicy bool) (int, error) {
+func (r *contentModerationHandlerTestRepo) CountFlaggedByUserSince(ctx context.Context, userID int64, since time.Time) (int, error) {
 	return 0, nil
 }
 

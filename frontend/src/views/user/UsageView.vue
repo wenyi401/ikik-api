@@ -520,7 +520,9 @@ const columns = computed<Column[]>(() => [
 ])
 
 const compactViewport = ref(
-  typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(max-width: 767px)').matches
 )
 let usageViewportMediaQuery: MediaQueryList | null = null
 let usageViewportListener: ((event: MediaQueryListEvent) => void) | null = null
@@ -978,12 +980,14 @@ const hideTokenTooltip = () => {
 }
 
 onMounted(() => {
-  usageViewportMediaQuery = window.matchMedia('(max-width: 767px)')
-  compactViewport.value = usageViewportMediaQuery.matches
-  usageViewportListener = (event: MediaQueryListEvent) => {
-    compactViewport.value = event.matches
+  if (typeof window.matchMedia === 'function') {
+    usageViewportMediaQuery = window.matchMedia('(max-width: 767px)')
+    compactViewport.value = usageViewportMediaQuery.matches
+    usageViewportListener = (event: MediaQueryListEvent) => {
+      compactViewport.value = event.matches
+    }
+    usageViewportMediaQuery.addEventListener('change', usageViewportListener)
   }
-  usageViewportMediaQuery.addEventListener('change', usageViewportListener)
   loadApiKeys()
   loadUsageLogs()
   loadUsageStats()

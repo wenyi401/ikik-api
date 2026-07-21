@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/zap"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/logger"
-	"go.uber.org/zap"
 )
 
 func defaultOpsRuntimeLogConfig(cfg *config.Config) *OpsRuntimeLogConfig {

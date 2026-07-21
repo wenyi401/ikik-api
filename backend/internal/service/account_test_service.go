@@ -18,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/claude"
 	"ikik-api/internal/pkg/geminicli"
@@ -25,8 +27,6 @@ import (
 	"ikik-api/internal/pkg/openai_compat"
 	"ikik-api/internal/pkg/xai"
 	"ikik-api/internal/util/urlvalidator"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // sseDataPrefix matches SSE data lines with optional whitespace after colon.
@@ -69,6 +69,7 @@ type AccountTestService struct {
 	geminiTokenProvider       *GeminiTokenProvider
 	claudeTokenProvider       *ClaudeTokenProvider
 	grokTokenProvider         *GrokTokenProvider
+	kiroTokenProvider         *KiroTokenProvider
 	antigravityGatewayService *AntigravityGatewayService
 	httpUpstream              HTTPUpstream
 	cfg                       *config.Config
@@ -197,6 +198,10 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 
 	if account.Platform == PlatformGrok {
 		return s.testGrokAccountConnection(c, account, modelID)
+	}
+
+	if account.IsKiro() {
+		return s.testKiroAccountConnection(c, account, modelID, prompt)
 	}
 
 	if account.Platform == PlatformAntigravity {

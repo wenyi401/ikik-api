@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"ikik-api/internal/pkg/apicompat"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
+	"ikik-api/internal/pkg/apicompat"
 )
 
 type openAICompatSessionResponseBinding struct {

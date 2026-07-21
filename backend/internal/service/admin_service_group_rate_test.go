@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"testing"
 
-	infraerrors "ikik-api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 // userGroupRateRepoStubForGroupRate implements UserGroupRateRepository for group rate tests.

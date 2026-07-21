@@ -40,6 +40,7 @@ type APIKey struct {
 	CompiledIPWhitelist *ip.CompiledIPRules `json:"-"`
 	CompiledIPBlacklist *ip.CompiledIPRules `json:"-"`
 	LastUsedAt          *time.Time
+	LastUsedIP          *string
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 	User                *User
@@ -62,19 +63,6 @@ type APIKey struct {
 	Window5hStart *time.Time // Start of current 5h window
 	Window1dStart *time.Time // Start of current 1d window
 	Window7dStart *time.Time // Start of current 7d window
-}
-
-type APIKeyGroupRoute struct {
-	ID              int64
-	APIKeyID        int64
-	GroupID         int64
-	Priority        int
-	Weight          int
-	Enabled         bool
-	CooldownSeconds int
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	Group           *Group
 }
 
 func (k *APIKey) IsActive() bool {

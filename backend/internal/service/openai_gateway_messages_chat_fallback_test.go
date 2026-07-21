@@ -12,10 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"ikik-api/internal/pkg/openai_compat"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"ikik-api/internal/pkg/openai_compat"
 )
 
 func forceChatMessagesFallbackAccount() *Account {

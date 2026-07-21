@@ -11,8 +11,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	infraerrors "ikik-api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 type duplicateAccountRepoStub struct {

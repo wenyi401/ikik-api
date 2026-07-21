@@ -6,12 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/batchimageevent"
+	"ikik-api/ent/predicate"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/batchimageevent"
-	"ikik-api/ent/predicate"
 )
 
 // BatchImageEventUpdate is the builder for updating BatchImageEvent entities.

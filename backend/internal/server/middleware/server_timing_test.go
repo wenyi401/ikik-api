@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/pkg/servertiming"
 	"github.com/gin-gonic/gin"
+	"ikik-api/internal/pkg/servertiming"
 )
 
 func runServerTimingRequest(

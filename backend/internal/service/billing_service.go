@@ -968,24 +968,47 @@ func (s *BillingService) computeTokenBreakdown(
 	outputPrice := pricing.OutputPricePerToken
 	cacheReadPrice := pricing.CacheReadPricePerToken
 	cacheCreationPrice := pricing.CacheCreationPricePerToken
-	cacheCreationMultiplier := 1.0
-	tierMultiplier := 1.0
+	cacheCreationLongContextMultiplier := 1.0
+	inputTierMultiplier := 1.0
+	outputTierMultiplier := 1.0
+	cacheCreationTierMultiplier := 1.0
+	cacheReadTierMultiplier := 1.0
+	imageInputTierMultiplier := 1.0
+	imageOutputTierMultiplier := 1.0
 
-	if usePriorityServiceTierPricing(serviceTier, pricing) {
+	switch normalizeBillingServiceTier(serviceTier) {
+	case "priority":
+		tierMultiplier := serviceTierCostMultiplier(serviceTier)
 		if pricing.InputPricePerTokenPriority > 0 {
 			inputPrice = pricing.InputPricePerTokenPriority
+		} else {
+			inputTierMultiplier = tierMultiplier
 		}
 		if pricing.OutputPricePerTokenPriority > 0 {
 			outputPrice = pricing.OutputPricePerTokenPriority
+		} else {
+			outputTierMultiplier = tierMultiplier
 		}
 		if pricing.CacheReadPricePerTokenPriority > 0 {
 			cacheReadPrice = pricing.CacheReadPricePerTokenPriority
+		} else {
+			cacheReadTierMultiplier = tierMultiplier
 		}
 		if pricing.CacheCreationPricePerTokenPriority > 0 {
 			cacheCreationPrice = pricing.CacheCreationPricePerTokenPriority
+		} else {
+			cacheCreationTierMultiplier = tierMultiplier
 		}
-	} else {
-		tierMultiplier = serviceTierCostMultiplier(serviceTier)
+		imageInputTierMultiplier = tierMultiplier
+		imageOutputTierMultiplier = tierMultiplier
+	case "flex":
+		tierMultiplier := serviceTierCostMultiplier(serviceTier)
+		inputTierMultiplier = tierMultiplier
+		outputTierMultiplier = tierMultiplier
+		cacheCreationTierMultiplier = tierMultiplier
+		cacheReadTierMultiplier = tierMultiplier
+		imageInputTierMultiplier = tierMultiplier
+		imageOutputTierMultiplier = tierMultiplier
 	}
 
 	longContextPricingEligible := applyLongCtx && s.shouldApplySessionLongContextPricing(tokens, pricing)
@@ -1000,7 +1023,7 @@ func (s *BillingService) computeTokenBreakdown(
 		// 缓存创建（cache_write）也是输入侧操作，三档价格（标准 / 5m / 1h）
 		// 都通过 computeCacheCreationCost 直接读取 pricing.*，不会经过这里
 		// 的倍率修改，因此显式向下传一个倍率，避免长上下文场景下被漏乘。
-		cacheCreationMultiplier = pricing.LongContextInputMultiplier
+		cacheCreationLongContextMultiplier = pricing.LongContextInputMultiplier
 	}
 
 	bd := &CostBreakdown{}
@@ -1018,11 +1041,12 @@ func (s *BillingService) computeTokenBreakdown(
 		if imageInputPrice == 0 {
 			// 未配置图片输入档时回退到文本 input 价（已含 priority / 长上下文调整）
 			imageInputPrice = inputPrice
+			imageInputTierMultiplier = inputTierMultiplier
 		}
-		bd.InputCost = float64(textInputTokens) * inputPrice
-		bd.ImageInputCost = float64(imageInputTokens) * imageInputPrice
+		bd.InputCost = float64(textInputTokens) * inputPrice * inputTierMultiplier
+		bd.ImageInputCost = float64(imageInputTokens) * imageInputPrice * imageInputTierMultiplier
 	} else {
-		bd.InputCost = float64(tokens.InputTokens) * inputPrice
+		bd.InputCost = float64(tokens.InputTokens) * inputPrice * inputTierMultiplier
 	}
 
 	// 分离图片输出 token 与文本输出 token
@@ -1030,7 +1054,7 @@ func (s *BillingService) computeTokenBreakdown(
 	if textOutputTokens < 0 {
 		textOutputTokens = 0
 	}
-	bd.OutputCost = float64(textOutputTokens) * outputPrice
+	bd.OutputCost = float64(textOutputTokens) * outputPrice * outputTierMultiplier
 
 	// 图片输出 token 费用（独立费率）
 	if tokens.ImageOutputTokens > 0 {
@@ -1038,22 +1062,13 @@ func (s *BillingService) computeTokenBreakdown(
 		if imgPrice == 0 && !pricing.ImageOutputPriceExplicit {
 			imgPrice = outputPrice
 		}
-		bd.ImageOutputCost = float64(tokens.ImageOutputTokens) * imgPrice
+		bd.ImageOutputCost = float64(tokens.ImageOutputTokens) * imgPrice * imageOutputTierMultiplier
 	}
 
 	// 缓存创建费用
-	bd.CacheCreationCost = s.computeCacheCreationCost(pricing, tokens, cacheCreationPrice, cacheCreationMultiplier)
+	bd.CacheCreationCost = s.computeCacheCreationCost(pricing, tokens, cacheCreationPrice, cacheCreationLongContextMultiplier) * cacheCreationTierMultiplier
 
-	bd.CacheReadCost = float64(tokens.CacheReadTokens) * cacheReadPrice
-
-	if tierMultiplier != 1.0 {
-		bd.InputCost *= tierMultiplier
-		bd.ImageInputCost *= tierMultiplier
-		bd.OutputCost *= tierMultiplier
-		bd.ImageOutputCost *= tierMultiplier
-		bd.CacheCreationCost *= tierMultiplier
-		bd.CacheReadCost *= tierMultiplier
-	}
+	bd.CacheReadCost = float64(tokens.CacheReadTokens) * cacheReadPrice * cacheReadTierMultiplier
 
 	bd.TotalCost = bd.InputCost + bd.ImageInputCost + bd.OutputCost + bd.ImageOutputCost +
 		bd.CacheCreationCost + bd.CacheReadCost

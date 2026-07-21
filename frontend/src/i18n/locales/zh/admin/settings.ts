@@ -1022,7 +1022,7 @@ export default {
         scopeAPIKey: '仅 API Key 账号',
         scopeBedrock: '仅 Bedrock 账号',
         userIds: '指定用户',
-        userIdsHint: '输入任意邮箱关键词进行模糊搜索。留空表示对全部 Sub2API 用户生效；选中用户的 API Key 请求优先匹配用户规则。',
+        userIdsHint: '输入任意邮箱关键词进行模糊搜索。留空表示对全部 ikik-api 用户生效；选中用户的 API Key 请求优先匹配用户规则。',
         userSearchPlaceholder: '输入用户邮箱搜索',
         userSearchEmpty: '未找到匹配用户',
         userDeleted: '（已删除）',

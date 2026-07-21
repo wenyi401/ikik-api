@@ -9,19 +9,24 @@ import (
 )
 
 type User struct {
-	ID            int64      `json:"id"`
-	Email         string     `json:"email"`
-	Username      string     `json:"username"`
-	Role          string     `json:"role"`
-	Balance       float64    `json:"balance"`
-	FrozenBalance float64    `json:"frozen_balance"`
-	Concurrency   int        `json:"concurrency"`
-	Status        string     `json:"status"`
-	AllowedGroups []int64    `json:"allowed_groups"`
-	LastActiveAt  *time.Time `json:"last_active_at,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	DeletedAt     *time.Time `json:"deleted_at,omitempty"`
+	ID                  int64      `json:"id"`
+	Email               string     `json:"email"`
+	Username            string     `json:"username"`
+	Role                string     `json:"role"`
+	Balance             float64    `json:"balance"`
+	RechargeBalance     float64    `json:"recharge_balance"`
+	InviteIncomeBalance float64    `json:"invite_income_balance"`
+	ShareIncomeBalance  float64    `json:"share_income_balance"`
+	PointsBalance       float64    `json:"points_balance"`
+	PreferPointsBilling bool       `json:"prefer_points_billing"`
+	FrozenBalance       float64    `json:"frozen_balance"`
+	Concurrency         int        `json:"concurrency"`
+	Status              string     `json:"status"`
+	AllowedGroups       []int64    `json:"allowed_groups"`
+	LastActiveAt        *time.Time `json:"last_active_at,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	DeletedAt           *time.Time `json:"deleted_at,omitempty"`
 
 	// 余额不足通知
 	BalanceNotifyEnabled       bool               `json:"balance_notify_enabled"`
@@ -29,6 +34,8 @@ type User struct {
 	BalanceNotifyThreshold     *float64           `json:"balance_notify_threshold"`
 	BalanceNotifyExtraEmails   []NotifyEmailEntry `json:"balance_notify_extra_emails"`
 	TotalRecharged             float64            `json:"total_recharged"`
+	TotalInviteIncome          float64            `json:"total_invite_income"`
+	TotalShareIncome           float64            `json:"total_share_income"`
 
 	// RPMLimit 用户级每分钟请求数上限（0 = 不限制），仅在所用分组未设置 rpm_limit 时作为兜底生效。
 	RPMLimit int `json:"rpm_limit"`
@@ -50,21 +57,22 @@ type AdminUser struct {
 }
 
 type APIKey struct {
-	ID          int64      `json:"id"`
-	UserID      int64      `json:"user_id"`
-	Key         string     `json:"key"`
-	Name        string     `json:"name"`
-	GroupID     *int64     `json:"group_id"`
-	Status      string     `json:"status"`
-	IPWhitelist []string   `json:"ip_whitelist"`
-	IPBlacklist []string   `json:"ip_blacklist"`
-	LastUsedAt  *time.Time `json:"last_used_at"`
-	LastUsedIP  *string    `json:"last_used_ip"`
-	Quota       float64    `json:"quota"`      // Quota limit in USD (0 = unlimited)
-	QuotaUsed   float64    `json:"quota_used"` // Used quota amount in USD
-	ExpiresAt   *time.Time `json:"expires_at"` // Expiration time (nil = never expires)
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID          int64              `json:"id"`
+	UserID      int64              `json:"user_id"`
+	Key         string             `json:"key"`
+	Name        string             `json:"name"`
+	GroupID     *int64             `json:"group_id"`
+	GroupRoutes []APIKeyGroupRoute `json:"group_routes,omitempty"`
+	Status      string             `json:"status"`
+	IPWhitelist []string           `json:"ip_whitelist"`
+	IPBlacklist []string           `json:"ip_blacklist"`
+	LastUsedAt  *time.Time         `json:"last_used_at"`
+	LastUsedIP  *string            `json:"last_used_ip"`
+	Quota       float64            `json:"quota"`      // Quota limit in USD (0 = unlimited)
+	QuotaUsed   float64            `json:"quota_used"` // Used quota amount in USD
+	ExpiresAt   *time.Time         `json:"expires_at"` // Expiration time (nil = never expires)
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
 	// CurrentConcurrency is the real-time active request count for this API key.
 	CurrentConcurrency int `json:"current_concurrency"`
 
@@ -172,16 +180,21 @@ type AdminGroup struct {
 }
 
 type Account struct {
-	ID       int64   `json:"id"`
-	Name     string  `json:"name"`
-	Notes    *string `json:"notes"`
-	Platform string  `json:"platform"`
-	Type     string  `json:"type"`
+	ID           int64   `json:"id"`
+	Name         string  `json:"name"`
+	Notes        *string `json:"notes"`
+	Platform     string  `json:"platform"`
+	AccountLevel string  `json:"account_level"`
+	Type         string  `json:"type"`
 	// Credentials 经 RedactCredentials 处理后只含非敏感子键；敏感 token / api_key / 私钥
 	// 的存在性通过 CredentialsStatus（has_<key>）暴露，原始值不返回前端。
 	Credentials             map[string]any  `json:"credentials"`
 	CredentialsStatus       map[string]bool `json:"credentials_status,omitempty"`
 	Extra                   map[string]any  `json:"extra"`
+	OwnerUserID             *int64          `json:"owner_user_id,omitempty"`
+	ShareMode               string          `json:"share_mode"`
+	ShareStatus             string          `json:"share_status"`
+	SharePolicyID           *int64          `json:"share_policy_id,omitempty"`
 	ProxyID                 *int64          `json:"proxy_id"`
 	ProxyFallbackOriginID   *int64          `json:"proxy_fallback_origin_id"`
 	ProxyFallbackOriginName *string         `json:"proxy_fallback_origin_name,omitempty"`

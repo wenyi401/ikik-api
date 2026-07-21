@@ -5,12 +5,27 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync"
 	"time"
 
 	"ikik-api/internal/pkg/pagination"
 )
 
-const accountQuotaDashboardPageSize = 1000
+const (
+	accountQuotaDashboardPageSize     = 1000
+	accountQuotaPoolDashboardCacheTTL = 15 * time.Second
+)
+
+type accountQuotaPoolRepository interface {
+	ListQuotaPoolAccounts(ctx context.Context, ownerUserID int64) ([]Account, error)
+}
+
+type accountQuotaPoolDashboardCache struct {
+	mu      sync.Mutex
+	userID  int64
+	expires time.Time
+	value   *UserAccountQuotaPoolDashboard
+}
 
 type AccountQuotaDashboard struct {
 	GeneratedAt    time.Time                  `json:"generated_at"`
@@ -50,6 +65,8 @@ type AccountQuotaGroupSummary struct {
 	GroupName                      string                       `json:"group_name"`
 	GroupStatus                    string                       `json:"group_status"`
 	Platform                       string                       `json:"platform"`
+	AccountLevel                   string                       `json:"account_level,omitempty"`
+	RateMultiplier                 float64                      `json:"rate_multiplier"`
 	AccountCount                   int                          `json:"account_count"`
 	ActiveAccountCount             int                          `json:"active_account_count"`
 	SchedulableAccountCount        int                          `json:"schedulable_account_count"`
@@ -110,10 +127,12 @@ type accountQuotaGroupDashboardBuilder struct {
 }
 
 type accountQuotaGroupSummaryAccumulator struct {
-	groupID     *int64
-	groupName   string
-	groupStatus string
-	core        accountQuotaSummaryAccumulator
+	groupID        *int64
+	groupName      string
+	groupStatus    string
+	accountLevel   string
+	rateMultiplier float64
+	core           accountQuotaSummaryAccumulator
 }
 
 func (s *adminServiceImpl) GetAccountQuotaDashboard(ctx context.Context) (*AccountQuotaDashboard, error) {
@@ -321,7 +340,6 @@ func visitAccountQuotaDashboardAccounts(ctx context.Context, repo AccountReposit
 			"",
 			"",
 			0,
-			0,
 			"",
 		)
 		if err != nil {
@@ -403,7 +421,7 @@ func (b *accountQuotaGroupDashboardBuilder) addAccountWithGroupFilter(account Ac
 	}
 	if len(account.Groups) == 0 {
 		if allowGroup == nil {
-			b.addAccountToGroup(account, nil, "", StatusActive, account.Platform, "", false, false)
+			b.addAccountToGroup(account, nil, "", StatusActive, account.Platform, "", 1, false, false)
 		}
 		return
 	}
@@ -425,6 +443,7 @@ func (b *accountQuotaGroupDashboardBuilder) addAccountWithGroupFilter(account Ac
 			group.Status,
 			platform,
 			group.RequiredAccountLevel,
+			group.RateMultiplier,
 			group.RequireOAuthOnly,
 			group.RequirePrivacySet,
 		)
@@ -450,26 +469,28 @@ func accountHasPlatformSharedQuotaGroup(account Account) bool {
 	return false
 }
 
-func (b *accountQuotaGroupDashboardBuilder) addAccountToGroup(account Account, groupID *int64, groupName, groupStatus, platform, requiredAccountLevel string, requireOAuthOnly, requirePrivacySet bool) {
+func (b *accountQuotaGroupDashboardBuilder) addAccountToGroup(account Account, groupID *int64, groupName, groupStatus, platform, requiredAccountLevel string, rateMultiplier float64, requireOAuthOnly, requirePrivacySet bool) {
 	key := accountQuotaGroupKey(groupID, platform)
 	acc, ok := b.accumulators[key]
 	if !ok {
-		acc = newAccountQuotaGroupSummaryAccumulator(groupID, groupName, groupStatus, platform)
+		acc = newAccountQuotaGroupSummaryAccumulator(groupID, groupName, groupStatus, platform, requiredAccountLevel, rateMultiplier)
 		b.accumulators[key] = acc
 	}
 	acc.addAccount(account, b.generatedAt, accountSchedulableInQuotaGroup(account, b.generatedAt, groupStatus, platform, requiredAccountLevel, requireOAuthOnly, requirePrivacySet))
 }
 
-func newAccountQuotaGroupSummaryAccumulator(groupID *int64, groupName, groupStatus, platform string) *accountQuotaGroupSummaryAccumulator {
+func newAccountQuotaGroupSummaryAccumulator(groupID *int64, groupName, groupStatus, platform, accountLevel string, rateMultiplier float64) *accountQuotaGroupSummaryAccumulator {
 	var idCopy *int64
 	if groupID != nil {
 		id := *groupID
 		idCopy = &id
 	}
 	return &accountQuotaGroupSummaryAccumulator{
-		groupID:     idCopy,
-		groupName:   groupName,
-		groupStatus: groupStatus,
+		groupID:        idCopy,
+		groupName:      groupName,
+		groupStatus:    groupStatus,
+		accountLevel:   NormalizeRequiredAccountLevel(accountLevel),
+		rateMultiplier: rateMultiplier,
 		core: accountQuotaSummaryAccumulator{
 			summary: AccountQuotaSummary{
 				Platform: platform,
@@ -497,6 +518,8 @@ func (a *accountQuotaGroupSummaryAccumulator) finalize() AccountQuotaGroupSummar
 		GroupName:                      a.groupName,
 		GroupStatus:                    a.groupStatus,
 		Platform:                       summary.Platform,
+		AccountLevel:                   a.accountLevel,
+		RateMultiplier:                 a.rateMultiplier,
 		AccountCount:                   summary.AccountCount,
 		ActiveAccountCount:             summary.ActiveAccountCount,
 		SchedulableAccountCount:        summary.SchedulableAccountCount,
@@ -547,14 +570,6 @@ func accountQuotaGroupKey(groupID *int64, platform string) string {
 		return "ungrouped\x00" + platform
 	}
 	return fmt.Sprintf("%d", *groupID)
-}
-
-func cloneInt64Ptr(value *int64) *int64 {
-	if value == nil {
-		return nil
-	}
-	out := *value
-	return &out
 }
 
 func int64PtrValue(value *int64) int64 {
@@ -802,4 +817,12 @@ func usageWindowSortOrder(window string) int {
 	default:
 		return 99
 	}
+}
+
+func cloneInt64Ptr(value *int64) *int64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }

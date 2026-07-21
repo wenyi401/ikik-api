@@ -15,6 +15,9 @@ import (
 	"ikik-api/ent/apikeygrouproute"
 	"ikik-api/ent/authidentity"
 	"ikik-api/ent/authidentitychannel"
+	"ikik-api/ent/batchimageevent"
+	"ikik-api/ent/batchimageitem"
+	"ikik-api/ent/batchimagejob"
 	"ikik-api/ent/channelmonitor"
 	"ikik-api/ent/channelmonitordailyrollup"
 	"ikik-api/ent/channelmonitorhistory"
@@ -49,6 +52,7 @@ import (
 	"ikik-api/ent/userallowedgroup"
 	"ikik-api/ent/userattributedefinition"
 	"ikik-api/ent/userattributevalue"
+	"ikik-api/ent/userplatformquota"
 	"ikik-api/ent/usersubscription"
 
 	"entgo.io/ent/dialect/sql"
@@ -324,6 +328,87 @@ func (f TraverseAuthIdentityChannel) Traverse(ctx context.Context, q ent.Query) 
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.AuthIdentityChannelQuery", q)
+}
+
+// The BatchImageEventFunc type is an adapter to allow the use of ordinary function as a Querier.
+type BatchImageEventFunc func(context.Context, *ent.BatchImageEventQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f BatchImageEventFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.BatchImageEventQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.BatchImageEventQuery", q)
+}
+
+// The TraverseBatchImageEvent type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseBatchImageEvent func(context.Context, *ent.BatchImageEventQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseBatchImageEvent) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseBatchImageEvent) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.BatchImageEventQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.BatchImageEventQuery", q)
+}
+
+// The BatchImageItemFunc type is an adapter to allow the use of ordinary function as a Querier.
+type BatchImageItemFunc func(context.Context, *ent.BatchImageItemQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f BatchImageItemFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.BatchImageItemQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.BatchImageItemQuery", q)
+}
+
+// The TraverseBatchImageItem type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseBatchImageItem func(context.Context, *ent.BatchImageItemQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseBatchImageItem) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseBatchImageItem) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.BatchImageItemQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.BatchImageItemQuery", q)
+}
+
+// The BatchImageJobFunc type is an adapter to allow the use of ordinary function as a Querier.
+type BatchImageJobFunc func(context.Context, *ent.BatchImageJobQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f BatchImageJobFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.BatchImageJobQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.BatchImageJobQuery", q)
+}
+
+// The TraverseBatchImageJob type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseBatchImageJob func(context.Context, *ent.BatchImageJobQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseBatchImageJob) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseBatchImageJob) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.BatchImageJobQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.BatchImageJobQuery", q)
 }
 
 // The ChannelMonitorFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -1217,6 +1302,33 @@ func (f TraverseUserAttributeValue) Traverse(ctx context.Context, q ent.Query) e
 	return fmt.Errorf("unexpected query type %T. expect *ent.UserAttributeValueQuery", q)
 }
 
+// The UserPlatformQuotaFunc type is an adapter to allow the use of ordinary function as a Querier.
+type UserPlatformQuotaFunc func(context.Context, *ent.UserPlatformQuotaQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f UserPlatformQuotaFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.UserPlatformQuotaQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.UserPlatformQuotaQuery", q)
+}
+
+// The TraverseUserPlatformQuota type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseUserPlatformQuota func(context.Context, *ent.UserPlatformQuotaQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseUserPlatformQuota) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseUserPlatformQuota) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.UserPlatformQuotaQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.UserPlatformQuotaQuery", q)
+}
+
 // The UserSubscriptionFunc type is an adapter to allow the use of ordinary function as a Querier.
 type UserSubscriptionFunc func(context.Context, *ent.UserSubscriptionQuery) (ent.Value, error)
 
@@ -1263,6 +1375,12 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.AuthIdentityQuery, predicate.AuthIdentity, authidentity.OrderOption]{typ: ent.TypeAuthIdentity, tq: q}, nil
 	case *ent.AuthIdentityChannelQuery:
 		return &query[*ent.AuthIdentityChannelQuery, predicate.AuthIdentityChannel, authidentitychannel.OrderOption]{typ: ent.TypeAuthIdentityChannel, tq: q}, nil
+	case *ent.BatchImageEventQuery:
+		return &query[*ent.BatchImageEventQuery, predicate.BatchImageEvent, batchimageevent.OrderOption]{typ: ent.TypeBatchImageEvent, tq: q}, nil
+	case *ent.BatchImageItemQuery:
+		return &query[*ent.BatchImageItemQuery, predicate.BatchImageItem, batchimageitem.OrderOption]{typ: ent.TypeBatchImageItem, tq: q}, nil
+	case *ent.BatchImageJobQuery:
+		return &query[*ent.BatchImageJobQuery, predicate.BatchImageJob, batchimagejob.OrderOption]{typ: ent.TypeBatchImageJob, tq: q}, nil
 	case *ent.ChannelMonitorQuery:
 		return &query[*ent.ChannelMonitorQuery, predicate.ChannelMonitor, channelmonitor.OrderOption]{typ: ent.TypeChannelMonitor, tq: q}, nil
 	case *ent.ChannelMonitorDailyRollupQuery:
@@ -1329,6 +1447,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.UserAttributeDefinitionQuery, predicate.UserAttributeDefinition, userattributedefinition.OrderOption]{typ: ent.TypeUserAttributeDefinition, tq: q}, nil
 	case *ent.UserAttributeValueQuery:
 		return &query[*ent.UserAttributeValueQuery, predicate.UserAttributeValue, userattributevalue.OrderOption]{typ: ent.TypeUserAttributeValue, tq: q}, nil
+	case *ent.UserPlatformQuotaQuery:
+		return &query[*ent.UserPlatformQuotaQuery, predicate.UserPlatformQuota, userplatformquota.OrderOption]{typ: ent.TypeUserPlatformQuota, tq: q}, nil
 	case *ent.UserSubscriptionQuery:
 		return &query[*ent.UserSubscriptionQuery, predicate.UserSubscription, usersubscription.OrderOption]{typ: ent.TypeUserSubscription, tq: q}, nil
 	default:

@@ -41,6 +41,10 @@ const messages: Record<string, string> = {
   'admin.groups.columns.usage': 'Usage',
   'admin.groups.columns.status': 'Status',
   'admin.groups.columns.actions': 'Actions',
+  'admin.groups.accountsAvailable': 'Available:',
+  'admin.groups.accountsRateLimited': 'Limited:',
+  'admin.groups.accountsTotal': 'Total:',
+  'admin.groups.accountsUnit': 'accounts',
 }
 
 vi.mock('@/api/admin', () => ({
@@ -148,6 +152,9 @@ const DataTableStub = {
     <div>
       <div data-test="columns">{{ columns.map((col) => col.key).join(',') }}</div>
       <div data-test="rows">{{ data.map((row) => row.name).join(',') }}</div>
+      <div v-if="data[0]" data-test="account-count">
+        <slot name="cell-account_count" :row="data[0]" :value="data[0].account_count" />
+      </div>
     </div>
   `,
 }
@@ -269,6 +276,28 @@ describe('admin GroupsView column settings', () => {
     ])
     expect(localStorage.getItem('group-hidden-columns')).toBe(JSON.stringify(['id']))
     expect(localStorage.getItem('group-column-settings-version')).toBe('2')
+  })
+
+  it('does not subtract rate-limited accounts from the schedulable count twice', async () => {
+    listGroups.mockResolvedValue({
+      items: [createGroup({
+        account_count: 273,
+        active_account_count: 5,
+        rate_limited_account_count: 226,
+      })],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+
+    const wrapper = await mountView()
+    const text = wrapper.get('[data-test="account-count"]').text()
+
+    expect(text).toContain('Available:5accounts')
+    expect(text).toContain('Limited:226accounts')
+    expect(text).toContain('Total:273accounts')
+    expect(text).not.toContain('-221')
   })
 
   it('applies saved hidden columns on mount and ignores unknown keys', async () => {

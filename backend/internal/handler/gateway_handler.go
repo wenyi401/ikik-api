@@ -15,6 +15,7 @@ import (
 
 	"ikik-api/internal/config"
 	"ikik-api/internal/domain"
+	"ikik-api/internal/gatewayhook"
 	"ikik-api/internal/pkg/antigravity"
 	"ikik-api/internal/pkg/claude"
 	"ikik-api/internal/pkg/ctxkey"
@@ -55,6 +56,7 @@ type GatewayHandler struct {
 	maxAccountSwitchesGemini  int
 	cfg                       *config.Config
 	settingService            *service.SettingService
+	preFlightHooks            *gatewayhook.Chain
 }
 
 // NewGatewayHandler creates a new GatewayHandler
@@ -199,8 +201,8 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		return
 	}
 
-	if decision := h.checkContentModeration(c, reqLog, apiKey, subject, service.ContentModerationProtocolAnthropicMessages, reqModel, body); decision != nil && decision.Blocked {
-		h.errorResponse(c, contentModerationStatus(decision), contentModerationErrorCode(decision), decision.Message)
+	if decision := h.runPreFlightHooks(c, reqLog, apiKey, subject, service.ContentModerationProtocolAnthropicMessages, reqModel, body); decision != nil && decision.Blocked {
+		h.errorResponse(c, preFlightStatus(decision), preFlightErrorCode(decision), decision.Message)
 		return
 	}
 
@@ -1044,6 +1046,10 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		writeGrokModelsList(c, xai.DefaultModelIDs())
 		return
 	}
+	if platform == service.PlatformKiro {
+		writeKiroModelsList(c, defaultKiroModelIDs())
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"object": "list",
@@ -1054,6 +1060,10 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 func writeModelsList(c *gin.Context, platform string, modelIDs []string) {
 	if platform == service.PlatformGrok {
 		writeGrokModelsList(c, modelIDs)
+		return
+	}
+	if platform == service.PlatformKiro {
+		writeKiroModelsList(c, modelIDs)
 		return
 	}
 	models := make([]claude.Model, 0, len(modelIDs))

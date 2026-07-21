@@ -55,6 +55,8 @@ type ChannelMonitor struct {
 	BodyOverrideMode string `json:"body_override_mode,omitempty"`
 	// BodyOverride holds the value of the "body_override" field.
 	BodyOverride map[string]interface{} `json:"body_override,omitempty"`
+	// OpenAI request protocol: chat_completions or responses; non-OpenAI uses chat_completions
+	APIMode string `json:"api_mode,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the ChannelMonitorQuery when eager-loading is set.
 	Edges        ChannelMonitorEdges `json:"edges"`
@@ -114,7 +116,7 @@ func (*ChannelMonitor) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case channelmonitor.FieldID, channelmonitor.FieldIntervalSeconds, channelmonitor.FieldJitterSeconds, channelmonitor.FieldCreatedBy, channelmonitor.FieldTemplateID:
 			values[i] = new(sql.NullInt64)
-		case channelmonitor.FieldName, channelmonitor.FieldProvider, channelmonitor.FieldEndpoint, channelmonitor.FieldAPIKeyEncrypted, channelmonitor.FieldPrimaryModel, channelmonitor.FieldGroupName, channelmonitor.FieldBodyOverrideMode:
+		case channelmonitor.FieldName, channelmonitor.FieldProvider, channelmonitor.FieldEndpoint, channelmonitor.FieldAPIKeyEncrypted, channelmonitor.FieldPrimaryModel, channelmonitor.FieldGroupName, channelmonitor.FieldBodyOverrideMode, channelmonitor.FieldAPIMode:
 			values[i] = new(sql.NullString)
 		case channelmonitor.FieldCreatedAt, channelmonitor.FieldUpdatedAt, channelmonitor.FieldLastCheckedAt:
 			values[i] = new(sql.NullTime)
@@ -255,6 +257,12 @@ func (_m *ChannelMonitor) assignValues(columns []string, values []any) error {
 					return fmt.Errorf("unmarshal field body_override: %w", err)
 				}
 			}
+		case channelmonitor.FieldAPIMode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field api_mode", values[i])
+			} else if value.Valid {
+				_m.APIMode = value.String
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -362,6 +370,9 @@ func (_m *ChannelMonitor) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("body_override=")
 	builder.WriteString(fmt.Sprintf("%v", _m.BodyOverride))
+	builder.WriteString(", ")
+	builder.WriteString("api_mode=")
+	builder.WriteString(_m.APIMode)
 	builder.WriteByte(')')
 	return builder.String()
 }

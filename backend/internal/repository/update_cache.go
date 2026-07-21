@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"ikik-api/internal/service"
+	"github.com/redis/go-redis/v9"
 )
 
-const updateCacheKey = "ikik-api:update:latest:v1"
+const updateCacheKey = "update:latest"
 
 type updateCache struct {
 	rdb *redis.Client

@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/antigravity"
 	infraerrors "ikik-api/internal/pkg/errors"
-	"github.com/stretchr/testify/require"
 )
 
 type settingUpdateRepoStub struct {
@@ -156,6 +156,79 @@ func TestSettingService_AffiliateAdminRechargeSetting(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "true", repo.updates[SettingKeyAffiliateAdminRechargeEnabled])
+	})
+}
+
+func TestSettingService_IkikFeatureFlagsRoundTrip(t *testing.T) {
+	t.Run("persist enabled flags", func(t *testing.T) {
+		repo := &settingUpdateRepoStub{}
+		svc := NewSettingService(repo, &config.Config{})
+		dailyLimit := 12.5
+
+		err := svc.UpdateSettings(context.Background(), &SystemSettings{
+			RegistrationEnabled:                       true,
+			FreeModelsEnabled:                         true,
+			CarpoolEnabled:                            true,
+			CarpoolBaseServiceFeeUSD:                  88,
+			CarpoolSystemProxyFeeUSD:                  12,
+			CarpoolRiskControlFeeUSD:                  18,
+			UserPrivateGroupDailyLimitUSD:             &dailyLimit,
+			UserPrivateGroupRateMultiplier:            1.25,
+			UserPrivateGroupRPMLimit:                  30,
+			OpenAIImagesResponsesReasoningEffort:      "high",
+			OpenAIFreeAccountRepairEnabled:            true,
+			OpenAIFreeAccountRepairWeeklyThresholdUSD: 75,
+			AutoModelSettings:                         AutoModelSettings{Enabled: true},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "true", repo.updates[SettingKeyRegistrationEnabled])
+		require.Equal(t, "true", repo.updates[SettingKeyFreeModelsEnabled])
+		require.Equal(t, "true", repo.updates[SettingKeyCarpoolEnabled])
+		require.Equal(t, "88.00000000", repo.updates[SettingKeyCarpoolBaseServiceFeeUSD])
+		require.Equal(t, "12.00000000", repo.updates[SettingKeyCarpoolSystemProxyFeeUSD])
+		require.Equal(t, "18.00000000", repo.updates[SettingKeyCarpoolRiskControlFeeUSD])
+		require.Equal(t, "12.50000000", repo.updates[SettingKeyUserPrivateGroupDailyLimitUSD])
+		require.Equal(t, "1.25000000", repo.updates[SettingKeyUserPrivateGroupRateMultiplier])
+		require.Equal(t, "30", repo.updates[SettingKeyUserPrivateGroupRPMLimit])
+		require.Equal(t, "high", repo.updates[SettingKeyOpenAIImagesResponsesReasoningEffort])
+		require.Equal(t, "true", repo.updates[SettingKeyOpenAIFreeAccountRepairEnabled])
+		require.Equal(t, "75.00000000", repo.updates[SettingKeyOpenAIFreeAccountRepairWeeklyThresholdUSD])
+		require.Contains(t, repo.updates[SettingKeyAutoModelSettings], `"enabled":true`)
+	})
+
+	t.Run("parse stored flags", func(t *testing.T) {
+		svc := NewSettingService(&settingGetAllRepoStub{values: map[string]string{
+			SettingKeyRegistrationEnabled:                       "true",
+			SettingKeyFreeModelsEnabled:                         "true",
+			SettingKeyCarpoolEnabled:                            "true",
+			SettingKeyCarpoolBaseServiceFeeUSD:                  "88",
+			SettingKeyCarpoolSystemProxyFeeUSD:                  "12",
+			SettingKeyCarpoolRiskControlFeeUSD:                  "18",
+			SettingKeyUserPrivateGroupDailyLimitUSD:             "12.5",
+			SettingKeyUserPrivateGroupRateMultiplier:            "1.25",
+			SettingKeyUserPrivateGroupRPMLimit:                  "30",
+			SettingKeyOpenAIImagesResponsesReasoningEffort:      "high",
+			SettingKeyOpenAIFreeAccountRepairEnabled:            "true",
+			SettingKeyOpenAIFreeAccountRepairWeeklyThresholdUSD: "75",
+			SettingKeyAutoModelSettings:                         `{"enabled":true,"models":[]}`,
+		}}, &config.Config{})
+
+		settings, err := svc.GetAllSettings(context.Background())
+		require.NoError(t, err)
+		require.True(t, settings.RegistrationEnabled)
+		require.True(t, settings.FreeModelsEnabled)
+		require.True(t, settings.CarpoolEnabled)
+		require.Equal(t, 88.0, settings.CarpoolBaseServiceFeeUSD)
+		require.Equal(t, 12.0, settings.CarpoolSystemProxyFeeUSD)
+		require.Equal(t, 18.0, settings.CarpoolRiskControlFeeUSD)
+		require.NotNil(t, settings.UserPrivateGroupDailyLimitUSD)
+		require.Equal(t, 12.5, *settings.UserPrivateGroupDailyLimitUSD)
+		require.Equal(t, 1.25, settings.UserPrivateGroupRateMultiplier)
+		require.Equal(t, 30, settings.UserPrivateGroupRPMLimit)
+		require.Equal(t, "high", settings.OpenAIImagesResponsesReasoningEffort)
+		require.True(t, settings.OpenAIFreeAccountRepairEnabled)
+		require.Equal(t, 75.0, settings.OpenAIFreeAccountRepairWeeklyThresholdUSD)
+		require.True(t, settings.AutoModelSettings.Enabled)
 	})
 }
 

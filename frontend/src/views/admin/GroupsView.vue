@@ -67,12 +67,14 @@
               />
             </UiIconButton>
             <div class="relative" ref="columnDropdownRef">
-              <UiIconButton
-                :label="t('admin.groups.columnSettings')"
+              <button
                 @click="showColumnDropdown = !showColumnDropdown"
+                class="btn btn-secondary px-2 md:px-3"
+                :title="t('admin.groups.columnSettings')"
               >
-                <Icon name="grid" size="md" />
-              </UiIconButton>
+                <Icon name="grid" size="md" class="md:mr-1.5" />
+                <span class="hidden md:inline">{{ t("admin.groups.columnSettings") }}</span>
+              </button>
               <div
                 v-if="showColumnDropdown"
                 class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-1 shadow-lg"
@@ -122,6 +124,10 @@
           default-sort-order="asc"
           @sort="handleSort"
         >
+          <template #cell-id="{ value }">
+            <span class="font-mono text-xs text-gray-500 dark:text-gray-400">#{{ value }}</span>
+          </template>
+
           <template #cell-name="{ value, row }">
             <div class="flex min-w-0 items-center gap-2">
               <span class="truncate font-medium text-gray-900 dark:text-white">{{
@@ -249,10 +255,7 @@
                 }}</span>
                 <span
                   class="ml-1 font-medium text-emerald-600 dark:text-emerald-400"
-                  >{{
-                    (row.active_account_count || 0) -
-                    (row.rate_limited_account_count || 0)
-                  }}</span
+                  >{{ Math.max(row.active_account_count || 0, 0) }}</span
                 >
                 <span
                   class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
@@ -346,6 +349,16 @@
               >
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t("common.edit") }}</span>
+              </button>
+              <button
+                data-testid="group-duplicate"
+                :title="duplicatingGroupIds.has(row.id) ? t('admin.groups.duplicating') : t('admin.groups.duplicate')"
+                :disabled="duplicatingGroupIds.has(row.id)"
+                @click="handleDuplicate(row)"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+              >
+                <Icon name="copy" size="sm" />
+                <span class="text-xs">{{ duplicatingGroupIds.has(row.id) ? t("admin.groups.duplicating") : t("admin.groups.duplicate") }}</span>
               </button>
               <button
                 @click="handleRateMultipliers(row)"
@@ -774,7 +787,7 @@
                 </button>
               </div>
             </div>
-            <div class="max-h-64 space-y-2 overflow-y-auto overflow-x-hidden p-2">
+            <div class="max-h-64 space-y-2 overflow-y-auto p-2">
               <p v-if="createModelsListLoading" class="text-xs text-gray-500 dark:text-gray-400">
                 {{ t("admin.groups.modelsList.loading") }}
               </p>
@@ -2125,7 +2138,7 @@
                 </button>
               </div>
             </div>
-            <div class="max-h-64 space-y-2 overflow-y-auto overflow-x-hidden p-2">
+            <div class="max-h-64 space-y-2 overflow-y-auto p-2">
               <p v-if="editModelsListLoading" class="text-xs text-gray-500 dark:text-gray-400">
                 {{ t("admin.groups.modelsList.loading") }}
               </p>
@@ -3253,6 +3266,7 @@ import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesMo
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
+import { extractApiErrorMessage } from "@/utils/apiError";
 import { useKeyedDebouncedSearch } from "@/composables/useKeyedDebouncedSearch";
 import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
 import {
@@ -3278,10 +3292,17 @@ const appStore = useAppStore();
 const onboardingStore = useOnboardingStore();
 
 const ALWAYS_VISIBLE_COLUMNS = new Set(["name", "actions"]);
+const DEFAULT_HIDDEN_COLUMNS = ["id"];
 const HIDDEN_COLUMNS_KEY = "group-hidden-columns";
+const COLUMN_SETTINGS_VERSION_KEY = "group-column-settings-version";
+const COLUMN_SETTINGS_VERSION = 2;
+const VERSION_NEW_HIDDEN_COLUMNS: Record<number, string[]> = {
+  2: ["id"],
+};
 
 const allColumns = computed<Column[]>(() => [
   { key: "name", label: t("admin.groups.columns.name"), sortable: true },
+  { key: "id", label: t("admin.groups.columns.id"), sortable: true },
   {
     key: "platform",
     label: t("admin.groups.columns.platform"),
@@ -3331,19 +3352,44 @@ const loadSavedColumns = () => {
   hiddenColumns.clear();
   try {
     const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY);
-    if (!saved) return;
-    const parsed = JSON.parse(saved);
-    if (!Array.isArray(parsed)) return;
-
     const validKeys = getValidHiddenColumnKeys();
-    parsed
-      .filter(
-        (key): key is string =>
-          typeof key === "string" && validKeys.has(key),
-      )
-      .forEach((key) => hiddenColumns.add(key));
+
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        parsed
+          .filter(
+            (key): key is string =>
+              typeof key === "string" && validKeys.has(key),
+          )
+          .forEach((key) => hiddenColumns.add(key));
+      }
+
+      const storedVersion = Number(
+        localStorage.getItem(COLUMN_SETTINGS_VERSION_KEY) ?? "1",
+      );
+      if (storedVersion < COLUMN_SETTINGS_VERSION) {
+        let mutated = false;
+        for (let version = storedVersion + 1; version <= COLUMN_SETTINGS_VERSION; version += 1) {
+          for (const key of VERSION_NEW_HIDDEN_COLUMNS[version] ?? []) {
+            if (validKeys.has(key) && !hiddenColumns.has(key)) {
+              hiddenColumns.add(key);
+              mutated = true;
+            }
+          }
+        }
+        if (mutated) saveColumnsToStorage();
+        else localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION));
+      }
+    } else {
+      DEFAULT_HIDDEN_COLUMNS.forEach((key) => {
+        if (validKeys.has(key)) hiddenColumns.add(key);
+      });
+      saveColumnsToStorage();
+    }
   } catch (error) {
     console.error("Failed to load group column settings:", error);
+    DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key));
   }
 };
 
@@ -3352,13 +3398,16 @@ const saveColumnsToStorage = () => {
     const validKeys = getValidHiddenColumnKeys();
     const keys = [...hiddenColumns].filter((key) => validKeys.has(key));
     localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify(keys));
+    localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION));
   } catch (error) {
     console.error("Failed to save group column settings:", error);
   }
 };
 
 const isColumnVisible = (key: string) => !hiddenColumns.has(key);
-const hasVisibleUsageColumn = computed(() => isColumnVisible("usage"));
+const hasVisibleUsageSummaryConsumer = computed(
+  () => isColumnVisible("usage") || isColumnVisible("billing_type"),
+);
 const hasVisibleCapacityColumn = computed(() => isColumnVisible("capacity"));
 
 const toggleColumn = (key: string) => {
@@ -3373,7 +3422,7 @@ const toggleColumn = (key: string) => {
   }
   saveColumnsToStorage();
 
-  if (wasHidden && key === "usage") {
+  if (wasHidden && (key === "usage" || key === "billing_type")) {
     loadUsageSummary();
   }
   if (wasHidden && key === "capacity") {
@@ -3406,9 +3455,7 @@ const exclusiveOptions = computed(() => [
 
 const scopeOptions = computed(() => [
   { value: "public", label: t("admin.groups.scope.public") },
-  { value: "user_private", label: t("admin.groups.scope.private") },
   { value: "user_carpool", label: t("carpool.title") },
-  { value: "all", label: t("admin.groups.scope.all") },
 ]);
 
 const platformOptions = computed(() => [
@@ -3608,6 +3655,7 @@ const submitting = ref(false);
 const sortSubmitting = ref(false);
 const editingGroup = ref<AdminGroup | null>(null);
 const deletingGroup = ref<AdminGroup | null>(null);
+const duplicatingGroupIds = reactive(new Set<number>());
 const showRateMultipliersModal = ref(false);
 const rateMultipliersGroup = ref<AdminGroup | null>(null);
 const showRateSchedulesModal = ref(false);
@@ -4052,7 +4100,7 @@ const loadGroups = async () => {
     groups.value = response.items;
     pagination.total = response.total;
     pagination.pages = response.pages;
-    if (hasVisibleUsageColumn.value) {
+    if (hasVisibleUsageSummaryConsumer.value) {
       loadUsageSummary();
     } else {
       usageLoading.value = false;
@@ -4084,7 +4132,7 @@ const formatCost = (cost: number): string => {
 };
 
 const loadUsageSummary = async () => {
-  if (!hasVisibleUsageColumn.value) {
+  if (!hasVisibleUsageSummaryConsumer.value) {
     usageLoading.value = false;
     return;
   }
@@ -4463,6 +4511,20 @@ const handleRateSchedules = (group: AdminGroup) => {
 const handleRPMOverrides = (group: AdminGroup) => {
   rpmOverridesGroup.value = group;
   showRPMOverridesModal.value = true;
+};
+
+const handleDuplicate = async (group: AdminGroup) => {
+  if (duplicatingGroupIds.has(group.id)) return;
+  duplicatingGroupIds.add(group.id);
+  try {
+    const duplicate = await adminAPI.groups.duplicate(group.id);
+    appStore.showSuccess(t("admin.groups.duplicateSuccess", { name: duplicate.name }));
+    await loadGroups();
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t("admin.groups.duplicateFailed")));
+  } finally {
+    duplicatingGroupIds.delete(group.id);
+  }
 };
 
 const handleDelete = (group: AdminGroup) => {

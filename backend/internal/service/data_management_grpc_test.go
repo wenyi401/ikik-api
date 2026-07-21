@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	infraerrors "ikik-api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 func TestDataManagementService_DeprecatedRPCMethods(t *testing.T) {

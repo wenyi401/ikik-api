@@ -73,12 +73,14 @@ type scheduledMonitor struct {
 	cancel   context.CancelFunc
 }
 
-// nextDelay 计算下一次触发等待时长：interval ± [0, jitter]。
+// nextDelay 计算下一次触发的等待时长：interval ± [0, jitter] 的均匀随机偏移。
+// 校验链路已保证 interval - jitter >= monitorMinIntervalSeconds，
+// 这里仍 clamp 一次下限，兜底数据库中违反约束的脏数据。
 func (t *scheduledMonitor) nextDelay() time.Duration {
 	if t.jitter <= 0 {
 		return t.interval
 	}
-	offset := time.Duration(rand.Int64N(int64(2*t.jitter) + 1))
+	offset := time.Duration(rand.Int64N(int64(2*t.jitter) + 1)) // [0, 2*jitter]
 	d := t.interval - t.jitter + offset
 	if floor := monitorMinIntervalSeconds * time.Second; d < floor {
 		d = floor

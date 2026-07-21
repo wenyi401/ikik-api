@@ -178,7 +178,23 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyChannelMonitorDefaultIntervalSeconds: "60",
 
 		// Available channels feature (default disabled; opt-in)
-		SettingKeyAvailableChannelsEnabled: "false",
+		SettingKeyAvailableChannelsEnabled:                  "false",
+		SettingKeyFreeModelsEnabled:                         "false",
+		SettingKeyAutoModelSettings:                         DefaultAutoModelSettingsJSON(),
+		SettingKeyHomeStatsGroupID:                          "0",
+		SettingKeyCarpoolEnabled:                            "false",
+		SettingKeyCarpoolBaseServiceFeeUSD:                  strconv.FormatFloat(CarpoolBaseServiceFeeUSDDefault, 'f', 8, 64),
+		SettingKeyCarpoolSystemProxyFeeUSD:                  strconv.FormatFloat(CarpoolSystemProxyFeeUSDDefault, 'f', 8, 64),
+		SettingKeyCarpoolRiskControlFeeUSD:                  strconv.FormatFloat(CarpoolRiskControlFeeUSDDefault, 'f', 8, 64),
+		SettingKeyUserPrivateGroupDailyLimitUSD:             "0",
+		SettingKeyUserPrivateGroupWeeklyLimitUSD:            "0",
+		SettingKeyUserPrivateGroupMonthlyLimitUSD:           "0",
+		SettingKeyUserPrivateGroupRateMultiplier:            "1",
+		SettingKeyUserPrivateGroupRPMLimit:                  "0",
+		SettingKeyUserPrivateGroupCommissionRate:            "0.005",
+		SettingKeyOpenAIFreeAccountRepairEnabled:            "false",
+		SettingKeyOpenAIFreeAccountRepairWeeklyThresholdUSD: "60",
+		SettingKeyOpenAIImagesResponsesReasoningEffort:      s.defaultOpenAIImagesResponsesReasoningEffort(),
 
 		// Affiliate (邀请返利) feature (default disabled; opt-in)
 		SettingKeyAffiliateEnabled:              "false",
@@ -283,6 +299,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		ContactInfo:                      settings[SettingKeyContactInfo],
 		DocURL:                           settings[SettingKeyDocURL],
 		HomeContent:                      settings[SettingKeyHomeContent],
+		HomeStatsGroupID:                 parseNonNegativeSettingInt64(settings[SettingKeyHomeStatsGroupID]),
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
 		PurchaseSubscriptionEnabled:      settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
@@ -310,6 +327,21 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 
 	if rpm, err := strconv.Atoi(settings[SettingKeyDefaultUserRPMLimit]); err == nil && rpm >= 0 {
 		result.DefaultUserRPMLimit = rpm
+	}
+	result.UserPrivateGroupDailyLimitUSD = parsePositiveOptionalFloat(settings[SettingKeyUserPrivateGroupDailyLimitUSD])
+	result.UserPrivateGroupWeeklyLimitUSD = parsePositiveOptionalFloat(settings[SettingKeyUserPrivateGroupWeeklyLimitUSD])
+	result.UserPrivateGroupMonthlyLimitUSD = parsePositiveOptionalFloat(settings[SettingKeyUserPrivateGroupMonthlyLimitUSD])
+	result.UserPrivateGroupRateMultiplier = 1
+	if multiplier, err := strconv.ParseFloat(settings[SettingKeyUserPrivateGroupRateMultiplier], 64); err == nil && multiplier > 0 && !math.IsNaN(multiplier) && !math.IsInf(multiplier, 0) {
+		result.UserPrivateGroupRateMultiplier = multiplier
+	}
+	if rpm, err := strconv.Atoi(settings[SettingKeyUserPrivateGroupRPMLimit]); err == nil && rpm >= 0 {
+		result.UserPrivateGroupRPMLimit = rpm
+	}
+	if commissionRate, err := strconv.ParseFloat(settings[SettingKeyUserPrivateGroupCommissionRate], 64); err == nil && commissionRate >= 0 && !math.IsNaN(commissionRate) && !math.IsInf(commissionRate, 0) {
+		result.UserPrivateGroupCommissionRate = math.Min(commissionRate, 1)
+	} else {
+		result.UserPrivateGroupCommissionRate = 0.005
 	}
 
 	// 解析浮点数类型
@@ -720,6 +752,12 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 
 	// Available channels feature (default: disabled; strict true)
 	result.AvailableChannelsEnabled = settings[SettingKeyAvailableChannelsEnabled] == "true"
+	result.FreeModelsEnabled = settings[SettingKeyFreeModelsEnabled] == "true"
+	result.AutoModelSettings = ParseAutoModelSettings(settings[SettingKeyAutoModelSettings])
+	result.CarpoolEnabled = settings[SettingKeyCarpoolEnabled] == "true"
+	result.CarpoolBaseServiceFeeUSD = parseNonNegativeSettingFloat(settings[SettingKeyCarpoolBaseServiceFeeUSD], CarpoolBaseServiceFeeUSDDefault)
+	result.CarpoolSystemProxyFeeUSD = parseNonNegativeSettingFloat(settings[SettingKeyCarpoolSystemProxyFeeUSD], CarpoolSystemProxyFeeUSDDefault)
+	result.CarpoolRiskControlFeeUSD = parseNonNegativeSettingFloat(settings[SettingKeyCarpoolRiskControlFeeUSD], CarpoolRiskControlFeeUSDDefault)
 
 	// Affiliate (邀请返利) feature (default: disabled; strict true)
 	result.AffiliateEnabled = settings[SettingKeyAffiliateEnabled] == "true"
@@ -759,6 +797,10 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.ClaudeOAuthSystemPrompt = settings[SettingKeyClaudeOAuthSystemPrompt]
 	result.ClaudeOAuthSystemPromptBlocks = settings[SettingKeyClaudeOAuthSystemPromptBlocks]
 	result.EnableAnthropicCacheTTL1hInjection = settings[SettingKeyEnableAnthropicCacheTTL1hInjection] == "true"
+	result.OpenAIImagesResponsesReasoningEffort = s.defaultOpenAIImagesResponsesReasoningEffort()
+	if v := strings.TrimSpace(settings[SettingKeyOpenAIImagesResponsesReasoningEffort]); v != "" && IsValidOpenAIImagesResponsesReasoningEffort(v) {
+		result.OpenAIImagesResponsesReasoningEffort = NormalizeOpenAIImagesResponsesReasoningEffort(v)
+	}
 	if v, ok := settings[SettingKeyRewriteMessageCacheControl]; ok && v != "" {
 		result.RewriteMessageCacheControl = v == "true"
 	} else {
@@ -797,6 +839,12 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.OpenAILowUpstreamRatePriorityEnabled = settings[SettingKeyOpenAILowUpstreamRatePriorityEnabled] == "true"
 	result.OpenAIOAuthSchedulingRateMultiplier = parseOpenAIOAuthSchedulingRateMultiplier(settings[SettingKeyOpenAIOAuthSchedulingRateMultiplier])
 	result.OpenAIAdvancedSchedulerEnabled = settings[openAIAdvancedSchedulerSettingKey] == "true"
+	result.OpenAIFreeAccountRepairEnabled = settings[SettingKeyOpenAIFreeAccountRepairEnabled] == "true"
+	if v, err := strconv.ParseFloat(settings[SettingKeyOpenAIFreeAccountRepairWeeklyThresholdUSD], 64); err == nil && v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0) {
+		result.OpenAIFreeAccountRepairWeeklyThresholdUSD = v
+	} else {
+		result.OpenAIFreeAccountRepairWeeklyThresholdUSD = 60
+	}
 	result.OpenAIAdvancedSchedulerStickyWeightedEnabled = settings[SettingKeyOpenAIAdvancedSchedulerStickyWeightedEnabled] == "true"
 	result.OpenAIAdvancedSchedulerSubscriptionPriorityEnabled = settings[SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled] == "true"
 	result.OpenAIAdvancedSchedulerLBTopK = strings.TrimSpace(settings[SettingKeyOpenAIAdvancedSchedulerLBTopK])

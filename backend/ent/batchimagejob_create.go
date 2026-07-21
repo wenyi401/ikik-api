@@ -6,12 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ikik-api/ent/batchimagejob"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"ikik-api/ent/batchimagejob"
 )
 
 // BatchImageJobCreate is the builder for creating a BatchImageJob entity.

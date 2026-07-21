@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,8 +18,6 @@ type accountRepoStubForClearAccountError struct {
 	clearAntigravityCalls    int
 	clearModelRateLimitCalls int
 	clearTempUnschedCalls    int
-	updateExtraCalls         int
-	updateExtra              map[string]any
 }
 
 func (r *accountRepoStubForClearAccountError) GetByID(ctx context.Context, id int64) (*Account, error) {
@@ -59,15 +55,6 @@ func (r *accountRepoStubForClearAccountError) ClearTempUnschedulable(ctx context
 	return nil
 }
 
-func (r *accountRepoStubForClearAccountError) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
-	r.updateExtraCalls++
-	r.updateExtra = updates
-	for key, value := range updates {
-		r.account.Extra[key] = value
-	}
-	return nil
-}
-
 func TestAdminService_ClearAccountError_AlsoClearsRecoverableRuntimeState(t *testing.T) {
 	until := time.Now().Add(10 * time.Minute)
 	resetAt := time.Now().Add(5 * time.Minute)
@@ -83,7 +70,8 @@ func TestAdminService_ClearAccountError_AlsoClearsRecoverableRuntimeState(t *tes
 			TempUnschedulableReason: "missing refresh token",
 		},
 	}
-	svc := &adminServiceImpl{accountRepo: repo}
+	blocker := &runtimeBlockRecorder{}
+	svc := &adminServiceImpl{accountRepo: repo, runtimeBlocker: blocker}
 
 	updated, err := svc.ClearAccountError(context.Background(), 31)
 	require.NoError(t, err)
@@ -96,34 +84,5 @@ func TestAdminService_ClearAccountError_AlsoClearsRecoverableRuntimeState(t *tes
 	require.Nil(t, updated.RateLimitResetAt)
 	require.Nil(t, updated.TempUnschedulableUntil)
 	require.Empty(t, updated.TempUnschedulableReason)
-}
-
-func TestAdminService_ClearAccountError_UsesRateLimitServiceWhenAvailable(t *testing.T) {
-	resetAt := time.Now().Add(5 * time.Minute)
-	repo := &accountRepoStubForClearAccountError{
-		account: &Account{
-			ID:               31,
-			Platform:         PlatformOpenAI,
-			Type:             AccountTypeOAuth,
-			Status:           StatusError,
-			ErrorMessage:     "weekly quota exhausted",
-			RateLimitResetAt: &resetAt,
-			Extra: map[string]any{
-				"codex_7d_used_percent": 100.0,
-			},
-		},
-	}
-	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-	svc := &adminServiceImpl{accountRepo: repo, rateLimitService: rateLimitService}
-
-	updated, err := svc.ClearAccountError(context.Background(), 31)
-	require.NoError(t, err)
-	require.NotNil(t, updated)
-	require.Equal(t, 1, repo.clearErrorCalls)
-	require.Equal(t, 1, repo.clearRateLimitCalls)
-	require.Equal(t, 1, repo.clearModelRateLimitCalls)
-	require.Equal(t, 1, repo.clearTempUnschedCalls)
-	require.Equal(t, 1, repo.updateExtraCalls)
-	require.Equal(t, 0.0, repo.updateExtra["codex_7d_used_percent"])
-	require.Equal(t, 0.0, updated.Extra["codex_7d_used_percent"])
+	require.Equal(t, []int64{31}, blocker.clearedIDs)
 }

@@ -27,10 +27,20 @@
       <article v-for="group in visibleGroups" :key="groupKey(group)" class="quota-group-card">
         <header class="quota-group-card__header">
           <div class="quota-group-identity">
-            <PlatformIcon :platform="platformIconValue(group.platform)" size="sm" />
+            <span class="quota-provider-icon" aria-hidden="true">
+              <PlatformIcon :platform="platformIconValue(group.platform)" size="sm" />
+            </span>
             <div class="min-w-0">
               <h3>{{ group.group_name || t('admin.accounts.quotaDashboard.ungrouped') }}</h3>
-              <p>{{ platformLabel(group.platform) }}</p>
+              <p class="quota-group-meta">
+                <span>{{ platformLabel(group.platform) }}</span>
+                <span v-if="group.account_level">
+                  {{ t('admin.accounts.quotaDashboard.accountLevel', { level: accountLevelLabel(group.account_level) }) }}
+                </span>
+                <span>
+                  {{ t('admin.accounts.quotaDashboard.rateMultiplier', { rate: formatRateMultiplier(group.rate_multiplier) }) }}
+                </span>
+              </p>
             </div>
           </div>
           <span :class="['quota-health', `quota-health--${groupHealth(group)}`]">
@@ -153,9 +163,11 @@ const props = withDefaults(defineProps<{
   loadFailedMessage: string
   desktopPageSize?: number
   mobilePageSize?: number
+  prioritizeAccountLevels?: boolean
 }>(), {
   desktopPageSize: 3,
   mobilePageSize: 1,
+  prioritizeAccountLevels: false,
 })
 const emit = defineEmits<{ (event: 'refresh'): void }>()
 const { t } = useI18n()
@@ -166,10 +178,28 @@ const groupsPerPage = computed(() => Math.max(
 ))
 const currentPage = ref(1)
 
+const platformOrder: Record<string, number> = {
+  openai: 0,
+  anthropic: 1,
+  gemini: 2,
+  antigravity: 3,
+  grok: 4,
+  kiro: 5,
+  custom: 6,
+}
+
+const accountLevelOrder: Record<string, number> = {
+  free: 0,
+  plus: 1,
+  pro: 2,
+  team: 3,
+  k12: 4,
+}
+
 const totals = computed(() => props.dashboard?.totals)
 const groups = computed(() => (props.dashboard?.group_summaries ?? [])
   .filter((group) => group.account_count > 0 || (group.usage_windows?.some((window) => window.account_count > 0) ?? false))
-  .sort((a, b) => a.group_name.localeCompare(b.group_name)))
+  .sort(compareGroups))
 const totalPages = computed(() => Math.max(1, Math.ceil(groups.value.length / groupsPerPage.value)))
 const visibleGroups = computed(() => {
   const start = (currentPage.value - 1) * groupsPerPage.value
@@ -217,6 +247,29 @@ function platformIconValue(platform: string): GroupPlatform | undefined {
     return platform as GroupPlatform
   }
   return undefined
+}
+
+function compareGroups(a: AccountQuotaGroupSummary, b: AccountQuotaGroupSummary): number {
+  if (!props.prioritizeAccountLevels) {
+    return a.group_name.localeCompare(b.group_name)
+  }
+
+  const platformDiff = (platformOrder[a.platform] ?? 100) - (platformOrder[b.platform] ?? 100)
+  if (platformDiff !== 0) return platformDiff
+
+  const levelDiff = (accountLevelOrder[a.account_level?.toLowerCase() ?? ''] ?? 100)
+    - (accountLevelOrder[b.account_level?.toLowerCase() ?? ''] ?? 100)
+  if (levelDiff !== 0) return levelDiff
+  return a.group_name.localeCompare(b.group_name)
+}
+
+function accountLevelLabel(level: string): string {
+  return level.trim().toUpperCase()
+}
+
+function formatRateMultiplier(value: number | undefined): string {
+  if (!Number.isFinite(value)) return '1'
+  return String(Number(Number(value).toFixed(4)))
 }
 
 function accountStatusSegments(group: AccountQuotaGroupSummary): AccountStatusSegment[] {
@@ -405,15 +458,40 @@ function quotaBarClass(value: number): string {
   gap: 0.625rem;
 }
 
+.quota-provider-icon {
+  display: inline-flex;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.0625rem;
+  line-height: 1;
+}
+
+.quota-provider-icon :deep(svg) {
+  display: block;
+}
+
 .quota-group-identity h3 {
   font-size: 0.9375rem;
   font-weight: 650;
 }
 
-.quota-group-identity p {
+.quota-group-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.4rem;
   margin-top: 0.18rem;
   color: var(--ui-text-tertiary);
   font-size: 0.75rem;
+}
+
+.quota-group-meta span + span::before {
+  margin-right: 0.4rem;
+  content: '\00b7';
 }
 
 .quota-health {

@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
 	dbent "ikik-api/ent"
 	"ikik-api/internal/config"
 	"ikik-api/internal/payment"
 	"ikik-api/internal/pkg/antigravity"
 	"ikik-api/internal/pkg/logger"
-	"github.com/google/wire"
-	"github.com/redis/go-redis/v9"
 )
 
 // BuildInfo contains build information
@@ -74,6 +74,7 @@ func ProvideTokenRefreshService(
 	geminiOAuthService *GeminiOAuthService,
 	antigravityOAuthService *AntigravityOAuthService,
 	grokOAuthService *GrokOAuthService,
+	kiroOAuthService *KiroOAuthService,
 	cacheInvalidator TokenCacheInvalidator,
 	schedulerCache SchedulerCache,
 	cfg *config.Config,
@@ -84,6 +85,7 @@ func ProvideTokenRefreshService(
 	runtimeBlocker AccountRuntimeBlocker,
 ) *TokenRefreshService {
 	svc := NewTokenRefreshService(accountRepo, oauthService, openaiOAuthService, geminiOAuthService, antigravityOAuthService, cacheInvalidator, schedulerCache, cfg, tempUnschedCache, grokOAuthService)
+	svc.AddKiroTokenRefresher(kiroOAuthService)
 	// 注入 OpenAI privacy opt-out 依赖
 	svc.SetPrivacyDeps(privacyClientFactory, proxyRepo)
 	// 注入统一 OAuth 刷新 API（消除 TokenRefreshService 与 TokenProvider 之间的竞争条件）
@@ -174,6 +176,7 @@ func ProvideAccountTestService(
 	geminiTokenProvider *GeminiTokenProvider,
 	claudeTokenProvider *ClaudeTokenProvider,
 	grokTokenProvider *GrokTokenProvider,
+	kiroTokenProvider *KiroTokenProvider,
 	antigravityGatewayService *AntigravityGatewayService,
 	httpUpstream HTTPUpstream,
 	cfg *config.Config,
@@ -190,6 +193,7 @@ func ProvideAccountTestService(
 		cfg,
 		tlsFPProfileService,
 	)
+	service.kiroTokenProvider = kiroTokenProvider
 	service.agentIdentityWS = openAIGatewayService
 	return service
 }
@@ -631,10 +635,12 @@ func ProvideAPIKeyService(
 	userGroupRateRepo UserGroupRateRepository,
 	cache APIKeyCache,
 	cfg *config.Config,
+	settingService *SettingService,
 	billingCacheService *BillingCacheService,
 	concurrencyService *ConcurrencyService,
 ) *APIKeyService {
 	svc := NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, userSubRepo, userGroupRateRepo, cache, cfg)
+	svc.SetSettingService(settingService)
 	svc.SetRateLimitCacheInvalidator(billingCacheService)
 	svc.SetConcurrencyService(concurrencyService)
 	return svc
@@ -642,23 +648,20 @@ func ProvideAPIKeyService(
 
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
+	IkikProviderSet,
 	// Core services
-	NewAuthService,
 	NewUserService,
 	ProvideAPIKeyService,
 	ProvideAPIKeyAuthCacheInvalidator,
 	NewGroupService,
-	NewAccountService,
 	NewProxyService,
 	NewRedeemService,
 	NewPromoService,
-	NewUsageService,
 	NewDashboardService,
 	ProvidePricingService,
 	NewBillingService,
 	ProvideBillingCacheService,
 	NewAnnouncementService,
-	NewAdminService,
 	NewGatewayService,
 	NewOpenAIGatewayService,
 	ProvideImageTaskService,
@@ -761,8 +764,8 @@ func ProvideUserPlatformQuotaUsageFlusher(cfg *config.Config, cache BillingCache
 
 // ProvidePaymentConfigService wraps NewPaymentConfigService to accept the named
 // payment.EncryptionKey type instead of raw []byte, avoiding Wire ambiguity.
-func ProvidePaymentConfigService(entClient *dbent.Client, settingRepo SettingRepository, key payment.EncryptionKey) *PaymentConfigService {
-	return NewPaymentConfigService(entClient, settingRepo, []byte(key))
+func ProvidePaymentConfigService(entClient *dbent.Client, settingRepo SettingRepository, key payment.EncryptionKey, cfg *config.Config) *PaymentConfigService {
+	return NewPaymentConfigService(entClient, settingRepo, []byte(key), cfg)
 }
 
 // ProvideBalanceNotifyService creates BalanceNotifyService

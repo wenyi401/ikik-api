@@ -31,6 +31,8 @@ const (
 	FieldBodyOverrideMode = "body_override_mode"
 	// FieldBodyOverride holds the string denoting the body_override field in the database.
 	FieldBodyOverride = "body_override"
+	// FieldAPIMode holds the string denoting the api_mode field in the database.
+	FieldAPIMode = "api_mode"
 	// EdgeMonitors holds the string denoting the monitors edge name in mutations.
 	EdgeMonitors = "monitors"
 	// Table holds the table name of the channelmonitorrequesttemplate in the database.
@@ -55,6 +57,7 @@ var Columns = []string{
 	FieldExtraHeaders,
 	FieldBodyOverrideMode,
 	FieldBodyOverride,
+	FieldAPIMode,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -86,6 +89,10 @@ var (
 	DefaultBodyOverrideMode string
 	// BodyOverrideModeValidator is a validator for the "body_override_mode" field. It is called by the builders before save.
 	BodyOverrideModeValidator func(string) error
+	// DefaultAPIMode holds the default value on creation for the "api_mode" field.
+	DefaultAPIMode string
+	// APIModeValidator is a validator for the "api_mode" field. It is called by the builders before save.
+	APIModeValidator func(string) error
 )
 
 // Provider defines the type for the "provider" enum field.
@@ -148,6 +155,11 @@ func ByDescription(opts ...sql.OrderTermOption) OrderOption {
 // ByBodyOverrideMode orders the results by the body_override_mode field.
 func ByBodyOverrideMode(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBodyOverrideMode, opts...).ToFunc()
+}
+
+// ByAPIMode orders the results by the api_mode field.
+func ByAPIMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAPIMode, opts...).ToFunc()
 }
 
 // ByMonitorsCount orders the results by monitors count.

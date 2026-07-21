@@ -1,7 +1,7 @@
 <template>
   <BaseDialog
     :show="visible"
-    :title="t('adminCompliance.title')"
+    :title="copy('title')"
     width="wide"
     :close-on-escape="false"
     :close-on-click-outside="false"
@@ -9,57 +9,52 @@
     :z-index="80"
     @close="noop"
   >
-    <div class="space-y-5">
-      <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-        <div class="flex gap-3">
-          <Icon name="exclamationTriangle" size="md" class="mt-0.5 flex-shrink-0" />
-          <div class="space-y-2">
-            <p class="font-semibold">{{ t('adminCompliance.blockingNotice') }}</p>
-            <p class="leading-6">{{ t('adminCompliance.riskNotice') }}</p>
-          </div>
+    <div class="space-y-4 text-left">
+      <div class="flex items-start gap-3 rounded-xl bg-[var(--app-surface-muted)] px-4 py-3.5">
+        <span class="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[var(--app-text)] text-[var(--app-surface)]">
+          <Icon name="exclamationTriangle" size="sm" />
+        </span>
+        <div class="min-w-0 space-y-1">
+          <p class="text-sm font-semibold text-[var(--app-text)]">{{ copy('blockingNotice') }}</p>
+          <p class="text-sm leading-6 text-[var(--app-muted)]">{{ copy('riskNotice') }}</p>
         </div>
       </div>
 
-      <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px]">
-        <section class="min-h-[320px] max-h-[46vh] overflow-y-auto rounded-lg border border-gray-200 bg-white p-5 dark:border-dark-700 dark:bg-dark-900">
-          <div class="legal-document-content" v-html="renderedDocument"></div>
-        </section>
-
-        <aside class="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm dark:border-dark-700 dark:bg-dark-900/60">
-          <div>
-            <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-dark-400">
-              {{ t('adminCompliance.version') }}
-            </p>
-            <p class="mt-1 break-all font-mono text-gray-900 dark:text-white">
-              {{ complianceStore.status?.version || 'v2026.06.10' }}
-            </p>
-          </div>
-          <a
-            :href="documentUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-flex items-center gap-2 text-primary-600 underline underline-offset-4 hover:text-primary-700 dark:text-primary-300 dark:hover:text-primary-200"
-          >
-            <Icon name="externalLink" size="sm" />
-            {{ t('adminCompliance.openDocument') }}
-          </a>
-          <p class="leading-6 text-gray-600 dark:text-dark-300">
-            {{ t('adminCompliance.documentSource') }}
-          </p>
-        </aside>
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--app-border)] pb-3 text-sm">
+        <span class="text-[var(--app-muted)]">
+          {{ copy('version') }}
+          <strong class="ml-1 font-medium text-[var(--app-text)]">{{ documentVersion }}</strong>
+        </span>
+        <a
+          :href="documentUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-1.5 font-medium text-[var(--app-text)] hover:opacity-70"
+        >
+          {{ copy('openDocument') }}
+          <Icon name="externalLink" size="sm" />
+        </a>
       </div>
 
-      <div class="space-y-3">
-        <label for="admin-compliance-phrase" class="block text-sm font-semibold text-gray-900 dark:text-white">
-          {{ t('adminCompliance.inputLabel') }}
+      <section class="max-h-[38vh] min-h-[220px] overflow-y-auto rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-4 py-4 sm:px-5">
+        <div class="legal-document-content" v-html="renderedDocument"></div>
+      </section>
+
+      <p class="text-xs leading-5 text-[var(--app-muted)]">
+        {{ copy('documentSource') }}
+      </p>
+
+      <div class="space-y-2.5 border-t border-[var(--app-border)] pt-4">
+        <label for="admin-compliance-phrase" class="block text-sm font-semibold text-[var(--app-text)]">
+          {{ copy('inputLabel') }}
         </label>
-        <div class="rounded-lg bg-gray-100 px-3 py-2 font-mono text-sm text-gray-900 dark:bg-dark-800 dark:text-dark-100">
+        <div class="select-all rounded-lg bg-[var(--app-surface-muted)] px-3 py-2.5 text-sm leading-6 text-[var(--app-text)]">
           {{ expectedPhrase }}
         </div>
         <Input
           id="admin-compliance-phrase"
           v-model="typedPhrase"
-          :placeholder="t('adminCompliance.inputPlaceholder')"
+          :placeholder="copy('inputPlaceholder')"
           autocomplete="off"
           :disabled="complianceStore.submitting"
           :error="inputError"
@@ -67,29 +62,29 @@
         />
       </div>
 
-      <p class="text-xs leading-5 text-gray-500 dark:text-dark-400">
-        {{ t('adminCompliance.legalNote') }}
+      <p class="text-xs leading-5 text-[var(--app-muted)]">
+        {{ copy('legalNote') }}
       </p>
     </div>
 
     <template #footer>
-      <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
+      <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button
           type="button"
-          class="btn btn-secondary"
+          class="btn btn-secondary w-full sm:w-auto"
           :disabled="complianceStore.submitting"
           @click="logout"
         >
-          {{ t('adminCompliance.logout') }}
+          {{ copy('logout') }}
         </button>
         <button
           type="button"
-          class="btn btn-primary"
+          class="btn btn-primary w-full sm:w-auto"
           :disabled="!canSubmit || complianceStore.submitting"
           @click="submit"
         >
-          <span v-if="complianceStore.submitting">{{ t('common.submitting') }}</span>
-          <span v-else>{{ t('adminCompliance.accept') }}</span>
+          <span v-if="complianceStore.submitting">{{ submittingText }}</span>
+          <span v-else>{{ copy('accept') }}</span>
         </button>
       </div>
     </template>
@@ -105,11 +100,14 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Input from '@/components/common/Input.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAdminComplianceStore, useAppStore, useAuthStore } from '@/stores'
-import { getLocale } from '@/i18n'
+import {
+  resolveAdminComplianceCopy,
+  type AdminComplianceCopyKey,
+} from './adminComplianceCopy'
 import zhDocument from '../../../../docs/legal/admin-compliance.zh.md?raw'
 import enDocument from '../../../../docs/legal/admin-compliance.en.md?raw'
 
-const { t } = useI18n()
+const { t, te, locale } = useI18n()
 const complianceStore = useAdminComplianceStore()
 const authStore = useAuthStore()
 const appStore = useAppStore()
@@ -124,23 +122,33 @@ marked.setOptions({
 const visible = computed(() => authStore.isAuthenticated && authStore.isAdmin && complianceStore.shouldShow)
 const expectedPhrase = computed(() => complianceStore.expectedPhrase)
 const canSubmit = computed(() => typedPhrase.value.trim() === expectedPhrase.value)
-const currentDocument = computed(() => getLocale() === 'zh' ? zhDocument : enDocument)
+const isChinese = computed(() => locale.value.toLowerCase().startsWith('zh'))
+const currentDocument = computed(() => isChinese.value ? zhDocument : enDocument)
+const documentVersion = computed(() => complianceStore.status?.version || 'v2026.07.18')
+const submittingText = computed(() => {
+  return te('common.submitting') ? t('common.submitting') : (isChinese.value ? '提交中...' : 'Submitting...')
+})
 const documentUrl = computed(() => {
-  if (getLocale() === 'zh') {
-    return complianceStore.status?.document_url_zh || 'https://ikik-api/blob/main/docs/legal/admin-compliance.zh.md'
+  if (isChinese.value) {
+    return complianceStore.status?.document_url_zh || 'https://github.com/wenyi401/ikik-api/blob/main/docs/legal/admin-compliance.zh.md'
   }
-  return complianceStore.status?.document_url_en || 'https://ikik-api/blob/main/docs/legal/admin-compliance.en.md'
+  return complianceStore.status?.document_url_en || 'https://github.com/wenyi401/ikik-api/blob/main/docs/legal/admin-compliance.en.md'
 })
 const inputError = computed(() => {
   if (!attemptedSubmit.value || canSubmit.value) {
     return ''
   }
-  return t('adminCompliance.inputMismatch')
+  return copy('inputMismatch')
 })
 const renderedDocument = computed(() => {
   const html = marked.parse(currentDocument.value) as string
   return DOMPurify.sanitize(html)
 })
+
+function copy(key: AdminComplianceCopyKey): string {
+  const path = `adminCompliance.${key}`
+  return resolveAdminComplianceCopy(locale.value, key, te(path) ? t(path) : undefined)
+}
 
 watch(expectedPhrase, () => {
   typedPhrase.value = ''
@@ -167,12 +175,12 @@ async function submit(): Promise<void> {
   try {
     const status = await complianceStore.accept(typedPhrase.value.trim())
     if (!status.required) {
-      appStore.showSuccess(t('adminCompliance.accepted'))
+      appStore.showSuccess(copy('accepted'))
       typedPhrase.value = ''
       attemptedSubmit.value = false
     }
   } catch (error) {
-    const message = (error as { message?: string })?.message || t('adminCompliance.acceptFailed')
+    const message = (error as { message?: string })?.message || copy('acceptFailed')
     appStore.showError(message)
   }
 }
@@ -191,20 +199,24 @@ async function logout(): Promise<void> {
 }
 
 .legal-document-content :deep(h1) {
-  @apply mb-4 text-2xl font-bold text-gray-950 dark:text-white;
+  @apply mb-4 text-lg font-semibold;
+  color: var(--app-text);
 }
 
 .legal-document-content :deep(h2) {
-  @apply mb-3 mt-6 text-xl font-semibold text-gray-900 dark:text-white;
+  @apply mb-2 mt-6 text-base font-semibold;
+  color: var(--app-text);
 }
 
 .legal-document-content :deep(p) {
-  @apply mb-4 text-sm text-gray-700 dark:text-dark-200;
+  @apply mb-4 text-sm leading-6;
+  color: var(--app-muted);
 }
 
 .legal-document-content :deep(ul),
 .legal-document-content :deep(ol) {
-  @apply mb-4 pl-6 text-sm text-gray-700 dark:text-dark-200;
+  @apply mb-4 pl-5 text-sm leading-6;
+  color: var(--app-muted);
 }
 
 .legal-document-content :deep(ul) {
@@ -220,6 +232,7 @@ async function logout(): Promise<void> {
 }
 
 .legal-document-content :deep(strong) {
-  @apply font-semibold text-gray-950 dark:text-white;
+  @apply font-semibold;
+  color: var(--app-text);
 }
 </style>

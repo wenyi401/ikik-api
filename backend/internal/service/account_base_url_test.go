@@ -5,8 +5,8 @@ package service
 import (
 	"testing"
 
-	"ikik-api/internal/pkg/xai"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/xai"
 )
 
 func TestGetBaseURL(t *testing.T) {

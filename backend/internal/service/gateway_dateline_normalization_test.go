@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/anthropicfp"
-	"github.com/stretchr/testify/require"
 )
 
 // TestGatewayClientDatelineNormalization_Scope covers the account/switch matrix

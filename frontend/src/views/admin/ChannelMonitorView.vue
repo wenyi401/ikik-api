@@ -55,10 +55,10 @@
             <MonitorActionsCell
               :row="row"
               :running="runningId === row.id"
-              :duplicating="duplicatingIds.has(row.id)"
+              :duplicating="duplicatingMonitorIds.has(row.id)"
               @run="handleRunNow"
-              @duplicate="handleDuplicate"
               @edit="openEditDialog"
+              @duplicate="handleDuplicate"
               @delete="handleDelete"
             />
           </template>
@@ -162,6 +162,7 @@ const {
 const monitors = ref<ChannelMonitor[]>([])
 const loading = ref(false)
 const runningId = ref<number | null>(null)
+const duplicatingMonitorIds = reactive(new Set<number>())
 const searchQuery = ref('')
 const providerFilter = ref<Provider | ''>('')
 const enabledFilter = ref<'' | 'true' | 'false'>('')
@@ -174,7 +175,6 @@ const showDeleteDialog = ref(false)
 const deleting = ref<ChannelMonitor | null>(null)
 const showRunResult = ref(false)
 const runResults = ref<CheckResult[]>([])
-const duplicatingIds = reactive(new Set<number>())
 
 let abortController: AbortController | null = null
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -293,13 +293,13 @@ async function handleRunNow(row: ChannelMonitor) {
 }
 
 async function handleDuplicate(row: ChannelMonitor) {
+  if (duplicatingMonitorIds.has(row.id)) return
   if (row.api_key_decrypt_failed) {
     appStore.showError(t('admin.channelMonitor.duplicateKeyUnavailable'))
     return
   }
-  if (duplicatingIds.has(row.id)) return
 
-  duplicatingIds.add(row.id)
+  duplicatingMonitorIds.add(row.id)
   try {
     const duplicate = await adminAPI.channelMonitor.duplicate(row.id)
     appStore.showSuccess(t('admin.channelMonitor.duplicateSuccess', { name: duplicate.name }))
@@ -307,7 +307,7 @@ async function handleDuplicate(row: ChannelMonitor) {
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('admin.channelMonitor.duplicateFailed')))
   } finally {
-    duplicatingIds.delete(row.id)
+    duplicatingMonitorIds.delete(row.id)
   }
 }
 

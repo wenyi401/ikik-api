@@ -558,6 +558,8 @@ func registerBackupRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAut
 		// 定时备份配置
 		backup.GET("/schedule", h.Admin.Backup.GetSchedule)
 		backup.PUT("/schedule", h.Admin.Backup.UpdateSchedule)
+		backup.GET("/usage-retention", h.Admin.Backup.GetUsageRetention)
+		backup.PUT("/usage-retention", h.Admin.Backup.UpdateUsageRetention)
 
 		// 备份操作
 		backup.POST("", gin.HandlerFunc(stepUpAuth), h.Admin.Backup.CreateBackup)

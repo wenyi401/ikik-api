@@ -411,6 +411,9 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 		Status:      StatusActive,
 		Schedulable: true,
 	}
+	if err := applyIkikCreateAccountFields(account, input); err != nil {
+		return nil, err
+	}
 	// 预计算固定时间重置的下次重置时间
 	if account.Extra != nil {
 		if err := ValidateQuotaResetConfig(account.Extra); err != nil {
@@ -470,6 +473,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		if err := s.checkMixedChannelRisk(ctx, 0, input.Platform, groupIDs); err != nil {
 			return nil, err
 		}
+	}
+	if err := s.validateIkikCreateAccountGroupBindings(ctx, input, groupIDs); err != nil {
+		return nil, err
 	}
 
 	// 校验并规范化请求头覆写配置（header 名小写化、格式检查）
@@ -640,6 +646,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		ComputeQuotaResetAt(account.Extra)
 		NormalizeFixedQuotaWindows(account.Extra)
 	}
+	applyIkikUpdateAccountFields(account, input)
 	// 影子代理恒继承母账号(由 propagateProxyToShadows 同步),不接受独立编辑——外审 B/P1;
 	// 否则要等母账号下次改 proxy 才被覆盖,期间影子会出现"有时继承、有时独立"的漂移。
 	if input.ProxyID != nil && !account.IsCredentialShadow() {
@@ -694,6 +701,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if input.AutoPauseOnExpired != nil {
 		account.AutoPauseOnExpired = *input.AutoPauseOnExpired
 	}
+	if err := validateIkikUpdatedAccountFields(account); err != nil {
+		return nil, err
+	}
 
 	// 先验证分组是否存在（在任何写操作之前）
 	if input.GroupIDs != nil {
@@ -707,6 +717,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 				return nil, err
 			}
 		}
+	}
+	if err := s.validateIkikUpdateAccountGroupBindings(ctx, account, input); err != nil {
+		return nil, err
 	}
 
 	probeEnabledAppliedAtomically := false
@@ -807,12 +820,15 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 
 	// 预取所有目标账号，供凭据守卫/代理守卫/混合渠道检查共用，避免多次 DB 查询。
 	var cachedTargets []*Account
-	if len(input.Credentials) > 0 || input.ProxyID != nil || needMixedChannelCheck || hasLongContextBillingUpdate {
+	if len(input.Credentials) > 0 || len(input.Extra) > 0 || input.ProxyID != nil || input.AccountLevel != nil || input.Concurrency != nil || input.GroupIDs != nil || needMixedChannelCheck || hasLongContextBillingUpdate {
 		loaded, err := s.accountRepo.GetByIDs(ctx, input.AccountIDs)
 		if err != nil {
 			return nil, err
 		}
 		cachedTargets = loaded
+	}
+	if err := s.validateIkikBulkAccountFields(ctx, input, cachedTargets); err != nil {
+		return nil, err
 	}
 	if hasLongContextBillingUpdate {
 		for _, account := range cachedTargets {
@@ -925,6 +941,10 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	}
 	if input.Schedulable != nil {
 		repoUpdates.Schedulable = input.Schedulable
+	}
+	if input.AccountLevel != nil {
+		level := NormalizeAccountLevel(*input.AccountLevel)
+		repoUpdates.AccountLevel = &level
 	}
 
 	// Run bulk update for column/jsonb fields first.

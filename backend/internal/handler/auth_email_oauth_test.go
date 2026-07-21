@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/authidentity"
 	"ikik-api/ent/redeemcode"
 	dbuser "ikik-api/ent/user"
 	"ikik-api/internal/config"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 )
 
 func TestEmailOAuthCallbackRequiresPendingRegistrationWhenInvitationEnabled(t *testing.T) {
@@ -389,6 +389,14 @@ func (r *oauthEmailAffiliateRepoStub) GetAffiliateByCode(_ context.Context, code
 func (r *oauthEmailAffiliateRepoStub) BindInviter(_ context.Context, userID, inviterID int64) (bool, error) {
 	r.bindCalls = append(r.bindCalls, oauthEmailAffiliateBindCall{userID: userID, inviterID: inviterID})
 	return true, nil
+}
+
+func (r *oauthEmailAffiliateRepoStub) AdminBindInviter(context.Context, int64, int64, bool) (*service.AffiliateSummary, error) {
+	panic("unexpected AdminBindInviter call")
+}
+
+func (r *oauthEmailAffiliateRepoStub) AdminExtendInviteRewards(context.Context, service.AffiliateInviteRewardExtensionRequest) (*service.AffiliateInviteRewardExtensionResult, error) {
+	panic("unexpected AdminExtendInviteRewards call")
 }
 
 func (r *oauthEmailAffiliateRepoStub) AccrueQuota(context.Context, int64, int64, float64, int, *int64) (bool, error) {

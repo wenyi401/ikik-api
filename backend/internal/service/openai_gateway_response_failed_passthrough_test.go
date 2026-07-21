@@ -12,10 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"ikik-api/internal/model"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"ikik-api/internal/model"
 )
 
 func buildContextLengthFailedSSE() string {

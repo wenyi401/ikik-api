@@ -10,10 +10,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"ikik-api/internal/pkg/ctxkey"
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/ctxkey"
+	"ikik-api/internal/service"
 )
 
 func TestClientRequestID_GeneratesWhenMissing(t *testing.T) {

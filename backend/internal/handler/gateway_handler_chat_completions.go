@@ -7,12 +7,12 @@ import (
 	"strconv"
 	"time"
 
-	"ikik-api/internal/pkg/ip"
-	middleware2 "ikik-api/internal/server/middleware"
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
+	"ikik-api/internal/pkg/ip"
+	middleware2 "ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 )
 
 // ChatCompletions handles OpenAI Chat Completions API endpoint for Anthropic platform groups.
@@ -85,22 +85,17 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	if !hasNonClaudeCodeAPIKeyGroupRoute(apiKey) {
+		h.chatCompletionsErrorResponse(c, http.StatusForbidden, "permission_error", "This group is restricted to Claude Code clients (/v1/messages only)")
+		return
+	}
 
 	setOpsRequestContext(c, reqModel, reqStream)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
 
 	// 解析渠道级模型映射
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
-
-	// Claude Code only restriction
-	if apiKey.Group != nil && apiKey.Group.ClaudeCodeOnly {
-		h.chatCompletionsErrorResponse(c, http.StatusForbidden, "permission_error",
-			"This group is restricted to Claude Code clients (/v1/messages only)")
-		return
-	}
-
-	if decision := h.checkContentModeration(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIChat, reqModel, body); decision != nil && decision.Blocked {
-		h.chatCompletionsErrorResponse(c, contentModerationStatus(decision), contentModerationErrorCode(decision), decision.Message)
+	if decision := h.runPreFlightHooks(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIChat, reqModel, body); decision != nil && decision.Blocked {
+		h.chatCompletionsErrorResponse(c, preFlightStatus(decision), preFlightErrorCode(decision), decision.Message)
 		return
 	}
 
@@ -124,17 +119,6 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		defer userReleaseFunc()
 	}
 
-	// 2. Re-check billing
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		reqLog.Info("gateway.cc.billing_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-		}
-		h.chatCompletionsErrorResponse(c, status, code, message)
-		return
-	}
-
 	// Parse request for session hash
 	bodyRef := service.NewRequestBodyRef(body)
 	parsedReq, _ := service.ParseGatewayRequest(bodyRef, "chat_completions")
@@ -147,29 +131,79 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		APIKeyID:  apiKey.ID,
 	}
 	sessionHash := h.gatewayService.GenerateSessionHash(parsedReq)
-	groupPlatform := ""
-	if apiKey.Group != nil {
-		groupPlatform = apiKey.Group.Platform
-	}
-	selectionSessionHash := sessionHash
-	if groupPlatform == service.PlatformGemini && selectionSessionHash != "" {
-		selectionSessionHash = "gemini:" + selectionSessionHash
-	}
 
 	// 3. Account selection + failover loop
-	fs := NewFailoverState(h.maxAccountSwitches, false)
-	if groupPlatform == service.PlatformGemini {
-		fs = NewFailoverState(h.maxAccountSwitchesGemini, false)
+	routeCursor := newAPIKeyGroupRouteCursor(apiKey)
+	if _, ok := routeCursor.current(); !ok {
+		h.chatCompletionsErrorResponse(c, http.StatusServiceUnavailable, "api_error", "No available API key group routes")
+		return
 	}
+	var fs *FailoverState
+	var activeRouteGroupID int64
 
 	for {
 		if c.Request.Context().Err() != nil {
 			return
 		}
-		selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, selectionSessionHash, reqModel, fs.FailedAccountIDs, "", int64(0))
+		routeCandidate, ok := routeCursor.current()
+		if !ok {
+			h.chatCompletionsErrorResponse(c, http.StatusServiceUnavailable, "api_error", "No available API key group routes")
+			return
+		}
+		currentAPIKey := routeCandidate.APIKey
+		if currentAPIKey.Group != nil && currentAPIKey.Group.ClaudeCodeOnly {
+			if routeCursor.skipToNext("claude_code_only", reqLog, zap.Int64p("group_id", currentAPIKey.GroupID)) {
+				fs = nil
+				activeRouteGroupID = 0
+				continue
+			}
+			h.chatCompletionsErrorResponse(c, http.StatusForbidden, "permission_error", "This group is restricted to Claude Code clients (/v1/messages only)")
+			return
+		}
+		routeCtx := gatewayRouteContext(c.Request.Context(), currentAPIKey, subject.UserID)
+		currentSubscription, subErr := h.gatewayService.ResolveRouteSubscription(routeCtx, currentAPIKey, subscription)
+		if subErr != nil {
+			status, code, message, retryAfter := billingErrorDetails(subErr)
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+			}
+			h.chatCompletionsErrorResponse(c, status, code, message)
+			return
+		}
+		if err := h.billingCacheService.CheckBillingEligibility(routeCtx, currentAPIKey.User, currentAPIKey, currentAPIKey.Group, currentSubscription, service.QuotaPlatform(routeCtx, currentAPIKey)); err != nil {
+			reqLog.Info("gateway.cc.billing_check_failed", zap.Error(err), zap.Int64p("group_id", currentAPIKey.GroupID))
+			status, code, message, retryAfter := billingErrorDetails(err)
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+			}
+			h.chatCompletionsErrorResponse(c, status, code, message)
+			return
+		}
+		groupPlatform := ""
+		if currentAPIKey.Group != nil {
+			groupPlatform = currentAPIKey.Group.Platform
+		}
+		if fs == nil || activeRouteGroupID != routeCandidate.Route.GroupID {
+			fs = NewFailoverState(h.maxAccountSwitches, false)
+			if groupPlatform == service.PlatformGemini {
+				fs = NewFailoverState(h.maxAccountSwitchesGemini, false)
+			}
+			activeRouteGroupID = routeCandidate.Route.GroupID
+		}
+		selectionSessionHash := sessionHash
+		if groupPlatform == service.PlatformGemini && selectionSessionHash != "" {
+			selectionSessionHash = "gemini:" + selectionSessionHash
+		}
+		channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(routeCtx, currentAPIKey.GroupID, reqModel)
+		selection, err := h.gatewayService.SelectAccountWithLoadAwareness(routeCtx, currentAPIKey.GroupID, selectionSessionHash, reqModel, fs.FailedAccountIDs, "", int64(0))
 		if err != nil {
 			if len(fs.FailedAccountIDs) == 0 {
-				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, reqModel, reqModel, groupPlatform)
+				if routeCursor.switchToNext(apiKey.ID, "account_select_failed", reqLog, zap.Error(err)) {
+					fs = nil
+					activeRouteGroupID = 0
+					continue
+				}
+				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, currentAPIKey, reqModel, reqModel, groupPlatform)
 				if !cls.ModelNotFound {
 					markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 				}
@@ -189,8 +223,18 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				return
 			default:
 				if fs.LastFailoverErr != nil {
+					if shouldSwitchAPIKeyGroupRoute(fs.LastFailoverErr) && routeCursor.switchToNext(apiKey.ID, "account_selection_exhausted", reqLog, zap.Int("upstream_status", fs.LastFailoverErr.StatusCode)) {
+						fs = nil
+						activeRouteGroupID = 0
+						continue
+					}
 					h.handleCCFailoverExhausted(c, fs.LastFailoverErr, streamStarted)
 				} else {
+					if routeCursor.switchToNext(apiKey.ID, "account_selection_exhausted", reqLog) {
+						fs = nil
+						activeRouteGroupID = 0
+						continue
+					}
 					h.chatCompletionsErrorResponse(c, http.StatusBadGateway, "server_error", "All available accounts exhausted")
 				}
 				return
@@ -203,6 +247,11 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		accountReleaseFunc := selection.ReleaseFunc
 		if !selection.Acquired {
 			if selection.WaitPlan == nil {
+				if routeCursor.switchToNext(apiKey.ID, "account_concurrency_exhausted", reqLog) {
+					fs = nil
+					activeRouteGroupID = 0
+					continue
+				}
 				markOpsRoutingCapacityLimited(c)
 				h.chatCompletionsErrorResponse(c, http.StatusServiceUnavailable, "api_error", "No available accounts")
 				return
@@ -246,9 +295,9 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				}
 				return
 			}
-			result, err = h.geminiCompatService.ForwardAsChatCompletions(c.Request.Context(), c, account, forwardBody)
+			result, err = h.geminiCompatService.ForwardAsChatCompletions(routeCtx, c, account, forwardBody)
 		} else {
-			result, err = h.gatewayService.ForwardAsChatCompletions(c.Request.Context(), c, account, forwardBody, parsedReq)
+			result, err = h.gatewayService.ForwardAsChatCompletions(routeCtx, c, account, forwardBody, parsedReq)
 		}
 
 		if accountReleaseFunc != nil {
@@ -267,6 +316,11 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				case FailoverContinue:
 					continue
 				case FailoverExhausted:
+					if shouldSwitchAPIKeyGroupRoute(fs.LastFailoverErr) && routeCursor.switchToNext(apiKey.ID, "upstream_failover_exhausted", reqLog, zap.Int("upstream_status", fs.LastFailoverErr.StatusCode)) {
+						fs = nil
+						activeRouteGroupID = 0
+						continue
+					}
 					h.handleCCFailoverExhausted(c, fs.LastFailoverErr, streamStarted)
 					return
 				case FailoverCanceled:
@@ -287,6 +341,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 			)
 			return
 		}
+		routeCursor.recordSuccess(apiKey.ID)
 
 		// 6. Record usage
 		userAgent := c.GetHeader("User-Agent")
@@ -295,15 +350,15 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
 
-		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
-		h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
+		quotaPlatform := service.QuotaPlatform(routeCtx, currentAPIKey)
+		h.submitUsageRecordTask(routeCtx, func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 				Result:             result,
 				QuotaPlatform:      quotaPlatform,
-				APIKey:             apiKey,
-				User:               apiKey.User,
+				APIKey:             currentAPIKey,
+				User:               currentAPIKey.User,
 				Account:            account,
-				Subscription:       subscription,
+				Subscription:       currentSubscription,
 				InboundEndpoint:    inboundEndpoint,
 				UpstreamEndpoint:   upstreamEndpoint,
 				UserAgent:          userAgent,

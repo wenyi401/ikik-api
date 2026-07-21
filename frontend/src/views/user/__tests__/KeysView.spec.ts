@@ -438,4 +438,58 @@ describe('user KeysView column settings', () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
   })
+
+  it('collapses platform-specific private groups into one private router option', async () => {
+    getAvailableGroups.mockResolvedValue([
+      {
+        id: 31,
+        name: 'Kiro Private',
+        platform: 'kiro',
+        scope: 'user_private',
+        subscription_type: 'subscription',
+        rate_multiplier: 1,
+      },
+      {
+        id: 11,
+        name: 'OpenAI Private',
+        platform: 'openai',
+        scope: 'user_private',
+        subscription_type: 'subscription',
+        rate_multiplier: 1,
+      },
+      {
+        id: 21,
+        name: 'Anthropic Private',
+        platform: 'anthropic',
+        scope: 'user_private',
+        subscription_type: 'subscription',
+        rate_multiplier: 1,
+      },
+      {
+        id: 99,
+        name: 'Public Group',
+        platform: 'openai',
+        scope: 'public',
+        subscription_type: 'standard',
+        rate_multiplier: 1,
+      },
+    ])
+
+    const wrapper = await mountView()
+    const vm = wrapper.vm as unknown as {
+      groupOptions: Array<{ value: number; label: string; scope: string }>
+      privateRouterRouteForms: () => Array<{ group_id: number; priority: number }>
+    }
+
+    expect(vm.groupOptions.map((option) => option.label)).toEqual([
+      'keys.privateRouter.title',
+      'Public Group',
+    ])
+    expect(vm.groupOptions.filter((option) => option.scope === 'user_private')).toHaveLength(1)
+    expect(vm.privateRouterRouteForms().map((route) => [route.group_id, route.priority])).toEqual([
+      [21, 100],
+      [11, 101],
+      [31, 102],
+    ])
+  })
 })

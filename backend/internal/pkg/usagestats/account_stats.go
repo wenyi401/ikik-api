@@ -11,5 +11,4 @@ type AccountStats struct {
 	Cost         float64 `json:"cost"`
 	StandardCost float64 `json:"standard_cost"`
 	UserCost     float64 `json:"user_cost"`
-	KiroCredits  float64 `json:"kiro_credits"`
 }

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"ikik-api/internal/pkg/apicompat"
 	"github.com/gin-gonic/gin"
+	"ikik-api/internal/pkg/apicompat"
 )
 
 const openAIResponsesNamespaceNamesContextKey = "openai_responses_namespace_names"

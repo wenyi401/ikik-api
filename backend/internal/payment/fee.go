@@ -4,16 +4,11 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// CalculatePayAmount computes the total pay amount given a recharge amount and
-// fee rate (percentage). Fee = amount * feeRate / 100, rounded UP (away from zero)
-// to 2 decimal places. The returned string is formatted to exactly 2 decimal places.
-// If feeRate <= 0, the amount is returned as-is (formatted to 2 decimal places).
 func CalculatePayAmount(rechargeAmount float64, feeRate float64) string {
 	return CalculatePayAmountForCurrency(rechargeAmount, feeRate, DefaultPaymentCurrency)
 }
 
-// CalculatePayAmountForCurrency computes the payable amount using the currency
-// precision accepted by the payment provider.
+// CalculatePayAmountForCurrency 按币种精度计算应付金额，手续费向上取整到该币种最小支付单位。
 func CalculatePayAmountForCurrency(rechargeAmount float64, feeRate float64, currency string) string {
 	fractionDigits := int32(CurrencyMaxFractionDigits(currency))
 	amount := decimal.NewFromFloat(rechargeAmount)

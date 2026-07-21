@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/pagination"
-	"github.com/stretchr/testify/require"
 )
 
 // sparkShadowRepoStub 是 AccountRepository 的内存测试桩，
@@ -768,6 +768,13 @@ func (s *sparkShadowValidatingGroupRepoStub) ExistsByIDs(_ context.Context, ids 
 		out[id] = s.existing[id]
 	}
 	return out, nil
+}
+
+func (s *sparkShadowValidatingGroupRepoStub) GetByIDLite(_ context.Context, id int64) (*Group, error) {
+	if !s.existing[id] {
+		return nil, ErrGroupNotFound
+	}
+	return &Group{ID: id, Platform: PlatformOpenAI, Status: StatusActive}, nil
 }
 
 // TestCreateShadow_DefaultsNameFromParent 验证外审 E/P2:空 name 不应 500,

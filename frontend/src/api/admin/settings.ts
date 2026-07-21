@@ -11,7 +11,52 @@ export interface DefaultSubscriptionSetting {
   validity_days: number;
 }
 
-export type AuthSourceType = "email" | "linuxdo" | "oidc" | "wechat" | "github" | "google";
+export type PlatformType = "anthropic" | "openai" | "gemini" | "antigravity" | "grok";
+export type QuotaWindowType = "daily" | "weekly" | "monthly";
+
+export interface PlatformQuotaLimits {
+  daily: number | null;
+  weekly: number | null;
+  monthly: number | null;
+}
+
+export type DefaultPlatformQuotasMap = Partial<Record<PlatformType, PlatformQuotaLimits>>;
+
+const PLATFORMS: PlatformType[] = ["anthropic", "openai", "gemini", "antigravity", "grok"];
+
+export function normalizePlatformQuotasMap(
+  input?: DefaultPlatformQuotasMap | null,
+): DefaultPlatformQuotasMap {
+  const result: DefaultPlatformQuotasMap = {};
+  for (const platform of PLATFORMS) {
+    const source = input?.[platform];
+    result[platform] = {
+      daily: typeof source?.daily === "number" ? source.daily : null,
+      weekly: typeof source?.weekly === "number" ? source.weekly : null,
+      monthly: typeof source?.monthly === "number" ? source.monthly : null,
+    };
+  }
+  return result;
+}
+
+export function sanitizePlatformQuotasMap(
+  input?: DefaultPlatformQuotasMap | null,
+): DefaultPlatformQuotasMap {
+  const clean = (value: unknown): number | null =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+  const result: DefaultPlatformQuotasMap = {};
+  for (const platform of PLATFORMS) {
+    const source = input?.[platform];
+    result[platform] = {
+      daily: clean(source?.daily),
+      weekly: clean(source?.weekly),
+      monthly: clean(source?.monthly),
+    };
+  }
+  return result;
+}
+
+export type AuthSourceType = "email" | "linuxdo" | "oidc" | "wechat" | "github" | "google" | "dingtalk";
 export type OpenAIImagesResponsesReasoningEffort = "low" | "medium" | "high" | "xhigh";
 
 export interface AutoModelRule {
@@ -50,6 +95,7 @@ export interface AuthSourceDefaultsValue {
   subscriptions: DefaultSubscriptionSetting[];
   grant_on_signup: boolean;
   grant_on_first_bind: boolean;
+  platform_quotas?: DefaultPlatformQuotasMap;
 }
 
 export type AuthSourceDefaultsState = Record<
@@ -84,6 +130,7 @@ const AUTH_SOURCE_TYPES: AuthSourceType[] = [
   "wechat",
   "github",
   "google",
+  "dingtalk",
 ];
 const AUTH_SOURCE_DEFAULT_BALANCE = 0;
 const AUTH_SOURCE_DEFAULT_CONCURRENCY = 5;
@@ -211,6 +258,9 @@ export function buildAuthSourceDefaultsState(
         raw[`auth_source_default_${source}_grant_on_signup`] === true,
       grant_on_first_bind:
         raw[`auth_source_default_${source}_grant_on_first_bind`] === true,
+      platform_quotas: normalizePlatformQuotasMap(
+        raw[`auth_source_default_${source}_platform_quotas`] as DefaultPlatformQuotasMap | undefined,
+      ),
     };
     return acc;
   }, {} as AuthSourceDefaultsState);
@@ -218,12 +268,19 @@ export function buildAuthSourceDefaultsState(
 
 export function appendAuthSourceDefaultsToUpdateRequest(
   payload: UpdateSettingsRequest,
-  authSourceDefaults: AuthSourceDefaultsState,
+  authSourceDefaults: Partial<AuthSourceDefaultsState>,
 ): UpdateSettingsRequest {
   const target = payload as Record<string, unknown>;
 
   for (const source of AUTH_SOURCE_TYPES) {
-    const current = authSourceDefaults[source];
+    const current = authSourceDefaults[source] ?? {
+      balance: AUTH_SOURCE_DEFAULT_BALANCE,
+      concurrency: AUTH_SOURCE_DEFAULT_CONCURRENCY,
+      subscriptions: [],
+      grant_on_signup: false,
+      grant_on_first_bind: false,
+      platform_quotas: {},
+    };
     target[`auth_source_default_${source}_balance`] =
       Number(current.balance) || 0;
     target[`auth_source_default_${source}_concurrency`] = Math.max(
@@ -238,6 +295,8 @@ export function appendAuthSourceDefaultsToUpdateRequest(
       current.grant_on_signup;
     target[`auth_source_default_${source}_grant_on_first_bind`] =
       current.grant_on_first_bind;
+    target[`auth_source_default_${source}_platform_quotas`] =
+      sanitizePlatformQuotasMap(current.platform_quotas);
   }
 
   return payload;
@@ -389,6 +448,19 @@ export interface SystemSettings {
   auth_source_default_google_subscriptions?: DefaultSubscriptionSetting[];
   auth_source_default_google_grant_on_signup?: boolean;
   auth_source_default_google_grant_on_first_bind?: boolean;
+  auth_source_default_dingtalk_balance?: number;
+  auth_source_default_dingtalk_concurrency?: number;
+  auth_source_default_dingtalk_subscriptions?: DefaultSubscriptionSetting[];
+  auth_source_default_dingtalk_grant_on_signup?: boolean;
+  auth_source_default_dingtalk_grant_on_first_bind?: boolean;
+  default_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_email_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_linuxdo_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_oidc_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_wechat_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_github_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_google_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_dingtalk_platform_quotas?: DefaultPlatformQuotasMap;
   force_email_on_third_party_signup?: boolean;
   // OEM settings
   site_name: string;
@@ -645,6 +717,19 @@ export interface UpdateSettingsRequest {
   auth_source_default_google_subscriptions?: DefaultSubscriptionSetting[];
   auth_source_default_google_grant_on_signup?: boolean;
   auth_source_default_google_grant_on_first_bind?: boolean;
+  auth_source_default_dingtalk_balance?: number;
+  auth_source_default_dingtalk_concurrency?: number;
+  auth_source_default_dingtalk_subscriptions?: DefaultSubscriptionSetting[];
+  auth_source_default_dingtalk_grant_on_signup?: boolean;
+  auth_source_default_dingtalk_grant_on_first_bind?: boolean;
+  default_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_email_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_linuxdo_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_oidc_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_wechat_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_github_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_google_platform_quotas?: DefaultPlatformQuotasMap;
+  auth_source_default_dingtalk_platform_quotas?: DefaultPlatformQuotasMap;
   force_email_on_third_party_signup?: boolean;
   site_name?: string;
   site_logo?: string;
@@ -1175,11 +1260,115 @@ export async function resetWebSearchUsage(payload: {
   );
 }
 
+export interface EmailTemplateOption {
+  value: string;
+  label?: string;
+  description?: string;
+  category?: string;
+  optional?: boolean;
+}
+
+export type EmailTemplateEventOption = string | EmailTemplateOption;
+
+export interface EmailTemplateSummary {
+  event: string;
+  locale: string;
+  subject: string;
+  is_custom?: boolean;
+  updated_at?: string;
+}
+
+export interface EmailTemplateListResponse {
+  events: EmailTemplateEventOption[];
+  locales: string[];
+  templates?: EmailTemplateSummary[];
+  placeholders?: string[];
+}
+
+export interface EmailTemplateDetail {
+  event: string;
+  locale: string;
+  subject: string;
+  html: string;
+  is_custom?: boolean;
+  updated_at?: string;
+  placeholders?: string[];
+}
+
+export interface UpdateEmailTemplateRequest {
+  subject: string;
+  html: string;
+}
+
+export interface PreviewEmailTemplateRequest extends UpdateEmailTemplateRequest {
+  event: string;
+  locale: string;
+}
+
+export interface EmailTemplatePreviewResponse {
+  subject: string;
+  html: string;
+}
+
+export async function getEmailTemplates(): Promise<EmailTemplateListResponse> {
+  const { data } = await apiClient.get<EmailTemplateListResponse>(
+    '/admin/settings/email-templates',
+  );
+  return data;
+}
+
+export async function getEmailTemplate(
+  event: string,
+  locale: string,
+): Promise<EmailTemplateDetail> {
+  const { data } = await apiClient.get<EmailTemplateDetail>(
+    `/admin/settings/email-templates/${encodeURIComponent(event)}/${encodeURIComponent(locale)}`,
+  );
+  return data;
+}
+
+export async function updateEmailTemplate(
+  event: string,
+  locale: string,
+  request: UpdateEmailTemplateRequest,
+): Promise<EmailTemplateDetail> {
+  const { data } = await apiClient.put<EmailTemplateDetail>(
+    `/admin/settings/email-templates/${encodeURIComponent(event)}/${encodeURIComponent(locale)}`,
+    request,
+  );
+  return data;
+}
+
+export async function restoreOfficialEmailTemplate(
+  event: string,
+  locale: string,
+): Promise<EmailTemplateDetail> {
+  const { data } = await apiClient.post<EmailTemplateDetail>(
+    `/admin/settings/email-templates/${encodeURIComponent(event)}/${encodeURIComponent(locale)}/restore-official`,
+  );
+  return data;
+}
+
+export async function previewEmailTemplate(
+  request: PreviewEmailTemplateRequest,
+): Promise<EmailTemplatePreviewResponse> {
+  const { data } = await apiClient.post<EmailTemplatePreviewResponse>(
+    '/admin/settings/email-template-preview',
+    request,
+  );
+  return data;
+}
+
 export const settingsAPI = {
   getSettings,
   updateSettings,
   testSmtpConnection,
   sendTestEmail,
+  getEmailTemplates,
+  getEmailTemplate,
+  updateEmailTemplate,
+  restoreOfficialEmailTemplate,
+  previewEmailTemplate,
   getAdminApiKey,
   regenerateAdminApiKey,
   deleteAdminApiKey,

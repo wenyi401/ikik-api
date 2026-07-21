@@ -47,22 +47,27 @@ func NewOAuthHandler(oauthService *service.OAuthService) *OAuthHandler {
 
 // AccountHandler handles admin account management
 type AccountHandler struct {
-	adminService            service.AdminService
-	oauthService            *service.OAuthService
-	openaiOAuthService      *service.OpenAIOAuthService
-	geminiOAuthService      *service.GeminiOAuthService
-	antigravityOAuthService *service.AntigravityOAuthService
-	grokOAuthService        service.GrokOAuthTokenService
-	rateLimitService        *service.RateLimitService
-	accountUsageService     *service.AccountUsageService
-	accountTestService      *service.AccountTestService
-	concurrencyService      *service.ConcurrencyService
-	crsSyncService          *service.CRSSyncService
-	sessionLimitCache       service.SessionLimitCache
-	rpmCache                service.RPMCache
-	tokenCacheInvalidator   service.TokenCacheInvalidator
-	grokImportProber        grokUsageProber
-	upstreamBillingProbe    *service.UpstreamBillingProbeService
+	adminService              service.AdminService
+	accountService            *service.AccountService
+	oauthService              *service.OAuthService
+	openaiOAuthService        *service.OpenAIOAuthService
+	geminiOAuthService        *service.GeminiOAuthService
+	antigravityOAuthService   *service.AntigravityOAuthService
+	kiroOAuthService          *service.KiroOAuthService
+	grokOAuthService          service.GrokOAuthTokenService
+	rateLimitService          *service.RateLimitService
+	accountUsageService       *service.AccountUsageService
+	accountTestService        *service.AccountTestService
+	concurrencyService        *service.ConcurrencyService
+	crsSyncService            *service.CRSSyncService
+	sessionLimitCache         service.SessionLimitCache
+	rpmCache                  service.RPMCache
+	tokenCacheInvalidator     service.TokenCacheInvalidator
+	grokImportProber          grokUsageProber
+	upstreamBillingProbe      *service.UpstreamBillingProbeService
+	accountBatchTaskService   *service.AccountBatchTaskService
+	publicShareValidation     chan ownedPublicShareValidationJob
+	publicShareValidationOnce sync.Once
 }
 
 // SetUpstreamBillingProbeService attaches the optional remote billing probe service.

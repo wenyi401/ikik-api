@@ -289,6 +289,20 @@ func (_u *ChannelMonitorUpdate) ClearBodyOverride() *ChannelMonitorUpdate {
 	return _u
 }
 
+// SetAPIMode sets the "api_mode" field.
+func (_u *ChannelMonitorUpdate) SetAPIMode(v string) *ChannelMonitorUpdate {
+	_u.mutation.SetAPIMode(v)
+	return _u
+}
+
+// SetNillableAPIMode sets the "api_mode" field if the given value is not nil.
+func (_u *ChannelMonitorUpdate) SetNillableAPIMode(v *string) *ChannelMonitorUpdate {
+	if v != nil {
+		_u.SetAPIMode(*v)
+	}
+	return _u
+}
+
 // AddHistoryIDs adds the "history" edge to the ChannelMonitorHistory entity by IDs.
 func (_u *ChannelMonitorUpdate) AddHistoryIDs(ids ...int64) *ChannelMonitorUpdate {
 	_u.mutation.AddHistoryIDs(ids...)
@@ -474,6 +488,11 @@ func (_u *ChannelMonitorUpdate) check() error {
 			return &ValidationError{Name: "body_override_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.body_override_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.APIMode(); ok {
+		if err := channelmonitor.APIModeValidator(v); err != nil {
+			return &ValidationError{Name: "api_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.api_mode": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -559,6 +578,9 @@ func (_u *ChannelMonitorUpdate) sqlSave(ctx context.Context) (_node int, err err
 	}
 	if _u.mutation.BodyOverrideCleared() {
 		_spec.ClearField(channelmonitor.FieldBodyOverride, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.APIMode(); ok {
+		_spec.SetField(channelmonitor.FieldAPIMode, field.TypeString, value)
 	}
 	if _u.mutation.HistoryCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -956,6 +978,20 @@ func (_u *ChannelMonitorUpdateOne) ClearBodyOverride() *ChannelMonitorUpdateOne 
 	return _u
 }
 
+// SetAPIMode sets the "api_mode" field.
+func (_u *ChannelMonitorUpdateOne) SetAPIMode(v string) *ChannelMonitorUpdateOne {
+	_u.mutation.SetAPIMode(v)
+	return _u
+}
+
+// SetNillableAPIMode sets the "api_mode" field if the given value is not nil.
+func (_u *ChannelMonitorUpdateOne) SetNillableAPIMode(v *string) *ChannelMonitorUpdateOne {
+	if v != nil {
+		_u.SetAPIMode(*v)
+	}
+	return _u
+}
+
 // AddHistoryIDs adds the "history" edge to the ChannelMonitorHistory entity by IDs.
 func (_u *ChannelMonitorUpdateOne) AddHistoryIDs(ids ...int64) *ChannelMonitorUpdateOne {
 	_u.mutation.AddHistoryIDs(ids...)
@@ -1154,6 +1190,11 @@ func (_u *ChannelMonitorUpdateOne) check() error {
 			return &ValidationError{Name: "body_override_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.body_override_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.APIMode(); ok {
+		if err := channelmonitor.APIModeValidator(v); err != nil {
+			return &ValidationError{Name: "api_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.api_mode": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -1256,6 +1297,9 @@ func (_u *ChannelMonitorUpdateOne) sqlSave(ctx context.Context) (_node *ChannelM
 	}
 	if _u.mutation.BodyOverrideCleared() {
 		_spec.ClearField(channelmonitor.FieldBodyOverride, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.APIMode(); ok {
+		_spec.SetField(channelmonitor.FieldAPIMode, field.TypeString, value)
 	}
 	if _u.mutation.HistoryCleared() {
 		edge := &sqlgraph.EdgeSpec{

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	infraerrors "ikik-api/internal/pkg/errors"
 	"github.com/gin-gonic/gin"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 const (

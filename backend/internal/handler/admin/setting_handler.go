@@ -49,6 +49,40 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+func autoModelSettingsToDTO(settings service.AutoModelSettings) dto.AutoModelSettings {
+	models := make([]dto.AutoModelRule, 0, len(settings.Models))
+	for _, model := range settings.Models {
+		models = append(models, dto.AutoModelRule{
+			Name: model.Name, Enabled: model.Enabled, Description: model.Description,
+			AllowedGroupIDs: model.AllowedGroupIDs, RoutingMode: model.RoutingMode,
+			SmallModel: model.SmallModel, BalancedModel: model.BalancedModel, LargeModel: model.LargeModel,
+			BalancedThreshold: model.BalancedThreshold, LargeThreshold: model.LargeThreshold,
+			AllowedModels: model.AllowedModels, CostQuality: model.CostQuality, StickySession: model.StickySession,
+			AIRouterEnabled: model.AIRouterEnabled, RouterModel: model.RouterModel, RouterBaseURL: model.RouterBaseURL,
+			RouterAPIKey: model.RouterAPIKey, RouterTimeoutMS: model.RouterTimeoutMS, RouterMaxTokens: model.RouterMaxTokens,
+			RouterReasoning: model.RouterReasoning, RouterPrompt: model.RouterPrompt, RouterConservative: model.RouterConservative,
+		})
+	}
+	return dto.AutoModelSettings{Enabled: settings.Enabled, Models: models}
+}
+
+func autoModelSettingsToService(settings dto.AutoModelSettings) service.AutoModelSettings {
+	models := make([]service.AutoModelRule, 0, len(settings.Models))
+	for _, model := range settings.Models {
+		models = append(models, service.AutoModelRule{
+			Name: model.Name, Enabled: model.Enabled, Description: model.Description,
+			AllowedGroupIDs: model.AllowedGroupIDs, RoutingMode: model.RoutingMode,
+			SmallModel: model.SmallModel, BalancedModel: model.BalancedModel, LargeModel: model.LargeModel,
+			BalancedThreshold: model.BalancedThreshold, LargeThreshold: model.LargeThreshold,
+			AllowedModels: model.AllowedModels, CostQuality: model.CostQuality, StickySession: model.StickySession,
+			AIRouterEnabled: model.AIRouterEnabled, RouterModel: model.RouterModel, RouterBaseURL: model.RouterBaseURL,
+			RouterAPIKey: model.RouterAPIKey, RouterTimeoutMS: model.RouterTimeoutMS, RouterMaxTokens: model.RouterMaxTokens,
+			RouterReasoning: model.RouterReasoning, RouterPrompt: model.RouterPrompt, RouterConservative: model.RouterConservative,
+		})
+	}
+	return service.AutoModelSettings{Enabled: settings.Enabled, Models: models}
+}
+
 // SettingHandler 系统设置处理器
 type SettingHandler struct {
 	settingService           *service.SettingService
@@ -215,6 +249,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		ContactInfo:                                            settings.ContactInfo,
 		DocURL:                                                 settings.DocURL,
 		HomeContent:                                            settings.HomeContent,
+		HomeStatsGroupID:                                       settings.HomeStatsGroupID,
 		HideCcsImportButton:                                    settings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:                            settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                                settings.PurchaseSubscriptionURL,
@@ -233,6 +268,12 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		AffiliateRebatePerInviteeCap:                           settings.AffiliateRebatePerInviteeCap,
 		AdminRechargeRebateEnabled:                             settings.AdminRechargeRebateEnabled,
 		DefaultUserRPMLimit:                                    settings.DefaultUserRPMLimit,
+		UserPrivateGroupDailyLimitUSD:                          settings.UserPrivateGroupDailyLimitUSD,
+		UserPrivateGroupWeeklyLimitUSD:                         settings.UserPrivateGroupWeeklyLimitUSD,
+		UserPrivateGroupMonthlyLimitUSD:                        settings.UserPrivateGroupMonthlyLimitUSD,
+		UserPrivateGroupRateMultiplier:                         settings.UserPrivateGroupRateMultiplier,
+		UserPrivateGroupRPMLimit:                               settings.UserPrivateGroupRPMLimit,
+		UserPrivateGroupCommissionRate:                         settings.UserPrivateGroupCommissionRate,
 		DefaultSubscriptions:                                   defaultSubscriptions,
 		EnableModelFallback:                                    settings.EnableModelFallback,
 		FallbackModelAnthropic:                                 settings.FallbackModelAnthropic,
@@ -256,6 +297,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		ClaudeOAuthSystemPrompt:                                settings.ClaudeOAuthSystemPrompt,
 		ClaudeOAuthSystemPromptBlocks:                          settings.ClaudeOAuthSystemPromptBlocks,
 		EnableAnthropicCacheTTL1hInjection:                     settings.EnableAnthropicCacheTTL1hInjection,
+		OpenAIImagesResponsesReasoningEffort:                   settings.OpenAIImagesResponsesReasoningEffort,
 		RewriteMessageCacheControl:                             settings.RewriteMessageCacheControl,
 		EnableClientDatelineNormalization:                      settings.EnableClientDatelineNormalization,
 		AntigravityUserAgentVersion:                            settings.AntigravityUserAgentVersion,
@@ -274,6 +316,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OpenAILowUpstreamRatePriorityEnabled:                   settings.OpenAILowUpstreamRatePriorityEnabled,
 		OpenAIOAuthSchedulingRateMultiplier:                    settings.OpenAIOAuthSchedulingRateMultiplier,
 		OpenAIAdvancedSchedulerEnabled:                         settings.OpenAIAdvancedSchedulerEnabled,
+		OpenAIFreeAccountRepairEnabled:                         settings.OpenAIFreeAccountRepairEnabled,
+		OpenAIFreeAccountRepairWeeklyThresholdUSD:              settings.OpenAIFreeAccountRepairWeeklyThresholdUSD,
 		OpenAIAdvancedSchedulerStickyWeightedEnabled:           settings.OpenAIAdvancedSchedulerStickyWeightedEnabled,
 		OpenAIAdvancedSchedulerSubscriptionPriorityEnabled:     settings.OpenAIAdvancedSchedulerSubscriptionPriorityEnabled,
 		OpenAIAdvancedSchedulerLBTopK:                          settings.OpenAIAdvancedSchedulerLBTopK,
@@ -331,6 +375,12 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
+		AutoModelSettings:        autoModelSettingsToDTO(settings.AutoModelSettings),
+		FreeModelsEnabled:        settings.FreeModelsEnabled,
+		CarpoolEnabled:           settings.CarpoolEnabled,
+		CarpoolBaseServiceFeeUSD: settings.CarpoolBaseServiceFeeUSD,
+		CarpoolSystemProxyFeeUSD: settings.CarpoolSystemProxyFeeUSD,
+		CarpoolRiskControlFeeUSD: settings.CarpoolRiskControlFeeUSD,
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 

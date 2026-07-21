@@ -14,6 +14,7 @@ import (
 	"ikik-api/internal/config"
 	"ikik-api/internal/handler"
 	"ikik-api/internal/payment"
+	"ikik-api/internal/plugin"
 	"ikik-api/internal/repository"
 	"ikik-api/internal/server"
 	"ikik-api/internal/server/middleware"
@@ -25,6 +26,7 @@ import (
 
 type Application struct {
 	Server  *http.Server
+	Runtime *plugin.Runtime
 	Cleanup func()
 }
 
@@ -42,6 +44,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 
 		// Server layer ProviderSet
 		server.ProviderSet,
+		plugin.ProviderSet,
 
 		// Privacy client factory for OpenAI training opt-out
 		providePrivacyClientFactory,
@@ -53,7 +56,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 		provideCleanup,
 
 		// Application struct
-		wire.Struct(new(Application), "Server", "Cleanup"),
+		wire.Struct(new(Application), "Server", "Runtime", "Cleanup"),
 	)
 	return nil, nil
 }
@@ -79,6 +82,7 @@ func provideCleanup(
 	opsScheduledReport *service.OpsScheduledReportService,
 	opsSystemLogSink *service.OpsSystemLogSink,
 	schedulerSnapshot *service.SchedulerSnapshotService,
+	groupRateSchedule *service.GroupRateScheduleService,
 	tokenRefresh *service.TokenRefreshService,
 	accountExpiry *service.AccountExpiryService,
 	proxyExpiry *service.ProxyExpiryService,
@@ -97,6 +101,7 @@ func provideCleanup(
 	geminiOAuth *service.GeminiOAuthService,
 	antigravityOAuth *service.AntigravityOAuthService,
 	grokOAuth *service.GrokOAuthService,
+	kiroOAuth *service.KiroOAuthService,
 	openAIGateway *service.OpenAIGatewayService,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	backupSvc *service.BackupService,
@@ -105,6 +110,7 @@ func provideCleanup(
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	auditLog *service.AuditLogService,
+	moduleRuntime *plugin.Runtime,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -117,6 +123,24 @@ func provideCleanup(
 
 		// 应用层清理步骤可并行执行，基础设施资源（Redis/Ent）最后按顺序关闭。
 		parallelSteps := []cleanupStep{
+			{"PluginModuleRuntime", func() error {
+				if moduleRuntime != nil {
+					return moduleRuntime.Stop(ctx)
+				}
+				return nil
+			}},
+			{"GroupRateScheduleService", func() error {
+				if groupRateSchedule != nil {
+					groupRateSchedule.Stop()
+				}
+				return nil
+			}},
+			{"KiroOAuthService", func() error {
+				if kiroOAuth != nil {
+					kiroOAuth.Stop()
+				}
+				return nil
+			}},
 			{"OpsScheduledReportService", func() error {
 				if opsScheduledReport != nil {
 					opsScheduledReport.Stop()

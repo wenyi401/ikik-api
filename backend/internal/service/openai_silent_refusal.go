@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"ikik-api/internal/pkg/apicompat"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
+	"ikik-api/internal/pkg/apicompat"
 )
 
 const (

@@ -564,6 +564,11 @@ function updateRecordInList(updated: BackupRecord) {
   }
 }
 
+function isBackupNotFoundError(error: unknown): boolean {
+  const value = error as { status?: number; code?: string } | null
+  return value?.status === 404 || value?.code === 'BACKUP_NOT_FOUND'
+}
+
 function startPolling(backupId: string) {
   stopPolling()
   let count = 0
@@ -587,8 +592,12 @@ function startPolling(backupId: string) {
         }
         await loadBackups()
       }
-    } catch {
-      // 轮询失败时不中断
+    } catch (error) {
+      if (isBackupNotFoundError(error)) {
+        stopPolling()
+        creatingBackup.value = false
+        await loadBackups()
+      }
     }
   }, 2000)
 }
@@ -623,8 +632,12 @@ function startRestorePolling(backupId: string) {
         }
         await loadBackups()
       }
-    } catch {
-      // 轮询失败时不中断
+    } catch (error) {
+      if (isBackupNotFoundError(error)) {
+        stopRestorePolling()
+        restoringId.value = ''
+        await loadBackups()
+      }
     }
   }, 2000)
 }

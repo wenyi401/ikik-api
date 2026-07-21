@@ -9,10 +9,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	infraerrors "ikik-api/internal/pkg/errors"
-	"ikik-api/internal/pkg/response"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/response"
 )
 
 func TestRecovery_PanicLogContainsInfo(t *testing.T) {

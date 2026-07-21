@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"golang.org/x/net/http2"
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/tlsfingerprint"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/net/http2"
 )
 
 type codexModelsHTTPUpstreamStub struct {

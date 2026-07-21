@@ -153,7 +153,7 @@ func TestGatewayCharacterization_OpenAINonStreamPassthroughByteExact(t *testing.
 // TestGatewayCharacterization_OpenAIPassthroughUpstreamErrorBodyVerbatim 固化 OpenAI 透传
 // 模式的错误语义：非容量类 4xx（如 400）保持原样代理——上游状态码 + 原始错误体透传，
 // Forward 返回 error（供 handler 记日志，但响应已写完）。
-func TestGatewayCharacterization_OpenAIPassthroughUpstreamErrorBodyVerbatim(t *testing.T) {
+func TestGatewayCharacterization_OpenAIPassthroughUpstreamErrorBodySanitized(t *testing.T) {
 	upstreamErrJSON := `{"error":{"type":"invalid_request_error","message":"Unsupported parameter: 'foo'","param":"foo"}}`
 	upstream := &httpUpstreamRecorder{
 		resp: &http.Response{
@@ -176,6 +176,6 @@ func TestGatewayCharacterization_OpenAIPassthroughUpstreamErrorBodyVerbatim(t *t
 	require.Nil(t, result)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code, "透传模式上游错误状态码原样代理")
-	require.Equal(t, upstreamErrJSON, rec.Body.String(), "透传模式上游错误体逐字节透传")
-	require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+	require.JSONEq(t, `{"error":{"type":"upstream_error","message":"Upstream request failed"}}`, rec.Body.String())
+	require.Equal(t, "application/json; charset=utf-8", rec.Header().Get("Content-Type"))
 }

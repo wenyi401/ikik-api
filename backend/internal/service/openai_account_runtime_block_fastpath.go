@@ -62,6 +62,12 @@ func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Cont
 		return false
 	}
 
+	if s != nil && account != nil && s.rateLimitService != nil && s.shouldSkipPersistentRateLimitForCarpool(ctx, account, statusCode) {
+		s.rateLimitService.persistOpenAICodexSnapshot(stateCtx, account, headers)
+		slog.Info("carpool_rate_limit_persist_skipped", "account_id", account.ID, "status_code", statusCode)
+		return false
+	}
+
 	if statusCode == http.StatusTooManyRequests {
 		s.markOpenAIOAuth429RateLimited(stateCtx, account, headers, responseBody)
 	}

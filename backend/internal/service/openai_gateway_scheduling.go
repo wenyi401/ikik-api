@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"ikik-api/internal/config"
-	"ikik-api/internal/pkg/xai"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/xai"
 )
 
 // ExtractSessionID extracts the raw session ID from headers or body without hashing.
@@ -167,6 +167,9 @@ func (s *OpenAIGatewayService) SelectAccountForModelWithExclusions(ctx context.C
 func normalizeOpenAICompatiblePlatform(platform string) string {
 	if platform == PlatformGrok {
 		return PlatformGrok
+	}
+	if platform == PlatformKiro {
+		return PlatformKiro
 	}
 	return PlatformOpenAI
 }

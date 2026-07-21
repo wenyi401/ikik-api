@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"ikik-api/internal/pkg/logger"
 	"github.com/zeromicro/go-zero/core/collection"
+	"ikik-api/internal/pkg/logger"
 )
 
 var newTimingWheel = collection.NewTimingWheel

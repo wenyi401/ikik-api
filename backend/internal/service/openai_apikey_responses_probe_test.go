@@ -3,8 +3,8 @@ package service
 import (
 	"testing"
 
-	"ikik-api/internal/pkg/openai"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/openai"
 )
 
 func TestDecideResponsesProbeSupport(t *testing.T) {

@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/xai"
-	"golang.org/x/sync/singleflight"
 )
 
 const (

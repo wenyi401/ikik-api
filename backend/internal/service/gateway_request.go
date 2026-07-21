@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 	"github.com/tidwall/sjson"
 	"ikik-api/internal/domain"
 	"ikik-api/internal/pkg/antigravity"
+	"ikik-api/internal/pkg/logger"
 )
 
 var (
@@ -112,7 +114,6 @@ func clearGatewayRequestDerivedState(parsed *ParsedRequest) {
 	parsed.Model = ""
 	parsed.Stream = false
 	parsed.MetadataUserID = ""
-	parsed.BodySessionID = ""
 	parsed.HasSystem = false
 	parsed.ThinkingEnabled = false
 	parsed.OutputEffort = ""
@@ -168,7 +169,7 @@ func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) erro
 
 	bodyBytes := parsed.Body.Bytes()
 	if !gjson.ValidBytes(bodyBytes) {
-		return fmt.Errorf("invalid json")
+		return DescribeInvalidJSON(bodyBytes)
 	}
 
 	// 只在当前函数内零拷贝读取 JSON 字段；ReplaceBody 后必须重新进入本函数刷新派生状态。
@@ -193,7 +194,6 @@ func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) erro
 	}
 
 	parsed.MetadataUserID = gjson.Get(jsonStr, "metadata.user_id").String()
-	parsed.BodySessionID = extractBodySessionID(jsonStr)
 
 	thinkingType := gjson.Get(jsonStr, "thinking.type").String()
 	parsed.ThinkingEnabled = thinkingType == "enabled" || thinkingType == "adaptive"
@@ -213,39 +213,28 @@ func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) erro
 	return nil
 }
 
-var bodySessionIDPaths = []string{
-	"prompt_cache_key",
-	"promptCacheKey",
-	"conversation_id",
-	"conversationId",
-	"thread_id",
-	"threadId",
-	"session_id",
-	"sessionId",
-	"metadata.prompt_cache_key",
-	"metadata.promptCacheKey",
-	"metadata.conversation_id",
-	"metadata.conversationId",
-	"metadata.thread_id",
-	"metadata.threadId",
-	"metadata.session_id",
-	"metadata.sessionId",
-}
-
-func extractBodySessionID(jsonStr string) string {
-	for _, path := range bodySessionIDPaths {
-		result := gjson.Get(jsonStr, path)
-		if result.Exists() && result.Type == gjson.String {
-			if value := strings.TrimSpace(result.String()); value != "" {
-				return value
-			}
-		}
-	}
-	return ""
-}
-
 func refreshGatewayRequestRanges(parsed *ParsedRequest, protocol string) error {
 	return parseGatewayRequestCurrentBody(parsed, protocol)
+}
+
+// DescribeInvalidJSON returns a diagnostic error for a request body that
+// failed JSON validation. It re-parses with encoding/json (failure path only)
+// to pinpoint the first offending byte, so operators can distinguish genuinely
+// invalid JSON from a truncated / partially consumed body. The error carries
+// only length/offset/character information — never body content — so callers
+// may safely wrap or log it.
+func DescribeInvalidJSON(body []byte) error {
+	var raw json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		var syntaxErr *json.SyntaxError
+		if errors.As(err, &syntaxErr) {
+			return fmt.Errorf("invalid json (len=%d, offset=%d): %s", len(body), syntaxErr.Offset, syntaxErr.Error())
+		}
+		return fmt.Errorf("invalid json (len=%d): %w", len(body), err)
+	}
+	// gjson rejected the body but encoding/json accepted it (divergent edge
+	// cases, e.g. certain malformed UTF-8 sequences); report the basics.
+	return fmt.Errorf("invalid json (len=%d)", len(body))
 }
 
 // ParsedRequest 保存网关请求的预解析结果
@@ -261,20 +250,17 @@ func refreshGatewayRequestRanges(parsed *ParsedRequest, protocol string) error {
 // 2. 将解析结果 ParsedRequest 传递给 Service 层
 // 3. 避免重复 json.Unmarshal，减少 CPU 和内存开销
 type ParsedRequest struct {
-	Body            *RequestBodyRef // 原始请求体引用（保留用于转发）；替换内容请走 ReplaceBody
-	Model           string          // 请求的模型名称
-	Stream          bool            // 是否为流式请求
-	MetadataUserID  string          // metadata.user_id（用于会话亲和）
-	BodySessionID   string          // body-provided stable session hint
-	HasSystem       bool            // 是否包含 system 字段（包含 null 也视为显式传入）
-	ThinkingEnabled bool            // 是否开启 thinking（部分平台会影响最终模型名）
-	OutputEffort    string          // output_config.effort（Claude API 的推理强度控制）
-	MaxTokens       int             // max_tokens 值（用于探测请求拦截）
-	SessionContext  *SessionContext // 可选：请求上下文区分因子（nil 时行为不变）
-
-	// ExplicitSessionID 客户端通过 HTTP 请求头（X-Session-ID / Anthropic-Session-Id）
-	// 显式传递的会话标识符。由 Handler 层设置，不从请求体解析，因此 ReplaceBody 后保留。
-	ExplicitSessionID string
+	Body              *RequestBodyRef // 原始请求体引用（保留用于转发）；替换内容请走 ReplaceBody
+	Model             string          // 请求的模型名称
+	Stream            bool            // 是否为流式请求
+	MetadataUserID    string          // metadata.user_id（用于会话亲和）
+	BodySessionID     string          // body-provided stable session hint
+	HasSystem         bool            // 是否包含 system 字段（包含 null 也视为显式传入）
+	ThinkingEnabled   bool            // 是否开启 thinking（部分平台会影响最终模型名）
+	OutputEffort      string          // output_config.effort（Claude API 的推理强度控制）
+	MaxTokens         int             // max_tokens 值（用于探测请求拦截）
+	SessionContext    *SessionContext // 可选：请求上下文区分因子（nil 时行为不变）
+	ExplicitSessionID string          // HTTP header-provided stable session hint
 
 	protocol      string    // 当前 Body 的协议格式，用于 Body 替换后刷新 raw range
 	systemRange   jsonRange // system/systemInstruction.parts 的 raw JSON 范围，绑定 Body 当前内容
@@ -283,7 +269,7 @@ type ParsedRequest struct {
 
 	// GroupID 请求所属分组 ID（来自 API Key）
 	GroupID *int64
-	// Group 请求所属分组快照（来自 API Key auth cache）。
+	// Group is the authenticated group snapshot used by custom gateways.
 	Group *Group
 
 	// OnUpstreamAccepted 上游接受请求后立即调用（用于提前释放串行锁）
@@ -555,13 +541,22 @@ func StripEmptyTextBlocks(body []byte) []byte {
 
 // FilterThinkingBlocks removes thinking blocks from request body
 // Returns filtered body or original body if filtering fails (fail-safe)
-// This prevents 400 errors from invalid thinking block signatures
+// This prevents 400 errors from invalid thinking block signatures.
 //
-// 策略：
+// mappedModel 是「实际发给上游的模型 ID」(after account model mapping)，用于按
+// 协议族分流。仅 anthropic-strict 走原过滤逻辑；passback-required 与 unknown
+// 一律保留全部 thinking block，避免误伤第三方兼容上游
+// (DeepSeek `/anthropic`、Kimi `/coding`、GLM、Moonshot 等)，详见
+// .pensieve/short-term/knowledge/thinking-block-filter-third-party-upstream-inversion/。
+//
+// 策略 (anthropic-strict only)：
 //   - 当 thinking.type 不是 "enabled"/"adaptive"：移除所有 thinking 相关块
 //   - 当 thinking.type 是 "enabled"/"adaptive"：仅移除缺失/无效 signature 的 thinking 块（避免 400）
 //     (blocks with missing/empty/dummy signatures that would cause 400 errors)
-func FilterThinkingBlocks(body []byte) []byte {
+func FilterThinkingBlocks(body []byte, mappedModel string) []byte {
+	if !ShouldPreFilterThinkingBlocks(mappedModel) {
+		return body
+	}
 	return filterThinkingBlocksInternal(body, false)
 }
 
@@ -579,7 +574,17 @@ func FilterThinkingBlocks(body []byte) []byte {
 //   - Convert `thinking` blocks to `text` blocks (preserve the thinking content).
 //   - Remove `redacted_thinking` blocks (cannot be converted to text).
 //   - Ensure no message ends up with empty content.
-func FilterThinkingBlocksForRetry(body []byte) []byte {
+//
+// mappedModel 用于按协议族分流：仅 anthropic-strict 执行上述变形；
+// passback-required (DeepSeek/Kimi/GLM 等) 与 unknown 一律返回原 body，
+// 因为这类上游的契约就是「thinking block 原样回传」（或我们不了解），
+// retry 任何变形都不会修好 400，反而破坏契约。详见 thinking_protocol.go。
+func FilterThinkingBlocksForRetry(body []byte, mappedModel string) []byte {
+	// 仅 anthropic-strict 走整流；passback-required 与 unknown 都返回原 body。
+	if !ShouldApplyRetryFilters(mappedModel) {
+		return body
+	}
+
 	hasThinkingContent := bytes.Contains(body, patternTypeThinking) ||
 		bytes.Contains(body, patternTypeThinkingSpaced) ||
 		bytes.Contains(body, patternTypeRedactedThinking) ||
@@ -850,6 +855,69 @@ func removeThinkingDependentContextStrategies(body []byte) []byte {
 	return body
 }
 
+// anthropicBetaContextManagementToken 是 context_management 字段受的 beta token。
+// 与 claude.BetaContextManagement 保持一致；在本文件本地定义以避免震荡
+// claude package 的该常量含义。
+const anthropicBetaContextManagementToken = "context-management-2025-06-27"
+
+// sanitizeAnthropicBodyForBetaTokens 是对 Anthropic 直连路径上 body↔beta header
+// **能力维度**对称约束的统一实现，与 Bedrock 路径的
+// `sanitizeBedrockFieldsForBetaTokens` 对称。
+//
+// 问题场景：
+//   - context_management 是 Claude Code CLI 2.1.87+ 默认携带的 beta 字段
+//     （含 clear_thinking_20251015 等清理策略）
+//   - 其被 Anthropic 上游接受的前提是 anthropic-beta header 含
+//     `context-management-2025-06-27`
+//   - 若两侧不一致上游 Pydantic schema 拒收：
+//     "context_management: Extra inputs are not permitted"
+//
+// 本函数按最终发送的 anthropic-beta header 决定是否保留 body 中的
+// context_management 字段：缺 beta token → strip。这将限制完全建立在
+// "能力维度" 上，与 model 名 / token type / mimicry 子路径无关。
+//
+// 调用约束：必须在 CCH 签名之前调用，否则签名 hash 与最终 body
+// 不一致，上游会以 third-party 拒收。
+//
+// 返回 (sanitized, changed)：changed 表示是否发生实际删除，供调用方决定
+// 是否重用原 body 引用。
+func sanitizeAnthropicBodyForBetaTokens(body []byte, anthropicBetaHeader string) ([]byte, bool) {
+	if len(body) == 0 {
+		return body, false
+	}
+	if !gjson.GetBytes(body, "context_management").Exists() {
+		return body, false
+	}
+	if anthropicBetaTokensContains(anthropicBetaHeader, anthropicBetaContextManagementToken) {
+		return body, false
+	}
+	if b, err := sjson.DeleteBytes(body, "context_management"); err == nil {
+		return b, true
+	} else {
+		// 不应发生：gjson 刚验证过字段存在 + body 是合法 JSON。如果 sjson 仍报错，
+		// 调用方会拿到 (body, false)，但此前 computeFinalAnthropicBeta 已按“strip 后”
+		// 计算了 finalBeta——两侧会不一致。记录 warning 最小限度提醒运维。
+		logger.LegacyPrintf("service.gateway",
+			"[CtxMgmtSanitize] sjson.DeleteBytes failed unexpectedly: %v (body len=%d). "+
+				"body and final anthropic-beta header may be out of sync.", err, len(body))
+	}
+	return body, false
+}
+
+// anthropicBetaTokensContains 检测逗号分隔的 anthropic-beta header 是否含指定 token。
+// 宋体空格宽容；区分大小写（Anthropic beta token 始终是小写）。
+func anthropicBetaTokensContains(header, token string) bool {
+	if header == "" || token == "" {
+		return false
+	}
+	for _, part := range strings.Split(header, ",") {
+		if strings.TrimSpace(part) == token {
+			return true
+		}
+	}
+	return false
+}
+
 // FilterSignatureSensitiveBlocksForRetry is a stronger retry filter for cases where upstream errors indicate
 // signature/thought_signature validation issues involving tool blocks.
 //
@@ -859,7 +927,14 @@ func removeThinkingDependentContextStrategies(body []byte) []byte {
 //
 // Use this only when needed: converting tool blocks to text changes model behaviour and can increase the
 // risk of prompt injection (tool output becomes plain conversation text).
-func FilterSignatureSensitiveBlocksForRetry(body []byte) []byte {
+//
+// mappedModel 同 FilterThinkingBlocksForRetry：仅 anthropic-strict 执行变形；
+// passback-required 与 unknown 都返回原 body，避免在不熟悉的上游上盲目变形。
+func FilterSignatureSensitiveBlocksForRetry(body []byte, mappedModel string) []byte {
+	if !ShouldApplyRetryFilters(mappedModel) {
+		return body
+	}
+
 	// Fast path: only run when we see likely relevant constructs.
 	if !bytes.Contains(body, []byte(`"type":"thinking"`)) &&
 		!bytes.Contains(body, []byte(`"type": "thinking"`)) &&
@@ -1154,6 +1229,118 @@ func NormalizeClaudeOutputEffort(raw string) *string {
 	}
 }
 
+// DefaultEffortForThinkingEnabled 给"开启了 thinking 但协议层没有 effort 档位概念"
+// 的国产模型族返回一个默认 effort 字符串（"high"），用于 usage_log.reasoning_effort
+// 字段，避免该字段长期为 NULL 导致用量分析无法区分 thinking 开/关。
+//
+// 适用范围（按 ResolveThinkingProtocol 的 PassbackRequired 集合做白名单过滤）：
+//   - Kimi (kimi-* / moonshot-*)
+//   - GLM (glm-*)
+//   - MiniMax (minimax-m*)
+//   - Qwen thinking 变体 (qwen[1-4]?-*-thinking)
+//
+// **排除 DeepSeek**：DeepSeek 原生支持 reasoning_effort: high/max，客户端可显式指定，
+// 网关不应注入默认值覆盖客户端意图（即便客户端没发，DeepSeek 上游自己会用 high default
+// ——但那是上游行为，不是我们的语义注入）。
+//
+// 适用场景由调用方守卫：仅当 (1) ResolveThinkingProtocol == PassbackRequired
+// (2) 已确认 thinking 启用（Anthropic: parsed.ThinkingEnabled；OpenAI: 见
+// OpenAIBodyHasThinkingEnabled) (3) 已有 effort 解析返回 nil 三者同时成立时调用。
+//
+// 返回值固定指向 "high"。理由：Kimi/GLM/MiniMax 启用 thinking 都是"深度推理模式"，
+// 等同 Claude/OpenAI 的 high 档位语义；用 high 比 medium/normal 更贴近实际行为，
+// 也与 DeepSeek thinking-enabled 的默认 effort 一致。
+//
+// 未来兼容性：如果这些厂商后续加入真实 effort 档位（如 Kimi 跟进 DeepSeek 的
+// reasoning_effort: high/max），客户端开始显式发 effort 值时，调用方的守卫条件 (3)
+// 会因 extractor 返回非 nil 而不触发本函数，自动让出。
+func DefaultEffortForThinkingEnabled(mappedModel string) *string {
+	if ResolveThinkingProtocol(mappedModel) != ThinkingProtocolPassbackRequired {
+		return nil
+	}
+	// DeepSeek 在 PassbackRequired 集合里但有原生 effort 支持，排除。
+	if strings.HasPrefix(strings.ToLower(mappedModel), "deepseek-") {
+		return nil
+	}
+	effort := "high"
+	return &effort
+}
+
+// OpenAIBodyHasThinkingEnabled 检测 OpenAI 协议的请求体里是否启用了 thinking。
+//
+// 国产 OpenAI-兼容上游（GLM via thinkingFormat=zai / Kimi 等）在请求体里用
+// `thinking: {type: "enabled"}` 或 `thinking: {type: "adaptive"}` 表达启用。
+// 仅 "enabled" / "adaptive" 视为开启；"disabled" 或缺省 → 视为关闭。
+//
+// 配合 DefaultEffortForThinkingEnabled 使用：OpenAI 路径上 reasoning_effort 解析为空
+// 但本函数返回 true 时，给 usage_log 填默认 effort。
+func OpenAIBodyHasThinkingEnabled(body []byte) bool {
+	thinkingType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "thinking.type").String()))
+	return thinkingType == "enabled" || thinkingType == "adaptive"
+}
+
+// ApplyThinkingEnabledFallback 补丁已解析出的 effort，仅在 effort 为 nil 且
+// 检测到 body 里 thinking 启用 + mappedModel 属于国产 passback-required 上游时，
+// 返回 DefaultEffortForThinkingEnabled 的默认值（"high"）。不覆盖已解析出的值。
+//
+// 适用于 OpenAI 网关的多条路径调用方（避免重复的 if-nil 表达式）。
+func ApplyThinkingEnabledFallback(effort *string, body []byte, mappedModel string) *string {
+	if effort != nil {
+		return effort
+	}
+	if !OpenAIBodyHasThinkingEnabled(body) {
+		return nil
+	}
+	return DefaultEffortForThinkingEnabled(mappedModel)
+}
+
+// NormalizeGLMOpenAIReasoningEffort rewrites OpenAI Chat Completions
+// reasoning_effort values to the GLM native scale used by z.ai: high/max.
+// It only applies to glm-* mapped models and leaves all other providers untouched.
+func NormalizeGLMOpenAIReasoningEffort(body []byte, mappedModel string) ([]byte, bool) {
+	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(mappedModel)), "glm-") {
+		return body, false
+	}
+
+	path := "reasoning.effort"
+	raw := strings.TrimSpace(gjson.GetBytes(body, path).String())
+	if raw == "" {
+		path = "reasoning_effort"
+		raw = strings.TrimSpace(gjson.GetBytes(body, path).String())
+	}
+	if raw == "" {
+		return body, false
+	}
+
+	mapped := normalizeGLMOpenAIReasoningEffort(raw)
+	if mapped == "" || mapped == raw {
+		return body, false
+	}
+
+	modified, err := sjson.SetBytes(body, path, mapped)
+	if err != nil {
+		return body, false
+	}
+	return modified, true
+}
+
+func normalizeGLMOpenAIReasoningEffort(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if value == "" {
+		return ""
+	}
+	value = strings.NewReplacer("-", "", "_", "", " ", "").Replace(value)
+
+	switch value {
+	case "low", "medium", "high":
+		return "high"
+	case "xhigh", "extrahigh", "max", "ultracode":
+		return "max"
+	default:
+		return ""
+	}
+}
+
 // =========================
 // Thinking Budget Rectifier
 // =========================
@@ -1239,4 +1426,36 @@ func RectifyThinkingBudget(body []byte) ([]byte, bool) {
 	}
 
 	return modified, changed
+}
+
+// NormalizeChineseLLMThinking rewrites the top-level `thinking` object for Chinese
+// LLM providers that use Anthropic-compatible endpoints but have different accepted
+// values for `thinking.type`. Currently scoped to:
+//   - MiniMax M-series (`MiniMax-m*`, covering M2.x / M3 / M3.x): official docs accept
+//     only `thinking.type` of "adaptive" or "disabled"; "enabled" is not a valid value
+//     and may be rejected/ignored. Pi-ai and other Anthropic-SDK clients default to
+//     "enabled" (Anthropic-original) and never auto-rewrite for non-Anthropic models.
+//
+// Non-MiniMax models (Kimi/GLM/DeepSeek) currently accept "enabled" as-is, so this
+// function is intentionally a no-op for them. New Chinese LLM quirks should be
+// added here as separate case branches.
+//
+// Returns (modified body, true) if a rewrite was applied, or (original body, false)
+// if no rewrite was needed. Caller should be on the Anthropic forward path AFTER
+// FilterThinkingBlocks and BEFORE building the upstream request, only for
+// passback-required models (ResolveThinkingProtocol == PassbackRequired).
+func NormalizeChineseLLMThinking(body []byte, mappedModel string) ([]byte, bool) {
+	modelLower := strings.ToLower(mappedModel)
+	if !strings.HasPrefix(modelLower, "minimax-m") {
+		return body, false
+	}
+	thinkingType := gjson.GetBytes(body, "thinking.type").String()
+	if thinkingType != "enabled" {
+		return body, false
+	}
+	modified, err := sjson.SetBytes(body, "thinking.type", "adaptive")
+	if err != nil {
+		return body, false
+	}
+	return modified, true
 }

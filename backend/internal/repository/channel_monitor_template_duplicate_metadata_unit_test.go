@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -28,11 +28,11 @@ func TestApplyChannelMonitorTemplatePreservesDuplicateOperationMetadataAtomicall
 
 	mock.ExpectBegin()
 	expectChannelMonitorTemplateForApply(mock, templateID)
-	mock.ExpectExec(`(?s)UPDATE "channel_monitors" SET "body_override" = NULL, "updated_at" = \$1, "api_mode" = \$2, "body_override_mode" = \$3 WHERE .*"template_id" = \$4.*"id" IN \(\$5, \$6\).*"provider" = \$7.*"api_mode" = \$8`).
+	mock.ExpectExec(`(?s)UPDATE "channel_monitors" SET "body_override" = NULL, "updated_at" = \$1, "body_override_mode" = \$2, "api_mode" = \$3 WHERE .*"template_id" = \$4.*"id" IN \(\$5, \$6\).*"provider" = \$7.*"api_mode" = \$8`).
 		WithArgs(
 			sqlmock.AnyArg(),
-			service.MonitorAPIModeResponses,
 			service.MonitorBodyOverrideModeOff,
+			service.MonitorAPIModeResponses,
 			templateID,
 			monitorIDs[0],
 			monitorIDs[1],

@@ -8,7 +8,7 @@
     <UiMetric
       :label="t('usage.totalTokens')"
       :value="formatTokens(normalizedStats.total_tokens)"
-      :detail="`${t('usage.in')} ${formatTokens(normalizedStats.total_input_tokens)} · ${t('usage.out')} ${formatTokens(normalizedStats.total_output_tokens)}`"
+      :detail="tokenDetail"
     />
     <UiMetric
       :label="t('usage.totalCost')"
@@ -47,6 +47,8 @@ const normalizedStats = computed(() => {
     total_input_tokens: totalInputTokens,
     total_output_tokens: totalOutputTokens,
     total_cache_tokens: totalCacheTokens,
+    total_cache_creation_tokens: toFiniteNumber(raw?.total_cache_creation_tokens),
+    total_cache_read_tokens: toFiniteNumber(raw?.total_cache_read_tokens),
     total_tokens: toFiniteNumber(raw?.total_tokens) || totalInputTokens + totalOutputTokens + totalCacheTokens,
     total_cost: toFiniteNumber(raw?.total_cost),
     total_actual_cost: toFiniteNumber(raw?.total_actual_cost),
@@ -54,6 +56,15 @@ const normalizedStats = computed(() => {
     average_duration_ms: toFiniteNumber(raw?.average_duration_ms)
   }
 })
+
+const tokenDetail = computed(() => [
+  `${t('usage.in')} ${formatTokens(normalizedStats.value.total_input_tokens)}`,
+  `${t('usage.out')} ${formatTokens(normalizedStats.value.total_output_tokens)}`,
+  `${t('usage.cacheTotal')}: ${formatTokens(normalizedStats.value.total_cache_tokens)}`,
+  t('usage.cacheBreakdown'),
+  `${t('usage.cacheCreationTokensLabel')} ${formatTokens(normalizedStats.value.total_cache_creation_tokens)}`,
+  `${t('usage.cacheReadTokensLabel')} ${formatTokens(normalizedStats.value.total_cache_read_tokens)}`
+].join(' · '))
 
 const formatDuration = (ms: number) =>
   ms < 1000 ? `${ms.toFixed(0)}ms` : `${(ms / 1000).toFixed(2)}s`

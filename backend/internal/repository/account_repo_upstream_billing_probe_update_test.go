@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	dbaccount "ikik-api/ent/account"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -298,8 +298,9 @@ func TestBulkUpdateRollsBackWhenOutboxFails(t *testing.T) {
 func updatedAccountRows(id int64, extra string) *sqlmock.Rows {
 	now := time.Now()
 	return sqlmock.NewRows(dbaccount.Columns).AddRow(
-		id, now, now, nil, "test", nil, service.PlatformOpenAI, service.AccountTypeAPIKey,
-		[]byte(`{"api_key":"sk-test"}`), []byte(extra), nil, nil, 1, nil, 1, 1.0,
+		id, now, now, nil, "test", service.AccountLevelUnknown, nil, service.PlatformOpenAI, service.AccountTypeAPIKey,
+		[]byte(`{"api_key":"sk-test"}`), []byte(extra), nil, service.AccountShareModePrivate, service.AccountShareStatusApproved, nil,
+		nil, nil, 1, nil, 1, 1.0,
 		service.StatusActive, nil, nil, nil, false, true, nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, service.QuotaDimensionGlobal,
 	)

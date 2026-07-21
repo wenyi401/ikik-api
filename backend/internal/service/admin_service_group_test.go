@@ -22,20 +22,15 @@ type groupRepoStubForAdmin struct {
 	getByID *Group // GetByID 返回值
 	getErr  error  // GetByID 返回的错误
 
-	getByIDByID                  map[int64]*Group
-	accountIDsByGroupIDs         []int64
-	bindAccountsGroupID          int64
-	bindAccountsAccountIDs       []int64
-	deleteAccountGroupsByGroupID int64
-	listWithFiltersCalls         int
-	listWithFiltersParams        pagination.PaginationParams
-	listWithFiltersPlatform      string
-	listWithFiltersStatus        string
-	listWithFiltersSearch        string
-	listWithFiltersIsExclusive   *bool
-	listWithFiltersGroups        []Group
-	listWithFiltersResult        *pagination.PaginationResult
-	listWithFiltersErr           error
+	listWithFiltersCalls       int
+	listWithFiltersParams      pagination.PaginationParams
+	listWithFiltersPlatform    string
+	listWithFiltersStatus      string
+	listWithFiltersSearch      string
+	listWithFiltersIsExclusive *bool
+	listWithFiltersGroups      []Group
+	listWithFiltersResult      *pagination.PaginationResult
+	listWithFiltersErr         error
 }
 
 func (s *groupRepoStubForAdmin) Create(_ context.Context, g *Group) error {
@@ -48,22 +43,16 @@ func (s *groupRepoStubForAdmin) Update(_ context.Context, g *Group) error {
 	return nil
 }
 
-func (s *groupRepoStubForAdmin) GetByID(_ context.Context, id int64) (*Group, error) {
+func (s *groupRepoStubForAdmin) GetByID(_ context.Context, _ int64) (*Group, error) {
 	if s.getErr != nil {
 		return nil, s.getErr
-	}
-	if s.getByIDByID != nil {
-		return s.getByIDByID[id], nil
 	}
 	return s.getByID, nil
 }
 
-func (s *groupRepoStubForAdmin) GetByIDLite(_ context.Context, id int64) (*Group, error) {
+func (s *groupRepoStubForAdmin) GetByIDLite(_ context.Context, _ int64) (*Group, error) {
 	if s.getErr != nil {
 		return nil, s.getErr
-	}
-	if s.getByIDByID != nil {
-		return s.getByIDByID[id], nil
 	}
 	return s.getByID, nil
 }
@@ -120,28 +109,16 @@ func (s *groupRepoStubForAdmin) GetAccountCount(_ context.Context, _ int64) (int
 	panic("unexpected GetAccountCount call")
 }
 
-func (s *groupRepoStubForAdmin) DeleteAccountGroupsByGroupID(_ context.Context, groupID int64) (int64, error) {
-	if s.accountIDsByGroupIDs == nil {
-		panic("unexpected DeleteAccountGroupsByGroupID call")
-	}
-	s.deleteAccountGroupsByGroupID = groupID
-	return 0, nil
+func (s *groupRepoStubForAdmin) DeleteAccountGroupsByGroupID(_ context.Context, _ int64) (int64, error) {
+	panic("unexpected DeleteAccountGroupsByGroupID call")
 }
 
-func (s *groupRepoStubForAdmin) BindAccountsToGroup(_ context.Context, groupID int64, accountIDs []int64) error {
-	if s.accountIDsByGroupIDs == nil {
-		panic("unexpected BindAccountsToGroup call")
-	}
-	s.bindAccountsGroupID = groupID
-	s.bindAccountsAccountIDs = append([]int64{}, accountIDs...)
-	return nil
+func (s *groupRepoStubForAdmin) BindAccountsToGroup(_ context.Context, _ int64, _ []int64) error {
+	panic("unexpected BindAccountsToGroup call")
 }
 
 func (s *groupRepoStubForAdmin) GetAccountIDsByGroupIDs(_ context.Context, _ []int64) ([]int64, error) {
-	if s.accountIDsByGroupIDs == nil {
-		panic("unexpected GetAccountIDsByGroupIDs call")
-	}
-	return append([]int64{}, s.accountIDsByGroupIDs...), nil
+	panic("unexpected GetAccountIDsByGroupIDs call")
 }
 
 func (s *groupRepoStubForAdmin) UpdateSortOrders(_ context.Context, _ []GroupSortOrderUpdate) error {
@@ -154,7 +131,7 @@ func TestAdminService_ListGroups_PassesSortParams(t *testing.T) {
 	}
 	svc := &adminServiceImpl{groupRepo: repo}
 
-	_, _, err := svc.ListGroups(context.Background(), 3, 25, PlatformOpenAI, StatusActive, "needle", nil, "", "account_count", "ASC")
+	_, _, err := svc.ListGroups(context.Background(), 3, 25, PlatformOpenAI, StatusActive, "needle", nil, "account_count", "ASC")
 	require.NoError(t, err)
 	require.Equal(t, pagination.PaginationParams{
 		Page:      3,
@@ -197,6 +174,42 @@ func TestAdminService_CreateGroup_WithImagePricing(t *testing.T) {
 	require.InDelta(t, 0.30, *repo.created.ImagePrice4K, 0.0001)
 }
 
+func TestAdminService_CreateGroup_WithVideoPricing(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	price480P := 0.08
+	price720P := 0.12
+	price1080P := 0.18
+	videoMultiplier := 0.75
+
+	input := &CreateGroupInput{
+		Name:                 "grok-video",
+		Description:          "Grok video group",
+		Platform:             PlatformGrok,
+		RateMultiplier:       1.0,
+		VideoRateIndependent: true,
+		VideoRateMultiplier:  &videoMultiplier,
+		VideoPrice480P:       &price480P,
+		VideoPrice720P:       &price720P,
+		VideoPrice1080P:      &price1080P,
+	}
+
+	group, err := svc.CreateGroup(context.Background(), input)
+	require.NoError(t, err)
+	require.NotNil(t, group)
+
+	require.NotNil(t, repo.created)
+	require.True(t, repo.created.VideoRateIndependent)
+	require.InDelta(t, 0.75, repo.created.VideoRateMultiplier, 1e-12)
+	require.NotNil(t, repo.created.VideoPrice480P)
+	require.NotNil(t, repo.created.VideoPrice720P)
+	require.NotNil(t, repo.created.VideoPrice1080P)
+	require.InDelta(t, 0.08, *repo.created.VideoPrice480P, 0.0001)
+	require.InDelta(t, 0.12, *repo.created.VideoPrice720P, 0.0001)
+	require.InDelta(t, 0.18, *repo.created.VideoPrice1080P, 0.0001)
+}
+
 // TestAdminService_CreateGroup_NilImagePricing 测试 ImagePrice 为 nil 时正常创建
 func TestAdminService_CreateGroup_NilImagePricing(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
@@ -221,138 +234,78 @@ func TestAdminService_CreateGroup_NilImagePricing(t *testing.T) {
 	require.Nil(t, repo.created.ImagePrice4K)
 }
 
-func TestAdminService_CreateGroupCopyAccounts_RejectsMismatchedOpenAILevelBeforeCreate(t *testing.T) {
-	repo := &groupRepoStubForAdmin{
-		getByIDByID: map[int64]*Group{
-			1: {ID: 1, Name: "Free Source", Platform: PlatformOpenAI},
-		},
-		accountIDsByGroupIDs: []int64{101},
-	}
-	accountRepo := &accountRepoStubForBulkUpdate{
-		getByIDsAccounts: []*Account{
-			{
-				ID:           101,
-				Name:         "free-account",
-				Platform:     PlatformOpenAI,
-				AccountLevel: AccountLevelFree,
-				Type:         AccountTypeOAuth,
-			},
-		},
-	}
-	svc := &adminServiceImpl{groupRepo: repo, accountRepo: accountRepo}
-
-	_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
-		Name:                     "Plus Pool",
-		Platform:                 PlatformOpenAI,
-		RateMultiplier:           1,
-		RequiredAccountLevel:     AccountLevelPlus,
-		CopyAccountsFromGroupIDs: []int64{1},
-	})
-
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "account_level mismatch")
-	require.Nil(t, repo.created)
-	require.Empty(t, repo.bindAccountsAccountIDs)
-}
-
-func TestAdminService_CreateGroupCopyAccounts_AllowsHigherOpenAILevelIntoLowerPool(t *testing.T) {
-	repo := &groupRepoStubForAdmin{
-		getByIDByID: map[int64]*Group{
-			1: {ID: 1, Name: "Pro Source", Platform: PlatformOpenAI},
-		},
-		accountIDsByGroupIDs: []int64{101},
-	}
-	accountRepo := &accountRepoStubForBulkUpdate{
-		getByIDsAccounts: []*Account{
-			{
-				ID:           101,
-				Name:         "pro-account",
-				Platform:     PlatformOpenAI,
-				AccountLevel: AccountLevelPro,
-				Type:         AccountTypeOAuth,
-			},
-		},
-	}
-	svc := &adminServiceImpl{groupRepo: repo, accountRepo: accountRepo}
+func TestAdminService_CreateGroup_DefaultsGrokMediaGenerationEnabled(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
-		Name:                     "Plus Pool",
-		Platform:                 PlatformOpenAI,
-		RateMultiplier:           1,
-		RequiredAccountLevel:     AccountLevelPlus,
-		CopyAccountsFromGroupIDs: []int64{1},
+		Name:           "grok-media",
+		Description:    "Grok media group",
+		Platform:       PlatformGrok,
+		RateMultiplier: 1.0,
 	})
-
 	require.NoError(t, err)
 	require.NotNil(t, group)
 	require.NotNil(t, repo.created)
-	require.Equal(t, AccountLevelPlus, repo.created.RequiredAccountLevel)
-	require.Equal(t, []int64{101}, repo.bindAccountsAccountIDs)
+	require.True(t, repo.created.AllowImageGeneration)
+	require.True(t, group.AllowImageGeneration)
 }
 
-func TestAdminService_UpdateGroupCopyAccounts_RejectsMismatchedOpenAILevelBeforeClearingBindings(t *testing.T) {
-	existing := &Group{
-		ID:                   2,
-		Name:                 "Plus Pool",
-		Platform:             PlatformOpenAI,
-		RateMultiplier:       1,
-		RequiredAccountLevel: AccountLevelPlus,
-	}
-	repo := &groupRepoStubForAdmin{
-		getByIDByID: map[int64]*Group{
-			1: {ID: 1, Name: "Free Source", Platform: PlatformOpenAI},
-			2: existing,
-		},
-		accountIDsByGroupIDs: []int64{101},
-	}
-	accountRepo := &accountRepoStubForBulkUpdate{
-		getByIDsAccounts: []*Account{
-			{
-				ID:           101,
-				Name:         "free-account",
-				Platform:     PlatformOpenAI,
-				AccountLevel: AccountLevelFree,
-				Type:         AccountTypeOAuth,
-			},
-		},
-	}
-	svc := &adminServiceImpl{groupRepo: repo, accountRepo: accountRepo}
-
-	_, err := svc.UpdateGroup(context.Background(), 2, &UpdateGroupInput{
-		CopyAccountsFromGroupIDs: []int64{1},
-	})
-
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "account_level mismatch")
-	require.Nil(t, repo.updated)
-	require.Zero(t, repo.deleteAccountGroupsByGroupID)
-	require.Empty(t, repo.bindAccountsAccountIDs)
-}
-
-func TestAdminService_UpdateGroupCopyAccounts_PreservesTeamRequiredLevel(t *testing.T) {
-	existing := &Group{
-		ID:             2,
-		Name:           "Legacy Team Pool",
-		Platform:       PlatformOpenAI,
-		RateMultiplier: 1,
-		Status:         StatusActive,
-	}
-	repo := &groupRepoStubForAdmin{
-		getByIDByID: map[int64]*Group{
-			2: existing,
-		},
-	}
+func TestAdminService_CreateGroup_PreservesNonGrokImageGenerationDisabled(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
 	svc := &adminServiceImpl{groupRepo: repo}
 
-	updated, err := svc.UpdateGroup(context.Background(), 2, &UpdateGroupInput{
-		RequiredAccountLevel: ptrString(AccountLevelTeam),
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:           "anthropic-text",
+		Description:    "Anthropic text group",
+		Platform:       PlatformAnthropic,
+		RateMultiplier: 1.0,
 	})
-
 	require.NoError(t, err)
-	require.NotNil(t, updated)
-	require.Equal(t, AccountLevelTeam, updated.RequiredAccountLevel)
-	require.NotNil(t, repo.updated)
-	require.Equal(t, AccountLevelTeam, repo.updated.RequiredAccountLevel)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.created)
+	require.False(t, repo.created.AllowImageGeneration)
+	require.False(t, group.AllowImageGeneration)
+}
+
+func TestAdminService_CreateGroup_DisablesBatchImageWhenImageGenerationDisabled(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:                      "gemini-no-image",
+		Description:               "Gemini group without image generation",
+		Platform:                  PlatformGemini,
+		RateMultiplier:            1.0,
+		AllowImageGeneration:      false,
+		AllowBatchImageGeneration: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.created)
+	require.False(t, repo.created.AllowImageGeneration)
+	require.False(t, repo.created.AllowBatchImageGeneration)
+	require.False(t, group.AllowBatchImageGeneration)
+}
+
+func TestAdminService_CreateGroup_DisablesBatchImageForNonGeminiPlatform(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:                      "openai-image",
+		Description:               "OpenAI image group",
+		Platform:                  PlatformOpenAI,
+		RateMultiplier:            1.0,
+		AllowImageGeneration:      true,
+		AllowBatchImageGeneration: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.created)
+	require.True(t, repo.created.AllowImageGeneration)
+	require.False(t, repo.created.AllowBatchImageGeneration)
+	require.False(t, group.AllowBatchImageGeneration)
 }
 
 // TestAdminService_UpdateGroup_WithImagePricing 测试更新分组时 ImagePrice 字段正确更新
@@ -390,6 +343,42 @@ func TestAdminService_UpdateGroup_WithImagePricing(t *testing.T) {
 	require.InDelta(t, 0.36, *repo.updated.ImagePrice4K, 0.0001)
 }
 
+func TestAdminService_UpdateGroup_WithVideoPricing(t *testing.T) {
+	existingGroup := &Group{
+		ID:       1,
+		Name:     "existing-grok",
+		Platform: PlatformGrok,
+		Status:   StatusActive,
+	}
+	repo := &groupRepoStubForAdmin{getByID: existingGroup}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	price480P := 0.09
+	price720P := 0.13
+	price1080P := 0.19
+	videoMultiplier := 0.6
+	independent := true
+
+	input := &UpdateGroupInput{
+		VideoRateIndependent: &independent,
+		VideoRateMultiplier:  &videoMultiplier,
+		VideoPrice480P:       &price480P,
+		VideoPrice720P:       &price720P,
+		VideoPrice1080P:      &price1080P,
+	}
+
+	group, err := svc.UpdateGroup(context.Background(), 1, input)
+	require.NoError(t, err)
+	require.NotNil(t, group)
+
+	require.NotNil(t, repo.updated)
+	require.True(t, repo.updated.VideoRateIndependent)
+	require.InDelta(t, 0.6, repo.updated.VideoRateMultiplier, 1e-12)
+	require.InDelta(t, 0.09, *repo.updated.VideoPrice480P, 0.0001)
+	require.InDelta(t, 0.13, *repo.updated.VideoPrice720P, 0.0001)
+	require.InDelta(t, 0.19, *repo.updated.VideoPrice1080P, 0.0001)
+}
+
 // TestAdminService_UpdateGroup_PartialImagePricing 测试仅更新部分 ImagePrice 字段
 func TestAdminService_UpdateGroup_PartialImagePricing(t *testing.T) {
 	oldPrice2K := 0.15
@@ -423,6 +412,227 @@ func TestAdminService_UpdateGroup_PartialImagePricing(t *testing.T) {
 	require.Nil(t, repo.updated.ImagePrice4K)
 }
 
+func TestAdminService_UpdateGroup_PreservesImageGenerationControlsWhenOmitted(t *testing.T) {
+	imageMultiplier := 0.5
+	existingGroup := &Group{
+		ID:                   1,
+		Name:                 "existing-group",
+		Platform:             PlatformOpenAI,
+		Status:               StatusActive,
+		AllowImageGeneration: true,
+		ImageRateIndependent: true,
+		ImageRateMultiplier:  imageMultiplier,
+	}
+	repo := &groupRepoStubForAdmin{getByID: existingGroup}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	updatedDesc := "updated"
+	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
+		Description: &updatedDesc,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.updated)
+	require.True(t, repo.updated.AllowImageGeneration)
+	require.True(t, repo.updated.ImageRateIndependent)
+	require.InDelta(t, 0.5, repo.updated.ImageRateMultiplier, 1e-12)
+}
+
+func TestAdminService_UpdateGroup_DisablesBatchImageWhenImageGenerationDisabled(t *testing.T) {
+	existingGroup := &Group{
+		ID:                        1,
+		Name:                      "existing-gemini",
+		Platform:                  PlatformGemini,
+		Status:                    StatusActive,
+		AllowImageGeneration:      true,
+		AllowBatchImageGeneration: true,
+	}
+	repo := &groupRepoStubForAdmin{getByID: existingGroup}
+	svc := &adminServiceImpl{groupRepo: repo}
+	disabled := false
+
+	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
+		AllowImageGeneration: &disabled,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.updated)
+	require.False(t, repo.updated.AllowImageGeneration)
+	require.False(t, repo.updated.AllowBatchImageGeneration)
+	require.False(t, group.AllowBatchImageGeneration)
+}
+
+func TestAdminService_UpdateGroup_DisablesBatchImageWhenPlatformChangesFromGemini(t *testing.T) {
+	existingGroup := &Group{
+		ID:                        1,
+		Name:                      "existing-gemini",
+		Platform:                  PlatformGemini,
+		Status:                    StatusActive,
+		AllowImageGeneration:      true,
+		AllowBatchImageGeneration: true,
+	}
+	repo := &groupRepoStubForAdmin{getByID: existingGroup}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
+		Platform: PlatformOpenAI,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.updated)
+	require.Equal(t, PlatformOpenAI, repo.updated.Platform)
+	require.False(t, repo.updated.AllowBatchImageGeneration)
+	require.False(t, group.AllowBatchImageGeneration)
+}
+
+func TestAdminService_UpdateGroup_ClearsDescriptionWhenEmptyString(t *testing.T) {
+	existingGroup := &Group{
+		ID:          1,
+		Name:        "existing-group",
+		Description: "Auto-created default group",
+		Platform:    PlatformOpenAI,
+		Status:      StatusActive,
+	}
+	repo := &groupRepoStubForAdmin{getByID: existingGroup}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	empty := ""
+	_, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
+		Description: &empty,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, repo.updated)
+	require.Equal(t, "", repo.updated.Description, "empty string should clear description")
+}
+
+func TestAdminService_UpdateGroup_PreservesDescriptionWhenNil(t *testing.T) {
+	existingGroup := &Group{
+		ID:          1,
+		Name:        "existing-group",
+		Description: "keep me",
+		Platform:    PlatformOpenAI,
+		Status:      StatusActive,
+	}
+	repo := &groupRepoStubForAdmin{getByID: existingGroup}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	_, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
+		Description: nil,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, repo.updated)
+	require.Equal(t, "keep me", repo.updated.Description, "nil should preserve existing description")
+}
+
+func TestAdminService_UpdateGroup_RejectsNegativeImageRateMultiplier(t *testing.T) {
+	existingGroup := &Group{
+		ID:                  1,
+		Name:                "existing-group",
+		Platform:            PlatformOpenAI,
+		Status:              StatusActive,
+		ImageRateMultiplier: 1,
+	}
+	repo := &groupRepoStubForAdmin{getByID: existingGroup}
+	svc := &adminServiceImpl{groupRepo: repo}
+	negative := -0.1
+
+	_, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
+		ImageRateMultiplier: &negative,
+	})
+	require.Error(t, err)
+	require.Nil(t, repo.updated)
+}
+
+func TestAdminService_CreateGroup_BatchImagePricingSettings(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+	discount := 0.8
+	hold := 0.9
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:                         "batch-image-pricing",
+		Platform:                     PlatformGemini,
+		RateMultiplier:               1,
+		BatchImageDiscountMultiplier: &discount,
+		BatchImageHoldMultiplier:     &hold,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.created)
+	require.InDelta(t, 0.8, repo.created.BatchImageDiscountMultiplier, 1e-12)
+	require.InDelta(t, 0.9, repo.created.BatchImageHoldMultiplier, 1e-12)
+}
+
+func TestAdminService_CreateGroup_RejectsHoldBelowDiscount(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+	discount := 0.8
+	hold := 0.6
+
+	// hold < discount 时，成功率足够高的批量任务实际成本会超过冻结额，
+	// 结算永远失败，必须在配置入口拒绝。
+	_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:                         "batch-image-pricing-invalid",
+		Platform:                     PlatformGemini,
+		RateMultiplier:               1,
+		BatchImageDiscountMultiplier: &discount,
+		BatchImageHoldMultiplier:     &hold,
+	})
+	require.Error(t, err)
+	require.Nil(t, repo.created)
+}
+
+func TestAdminService_GroupBatchImagePricingValidation(t *testing.T) {
+	tests := []struct {
+		name  string
+		input *CreateGroupInput
+	}{
+		{
+			name: "negative_discount",
+			input: func() *CreateGroupInput {
+				v := -0.1
+				return &CreateGroupInput{Name: "bad-discount", RateMultiplier: 1, BatchImageDiscountMultiplier: &v}
+			}(),
+		},
+		{
+			name: "negative_hold",
+			input: func() *CreateGroupInput {
+				v := -0.1
+				return &CreateGroupInput{Name: "bad-hold", RateMultiplier: 1, BatchImageHoldMultiplier: &v}
+			}(),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &groupRepoStubForAdmin{}
+			svc := &adminServiceImpl{groupRepo: repo}
+
+			_, err := svc.CreateGroup(context.Background(), tt.input)
+			require.Error(t, err)
+			require.Nil(t, repo.created)
+		})
+	}
+}
+
+func TestAdminService_UpdateGroup_RejectsNegativeVideoRateMultiplier(t *testing.T) {
+	existingGroup := &Group{
+		ID:                  1,
+		Name:                "existing-group",
+		Platform:            PlatformGrok,
+		Status:              StatusActive,
+		VideoRateMultiplier: 1,
+	}
+	repo := &groupRepoStubForAdmin{getByID: existingGroup}
+	svc := &adminServiceImpl{groupRepo: repo}
+	negative := -0.1
+
+	_, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
+		VideoRateMultiplier: &negative,
+	})
+	require.Error(t, err)
+	require.Nil(t, repo.updated)
+}
+
 func TestAdminService_UpdateGroup_InvalidatesAuthCacheOnRPMLimitChange(t *testing.T) {
 	existingGroup := &Group{
 		ID:       1,
@@ -446,6 +656,34 @@ func TestAdminService_UpdateGroup_InvalidatesAuthCacheOnRPMLimitChange(t *testin
 	require.NotNil(t, group)
 	require.Equal(t, 60, repo.updated.RPMLimit)
 	require.Equal(t, []int64{1}, invalidator.groupIDs, "分组 RPMLimit 写入 auth snapshot，变更后必须失效 API Key 认证缓存")
+}
+
+func TestAdminService_UpdateGroup_ClearsPeakRateWhenChangingToStandard(t *testing.T) {
+	existingGroup := &Group{
+		ID:                 1,
+		Name:               "existing-group",
+		Platform:           PlatformOpenAI,
+		Status:             StatusActive,
+		SubscriptionType:   SubscriptionTypeSubscription,
+		PeakRateEnabled:    true,
+		PeakStart:          "14:00",
+		PeakEnd:            "18:00",
+		PeakRateMultiplier: 3,
+	}
+	repo := &groupRepoStubForAdmin{getByID: existingGroup}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
+		SubscriptionType: SubscriptionTypeStandard,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.updated)
+	require.Equal(t, SubscriptionTypeStandard, repo.updated.SubscriptionType)
+	require.False(t, repo.updated.PeakRateEnabled)
+	require.Equal(t, "", repo.updated.PeakStart)
+	require.Equal(t, "", repo.updated.PeakEnd)
+	require.Equal(t, 1.0, repo.updated.PeakRateMultiplier)
 }
 
 func TestAdminService_CreateGroup_NormalizesMessagesDispatchModelConfig(t *testing.T) {
@@ -571,7 +809,7 @@ func TestAdminService_ListGroups_WithSearch(t *testing.T) {
 		}
 		svc := &adminServiceImpl{groupRepo: repo}
 
-		groups, total, err := svc.ListGroups(context.Background(), 1, 20, "", "", "alpha", nil, "", "", "")
+		groups, total, err := svc.ListGroups(context.Background(), 1, 20, "", "", "alpha", nil, "", "")
 		require.NoError(t, err)
 		require.Equal(t, int64(1), total)
 		require.Equal(t, []Group{{ID: 1, Name: "alpha"}}, groups)
@@ -589,7 +827,7 @@ func TestAdminService_ListGroups_WithSearch(t *testing.T) {
 		}
 		svc := &adminServiceImpl{groupRepo: repo}
 
-		groups, total, err := svc.ListGroups(context.Background(), 2, 10, "", "", "", nil, "", "", "")
+		groups, total, err := svc.ListGroups(context.Background(), 2, 10, "", "", "", nil, "", "")
 		require.NoError(t, err)
 		require.Empty(t, groups)
 		require.Equal(t, int64(0), total)
@@ -608,7 +846,7 @@ func TestAdminService_ListGroups_WithSearch(t *testing.T) {
 		}
 		svc := &adminServiceImpl{groupRepo: repo}
 
-		groups, total, err := svc.ListGroups(context.Background(), 3, 50, PlatformAntigravity, StatusActive, "beta", &isExclusive, "", "", "")
+		groups, total, err := svc.ListGroups(context.Background(), 3, 50, PlatformAntigravity, StatusActive, "beta", &isExclusive, "", "")
 		require.NoError(t, err)
 		require.Equal(t, int64(42), total)
 		require.Equal(t, []Group{{ID: 2, Name: "beta"}}, groups)

@@ -516,6 +516,12 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.AvailableChannelsEnabled != after.AvailableChannelsEnabled {
 		changed = append(changed, "available_channels_enabled")
 	}
+	if before.FreeModelsEnabled != after.FreeModelsEnabled {
+		changed = append(changed, "free_models_enabled")
+	}
+	if before.CarpoolEnabled != after.CarpoolEnabled {
+		changed = append(changed, "carpool_enabled")
+	}
 	if before.AffiliateEnabled != after.AffiliateEnabled {
 		changed = append(changed, "affiliate_enabled")
 	}

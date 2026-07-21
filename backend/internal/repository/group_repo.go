@@ -8,12 +8,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lib/pq"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/group"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/service"
-	"github.com/lib/pq"
 
 	entsql "entgo.io/ent/dialect/sql"
 )
@@ -59,7 +59,10 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 	builder := client.Group.Create().
 		SetName(groupIn.Name).
 		SetDescription(groupIn.Description).
+		SetNillableOwnerUserID(groupIn.OwnerUserID).
+		SetScope(service.NormalizeGroupScope(groupIn.Scope)).
 		SetPlatform(groupIn.Platform).
+		SetRequiredAccountLevel(service.NormalizeRequiredAccountLevel(groupIn.RequiredAccountLevel)).
 		SetRateMultiplier(groupIn.RateMultiplier).
 		SetSortOrder(groupIn.SortOrder).
 		SetIsExclusive(groupIn.IsExclusive).
@@ -99,7 +102,12 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetPeakRateEnabled(groupIn.PeakRateEnabled).
 		SetPeakStart(groupIn.PeakStart).
 		SetPeakEnd(groupIn.PeakEnd).
-		SetPeakRateMultiplier(groupIn.PeakRateMultiplier)
+		SetPeakRateMultiplier(groupIn.PeakRateMultiplier).
+		SetKiroCacheEmulationEnabled(groupIn.KiroCacheEmulationEnabled).
+		SetKiroAutoStickyEnabled(groupIn.KiroAutoStickyEnabled).
+		SetKiroStickySessionTTLSeconds(groupIn.KiroStickySessionTTLSeconds).
+		SetKiroCacheEmulationRatio(groupIn.KiroCacheEmulationRatio).
+		SetKiroEndpointMode(groupIn.KiroEndpointMode)
 	if groupIn.DuplicateOperationID != "" {
 		builder = builder.SetDuplicateOperationID(groupIn.DuplicateOperationID)
 	}
@@ -226,7 +234,9 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 	builder := r.client.Group.UpdateOneID(groupIn.ID).
 		SetName(groupIn.Name).
 		SetDescription(groupIn.Description).
+		SetScope(service.NormalizeGroupScope(groupIn.Scope)).
 		SetPlatform(groupIn.Platform).
+		SetRequiredAccountLevel(service.NormalizeRequiredAccountLevel(groupIn.RequiredAccountLevel)).
 		SetRateMultiplier(groupIn.RateMultiplier).
 		SetIsExclusive(groupIn.IsExclusive).
 		SetStatus(groupIn.Status).
@@ -262,7 +272,18 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetPeakRateEnabled(groupIn.PeakRateEnabled).
 		SetPeakStart(groupIn.PeakStart).
 		SetPeakEnd(groupIn.PeakEnd).
-		SetPeakRateMultiplier(groupIn.PeakRateMultiplier)
+		SetPeakRateMultiplier(groupIn.PeakRateMultiplier).
+		SetKiroCacheEmulationEnabled(groupIn.KiroCacheEmulationEnabled).
+		SetKiroAutoStickyEnabled(groupIn.KiroAutoStickyEnabled).
+		SetKiroStickySessionTTLSeconds(groupIn.KiroStickySessionTTLSeconds).
+		SetKiroCacheEmulationRatio(groupIn.KiroCacheEmulationRatio).
+		SetKiroEndpointMode(groupIn.KiroEndpointMode)
+
+	if groupIn.OwnerUserID != nil {
+		builder = builder.SetOwnerUserID(*groupIn.OwnerUserID)
+	} else {
+		builder = builder.ClearOwnerUserID()
+	}
 
 	// 显式处理可空字段：nil 需要 clear，非 nil 需要 set。
 	if groupIn.DailyLimitUSD != nil {
@@ -366,8 +387,15 @@ func (r *groupRepository) List(ctx context.Context, params pagination.Pagination
 }
 
 func (r *groupRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool) ([]service.Group, *pagination.PaginationResult, error) {
+	return r.listWithFiltersByScope(ctx, params, platform, status, search, isExclusive, "")
+}
+
+func (r *groupRepository) listWithFiltersByScope(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool, scope string) ([]service.Group, *pagination.PaginationResult, error) {
 	q := r.client.Group.Query()
 
+	if scope = strings.TrimSpace(scope); scope != "" && scope != "all" {
+		q = q.Where(group.ScopeEQ(service.NormalizeGroupScope(scope)))
+	}
 	if platform != "" {
 		q = q.Where(group.PlatformEQ(platform))
 	}

@@ -28,6 +28,23 @@ func (s *adminServiceImpl) ListGroups(ctx context.Context, page, pageSize int, p
 	return groups, result.Total, nil
 }
 
+type groupScopeFilterRepository interface {
+	ListWithFiltersByScope(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool, scope string) ([]Group, *pagination.PaginationResult, error)
+}
+
+func (s *adminServiceImpl) ListGroupsForManagement(ctx context.Context, page, pageSize int, platform, status, search string, isExclusive *bool, scope, sortBy, sortOrder string) ([]Group, int64, error) {
+	repo, ok := s.groupRepo.(groupScopeFilterRepository)
+	if !ok {
+		return s.ListGroups(ctx, page, pageSize, platform, status, search, isExclusive, sortBy, sortOrder)
+	}
+	params := pagination.PaginationParams{Page: page, PageSize: pageSize, SortBy: sortBy, SortOrder: sortOrder}
+	groups, result, err := repo.ListWithFiltersByScope(ctx, params, platform, status, search, isExclusive, scope)
+	if err != nil {
+		return nil, 0, err
+	}
+	return groups, result.Total, nil
+}
+
 func (s *adminServiceImpl) GetAllGroups(ctx context.Context) ([]Group, error) {
 	return s.groupRepo.ListActive(ctx)
 }

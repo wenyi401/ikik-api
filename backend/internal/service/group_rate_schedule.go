@@ -19,17 +19,17 @@ const (
 )
 
 type GroupRateSchedule struct {
-	ID             int64     `json:"id"`
-	GroupID        int64     `json:"group_id"`
-	TargetUserID   *int64    `json:"target_user_id,omitempty"`
-	TargetUserName string    `json:"target_user_name,omitempty"`
-	TargetUserEmail string   `json:"target_user_email,omitempty"`
-	StartMinute    int       `json:"start_minute"`
-	EndMinute      int       `json:"end_minute"`
-	RateMultiplier float64   `json:"rate_multiplier"`
-	Enabled        bool      `json:"enabled"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID              int64     `json:"id"`
+	GroupID         int64     `json:"group_id"`
+	TargetUserID    *int64    `json:"target_user_id,omitempty"`
+	TargetUserName  string    `json:"target_user_name,omitempty"`
+	TargetUserEmail string    `json:"target_user_email,omitempty"`
+	StartMinute     int       `json:"start_minute"`
+	EndMinute       int       `json:"end_minute"`
+	RateMultiplier  float64   `json:"rate_multiplier"`
+	Enabled         bool      `json:"enabled"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type GroupRateScheduleInput struct {

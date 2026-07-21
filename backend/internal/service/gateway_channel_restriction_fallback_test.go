@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"ikik-api/internal/pkg/ctxkey"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/ctxkey"
 )
 
 func TestSelectAccountForModelWithExclusions_UsesFallbackGroupForChannelRestriction(t *testing.T) {

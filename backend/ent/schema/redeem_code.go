@@ -67,7 +67,8 @@ func (RedeemCode) Fields() []ent.Field {
 			Optional().
 			Nillable(),
 		field.Int("validity_days").
-			Default(30),
+			Default(30), field.Time("expires_at").
+			Optional().Nillable().SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
 	}
 }
 
@@ -89,6 +90,6 @@ func (RedeemCode) Indexes() []ent.Index {
 		// code 字段已在 Fields() 中声明 Unique()，无需重复索引
 		index.Fields("status"),
 		index.Fields("used_by"),
-		index.Fields("group_id"),
+		index.Fields("group_id"), index.Fields("expires_at"),
 	}
 }
