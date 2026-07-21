@@ -344,6 +344,10 @@ func (s *ownedAccountDuplicateRepoStub) ListSchedulableUngroupedByPlatforms(cont
 	panic("unexpected ListSchedulableUngroupedByPlatforms call")
 }
 
+func (s *ownedAccountDuplicateRepoStub) ListModelAvailabilityCandidates(context.Context, *int64, []string, bool) ([]Account, error) {
+	panic("unexpected ListModelAvailabilityCandidates call")
+}
+
 func (s *ownedAccountDuplicateRepoStub) SetRateLimited(context.Context, int64, time.Time) error {
 	panic("unexpected SetRateLimited call")
 }

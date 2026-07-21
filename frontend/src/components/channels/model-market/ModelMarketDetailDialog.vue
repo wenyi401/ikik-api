@@ -123,6 +123,7 @@ const pricingItems = computed(() => {
     addPrice(items, 'output', t('availableChannels.pricing.outputPrice'), pricing.output_price, 1_000_000)
     addPrice(items, 'cacheWrite', t('availableChannels.pricing.cacheWritePrice'), pricing.cache_write_price, 1_000_000)
     addPrice(items, 'cacheRead', t('availableChannels.pricing.cacheReadPrice'), pricing.cache_read_price, 1_000_000)
+    addPrice(items, 'imageInput', t('availableChannels.pricing.imageInputPrice'), pricing.image_input_price ?? null, 1_000_000)
     addPrice(items, 'imageOutput', t('availableChannels.pricing.imageOutputPrice'), pricing.image_output_price, 1_000_000)
   } else if (pricing.billing_mode === BILLING_MODE_PER_REQUEST) {
     addPrice(items, 'request', t('availableChannels.pricing.perRequestPrice'), pricing.per_request_price, 1)

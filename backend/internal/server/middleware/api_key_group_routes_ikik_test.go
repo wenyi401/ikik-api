@@ -42,6 +42,12 @@ func TestResolveAPIKeyGroupRouteForRequestFiltersHandlerFamily(t *testing.T) {
 			platforms: []string{service.PlatformOpenAI, service.PlatformKiro, service.PlatformGrok},
 			want:      []string{service.PlatformOpenAI, service.PlatformKiro, service.PlatformGrok},
 		},
+		{
+			name:      "grok count tokens skips an incompatible primary route",
+			path:      "/v1/messages/count_tokens",
+			platforms: []string{service.PlatformKiro, service.PlatformGrok, service.PlatformOpenAI},
+			want:      []string{service.PlatformGrok},
+		},
 	}
 
 	for _, tt := range tests {

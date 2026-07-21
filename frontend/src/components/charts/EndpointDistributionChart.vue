@@ -89,13 +89,14 @@
           <tbody>
             <template v-for="item in displayEndpointStats" :key="item.endpoint">
               <tr
-                class="cursor-pointer border-t border-[var(--ui-border)] transition-colors hover:bg-[var(--ui-surface-subtle)]"
-                @click="toggleBreakdown(item.endpoint)"
+                class="border-t border-[var(--ui-border)] transition-colors"
+                :class="enableBreakdown ? 'cursor-pointer hover:bg-[var(--ui-surface-subtle)]' : ''"
+                @click="enableBreakdown && toggleBreakdown(item.endpoint)"
               >
                 <td class="max-w-[180px] truncate py-1.5 font-medium text-[var(--ui-text)]" :title="item.endpoint">
                   <span class="inline-flex items-center gap-1">
-                    <svg v-if="expandedKey === item.endpoint" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    <svg v-else class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <svg v-if="enableBreakdown && expandedKey === item.endpoint" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    <svg v-else-if="enableBreakdown" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     {{ item.endpoint }}
                   </span>
                 </td>
@@ -159,6 +160,7 @@ const props = withDefaults(
     source?: EndpointSource
     showMetricToggle?: boolean
     showSourceToggle?: boolean
+    enableBreakdown?: boolean
     startDate?: string
     endDate?: string
     filters?: Record<string, any>
@@ -171,7 +173,8 @@ const props = withDefaults(
     metric: 'tokens',
     source: 'inbound',
     showMetricToggle: false,
-    showSourceToggle: false
+    showSourceToggle: false,
+    enableBreakdown: true
   }
 )
 

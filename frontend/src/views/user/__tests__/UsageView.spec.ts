@@ -3,10 +3,25 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 import UsageView from '../UsageView.vue'
+import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
+import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'
+import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
 
-const { query, getStatsByDateRange, list, showError, showWarning, showSuccess, showInfo } = vi.hoisted(() => ({
+const {
+  query,
+  getStatsByDateRange,
+  getDashboardModels,
+  getDashboardSnapshotV2,
+  list,
+  showError,
+  showWarning,
+  showSuccess,
+  showInfo,
+} = vi.hoisted(() => ({
   query: vi.fn(),
   getStatsByDateRange: vi.fn(),
+  getDashboardModels: vi.fn(),
+  getDashboardSnapshotV2: vi.fn(),
   list: vi.fn(),
   showError: vi.fn(),
   showWarning: vi.fn(),
@@ -47,6 +62,8 @@ vi.mock('@/api', () => ({
   usageAPI: {
     query,
     getStatsByDateRange,
+    getDashboardModels,
+    getDashboardSnapshotV2,
   },
   keysAPI: {
     list,
@@ -69,18 +86,44 @@ vi.mock('vue-i18n', async () => {
 
 const AppLayoutStub = { template: '<div><slot /></div>' }
 const TablePageLayoutStub = {
-  template: '<div><slot name="actions" /><slot name="filters" /><slot /></div>',
+  template: '<div><slot name="actions" /><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>',
 }
 
 describe('user UsageView tooltip', () => {
   beforeEach(() => {
     query.mockReset()
     getStatsByDateRange.mockReset()
+    getDashboardModels.mockReset()
+    getDashboardSnapshotV2.mockReset()
     list.mockReset()
     showError.mockReset()
     showWarning.mockReset()
     showSuccess.mockReset()
     showInfo.mockReset()
+
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: vi.fn().mockImplementation((media: string) => ({
+        matches: true,
+        media,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    })
+
+    getDashboardModels.mockResolvedValue({ models: [], start_date: '', end_date: '' })
+    getDashboardSnapshotV2.mockResolvedValue({
+      generated_at: '',
+      start_date: '',
+      end_date: '',
+      granularity: 'day',
+      groups: [],
+    })
 
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       x: 0,
@@ -98,6 +141,119 @@ describe('user UsageView tooltip', () => {
       observe() {}
       disconnect() {}
     }
+  })
+
+  it('loads responsive user analytics with safe distribution-chart controls', async () => {
+    const statsResponse = {
+      total_requests: 3,
+      total_input_tokens: 10,
+      total_output_tokens: 5,
+      total_cache_tokens: 0,
+      total_cache_read_tokens: 0,
+      total_cache_creation_tokens: 0,
+      total_tokens: 15,
+      total_cost: 1,
+      total_actual_cost: 0.8,
+      average_duration_ms: 120,
+      endpoints: [
+        { endpoint: '/v1/messages', requests: 3, total_tokens: 15, cost: 1, actual_cost: 0.8 },
+      ],
+    }
+    const modelResponse = {
+      models: [{
+        model: 'claude-sonnet-4',
+        requests: 3,
+        input_tokens: 10,
+        output_tokens: 5,
+        cache_creation_tokens: 0,
+        cache_read_tokens: 0,
+        total_tokens: 15,
+        cost: 1,
+        actual_cost: 0.8,
+      }],
+      start_date: '2026-03-01',
+      end_date: '2026-03-07',
+    }
+    const snapshotResponse = {
+      generated_at: '2026-03-08T00:00:00Z',
+      start_date: '2026-03-01',
+      end_date: '2026-03-07',
+      granularity: 'day',
+      groups: [{ group_id: 1, group_name: 'Primary', requests: 3, total_tokens: 15, cost: 1, actual_cost: 0.8 }],
+    }
+
+    let resolveStats!: (value: typeof statsResponse) => void
+    let resolveModels!: (value: typeof modelResponse) => void
+    let resolveSnapshot!: (value: typeof snapshotResponse) => void
+    getStatsByDateRange.mockResolvedValue(statsResponse)
+    getStatsByDateRange.mockReturnValueOnce(new Promise(resolve => { resolveStats = resolve }))
+    getDashboardModels.mockReturnValueOnce(new Promise(resolve => { resolveModels = resolve }))
+    getDashboardSnapshotV2.mockReturnValueOnce(new Promise(resolve => { resolveSnapshot = resolve }))
+    query.mockResolvedValue({ items: [], total: 0, pages: 0 })
+    list.mockResolvedValue({ items: [] })
+
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          TablePageLayout: TablePageLayoutStub,
+          Pagination: true,
+          EmptyState: true,
+          Select: true,
+          DateRangePicker: true,
+          ModelDistributionChart: true,
+          GroupDistributionChart: true,
+          EndpointDistributionChart: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    await nextTick()
+
+    const modelChart = wrapper.getComponent(ModelDistributionChart)
+    const groupChart = wrapper.getComponent(GroupDistributionChart)
+    const endpointChart = wrapper.getComponent(EndpointDistributionChart)
+    expect(modelChart.props('loading')).toBe(true)
+    expect(groupChart.props('loading')).toBe(true)
+    expect(endpointChart.props('loading')).toBe(true)
+    expect(wrapper.get('[data-testid="usage-analytics"]').exists()).toBe(true)
+    expect(wrapper.get('.usage-analytics-panel--wide').exists()).toBe(true)
+
+    resolveStats(statsResponse)
+    resolveModels(modelResponse)
+    resolveSnapshot(snapshotResponse)
+    await flushPromises()
+
+    expect(modelChart.props('modelStats')).toEqual(modelResponse.models)
+    expect(modelChart.props('enableBreakdown')).toBe(false)
+    expect(modelChart.props('showAccountCost')).toBe(false)
+    expect(modelChart.props('loading')).toBe(false)
+    expect(groupChart.props('groupStats')).toEqual(snapshotResponse.groups)
+    expect(groupChart.props('enableBreakdown')).toBe(false)
+    expect(groupChart.props('showAccountCost')).toBe(false)
+    expect(groupChart.props('loading')).toBe(false)
+    expect(endpointChart.props('endpointStats')).toEqual(statsResponse.endpoints)
+    expect(endpointChart.props('enableBreakdown')).toBe(false)
+    expect(endpointChart.props('loading')).toBe(false)
+
+    const setupState = (wrapper.vm as any).$?.setupState
+    setupState.filters.api_key_id = 42
+    setupState.applyFilters()
+    await flushPromises()
+
+    expect(getStatsByDateRange).toHaveBeenLastCalledWith(expect.any(String), expect.any(String), 42)
+    expect(getDashboardModels).toHaveBeenLastCalledWith(expect.objectContaining({
+      api_key_id: 42,
+      model_source: 'requested',
+    }))
+    expect(getDashboardSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining({
+      api_key_id: 42,
+      include_trend: false,
+      include_model_stats: false,
+      include_group_stats: true,
+    }))
   })
 
   it('shows fast service tier and unit prices in user tooltip', async () => {
@@ -146,6 +302,9 @@ describe('user UsageView tooltip', () => {
           EmptyState: true,
           Select: true,
           DateRangePicker: true,
+          ModelDistributionChart: true,
+          GroupDistributionChart: true,
+          EndpointDistributionChart: true,
           Icon: true,
           Teleport: true,
         },
@@ -244,6 +403,9 @@ describe('user UsageView tooltip', () => {
           EmptyState: true,
           Select: true,
           DateRangePicker: true,
+          ModelDistributionChart: true,
+          GroupDistributionChart: true,
+          EndpointDistributionChart: true,
           Icon: true,
           Teleport: true,
         },

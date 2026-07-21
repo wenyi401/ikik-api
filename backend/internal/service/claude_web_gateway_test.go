@@ -159,7 +159,7 @@ func TestClaudeWebToolBridgeBufferedResponseRoundTrip(t *testing.T) {
 
 	response, _, err := collectClaudeWebAnthropicResponse(&stream)
 	require.NoError(t, err)
-	require.Equal(t, "tool_use", response.StopReason)
+	require.Equal(t, "tool_use", apicompat.AnthropicStopReasonString(response.StopReason))
 	require.Len(t, response.Content, 1)
 	require.Equal(t, "tool_use", response.Content[0].Type)
 	require.Equal(t, "get_weather", response.Content[0].Name)

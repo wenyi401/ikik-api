@@ -1013,6 +1013,9 @@ export interface OpsErrorDetail extends OpsErrorLog {
   request_body_bytes?: number | null
 
   is_business_limited: boolean
+
+  // Bound (non-deleted) key prefix, snapshotted at error time
+  api_key_prefix?: string | null
 }
 
 export type OpsErrorLogsResponse = PaginatedResponse<OpsErrorLog>

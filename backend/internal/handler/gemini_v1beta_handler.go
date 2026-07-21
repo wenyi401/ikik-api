@@ -187,8 +187,14 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	setOpsRequestContext(c, modelName, stream)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(stream, false)))
 
-	if decision := h.runPreFlightHooks(c, reqLog, apiKey, authSubject, service.ContentModerationProtocolGemini, modelName, body); decision != nil && decision.Blocked {
-		googleError(c, preFlightStatus(decision), decision.Message)
+	preFlightDecision := h.runPreFlightHooks(c, reqLog, apiKey, authSubject, service.ContentModerationProtocolGemini, modelName, body)
+	auditDecision := h.checkSecurityAudit(c, reqLog, apiKey, authSubject, service.ContentModerationProtocolGemini, modelName, body)
+	if preFlightDecision != nil && preFlightDecision.Blocked {
+		googleError(c, preFlightStatus(preFlightDecision), preFlightDecision.Message)
+		return
+	}
+	if auditDecision != nil && !auditDecision.AllowNextStage {
+		googleSecurityAuditError(c, auditDecision)
 		return
 	}
 

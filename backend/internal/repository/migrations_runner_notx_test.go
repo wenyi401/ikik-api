@@ -233,6 +233,77 @@ DROP INDEX CONCURRENTLY IF EXISTS paymentorder_out_trade_no;
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestApplyMigrationsFS_OwnedAccountIdentityUniqueMigration_FailsFastOnDuplicatePrecheck(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	prepareMigrationsBootstrapExpectations(mock)
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(ownedAccountIdentityUniqueMigration).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("WITH identities AS").
+		WillReturnRows(sqlmock.NewRows([]string{"identity_name", "owner_user_id", "duplicate_count", "sample_ids"}).
+			AddRow("openai.chatgpt_account_id", int64(101), 2, "1,2"))
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	fsys := fstest.MapFS{
+		ownedAccountIdentityUniqueMigration: &fstest.MapFile{
+			Data: []byte("CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_owned_openai_chatgpt_account_id_uniq ON accounts (owner_user_id, NULLIF(BTRIM(credentials->>'chatgpt_account_id'), '')) WHERE deleted_at IS NULL;"),
+		},
+	}
+
+	err = applyMigrationsFS(context.Background(), db, fsys)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "duplicate owned account identities")
+	require.Contains(t, err.Error(), "openai.chatgpt_account_id")
+	require.Contains(t, err.Error(), "sample_account_ids=1,2")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestApplyMigrationsFS_OwnedAccountIdentityUniqueMigration_DropsInvalidIndexesBeforeRetry(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	prepareMigrationsBootstrapExpectations(mock)
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(ownedAccountIdentityUniqueMigration).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("WITH identities AS").
+		WillReturnRows(sqlmock.NewRows([]string{"identity_name", "owner_user_id", "duplicate_count", "sample_ids"}))
+	for i, indexName := range ownedAccountIdentityUniqueIndexes {
+		invalid := i == 0
+		mock.ExpectQuery("SELECT EXISTS \\(").
+			WithArgs(indexName).
+			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(invalid))
+		if invalid {
+			mock.ExpectExec("DROP INDEX CONCURRENTLY IF EXISTS " + indexName).
+				WillReturnResult(sqlmock.NewResult(0, 0))
+		}
+	}
+	mock.ExpectExec("CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_owned_openai_chatgpt_account_id_uniq").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO schema_migrations \\(filename, checksum\\) VALUES \\(\\$1, \\$2\\)").
+		WithArgs(ownedAccountIdentityUniqueMigration, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	fsys := fstest.MapFS{
+		ownedAccountIdentityUniqueMigration: &fstest.MapFile{
+			Data: []byte("CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_accounts_owned_openai_chatgpt_account_id_uniq ON accounts (owner_user_id, NULLIF(BTRIM(credentials->>'chatgpt_account_id'), '')) WHERE deleted_at IS NULL;"),
+		},
+	}
+
+	err = applyMigrationsFS(context.Background(), db, fsys)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestApplyMigrationsFS_SchedulerOutboxPendingDedupKeyMigration_DropsInvalidIndexBeforeRetry(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -275,6 +346,9 @@ func TestApplyMigrationsFS_TransactionalMigration(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
+	// The advisory lock and all migration work must share one session. This also
+	// proves startup cannot self-deadlock when deployments cap the pool at one.
+	db.SetMaxOpenConns(1)
 
 	prepareMigrationsBootstrapExpectations(mock)
 	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").

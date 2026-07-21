@@ -93,9 +93,14 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 	setOpsRequestContext(c, reqModel, reqStream)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
 
-	// 解析渠道级模型映射
-	if decision := h.runPreFlightHooks(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIChat, reqModel, body); decision != nil && decision.Blocked {
-		h.chatCompletionsErrorResponse(c, preFlightStatus(decision), preFlightErrorCode(decision), decision.Message)
+	preFlightDecision := h.runPreFlightHooks(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIChat, reqModel, body)
+	auditDecision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIChat, reqModel, body)
+	if preFlightDecision != nil && preFlightDecision.Blocked {
+		h.chatCompletionsErrorResponse(c, preFlightStatus(preFlightDecision), preFlightErrorCode(preFlightDecision), preFlightDecision.Message)
+		return
+	}
+	if auditDecision != nil && !auditDecision.AllowNextStage {
+		h.openAISecurityAuditError(c, auditDecision)
 		return
 	}
 

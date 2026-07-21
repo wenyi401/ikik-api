@@ -5,10 +5,31 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestMigrationsRunner_ConcurrentInstancesSerializeOnSessionLock(t *testing.T) {
+	const instances = 2
+	errorsByInstance := make([]error, instances)
+	var wg sync.WaitGroup
+	for i := 0; i < instances; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			errorsByInstance[index] = ApplyMigrations(ctx, integrationDB)
+		}(i)
+	}
+	wg.Wait()
+	for i, err := range errorsByInstance {
+		require.NoErrorf(t, err, "migration instance %d", i)
+	}
+}
 
 func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	tx := testTx(t)
@@ -36,6 +57,33 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 
 	// api_keys: key length should be 128
 	requireColumn(t, tx, "api_keys", "key", "character varying", 128, false)
+
+	// Durable auth-cache invalidation must cover ikik's primary and multi-group routes.
+	requireColumn(t, tx, "auth_cache_invalidation_outbox", "cache_key", "character", 64, false)
+	requireIndex(t, tx, "auth_cache_invalidation_outbox", "idx_auth_cache_invalidation_outbox_available")
+	for table, triggers := range map[string][]string{
+		"api_keys": {
+			"trg_api_keys_auth_cache_invalidation",
+		},
+		"api_key_group_routes": {
+			"trg_api_key_group_routes_auth_cache_invalidation_insert",
+			"trg_api_key_group_routes_auth_cache_invalidation_update",
+			"trg_api_key_group_routes_auth_cache_invalidation_delete",
+		},
+		"users": {
+			"trg_users_auth_cache_invalidation",
+		},
+		"groups": {
+			"trg_groups_auth_cache_invalidation",
+		},
+		"user_allowed_groups": {
+			"trg_user_allowed_groups_auth_cache_invalidation",
+		},
+	} {
+		for _, trigger := range triggers {
+			requireTrigger(t, tx, table, trigger)
+		}
+	}
 
 	// redeem_codes: subscription fields
 	requireColumn(t, tx, "redeem_codes", "group_id", "bigint", 0, true)
@@ -110,6 +158,13 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	// ops_system_logs: API key id index for operational log triage
 	requireColumn(t, tx, "ops_system_logs", "api_key_id", "bigint", 0, true)
 	requireIndex(t, tx, "ops_system_logs", "idx_ops_system_logs_api_key_id_created_at")
+
+	// Bounded ingress rejection security aggregates.
+	requireColumn(t, tx, "ops_ingress_reject_aggregates", "bucket_start", "timestamp with time zone", 0, false)
+	requireColumn(t, tx, "ops_ingress_reject_aggregates", "client_ip", "inet", 0, false)
+	requireColumn(t, tx, "ops_ingress_reject_aggregates", "request_count", "bigint", 0, false)
+	requireIndex(t, tx, "ops_ingress_reject_aggregates", "idx_ops_ingress_reject_aggregates_bucket")
+	requireIndex(t, tx, "ops_ingress_reject_aggregates", "idx_ops_ingress_reject_aggregates_ip_bucket")
 
 	// user_allowed_groups table should exist
 	var uagRegclass sql.NullString
@@ -192,6 +247,26 @@ SELECT EXISTS (
 `, table, index).Scan(&exists)
 	require.NoError(t, err, "query pg_indexes for %s.%s", table, index)
 	require.False(t, exists, "expected index %s on %s to be absent", index, table)
+}
+
+func requireTrigger(t *testing.T, tx *sql.Tx, table, trigger string) {
+	t.Helper()
+
+	var exists bool
+	err := tx.QueryRowContext(context.Background(), `
+SELECT EXISTS (
+	SELECT 1
+	FROM pg_trigger trg
+	JOIN pg_class tbl ON tbl.oid = trg.tgrelid
+	JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+	WHERE ns.nspname = 'public'
+	  AND tbl.relname = $1
+	  AND trg.tgname = $2
+	  AND NOT trg.tgisinternal
+)
+`, table, trigger).Scan(&exists)
+	require.NoError(t, err, "query trigger %s on %s", trigger, table)
+	require.True(t, exists, "expected trigger %s on %s", trigger, table)
 }
 
 func requirePartialUniqueIndexDefinition(t *testing.T, tx *sql.Tx, table, index string, fragments ...string) {

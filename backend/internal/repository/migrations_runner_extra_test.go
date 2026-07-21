@@ -104,6 +104,10 @@ func TestMigrationChecksumCompatibilityRules_CoverEditedUpgradeCompatibilityMigr
 		"118_wechat_dual_mode_and_auth_source_defaults.sql",
 		"120_enforce_payment_orders_out_trade_no_unique_notx.sql",
 		"123_fix_legacy_auth_source_grant_on_signup_defaults.sql",
+		"154_affiliate_ledger_audit_snapshots.sql",
+		"155_image_generation_group_controls.sql",
+		"156_allow_email_oauth_provider_types.sql",
+		"157_content_moderation.sql",
 		"190_allow_kiro_user_platform_quotas.sql",
 	} {
 		rule, ok := migrationChecksumCompatibilityRules[name]

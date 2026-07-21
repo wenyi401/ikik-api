@@ -191,8 +191,8 @@ export default {
 
   // Setup Wizard
   setup: {
-    title: 'Sub2API 安装向导',
-    description: '配置您的 Sub2API 实例',
+    title: 'ikik-api 安装向导',
+    description: '配置您的 ikik-api 实例',
     database: {
       title: '数据库配置',
       description: '连接到您的 PostgreSQL 数据库',
@@ -215,8 +215,10 @@ export default {
       description: '连接到您的 Redis 服务器',
       host: '主机',
       port: '端口',
+      username: '用户名（可选）',
       password: '密码（可选）',
       database: '数据库',
+      usernamePlaceholder: '默认用户留空',
       passwordPlaceholder: '密码',
       enableTls: '启用 TLS',
       enableTlsHint: '连接 Redis 时使用 TLS（公共 CA 证书）'

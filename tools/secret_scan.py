@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -88,21 +89,26 @@ def is_allowed_line(line: str) -> bool:
 def main() -> int:
     findings: list[str] = []
 
-    for path in ROOT.rglob("*"):
-        if not path.is_file() or should_skip(path):
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
-
-        for line_no, line in enumerate(text.splitlines(), 1):
-            if is_allowed_line(line):
+    for dirpath, dirnames, filenames in os.walk(ROOT):
+        # Prune large generated trees before traversal. Path.rglob enumerated
+        # every node_modules entry even though should_skip later ignored it.
+        dirnames[:] = [name for name in dirnames if name not in SKIP_DIRS]
+        for filename in filenames:
+            path = Path(dirpath, filename)
+            if should_skip(path):
                 continue
-            for name, pattern in SECRET_PATTERNS:
-                if pattern.search(line):
-                    rel = path.relative_to(ROOT).as_posix()
-                    findings.append(f"{rel}:{line_no}: possible {name}")
+            try:
+                text = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            for line_no, line in enumerate(text.splitlines(), 1):
+                if is_allowed_line(line):
+                    continue
+                for name, pattern in SECRET_PATTERNS:
+                    if pattern.search(line):
+                        rel = path.relative_to(ROOT).as_posix()
+                        findings.append(f"{rel}:{line_no}: possible {name}")
 
     if findings:
         print("Secret scan failed:")

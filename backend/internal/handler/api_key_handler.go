@@ -51,8 +51,8 @@ type UpdateAPIKeyRequest struct {
 	GroupID     *int64                     `json:"group_id"`
 	GroupRoutes *[]APIKeyGroupRouteRequest `json:"group_routes"`
 	Status      string                     `json:"status" binding:"omitempty,oneof=active inactive"`
-	IPWhitelist []string                   `json:"ip_whitelist"` // IP 白名单
-	IPBlacklist []string                   `json:"ip_blacklist"` // IP 黑名单
+	IPWhitelist *[]string                  `json:"ip_whitelist"` // IP 白名单（nil 不修改，空数组清空）
+	IPBlacklist *[]string                  `json:"ip_blacklist"` // IP 黑名单（nil 不修改，空数组清空）
 	Quota       *float64                   `json:"quota"`        // 配额限制 (USD), 0=无限制
 	ExpiresAt   *string                    `json:"expires_at"`   // 过期时间 (ISO 8601)
 	ResetQuota  *bool                      `json:"reset_quota"`  // 重置已用配额

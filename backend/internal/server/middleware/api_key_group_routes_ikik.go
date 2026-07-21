@@ -106,6 +106,7 @@ func compatibleGroupPlatformsForRequest(c *gin.Context) map[string]struct{} {
 		return map[string]struct{}{
 			service.PlatformAnthropic: {},
 			service.PlatformOpenAI:    {},
+			service.PlatformGrok:      {},
 		}
 	case strings.Contains(path, "/messages"):
 		return map[string]struct{}{

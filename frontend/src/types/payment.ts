@@ -54,6 +54,7 @@ export interface BalancePricingTier {
 
 export interface MethodLimit {
   currency?: string
+  display_name?: string
   daily_limit: number
   daily_used: number
   daily_remaining: number
@@ -139,6 +140,10 @@ export interface SubscriptionPlan {
   group_platform?: string
   group_name?: string
   rate_multiplier?: number
+  peak_rate_enabled?: boolean
+  peak_start?: string
+  peak_end?: string
+  peak_rate_multiplier?: number
   daily_limit_usd?: number | null
   weekly_limit_usd?: number | null
   monthly_limit_usd?: number | null
@@ -147,6 +152,8 @@ export interface SubscriptionPlan {
   description: string
   price: number
   original_price?: number
+  /** Display-only ISO 4217 currency label; empty preserves legacy USD display. */
+  currency?: string
   validity_days: number
   validity_unit: string
   /** Stored as JSON string in backend; API layer should parse before use */

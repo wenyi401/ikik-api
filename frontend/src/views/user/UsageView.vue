@@ -50,8 +50,8 @@
           </div>
 
           <template #actions>
-            <UiIconButton :label="t('common.refresh')" :disabled="loading" @click="applyFilters">
-              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+            <UiIconButton :label="t('common.refresh')" :disabled="refreshing" @click="applyFilters">
+              <Icon name="refresh" size="md" :class="refreshing ? 'animate-spin' : ''" />
             </UiIconButton>
             <button @click="resetFilters" class="btn btn-secondary">
               {{ t('common.reset') }}
@@ -65,7 +65,51 @@
       </template>
 
       <template #table>
-        <div class="usage-table-shell">
+        <div class="usage-content-stack">
+          <section data-testid="usage-analytics" class="usage-analytics">
+            <div class="usage-analytics-grid">
+              <div class="usage-analytics-panel">
+                <ModelDistributionChart
+                  v-model:metric="modelDistributionMetric"
+                  :model-stats="modelStats"
+                  :loading="modelStatsLoading"
+                  :show-source-toggle="false"
+                  :show-metric-toggle="true"
+                  :enable-breakdown="false"
+                  :show-account-cost="false"
+                  :start-date="startDate"
+                  :end-date="endDate"
+                />
+              </div>
+              <div class="usage-analytics-panel">
+                <GroupDistributionChart
+                  v-model:metric="groupDistributionMetric"
+                  :group-stats="groupStats"
+                  :loading="groupStatsLoading"
+                  :show-metric-toggle="true"
+                  :enable-breakdown="false"
+                  :show-account-cost="false"
+                  :start-date="startDate"
+                  :end-date="endDate"
+                />
+              </div>
+              <div class="usage-analytics-panel usage-analytics-panel--wide">
+                <EndpointDistributionChart
+                  v-model:metric="endpointDistributionMetric"
+                  :endpoint-stats="endpointStats"
+                  :loading="endpointStatsLoading"
+                  :show-source-toggle="false"
+                  :show-metric-toggle="true"
+                  :enable-breakdown="false"
+                  :title="t('usage.endpointDistribution')"
+                  :start-date="startDate"
+                  :end-date="endDate"
+                />
+              </div>
+            </div>
+          </section>
+
+          <div class="usage-table-shell">
           <DataTable
           :columns="displayColumns"
           :data="usageLogs"
@@ -271,6 +315,7 @@
             <EmptyState :message="t('usage.noRecords')" />
           </template>
           </DataTable>
+          </div>
         </div>
       </template>
 
@@ -471,9 +516,20 @@ import Pagination from '@/components/common/Pagination.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
+import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'
+import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { UiIconButton, UiMetric, UiMetricStrip, UiToolbar } from '@/ui'
-import type { UsageLog, ApiKey, UsageQueryParams, UsageStatsResponse } from '@/types'
+import type {
+  UsageLog,
+  ApiKey,
+  EndpointStat,
+  GroupStat,
+  ModelStat,
+  UsageQueryParams,
+  UsageStatsResponse,
+} from '@/types'
 import type { Column } from '@/components/common/types'
 import { formatDateTime, formatReasoningEffort } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -488,6 +544,11 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 let abortController: AbortController | null = null
+let statsRequestSequence = 0
+let modelStatsRequestSequence = 0
+let groupStatsRequestSequence = 0
+
+type DistributionMetric = 'tokens' | 'actual_cost'
 
 // Tooltip state
 const tooltipVisible = ref(false)
@@ -501,6 +562,12 @@ const tokenTooltipData = ref<UsageLog | null>(null)
 
 // Usage stats from API
 const usageStats = ref<UsageStatsResponse | null>(null)
+const modelStats = ref<ModelStat[]>([])
+const groupStats = ref<GroupStat[]>([])
+const endpointStats = ref<EndpointStat[]>([])
+const modelDistributionMetric = ref<DistributionMetric>('tokens')
+const groupDistributionMetric = ref<DistributionMetric>('tokens')
+const endpointDistributionMetric = ref<DistributionMetric>('tokens')
 
 const columns = computed<Column[]>(() => [
   { key: 'api_key', label: t('usage.apiKeyFilter'), sortable: false },
@@ -546,7 +613,13 @@ const displayColumns = computed(() => (
 const usageLogs = ref<UsageLog[]>([])
 const apiKeys = ref<ApiKey[]>([])
 const loading = ref(false)
+const modelStatsLoading = ref(false)
+const groupStatsLoading = ref(false)
+const endpointStatsLoading = ref(false)
 const exporting = ref(false)
+const refreshing = computed(() =>
+  loading.value || modelStatsLoading.value || groupStatsLoading.value || endpointStatsLoading.value
+)
 
 const apiKeyOptions = computed(() => {
   return [
@@ -646,6 +719,8 @@ const onDateRangeChange = (range: {
   endDate: string
   preset: string | null
 }) => {
+  startDate.value = range.startDate
+  endDate.value = range.endDate
   filters.value.start_date = range.startDate
   filters.value.end_date = range.endDate
   applyFilters()
@@ -774,24 +849,88 @@ const loadApiKeys = async () => {
   }
 }
 
+const selectedApiKeyId = (): number | undefined => {
+  const value = Number(filters.value.api_key_id)
+  return Number.isFinite(value) && value > 0 ? value : undefined
+}
+
 const loadUsageStats = async () => {
+  const requestSequence = ++statsRequestSequence
+  endpointStatsLoading.value = true
   try {
-    const apiKeyId = filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined
     const stats = await usageAPI.getStatsByDateRange(
       filters.value.start_date || startDate.value,
       filters.value.end_date || endDate.value,
-      apiKeyId
+      selectedApiKeyId()
     )
+    if (requestSequence !== statsRequestSequence) return
     usageStats.value = stats
+    endpointStats.value = stats.endpoints || []
   } catch (error) {
+    if (requestSequence !== statsRequestSequence) return
     console.error('Failed to load usage stats:', error)
+    endpointStats.value = []
+  } finally {
+    if (requestSequence === statsRequestSequence) {
+      endpointStatsLoading.value = false
+    }
+  }
+}
+
+const loadModelStats = async () => {
+  const requestSequence = ++modelStatsRequestSequence
+  modelStatsLoading.value = true
+  try {
+    const response = await usageAPI.getDashboardModels({
+      start_date: filters.value.start_date || startDate.value,
+      end_date: filters.value.end_date || endDate.value,
+      api_key_id: selectedApiKeyId(),
+      model_source: 'requested',
+    })
+    if (requestSequence !== modelStatsRequestSequence) return
+    modelStats.value = response.models || []
+  } catch (error) {
+    if (requestSequence !== modelStatsRequestSequence) return
+    console.error('Failed to load model stats:', error)
+    modelStats.value = []
+  } finally {
+    if (requestSequence === modelStatsRequestSequence) {
+      modelStatsLoading.value = false
+    }
+  }
+}
+
+const loadGroupStats = async () => {
+  const requestSequence = ++groupStatsRequestSequence
+  groupStatsLoading.value = true
+  try {
+    const response = await usageAPI.getDashboardSnapshotV2({
+      start_date: filters.value.start_date || startDate.value,
+      end_date: filters.value.end_date || endDate.value,
+      api_key_id: selectedApiKeyId(),
+      include_trend: false,
+      include_model_stats: false,
+      include_group_stats: true,
+    })
+    if (requestSequence !== groupStatsRequestSequence) return
+    groupStats.value = response.groups || []
+  } catch (error) {
+    if (requestSequence !== groupStatsRequestSequence) return
+    console.error('Failed to load group stats:', error)
+    groupStats.value = []
+  } finally {
+    if (requestSequence === groupStatsRequestSequence) {
+      groupStatsLoading.value = false
+    }
   }
 }
 
 const applyFilters = () => {
   pagination.page = 1
-  loadUsageLogs()
-  loadUsageStats()
+  void loadUsageLogs()
+  void loadUsageStats()
+  void loadModelStats()
+  void loadGroupStats()
 }
 
 const resetFilters = () => {
@@ -809,26 +948,28 @@ const resetFilters = () => {
   filters.value.start_date = startDate.value
   filters.value.end_date = endDate.value
   pagination.page = 1
-  loadUsageLogs()
-  loadUsageStats()
+  void loadUsageLogs()
+  void loadUsageStats()
+  void loadModelStats()
+  void loadGroupStats()
 }
 
 const handlePageChange = (page: number) => {
   pagination.page = page
-  loadUsageLogs()
+  void loadUsageLogs()
 }
 
 const handlePageSizeChange = (pageSize: number) => {
   pagination.page_size = pageSize
   pagination.page = 1
-  loadUsageLogs()
+  void loadUsageLogs()
 }
 
 const handleSort = (key: string, order: 'asc' | 'desc') => {
   sortState.sort_by = key
   sortState.sort_order = order
   pagination.page = 1
-  loadUsageLogs()
+  void loadUsageLogs()
 }
 
 /**
@@ -988,12 +1129,18 @@ onMounted(() => {
     }
     usageViewportMediaQuery.addEventListener('change', usageViewportListener)
   }
-  loadApiKeys()
-  loadUsageLogs()
-  loadUsageStats()
+  void loadApiKeys()
+  void loadUsageLogs()
+  void loadUsageStats()
+  void loadModelStats()
+  void loadGroupStats()
 })
 
 onUnmounted(() => {
+  abortController?.abort()
+  statsRequestSequence++
+  modelStatsRequestSequence++
+  groupStatsRequestSequence++
   if (usageViewportMediaQuery && usageViewportListener) {
     usageViewportMediaQuery.removeEventListener('change', usageViewportListener)
   }
@@ -1023,6 +1170,35 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
+.usage-content-stack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.usage-analytics {
+  min-width: 0;
+  border-top: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.usage-analytics-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.usage-analytics-panel {
+  min-width: 0;
+  min-height: 15rem;
+  padding: 1rem;
+}
+
+.usage-analytics-panel + .usage-analytics-panel {
+  border-top: 1px solid var(--app-border);
+}
+
 .usage-table-shell {
   min-width: 0;
 }
@@ -1035,6 +1211,25 @@ onUnmounted(() => {
 .usage-table-shell :deep(.sticky-header-cell),
 .usage-table-shell :deep(.table-header) {
   background: var(--ui-bg);
+}
+
+@media (min-width: 1024px) {
+  .usage-analytics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .usage-analytics-panel + .usage-analytics-panel {
+    border-top: 0;
+  }
+
+  .usage-analytics-panel:nth-child(2) {
+    border-left: 1px solid var(--app-border);
+  }
+
+  .usage-analytics-panel--wide {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--app-border) !important;
+  }
 }
 
 @media (max-width: 640px) {

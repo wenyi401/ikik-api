@@ -1,10 +1,10 @@
 # =============================================================================
-# Sub2API Docker Compose Configuration
+# ikik-api Docker Compose Configuration
 # =============================================================================
 # Quick Start:
 #   1. Copy .env.example to .env and configure
 #   2. docker-compose up -d
-#   3. Check logs: docker-compose logs -f sub2api
+#   3. Check logs: docker-compose logs -f ikik-api
 #   4. Access: http://localhost:8080
 #
 # All configuration is done via environment variables.
@@ -13,11 +13,11 @@
 
 services:
   # ===========================================================================
-  # Sub2API Application
+  # ikik-api Application
   # ===========================================================================
-  sub2api:
-    image: weishaw/sub2api:latest
-    container_name: sub2api
+  ikik-api:
+    image: ${IKIK_API_IMAGE:-wenyi401/ikik-api:latest}
+    container_name: ikik-api
     restart: unless-stopped
     ulimits:
       nofile:
@@ -27,7 +27,7 @@ services:
       - "${BIND_HOST:-0.0.0.0}:${SERVER_PORT:-8080}:8080"
     volumes:
       # Data persistence (config.yaml will be auto-generated here)
-      - sub2api_data:/app/data
+      - ikik_api_data:/app/data
       # Optional: Mount custom config.yaml (uncomment and create the file first)
       # Copy config.example.yaml to config.yaml, modify it, then uncomment:
       # - ./config.yaml:/app/data/config.yaml
@@ -49,15 +49,16 @@ services:
       - SERVER_MODE=${SERVER_MODE:-release}
       - ENABLE_SERVER_TIMING=${ENABLE_SERVER_TIMING:-false}
       - RUN_MODE=${RUN_MODE:-standard}
+      - UPDATE_GITHUB_TOKEN=${UPDATE_GITHUB_TOKEN:-}
 
       # =======================================================================
       # Database Configuration (PostgreSQL)
       # =======================================================================
       - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
-      - DATABASE_USER=${POSTGRES_USER:-sub2api}
+      - DATABASE_USER=${POSTGRES_USER:-ikik_api}
       - DATABASE_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      - DATABASE_DBNAME=${POSTGRES_DB:-sub2api}
+      - DATABASE_DBNAME=${POSTGRES_DB:-ikik_api}
       - DATABASE_SSLMODE=disable
       - DATABASE_MAX_OPEN_CONNS=${DATABASE_MAX_OPEN_CONNS:-50}
       - DATABASE_MAX_IDLE_CONNS=${DATABASE_MAX_IDLE_CONNS:-10}
@@ -69,6 +70,7 @@ services:
       # =======================================================================
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_USERNAME=${REDIS_USERNAME:-}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
       - REDIS_DB=${REDIS_DB:-0}
       - REDIS_POOL_SIZE=${REDIS_POOL_SIZE:-1024}
@@ -78,7 +80,7 @@ services:
       # =======================================================================
       # Admin Account (auto-created on first run)
       # =======================================================================
-      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@sub2api.local}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@ikik-api.local}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
 
       # =======================================================================
@@ -173,7 +175,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - sub2api-network
+      - ikik-api-network
     healthcheck:
       test:
         [
@@ -196,12 +198,21 @@ services:
   # ===========================================================================
   postgres:
     image: postgres:18-alpine
-    container_name: sub2api-postgres
+    container_name: ikik-api-postgres
     restart: unless-stopped
     ulimits:
       nofile:
         soft: 100000
         hard: 100000
+    # Pass the tuning values documented in .env.example to postgres. The
+    # fallbacks are the postgres:18 stock defaults, so nothing changes when
+    # the variables are not set.
+    command: >
+      postgres
+      -c max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
+      -c shared_buffers=${POSTGRES_SHARED_BUFFERS:-128MB}
+      -c effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-4GB}
+      -c maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-64MB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -209,17 +220,17 @@ services:
       # 若不显式设置 PGDATA，则即使挂载了 postgres_data 到 /var/lib/postgresql/data，数据也不会落盘到该命名卷，
       # docker compose down/up 后会触发 initdb 重新初始化，导致用户/密码等数据丢失。
       - PGDATA=/var/lib/postgresql/data
-      - POSTGRES_USER=${POSTGRES_USER:-sub2api}
+      - POSTGRES_USER=${POSTGRES_USER:-ikik_api}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      - POSTGRES_DB=${POSTGRES_DB:-sub2api}
+      - POSTGRES_DB=${POSTGRES_DB:-ikik_api}
       - TZ=${TZ:-Asia/Shanghai}
     networks:
-      - sub2api-network
+      - ikik-api-network
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-sub2api} -d ${POSTGRES_DB:-sub2api}",
+          "pg_isready -U ${POSTGRES_USER:-ikik_api} -d ${POSTGRES_DB:-ikik_api}",
         ]
       interval: 10s
       timeout: 5s
@@ -233,7 +244,7 @@ services:
   # ===========================================================================
   redis:
     image: redis:8-alpine
-    container_name: sub2api-redis
+    container_name: ikik-api-redis
     restart: unless-stopped
     ulimits:
       nofile:
@@ -241,19 +252,23 @@ services:
         hard: 100000
     volumes:
       - redis_data:/data
+    # The command is one quoted script for the inner `sh -c`. Compose keeps
+    # the newlines inside the quoted string, so every line needs a trailing
+    # `\` — without it, `redis-server` on the first line runs with no flags
+    # at all, and the --save/--appendonly/--appendfsync lines are never read.
     command: >
       sh -c '
-        redis-server
-        --save 60 1
-        --appendonly yes
-        --appendfsync everysec
+        redis-server \
+        --save 60 1 \
+        --appendonly yes \
+        --appendfsync everysec \
         ${REDIS_PASSWORD:+--requirepass "$REDIS_PASSWORD"}'
     environment:
       - TZ=${TZ:-Asia/Shanghai}
       # REDISCLI_AUTH is used by redis-cli for authentication (safer than -a flag)
       - REDISCLI_AUTH=${REDIS_PASSWORD:-}
     networks:
-      - sub2api-network
+      - ikik-api-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -266,7 +281,7 @@ services:
 # Volumes
 # =============================================================================
 volumes:
-  sub2api_data:
+  ikik_api_data:
     driver: local
   postgres_data:
     driver: local
@@ -277,5 +292,5 @@ volumes:
 # Networks
 # =============================================================================
 networks:
-  sub2api-network:
+  ikik-api-network:
     driver: bridge

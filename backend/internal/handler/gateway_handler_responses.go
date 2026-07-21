@@ -97,8 +97,14 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	// The existing service-layer checkClaudeCodeRestriction handles degradation
 	// to fallback groups when the Forward path calls SelectAccountForModelWithExclusions.
 	// Here we just reject at handler level since /v1/responses clients can't be Claude Code.
-	if decision := h.runPreFlightHooks(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, reqModel, body); decision != nil && decision.Blocked {
-		h.responsesErrorResponse(c, preFlightStatus(decision), preFlightErrorCode(decision), decision.Message)
+	preFlightDecision := h.runPreFlightHooks(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, reqModel, body)
+	auditDecision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, reqModel, body)
+	if preFlightDecision != nil && preFlightDecision.Blocked {
+		h.responsesErrorResponse(c, preFlightStatus(preFlightDecision), preFlightErrorCode(preFlightDecision), preFlightDecision.Message)
+		return
+	}
+	if auditDecision != nil && !auditDecision.AllowNextStage {
+		h.responsesSecurityAuditError(c, auditDecision)
 		return
 	}
 
@@ -134,6 +140,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		APIKeyID:  apiKey.ID,
 	}
 	sessionHash := h.gatewayService.GenerateSessionHash(parsedReq)
+	imageIntent := service.IsExplicitImageGenerationIntent("/v1/responses", reqModel, body)
 
 	// 3. Account selection + failover loop
 	routeCursor := newAPIKeyGroupRouteCursor(apiKey)
@@ -164,7 +171,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 			return
 		}
 		routeCtx := gatewayRouteContext(requestCtx, currentAPIKey, subject.UserID)
-		if service.IsImageGenerationIntentForPlatform("/v1/responses", reqModel, body, openAICompatibleRequestPlatform(currentAPIKey)) {
+		if imageIntent {
 			routeCtx = service.WithOpenAIImageGenerationIntent(routeCtx)
 		}
 		currentSubscription, subErr := h.gatewayService.ResolveRouteSubscription(routeCtx, currentAPIKey, subscription)

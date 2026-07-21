@@ -1,6 +1,6 @@
 package main
 
-//go:generate go run github.com/google/wire/cmd/wire
+//go:generate go run -mod=mod github.com/google/wire/cmd/wire
 
 import (
 	"context"
@@ -63,7 +63,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		log.Printf("Sub2API %s (commit: %s, built: %s)\n", Version, Commit, Date)
+		log.Printf("ikik-api %s (commit: %s, built: %s)\n", Version, Commit, Date)
 		return
 	}
 
@@ -113,7 +113,7 @@ func runSetupServer() {
 	// This allows users to run setup on a different address if needed
 	addr := config.GetServerAddress()
 	log.Printf("Setup wizard available at http://%s", addr)
-	log.Println("Complete the setup wizard to configure Sub2API")
+	log.Println("Complete the setup wizard to configure ikik-api")
 
 	protocols := new(http.Protocols)
 	protocols.SetHTTP1(true)
@@ -162,6 +162,15 @@ func runMainServer() {
 			log.Fatalf("Failed to start plugin modules: %v", err)
 		}
 	}
+	if app.PromptAudit != nil {
+		if err := app.PromptAudit.Start(context.Background()); err != nil {
+			// Startup continues so unrelated APIs stay up. Fail-closed (unavailable)
+			// applies only when a persisted blocking policy was observed; without
+			// blocking intent, Prompt Audit stays ModeOff so the gateway remains
+			// usable and administrators can still disable the feature (#4560).
+			log.Printf("Prompt Audit started in degraded state: %v", err)
+		}
+	}
 
 	// 启动服务器
 	go func() {
@@ -183,7 +192,7 @@ func runMainServer() {
 	defer cancel()
 
 	if err := app.Server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		log.Printf("Server forced to shutdown: %v", err)
 	}
 
 	log.Println("Server exited")

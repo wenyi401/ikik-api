@@ -538,7 +538,9 @@ func collectClaudeWebAnthropicResponse(body io.Reader) (*apicompat.AnthropicResp
 			}
 		case "message_delta":
 			if response != nil && event.Delta != nil {
-				response.StopReason = event.Delta.StopReason
+				if strings.TrimSpace(event.Delta.StopReason) != "" {
+					response.StopReason = apicompat.AnthropicStopReasonPtr(event.Delta.StopReason)
+				}
 				response.StopSequence = event.Delta.StopSequence
 			}
 			if event.Usage != nil {
@@ -558,8 +560,8 @@ func collectClaudeWebAnthropicResponse(body io.Reader) (*apicompat.AnthropicResp
 		CacheCreationInputTokens: usage.CacheCreationInputTokens,
 		CacheReadInputTokens:     usage.CacheReadInputTokens,
 	}
-	if response.StopReason == "" {
-		response.StopReason = "end_turn"
+	if apicompat.AnthropicStopReasonString(response.StopReason) == "" {
+		response.StopReason = apicompat.AnthropicStopReasonPtr("end_turn")
 	}
 	return response, usage, nil
 }

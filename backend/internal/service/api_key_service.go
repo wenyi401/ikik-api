@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dgraph-io/ristretto"
@@ -31,6 +32,7 @@ var (
 	ErrInvalidIPPattern        = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
 	ErrAPIKeyGroupRouteInvalid = infraerrors.BadRequest("API_KEY_GROUP_ROUTE_INVALID", "invalid api key group route")
 	ErrAPIKeyGroupRequired     = infraerrors.Forbidden("API_KEY_GROUP_REQUIRED", "api key must be assigned to at least one group")
+	ErrAPIKeyAuthOverloaded    = infraerrors.ServiceUnavailable("API_KEY_AUTH_OVERLOADED", "api key authentication is temporarily overloaded")
 	// ErrAPIKeyExpired        = infraerrors.Forbidden("API_KEY_EXPIRED", "api key has expired")
 	ErrAPIKeyExpired = infraerrors.Forbidden("API_KEY_EXPIRED", "api key 已过期")
 	// ErrAPIKeyQuotaExhausted = infraerrors.TooManyRequests("API_KEY_QUOTA_EXHAUSTED", "api key quota exhausted")
@@ -43,6 +45,9 @@ var (
 )
 
 const (
+	MaxAPIKeyCredentialBytes     = 128
+	defaultAuthLookupConcurrency = 64
+	defaultNegativeAuthCacheSize = 16384
 	apiKeyMaxErrorsPerHour       = 20
 	apiKeyLastUsedMinTouch       = 30 * time.Second
 	apiKeySortCurrentConcurrency = "current_concurrency"
@@ -60,7 +65,9 @@ type APIKeyRepository interface {
 	GetByKeyForAuth(ctx context.Context, key string) (*APIKey, error)
 	Update(ctx context.Context, key *APIKey) error
 	Delete(ctx context.Context, id int64) error
-	// DeleteWithAudit 在同一事务内先写 deleted_api_key_audits 审计、再软删除该 key。
+	// DeleteWithAudit keeps the legacy interface name for rolling-upgrade compatibility.
+	// Implementations must tombstone the key and soft-delete it atomically without
+	// retaining the deleted credential material.
 	DeleteWithAudit(ctx context.Context, id int64) error
 
 	ListByUserID(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error)
@@ -151,6 +158,20 @@ type APIKeyCache interface {
 	SubscribeAuthCacheInvalidation(ctx context.Context, handler func(cacheKey string)) error
 }
 
+type authCacheSubscriptionReadyKey struct{}
+
+func withAuthCacheSubscriptionReady(ctx context.Context, ready func()) context.Context {
+	return context.WithValue(ctx, authCacheSubscriptionReadyKey{}, ready)
+}
+
+// NotifyAuthCacheSubscriptionReady lets cache implementations report that the
+// server acknowledged the subscription without widening the public cache API.
+func NotifyAuthCacheSubscriptionReady(ctx context.Context) {
+	if ready, ok := ctx.Value(authCacheSubscriptionReadyKey{}).(func()); ok && ready != nil {
+		ready()
+	}
+}
+
 // APIKeyAuthCacheInvalidator 提供认证缓存失效能力
 type APIKeyAuthCacheInvalidator interface {
 	InvalidateAuthCacheByKey(ctx context.Context, key string)
@@ -183,8 +204,8 @@ type UpdateAPIKeyRequest struct {
 	GroupID     *int64              `json:"group_id"`
 	GroupRoutes *[]APIKeyGroupRoute `json:"group_routes"`
 	Status      *string             `json:"status"`
-	IPWhitelist []string            `json:"ip_whitelist"` // IP 白名单（空数组清空）
-	IPBlacklist []string            `json:"ip_blacklist"` // IP 黑名单（空数组清空）
+	IPWhitelist *[]string           `json:"ip_whitelist"` // IP 白名单（nil 不修改，空数组清空）
+	IPBlacklist *[]string           `json:"ip_blacklist"` // IP 黑名单（nil 不修改，空数组清空）
 
 	// Quota fields
 	Quota           *float64   `json:"quota"`       // Quota limit in USD (nil = no change, 0 = unlimited)
@@ -206,21 +227,52 @@ type RateLimitCacheInvalidator interface {
 }
 
 type APIKeyService struct {
-	apiKeyRepo            APIKeyRepository
-	userRepo              UserRepository
-	groupRepo             GroupRepository
-	userSubRepo           UserSubscriptionRepository
-	userGroupRateRepo     UserGroupRateRepository
-	cache                 APIKeyCache
-	rateLimitCacheInvalid RateLimitCacheInvalidator // optional: invalidate Redis rate limit cache
-	settingService        *SettingService
-	concurrencyService    *ConcurrencyService
-	cfg                   *config.Config
-	authCacheL1           *ristretto.Cache
-	authCfg               apiKeyAuthCacheConfig
-	authGroup             singleflight.Group
-	lastUsedTouchL1       sync.Map // keyID -> nextAllowedAt(time.Time)
-	lastUsedTouchSF       singleflight.Group
+	apiKeyRepo                APIKeyRepository
+	userRepo                  UserRepository
+	groupRepo                 GroupRepository
+	userSubRepo               UserSubscriptionRepository
+	userGroupRateRepo         UserGroupRateRepository
+	cache                     APIKeyCache
+	rateLimitCacheInvalid     RateLimitCacheInvalidator // optional: invalidate Redis rate limit cache
+	settingService            *SettingService
+	concurrencyService        *ConcurrencyService
+	cfg                       *config.Config
+	authCacheL1               *ristretto.Cache
+	authCfg                   apiKeyAuthCacheConfig
+	authGroup                 singleflight.Group
+	authNegativeCacheL1       *ristretto.Cache
+	authLookupSlots           chan struct{}
+	authLookupTotal           atomic.Uint64
+	authLookupRejected        atomic.Uint64
+	authLookupInFlight        atomic.Int64
+	invalidAuthAbuse          *invalidAuthAbuseLimiter
+	authInvalidationStart     sync.Once
+	authInvalidationStop      sync.Once
+	authInvalidationCancel    context.CancelFunc
+	authInvalidationWG        sync.WaitGroup
+	authInvalidationConnected atomic.Bool
+	authInvalidationFailures  atomic.Uint64
+	lastUsedTouchL1           sync.Map // keyID -> nextAllowedAt(time.Time)
+	lastUsedTouchSF           singleflight.Group
+}
+
+type APIKeyAuthLookupMetrics struct {
+	Total    uint64 `json:"total"`
+	Rejected uint64 `json:"rejected"`
+	InFlight int64  `json:"in_flight"`
+	Capacity int    `json:"capacity"`
+}
+
+func (s *APIKeyService) AuthLookupMetrics() APIKeyAuthLookupMetrics {
+	if s == nil {
+		return APIKeyAuthLookupMetrics{}
+	}
+	return APIKeyAuthLookupMetrics{
+		Total:    s.authLookupTotal.Load(),
+		Rejected: s.authLookupRejected.Load(),
+		InFlight: s.authLookupInFlight.Load(),
+		Capacity: cap(s.authLookupSlots),
+	}
 }
 
 // NewAPIKeyService 创建API Key服务实例
@@ -243,6 +295,12 @@ func NewAPIKeyService(
 		cfg:               cfg,
 	}
 	svc.initAuthCache(cfg)
+	lookupConcurrency := defaultAuthLookupConcurrency
+	if cfg != nil && cfg.APIKeyAuth.LookupConcurrency > 0 {
+		lookupConcurrency = cfg.APIKeyAuth.LookupConcurrency
+	}
+	svc.authLookupSlots = make(chan struct{}, lookupConcurrency)
+	svc.invalidAuthAbuse = newInvalidAuthAbuseLimiter(cfg)
 	return svc
 }
 
@@ -587,6 +645,9 @@ func (s *APIKeyService) GetByID(ctx context.Context, id int64) (*APIKey, error) 
 
 // GetByKey 根据Key字符串获取API Key（用于认证）
 func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, error) {
+	if len(key) == 0 || len(key) > MaxAPIKeyCredentialBytes {
+		return nil, ErrAPIKeyNotFound
+	}
 	cacheKey := s.authCacheKey(key)
 
 	if entry, ok := s.getAuthCacheEntry(ctx, cacheKey); ok {
@@ -628,7 +689,7 @@ func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, erro
 		}
 	}
 
-	apiKey, err := s.apiKeyRepo.GetByKeyForAuth(ctx, key)
+	apiKey, err := s.lookupAPIKeyForAuth(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("get api key: %w", err)
 	}
@@ -650,15 +711,15 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	}
 
 	// 验证 IP 白名单格式
-	if len(req.IPWhitelist) > 0 {
-		if invalid := ip.ValidateIPPatterns(req.IPWhitelist); len(invalid) > 0 {
+	if req.IPWhitelist != nil && len(*req.IPWhitelist) > 0 {
+		if invalid := ip.ValidateIPPatterns(*req.IPWhitelist); len(invalid) > 0 {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidIPPattern, invalid)
 		}
 	}
 
 	// 验证 IP 黑名单格式
-	if len(req.IPBlacklist) > 0 {
-		if invalid := ip.ValidateIPPatterns(req.IPBlacklist); len(invalid) > 0 {
+	if req.IPBlacklist != nil && len(*req.IPBlacklist) > 0 {
+		if invalid := ip.ValidateIPPatterns(*req.IPBlacklist); len(invalid) > 0 {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidIPPattern, invalid)
 		}
 	}
@@ -709,9 +770,13 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 		}
 	}
 
-	// 更新 IP 限制（空数组会清空设置）
-	apiKey.IPWhitelist = req.IPWhitelist
-	apiKey.IPBlacklist = req.IPBlacklist
+	// 更新 IP 限制（nil 不修改，空数组清空设置）
+	if req.IPWhitelist != nil {
+		apiKey.IPWhitelist = *req.IPWhitelist
+	}
+	if req.IPBlacklist != nil {
+		apiKey.IPBlacklist = *req.IPBlacklist
+	}
 
 	// Update rate limit configuration
 	if req.RateLimit5h != nil {

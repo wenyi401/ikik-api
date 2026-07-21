@@ -400,6 +400,9 @@ export interface SystemSettings {
   totp_encryption_key_configured: boolean; // TOTP 加密密钥是否已配置
   api_key_acl_trust_forwarded_ip: boolean;
   // Default settings
+  session_binding_enabled: boolean; // 会话 IP/UA 绑定
+  step_up_enabled: boolean; // 敏感操作 step-up 2FA
+  audit_log_retention_days: number; // 审计日志保留天数
   login_agreement_enabled: boolean;
   login_agreement_mode: "modal" | "checkbox" | string;
   login_agreement_updated_at: string;
@@ -491,6 +494,7 @@ export interface SystemSettings {
   turnstile_enabled: boolean;
   turnstile_site_key: string;
   turnstile_secret_key_configured: boolean;
+  forwarded_client_ip_headers: string[];
 
   // LinuxDo Connect OAuth settings
   linuxdo_connect_enabled: boolean;
@@ -580,6 +584,12 @@ export interface SystemSettings {
   enable_cch_signing: boolean;
   enable_anthropic_cache_ttl_1h_injection: boolean;
   openai_images_responses_reasoning_effort: OpenAIImagesResponsesReasoningEffort;
+  min_codex_version: string;
+  max_codex_version: string;
+  codex_cli_only_blacklist: string;
+  codex_cli_only_whitelist: string;
+  codex_cli_only_allow_app_server_clients: boolean;
+  codex_cli_only_engine_fingerprint_signals: string;
   web_search_emulation_enabled?: boolean;
 
   // Payment configuration
@@ -619,7 +629,33 @@ export interface SystemSettings {
   payment_visible_method_wxpay_source?: string;
   payment_visible_method_alipay_enabled?: boolean;
   payment_visible_method_wxpay_enabled?: boolean;
+  openai_low_upstream_rate_priority_enabled?: boolean;
+  openai_oauth_scheduling_rate_multiplier?: number;
   openai_advanced_scheduler_enabled?: boolean;
+  openai_advanced_scheduler_sticky_weighted_enabled?: boolean;
+  openai_advanced_scheduler_subscription_priority_enabled?: boolean;
+  openai_advanced_scheduler_lb_top_k?: string;
+  openai_advanced_scheduler_weight_priority?: string;
+  openai_advanced_scheduler_weight_load?: string;
+  openai_advanced_scheduler_weight_queue?: string;
+  openai_advanced_scheduler_weight_error_rate?: string;
+  openai_advanced_scheduler_weight_ttft?: string;
+  openai_advanced_scheduler_weight_reset?: string;
+  openai_advanced_scheduler_weight_quota_headroom?: string;
+  openai_advanced_scheduler_weight_upstream_cost?: string;
+  openai_advanced_scheduler_weight_previous_response?: string;
+  openai_advanced_scheduler_weight_session_sticky?: string;
+  openai_advanced_scheduler_effective_lb_top_k?: string;
+  openai_advanced_scheduler_effective_weight_priority?: string;
+  openai_advanced_scheduler_effective_weight_load?: string;
+  openai_advanced_scheduler_effective_weight_queue?: string;
+  openai_advanced_scheduler_effective_weight_error_rate?: string;
+  openai_advanced_scheduler_effective_weight_ttft?: string;
+  openai_advanced_scheduler_effective_weight_reset?: string;
+  openai_advanced_scheduler_effective_weight_quota_headroom?: string;
+  openai_advanced_scheduler_effective_weight_upstream_cost?: string;
+  openai_advanced_scheduler_effective_weight_previous_response?: string;
+  openai_advanced_scheduler_effective_weight_session_sticky?: string;
   openai_free_account_repair_enabled?: boolean;
   openai_free_account_repair_weekly_threshold_usd?: number;
 
@@ -670,6 +706,9 @@ export interface UpdateSettingsRequest {
   totp_enabled?: boolean; // TOTP 双因素认证
   api_key_acl_trust_forwarded_ip?: boolean;
   default_balance?: number;
+  session_binding_enabled?: boolean; // 会话 IP/UA 绑定
+  step_up_enabled?: boolean; // 敏感操作 step-up 2FA
+  audit_log_retention_days?: number; // 审计日志保留天数
   login_agreement_enabled?: boolean;
   login_agreement_mode?: "modal" | "checkbox" | string;
   login_agreement_updated_at?: string;
@@ -757,6 +796,7 @@ export interface UpdateSettingsRequest {
   turnstile_enabled?: boolean;
   turnstile_site_key?: string;
   turnstile_secret_key?: string;
+  forwarded_client_ip_headers?: string[];
   linuxdo_connect_enabled?: boolean;
   linuxdo_connect_client_id?: string;
   linuxdo_connect_client_secret?: string;
@@ -828,6 +868,12 @@ export interface UpdateSettingsRequest {
   enable_cch_signing?: boolean;
   enable_anthropic_cache_ttl_1h_injection?: boolean;
   openai_images_responses_reasoning_effort?: OpenAIImagesResponsesReasoningEffort;
+  min_codex_version?: string;
+  max_codex_version?: string;
+  codex_cli_only_blacklist?: string;
+  codex_cli_only_whitelist?: string;
+  codex_cli_only_allow_app_server_clients?: boolean;
+  codex_cli_only_engine_fingerprint_signals?: string;
   // Payment configuration
   payment_enabled?: boolean;
   payment_min_amount?: number;
@@ -864,7 +910,22 @@ export interface UpdateSettingsRequest {
   payment_visible_method_wxpay_source?: string;
   payment_visible_method_alipay_enabled?: boolean;
   payment_visible_method_wxpay_enabled?: boolean;
+  openai_low_upstream_rate_priority_enabled?: boolean;
+  openai_oauth_scheduling_rate_multiplier?: number;
   openai_advanced_scheduler_enabled?: boolean;
+  openai_advanced_scheduler_sticky_weighted_enabled?: boolean;
+  openai_advanced_scheduler_subscription_priority_enabled?: boolean;
+  openai_advanced_scheduler_lb_top_k?: string;
+  openai_advanced_scheduler_weight_priority?: string;
+  openai_advanced_scheduler_weight_load?: string;
+  openai_advanced_scheduler_weight_queue?: string;
+  openai_advanced_scheduler_weight_error_rate?: string;
+  openai_advanced_scheduler_weight_ttft?: string;
+  openai_advanced_scheduler_weight_reset?: string;
+  openai_advanced_scheduler_weight_quota_headroom?: string;
+  openai_advanced_scheduler_weight_upstream_cost?: string;
+  openai_advanced_scheduler_weight_previous_response?: string;
+  openai_advanced_scheduler_weight_session_sticky?: string;
   openai_free_account_repair_enabled?: boolean;
   openai_free_account_repair_weekly_threshold_usd?: number;
   // Balance & quota notification

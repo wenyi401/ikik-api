@@ -829,6 +829,89 @@
         </div>
       </div>
 
+      <!-- OpenAI OAuth: Codex app-server -->
+      <div v-if="!isUserScope && allOpenAIOAuth" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between">
+          <label
+            id="bulk-edit-openai-codex-app-server-label"
+            class="input-label mb-0"
+            for="bulk-edit-openai-codex-app-server-enabled"
+          >
+            {{ t('admin.accounts.openai.codexCLIOnlyAppServer') }}
+          </label>
+          <input
+            v-model="enableCodexCLIOnlyAppServer"
+            id="bulk-edit-openai-codex-app-server-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-codex-app-server"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-codex-app-server"
+          :class="!enableCodexCLIOnlyAppServer && 'pointer-events-none opacity-50'"
+        >
+          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.openai.codexCLIOnlyAppServerDesc') }}
+          </p>
+          <button
+            id="bulk-edit-openai-codex-app-server-toggle"
+            type="button"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              codexCLIOnlyAppServerEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+            @click="codexCLIOnlyAppServerEnabled = !codexCLIOnlyAppServerEnabled"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                codexCLIOnlyAppServerEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+      </div>
+
+      <!-- Upstream billing auto probe (OpenAI API Key only) -->
+      <div v-if="allOpenAIAPIKey" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-upstream-billing-auto-probe-label"
+              class="input-label mb-0"
+              for="bulk-edit-upstream-billing-auto-probe-enabled"
+            >
+              {{ t('admin.accounts.upstreamBilling.autoProbe') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.upstreamBilling.autoProbeHint') }}
+            </p>
+          </div>
+          <input
+            v-model="enableUpstreamBillingAutoProbe"
+            id="bulk-edit-upstream-billing-auto-probe-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-upstream-billing-auto-probe"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-upstream-billing-auto-probe"
+          :class="!enableUpstreamBillingAutoProbe && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-upstream-billing-auto-probe-label"
+        >
+          <Select
+            v-model="upstreamBillingAutoProbeMode"
+            :disabled="!enableUpstreamBillingAutoProbe"
+            data-testid="bulk-edit-upstream-billing-auto-probe-select"
+            :options="upstreamBillingAutoProbeOptions"
+            aria-labelledby="bulk-edit-upstream-billing-auto-probe-label"
+          />
+        </div>
+      </div>
+
       <!-- OpenAI API Key WS mode -->
       <div v-if="!isUserScope && allOpenAIAPIKey" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
@@ -863,6 +946,110 @@
             :options="openAIWSModeOptions"
             aria-labelledby="bulk-edit-openai-apikey-ws-mode-label"
           />
+        </div>
+      </div>
+
+      <!-- OpenAI Compact mode -->
+      <div v-if="!isUserScope && allOpenAIPassthroughCapable" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-openai-compact-mode-label"
+              class="input-label mb-0"
+              for="bulk-edit-openai-compact-mode-enabled"
+            >
+              {{ t('admin.accounts.openai.compactMode') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.compactModeDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableOpenAICompactMode"
+            id="bulk-edit-openai-compact-mode-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-compact-mode"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-compact-mode"
+          :class="!enableOpenAICompactMode && 'pointer-events-none opacity-50'"
+        >
+          <Select
+            v-model="openAICompactMode"
+            data-testid="bulk-edit-openai-compact-mode-select"
+            :options="openAICompactModeOptions"
+            aria-labelledby="bulk-edit-openai-compact-mode-label"
+          />
+        </div>
+      </div>
+
+      <!-- OpenAI Compact model mapping -->
+      <div v-if="!isUserScope && allOpenAIPassthroughCapable" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-openai-compact-model-mapping-label"
+              class="input-label mb-0"
+              for="bulk-edit-openai-compact-model-mapping-enabled"
+            >
+              {{ t('admin.accounts.openai.compactModelMapping') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.compactModelMappingDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableOpenAICompactModelMapping"
+            id="bulk-edit-openai-compact-model-mapping-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-compact-model-mapping"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-compact-model-mapping"
+          :class="!enableOpenAICompactModelMapping && 'pointer-events-none opacity-50'"
+        >
+          <div v-if="openAICompactModelMappings.length > 0" class="mb-3 space-y-2">
+            <div
+              v-for="(mapping, index) in openAICompactModelMappings"
+              :key="index"
+              class="flex items-center gap-2"
+            >
+              <input
+                v-model="mapping.from"
+                type="text"
+                class="input flex-1"
+                :placeholder="t('admin.accounts.fromModel')"
+                data-testid="bulk-edit-openai-compact-model-mapping-input"
+              />
+              <span class="text-gray-400">-&gt;</span>
+              <input
+                v-model="mapping.to"
+                type="text"
+                class="input flex-1"
+                :placeholder="t('admin.accounts.toModel')"
+                data-testid="bulk-edit-openai-compact-model-mapping-input"
+              />
+              <button
+                type="button"
+                class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                @click="removeOpenAICompactModelMapping(index)"
+              >
+                <Icon name="trash" size="sm" />
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="mb-3 w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
+            data-testid="bulk-edit-openai-compact-model-mapping-add"
+            @click="addOpenAICompactModelMapping"
+          >
+            + {{ t('admin.accounts.addMapping') }}
+          </button>
         </div>
       </div>
 
@@ -1078,7 +1265,7 @@ import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import { accountsAPI } from '@/api/accounts'
 import type { AccountBatchTask } from '@/api/accounts'
-import type { Proxy as ProxyConfig, AdminGroup, AccountPlatform, AccountType, AccountLevel, GroupPlatform } from '@/types'
+import type { Proxy as ProxyConfig, AdminGroup, AccountPlatform, AccountType, AccountLevel, GroupPlatform, OpenAICompactMode } from '@/types'
 import type { AccountApiScope } from '@/composables/useAccountOAuth'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -1291,7 +1478,11 @@ const enableGroups = ref(false)
 const enableOpenAIPassthrough = ref(false)
 const enableOpenAIWSMode = ref(false)
 const enableOpenAIAPIKeyWSMode = ref(false)
+const enableUpstreamBillingAutoProbe = ref(false)
 const enableCodexCLIOnly = ref(false)
+const enableCodexCLIOnlyAppServer = ref(false)
+const enableOpenAICompactMode = ref(false)
+const enableOpenAICompactModelMapping = ref(false)
 const enableRpmLimit = ref(false)
 
 // State - field values
@@ -1320,7 +1511,11 @@ const groupIds = ref<number[]>([])
 const openaiPassthroughEnabled = ref(false)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
+const upstreamBillingAutoProbeMode = ref<'enabled' | 'disabled'>('enabled')
 const codexCLIOnlyEnabled = ref(false)
+const codexCLIOnlyAppServerEnabled = ref(false)
+const openAICompactMode = ref<OpenAICompactMode>('auto')
+const openAICompactModelMappings = ref<ModelMapping[]>([])
 const rpmLimitEnabled = ref(false)
 const bulkBaseRpm = ref<number | null>(null)
 const bulkRpmStrategy = ref<'tiered' | 'sticky_exempt'>('tiered')
@@ -1359,6 +1554,10 @@ const accountLevelOptions = computed(() => [
   { value: 'team', label: t('admin.accounts.accountLevel.team') },
   { value: 'k12', label: t('admin.accounts.accountLevel.k12') }
 ])
+const upstreamBillingAutoProbeOptions = computed(() => [
+  { value: 'enabled', label: t('common.enabled') },
+  { value: 'disabled', label: t('common.disabled') }
+])
 const isOpenAIModelRestrictionDisabled = computed(
   () =>
     allOpenAIPassthroughCapable.value &&
@@ -1370,6 +1569,11 @@ const openAIWSModeOptions = computed(() => [
   { value: OPENAI_WS_MODE_OFF, label: t('admin.accounts.openai.wsModeOff') },
   { value: OPENAI_WS_MODE_CTX_POOL, label: t('admin.accounts.openai.wsModeCtxPool') },
   { value: OPENAI_WS_MODE_PASSTHROUGH, label: t('admin.accounts.openai.wsModePassthrough') }
+])
+const openAICompactModeOptions = computed(() => [
+  { value: 'auto', label: t('admin.accounts.openai.compactModeAuto') },
+  { value: 'force_on', label: t('admin.accounts.openai.compactModeForceOn') },
+  { value: 'force_off', label: t('admin.accounts.openai.compactModeForceOff') }
 ])
 const openAIWSModeConcurrencyHintKey = computed(() =>
   resolveOpenAIWSModeConcurrencyHintKey(openaiOAuthResponsesWebSocketV2Mode.value)
@@ -1385,6 +1589,14 @@ const addModelMapping = () => {
 
 const removeModelMapping = (index: number) => {
   modelMappings.value.splice(index, 1)
+}
+
+const addOpenAICompactModelMapping = () => {
+  openAICompactModelMappings.value.push({ from: '', to: '' })
+}
+
+const removeOpenAICompactModelMapping = (index: number) => {
+  openAICompactModelMappings.value.splice(index, 1)
 }
 
 const addPresetMapping = (from: string, to: string) => {
@@ -1477,6 +1689,10 @@ const buildModelMappingObject = (): Record<string, string> | null => {
     allowedModels.value,
     modelMappings.value
   )
+}
+
+const buildOpenAICompactModelMapping = (): Record<string, string> | null => {
+  return buildModelMappingPayload('mapping', [], openAICompactModelMappings.value)
 }
 
 const buildUpdatePayload = (): Record<string, unknown> | null => {
@@ -1575,10 +1791,6 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     credentialsChanged = true
   }
 
-  if (credentialsChanged) {
-    updates.credentials = credentials
-  }
-
   if (enableOpenAIWSMode.value) {
     const extra = ensureExtra()
     extra.openai_oauth_responses_websockets_v2_mode = openaiOAuthResponsesWebSocketV2Mode.value
@@ -1595,9 +1807,32 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     )
   }
 
+  if (enableUpstreamBillingAutoProbe.value) {
+    updates.upstream_billing_probe_enabled = upstreamBillingAutoProbeMode.value === 'enabled'
+  }
+
   if (enableCodexCLIOnly.value) {
     const extra = ensureExtra()
     extra.codex_cli_only = codexCLIOnlyEnabled.value
+  }
+
+  if (
+    enableCodexCLIOnlyAppServer.value &&
+    enableCodexCLIOnly.value &&
+    codexCLIOnlyEnabled.value
+  ) {
+    const extra = ensureExtra()
+    extra.codex_cli_only_allow_app_server = codexCLIOnlyAppServerEnabled.value
+  }
+
+  if (enableOpenAICompactMode.value) {
+    const extra = ensureExtra()
+    extra.openai_compact_mode = openAICompactMode.value
+  }
+
+  if (enableOpenAICompactModelMapping.value) {
+    credentials.compact_model_mapping = buildOpenAICompactModelMapping() ?? {}
+    credentialsChanged = true
   }
 
   // RPM limit settings (写入 extra 字段)
@@ -1625,6 +1860,10 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     const umqExtra = ensureExtra()
     umqExtra.user_msg_queue_mode = userMsgQueueMode.value  // '' = 清除账号级覆盖
     umqExtra.user_msg_queue_enabled = false  // 清理旧字段（JSONB merge）
+  }
+
+  if (credentialsChanged) {
+    updates.credentials = credentials
   }
 
   return Object.keys(updates).length > 0 ? updates : null
@@ -1744,7 +1983,11 @@ const handleSubmit = async () => {
     (canManageGroups.value && enableGroups.value) ||
     enableOpenAIWSMode.value ||
     enableOpenAIAPIKeyWSMode.value ||
+    enableUpstreamBillingAutoProbe.value ||
     enableCodexCLIOnly.value ||
+    enableCodexCLIOnlyAppServer.value ||
+    enableOpenAICompactMode.value ||
+    enableOpenAICompactModelMapping.value ||
     enableRpmLimit.value ||
     userMsgQueueMode.value !== null
 
@@ -1868,7 +2111,11 @@ watch(
       enableOpenAIPassthrough.value = false
       enableOpenAIWSMode.value = false
       enableOpenAIAPIKeyWSMode.value = false
+      enableUpstreamBillingAutoProbe.value = false
       enableCodexCLIOnly.value = false
+      enableCodexCLIOnlyAppServer.value = false
+      enableOpenAICompactMode.value = false
+      enableOpenAICompactModelMapping.value = false
       enableRpmLimit.value = false
 
       // Reset all values
@@ -1893,7 +2140,11 @@ watch(
       groupIds.value = []
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
+      upstreamBillingAutoProbeMode.value = 'enabled'
       codexCLIOnlyEnabled.value = false
+      codexCLIOnlyAppServerEnabled.value = false
+      openAICompactMode.value = 'auto'
+      openAICompactModelMappings.value = []
       rpmLimitEnabled.value = false
       bulkBaseRpm.value = null
       bulkRpmStrategy.value = 'tiered'

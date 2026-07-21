@@ -230,6 +230,7 @@ export interface CustomMenuItem {
   label: string
   icon_svg: string
   url: string
+  page_slug?: string
   visibility: 'user' | 'admin'
   sort_order: number
   open_in_new_window: boolean
@@ -289,6 +290,8 @@ export interface PublicSettings {
   google_oauth_enabled?: boolean
   backend_mode_enabled: boolean
   version: string
+  server_timezone?: string
+  server_utc_offset?: string
   balance_low_notify_enabled: boolean
   account_quota_notify_enabled: boolean
   balance_low_notify_threshold: number
@@ -1409,7 +1412,14 @@ export interface AccountUsageInfo {
   grok_last_quota_probe_at?: string
   grok_last_headers_seen_at?: string
   grok_last_status_code?: number
+  grok_free_token_limit?: number
   grok_local_usage?: WindowStats | null
+  grok_local_usage_24h?: WindowStats | null
+  grok_local_usage_7d?: WindowStats | null
+  grok_local_usage_monthly?: WindowStats | null
+  grok_billing?: GrokBillingSummary | null
+  subscription_tier?: string
+  subscription_tier_raw?: string
   ai_credits?: Array<{
     credit_type?: string
     amount?: number
@@ -1484,6 +1494,7 @@ export interface CreateAccountRequest {
   group_ids?: number[]
   expires_at?: number | null
   auto_pause_on_expired?: boolean
+  upstream_billing_probe_enabled?: boolean
   confirm_mixed_channel_risk?: boolean
 }
 
@@ -1897,11 +1908,16 @@ export interface UsageStatsResponse {
   total_input_tokens: number
   total_output_tokens: number
   total_cache_tokens: number
+  total_cache_read_tokens: number
+  total_cache_creation_tokens: number
   total_tokens: number
   total_cost: number // 标准计费
   total_actual_cost: number // 实际扣除
   average_duration_ms: number
   models?: Record<string, number>
+  endpoints?: EndpointStat[]
+  upstream_endpoints?: EndpointStat[]
+  endpoint_paths?: EndpointStat[]
 }
 
 // ==================== Trend & Chart Types ====================
@@ -1928,7 +1944,7 @@ export interface ModelStat {
   total_tokens: number
   cost: number // 标准计费
   actual_cost: number // 实际扣除
-  account_cost: number // 账号成本
+  account_cost?: number // 账号成本（仅管理员接口返回）
 }
 
 export interface EndpointStat {
@@ -1946,7 +1962,7 @@ export interface GroupStat {
   total_tokens: number
   cost: number // 标准计费
   actual_cost: number // 实际扣除
-  account_cost: number // 账号成本
+  account_cost?: number // 账号成本（仅管理员接口返回）
 }
 
 export interface UserBreakdownItem {

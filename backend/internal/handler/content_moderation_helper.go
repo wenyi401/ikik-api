@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -16,15 +17,15 @@ import (
 // HTTP 调用点已迁移至 pre-flight 钩子链（见 gateway_preflight.go，SEAM-DESIGN 裁决 H：
 // WS 两点因每消息语义 + WS 帧错误格式排除在链改造之外，保持现状）。
 
-func contentModerationErrorCode(decision *service.ContentModerationDecision) string {
-	return "content_policy_violation"
+func contentModerationStatus(decision *service.ContentModerationDecision) int {
+	if decision == nil || decision.StatusCode < 400 || decision.StatusCode > 599 {
+		return http.StatusForbidden
+	}
+	return decision.StatusCode
 }
 
-func (h *OpenAIGatewayHandler) checkContentModeration(c *gin.Context, reqLog *zap.Logger, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol string, model string, body []byte) *service.ContentModerationDecision {
-	if h == nil || h.contentModerationService == nil {
-		return nil
-	}
-	return runContentModeration(c, reqLog, h.contentModerationService, apiKey, subject, protocol, model, body)
+func contentModerationErrorCode(decision *service.ContentModerationDecision) string {
+	return "content_policy_violation"
 }
 
 func runContentModeration(c *gin.Context, reqLog *zap.Logger, svc *service.ContentModerationService, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol string, model string, body []byte) *service.ContentModerationDecision {

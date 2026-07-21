@@ -8,6 +8,8 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/user/profile/__tests__/ProfileInfoCard.spec.ts \
 	src/views/admin/__tests__/SettingsView.spec.ts
 
+DATAMANAGEMENT_DIR := datamanagement
+
 # 一键编译前后端
 build: build-backend build-frontend
 
@@ -21,7 +23,11 @@ build-frontend:
 
 # 编译 datamanagementd（宿主机数据管理进程）
 build-datamanagementd:
-	@cd datamanagement && go build -o datamanagementd ./cmd/datamanagementd
+	@if [ ! -d "$(DATAMANAGEMENT_DIR)" ]; then \
+		echo "error: $(DATAMANAGEMENT_DIR)/ is not included in this repository; datamanagementd cannot be built from this checkout" >&2; \
+		exit 2; \
+	fi
+	@cd "$(DATAMANAGEMENT_DIR)" && go build -o datamanagementd ./cmd/datamanagementd
 
 # 运行测试（后端 + 前端）
 test: test-backend test-frontend
@@ -39,7 +45,11 @@ test-frontend-critical:
 	@pnpm --dir frontend exec vitest run $(FRONTEND_CRITICAL_VITEST)
 
 test-datamanagementd:
-	@cd datamanagement && go test ./...
+	@if [ ! -d "$(DATAMANAGEMENT_DIR)" ]; then \
+		echo "error: $(DATAMANAGEMENT_DIR)/ is not included in this repository; datamanagementd tests are unavailable" >&2; \
+		exit 2; \
+	fi
+	@cd "$(DATAMANAGEMENT_DIR)" && go test ./...
 
 secret-scan:
 	@python3 tools/secret_scan.py

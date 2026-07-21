@@ -53,10 +53,19 @@ const migrationsLockRetryInterval = 500 * time.Millisecond
 const nonTransactionalMigrationSuffix = "_notx.sql"
 const paymentOrdersOutTradeNoUniqueMigration = "120_enforce_payment_orders_out_trade_no_unique_notx.sql"
 const paymentOrdersOutTradeNoUniqueIndex = "paymentorder_out_trade_no_unique"
+const ownedAccountIdentityUniqueMigration = "140_owned_account_identity_unique_notx.sql"
 const schedulerOutboxPendingDedupKeyMigration = "153_scheduler_outbox_pending_dedup_key_index_notx.sql"
 const schedulerOutboxPendingDedupKeyIndex = "idx_scheduler_outbox_pending_dedup_key"
 const latestAPIKeyIPIndexMigration = "174_add_usage_logs_api_key_latest_ip_index_notx.sql"
 const latestAPIKeyIPIndex = "idx_usage_logs_api_key_latest_ip"
+
+var ownedAccountIdentityUniqueIndexes = []string{
+	"idx_accounts_owned_openai_chatgpt_account_id_uniq",
+	"idx_accounts_owned_openai_chatgpt_user_id_uniq",
+	"idx_accounts_owned_anthropic_org_account_uniq",
+	"idx_accounts_owned_gemini_project_uniq",
+	"idx_accounts_owned_antigravity_project_uniq",
+}
 
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
@@ -79,6 +88,10 @@ var migrationChecksumCompatibilityRules = map[string]migrationChecksumCompatibil
 	"119_enforce_payment_orders_out_trade_no_unique.sql":      newMigrationChecksumCompatibilityRule("0bbe809ae48a9d811dabda1ba1c74955bd71c4a9cc610f9128816818dfa6c11e", "ebd2c67cce0116393fb4f1b5d5116a67c6aceb73820dfb5133d1ff6f36d72d34"),
 	"120_enforce_payment_orders_out_trade_no_unique_notx.sql": newMigrationChecksumCompatibilityRule("34aadc0db59a4e390f92a12b73bd74642d9724f33124f73638ae00089ea5e074", "e77921f79d539bc24575cb9c16cbe566d2b23ce816190343d0a7568f6a3fcf61", "707431450603e70a43ce9fbd61e0c12fa67da4875158ccefabacea069587ab22", "04b082b5a239c525154fe9185d324ee2b05ff90da9297e10dba19f9be79aa59a"),
 	"123_fix_legacy_auth_source_grant_on_signup_defaults.sql": newMigrationChecksumCompatibilityRule("2ce43c2cd89e9f9e1febd34a407ed9e84d177386c5544b6f02c1f58a21129f57", "6cd33422f215dcd1f486ab6f35c0ea5805d9ca69bb25906d94bc649156657145"),
+	"154_affiliate_ledger_audit_snapshots.sql":                newMigrationChecksumCompatibilityRule("80fb2e9033d58cc611412c97301e0c66a86a8bfcd178abfe7877b93519cd2d8a", "608193cd329ec0c47025e26569eac5843c2bae836b06fd103fa72bf66ed9d0fd"),
+	"155_image_generation_group_controls.sql":                 newMigrationChecksumCompatibilityRule("8a8bc4ad03b36bf001290c674a790597cf399ff79c7be298d6bb8071a66d8cf8", "f5afcb0b91287ca1422c2163a39471b4cddc3673d9e7ff71e2402b3088ab5e2e"),
+	"156_allow_email_oauth_provider_types.sql":                newMigrationChecksumCompatibilityRule("e5e3512fd7ff6e9225414bf79425fd8ddbf6d78a66998142bfb2441f8e7e4708", "deb09c00432066d3194255d952e8d1d78483ad885c43777f3b06a1c0369b1a02"),
+	"157_content_moderation.sql":                              newMigrationChecksumCompatibilityRule("f9545c941580e8cad2b6b5ca4c6522bf1a6335b5a5a04bdc2b143678b289df67", "ae967e621e3bf66bbce6dd0624ee6c647ac57643dbdb4449a3d7f77f6531937a"),
 	"159_batch_image_foundation.sql":                          newMigrationChecksumCompatibilityRule("d902b70982025ec519749faf058aab7631e82c3f48167b9a4ae4db718eb72cce", "82da85b5d98e67a0507647b873a40373e84538e4adafdeed6767c0ac8b6570b2"),
 	"161_batch_image_pricing_snapshot.sql":                    newMigrationChecksumCompatibilityRule("4012af3e43636cb6af22e0176d59d1fcc70615c0f310194329461ae462c4fbd6", "96d915c9b7a6941ae99039e0ff3f1a61481eb9bddd933d11c6fadb2274554e87"),
 	"190_allow_kiro_user_platform_quotas.sql":                 newMigrationChecksumCompatibilityRule("84759e7fd445111e8706e2433d1d98a2af39c5072e0ed058018e96ebf91ffec9", "bc174c2b9dd244f10090a322bb685c8fd6c3e8050777a07b3c92c08b1d8cae94"),
@@ -129,23 +142,31 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 
 	// 获取分布式锁，确保多实例部署时只有一个实例执行迁移。
 	// 这是 PostgreSQL 特有的 Advisory Lock 机制。
-	if err := pgAdvisoryLock(ctx, db); err != nil {
+	lockConn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire migrations lock connection: %w", err)
+	}
+	defer func() { _ = lockConn.Close() }()
+	if err := pgAdvisoryLock(ctx, lockConn); err != nil {
 		return err
 	}
 	defer func() {
 		// 无论迁移是否成功，都要释放锁。
-		// 使用 context.Background() 确保即使原 ctx 已取消也能释放锁。
-		_ = pgAdvisoryUnlock(context.Background(), db)
+		// 独立超时确保原 ctx 取消后仍会尝试释放，但数据库链路异常不会
+		// 无限阻塞进程退出。
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = pgAdvisoryUnlock(unlockCtx, lockConn)
 	}()
 
 	// 创建迁移记录表（如果不存在）。
 	// 该表记录所有已应用的迁移及其校验和。
-	if _, err := db.ExecContext(ctx, schemaMigrationsTableDDL); err != nil {
+	if _, err := lockConn.ExecContext(ctx, schemaMigrationsTableDDL); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
 
 	// 自动对齐 Atlas 基线（如果检测到 legacy schema_migrations 且缺失 atlas_schema_revisions）。
-	if err := ensureAtlasBaselineAligned(ctx, db, fsys); err != nil {
+	if err := ensureAtlasBaselineAligned(ctx, lockConn, fsys); err != nil {
 		return err
 	}
 
@@ -176,7 +197,7 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 
 		// 检查该迁移是否已经应用
 		var existing string
-		rowErr := db.QueryRowContext(ctx, "SELECT checksum FROM schema_migrations WHERE filename = $1", name).Scan(&existing)
+		rowErr := lockConn.QueryRowContext(ctx, "SELECT checksum FROM schema_migrations WHERE filename = $1", name).Scan(&existing)
 		if rowErr == nil {
 			// 迁移已应用，验证校验和是否匹配
 			if existing != checksum {
@@ -208,7 +229,7 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 		}
 
 		if nonTx {
-			if err := prepareNonTransactionalMigration(ctx, db, name); err != nil {
+			if err := prepareNonTransactionalMigration(ctx, lockConn, name); err != nil {
 				return fmt.Errorf("prepare migration %s: %w", name, err)
 			}
 
@@ -223,18 +244,18 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 				if stripSQLLineComment(trimmed) == "" {
 					continue
 				}
-				if _, err := db.ExecContext(ctx, trimmed); err != nil {
+				if _, err := lockConn.ExecContext(ctx, trimmed); err != nil {
 					return fmt.Errorf("apply migration %s (non-tx statement %d): %w", name, i+1, err)
 				}
 			}
-			if _, err := db.ExecContext(ctx, "INSERT INTO schema_migrations (filename, checksum) VALUES ($1, $2)", name, checksum); err != nil {
+			if _, err := lockConn.ExecContext(ctx, "INSERT INTO schema_migrations (filename, checksum) VALUES ($1, $2)", name, checksum); err != nil {
 				return fmt.Errorf("record migration %s (non-tx): %w", name, err)
 			}
 			continue
 		}
 
 		// 默认迁移在事务中执行，确保原子性：要么完全成功，要么完全回滚。
-		tx, err := db.BeginTx(ctx, nil)
+		tx, err := lockConn.BeginTx(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("begin migration %s: %w", name, err)
 		}
@@ -261,10 +282,19 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 	return nil
 }
 
-func prepareNonTransactionalMigration(ctx context.Context, db *sql.DB, name string) error {
+type migrationConnection interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+}
+
+func prepareNonTransactionalMigration(ctx context.Context, db migrationConnection, name string) error {
 	switch name {
 	case paymentOrdersOutTradeNoUniqueMigration:
 		return preparePaymentOrdersOutTradeNoUniqueMigration(ctx, db)
+	case ownedAccountIdentityUniqueMigration:
+		return prepareOwnedAccountIdentityUniqueMigration(ctx, db)
 	case schedulerOutboxPendingDedupKeyMigration:
 		return dropInvalidIndexIfPresent(ctx, db, schedulerOutboxPendingDedupKeyIndex)
 	case latestAPIKeyIPIndexMigration:
@@ -274,7 +304,7 @@ func prepareNonTransactionalMigration(ctx context.Context, db *sql.DB, name stri
 	}
 }
 
-func preparePaymentOrdersOutTradeNoUniqueMigration(ctx context.Context, db *sql.DB) error {
+func preparePaymentOrdersOutTradeNoUniqueMigration(ctx context.Context, db migrationConnection) error {
 	duplicates, err := findDuplicatePaymentOrderOutTradeNos(ctx, db)
 	if err != nil {
 		return fmt.Errorf("precheck duplicate out_trade_no: %w", err)
@@ -290,7 +320,28 @@ func preparePaymentOrdersOutTradeNoUniqueMigration(ctx context.Context, db *sql.
 	return dropInvalidIndexIfPresent(ctx, db, paymentOrdersOutTradeNoUniqueIndex)
 }
 
-func dropInvalidIndexIfPresent(ctx context.Context, db *sql.DB, indexName string) error {
+func prepareOwnedAccountIdentityUniqueMigration(ctx context.Context, db migrationConnection) error {
+	duplicates, err := findDuplicateOwnedAccountIdentities(ctx, db)
+	if err != nil {
+		return fmt.Errorf("precheck duplicate owned account identities: %w", err)
+	}
+	if len(duplicates) > 0 {
+		return fmt.Errorf(
+			"duplicate owned account identities block %s; remediate duplicates before retrying: %s",
+			ownedAccountIdentityUniqueMigration,
+			strings.Join(duplicates, ", "),
+		)
+	}
+
+	for _, indexName := range ownedAccountIdentityUniqueIndexes {
+		if err := dropInvalidIndexIfPresent(ctx, db, indexName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func dropInvalidIndexIfPresent(ctx context.Context, db migrationConnection, indexName string) error {
 	invalid, err := indexIsInvalid(ctx, db, indexName)
 	if err != nil {
 		return fmt.Errorf("check invalid index %s: %w", indexName, err)
@@ -305,7 +356,124 @@ func dropInvalidIndexIfPresent(ctx context.Context, db *sql.DB, indexName string
 	return nil
 }
 
-func findDuplicatePaymentOrderOutTradeNos(ctx context.Context, db *sql.DB) ([]string, error) {
+func findDuplicateOwnedAccountIdentities(ctx context.Context, db migrationConnection) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `
+		WITH identities AS (
+			SELECT
+				owner_user_id,
+				'openai.chatgpt_account_id' AS identity_name,
+				NULLIF(BTRIM(credentials->>'chatgpt_account_id'), '') AS identity_value,
+				id
+			FROM accounts
+			WHERE deleted_at IS NULL
+			  AND owner_user_id IS NOT NULL
+			  AND platform = 'openai'
+			  AND type = 'oauth'
+			  AND NULLIF(BTRIM(credentials->>'chatgpt_account_id'), '') IS NOT NULL
+
+			UNION ALL
+
+			SELECT
+				owner_user_id,
+				'openai.chatgpt_user_id' AS identity_name,
+				NULLIF(BTRIM(credentials->>'chatgpt_user_id'), '') AS identity_value,
+				id
+			FROM accounts
+			WHERE deleted_at IS NULL
+			  AND owner_user_id IS NOT NULL
+			  AND platform = 'openai'
+			  AND type = 'oauth'
+			  AND NULLIF(BTRIM(credentials->>'chatgpt_user_id'), '') IS NOT NULL
+
+			UNION ALL
+
+			SELECT
+				owner_user_id,
+				'anthropic.org_account' AS identity_name,
+				LOWER(COALESCE(NULLIF(BTRIM(extra->>'org_uuid'), ''), NULLIF(BTRIM(credentials->>'org_uuid'), ''))) ||
+					'|' ||
+					LOWER(COALESCE(NULLIF(BTRIM(extra->>'account_uuid'), ''), NULLIF(BTRIM(credentials->>'account_uuid'), ''))) AS identity_value,
+				id
+			FROM accounts
+			WHERE deleted_at IS NULL
+			  AND owner_user_id IS NOT NULL
+			  AND platform = 'anthropic'
+			  AND type = 'oauth'
+			  AND COALESCE(NULLIF(BTRIM(extra->>'org_uuid'), ''), NULLIF(BTRIM(credentials->>'org_uuid'), '')) IS NOT NULL
+			  AND COALESCE(NULLIF(BTRIM(extra->>'account_uuid'), ''), NULLIF(BTRIM(credentials->>'account_uuid'), '')) IS NOT NULL
+
+			UNION ALL
+
+			SELECT
+				owner_user_id,
+				'gemini.project' AS identity_name,
+				LOWER(COALESCE(NULLIF(BTRIM(credentials->>'oauth_type'), ''), 'code_assist')) ||
+					'|' ||
+					LOWER(NULLIF(BTRIM(credentials->>'project_id'), '')) AS identity_value,
+				id
+			FROM accounts
+			WHERE deleted_at IS NULL
+			  AND owner_user_id IS NOT NULL
+			  AND platform = 'gemini'
+			  AND type = 'oauth'
+			  AND NULLIF(BTRIM(credentials->>'project_id'), '') IS NOT NULL
+
+			UNION ALL
+
+			SELECT
+				owner_user_id,
+				'antigravity.project_id' AS identity_name,
+				LOWER(NULLIF(BTRIM(credentials->>'project_id'), '')) AS identity_value,
+				id
+			FROM accounts
+			WHERE deleted_at IS NULL
+			  AND owner_user_id IS NOT NULL
+			  AND platform = 'antigravity'
+			  AND type = 'oauth'
+			  AND NULLIF(BTRIM(credentials->>'project_id'), '') IS NOT NULL
+		)
+		SELECT
+			identity_name,
+			owner_user_id,
+			COUNT(*) AS duplicate_count,
+			ARRAY_TO_STRING((ARRAY_AGG(id ORDER BY id))[1:5], ',') AS sample_ids
+		FROM identities
+		GROUP BY identity_name, owner_user_id, identity_value
+		HAVING COUNT(*) > 1
+		ORDER BY duplicate_count DESC, identity_name, owner_user_id
+		LIMIT 10
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	duplicates := make([]string, 0, 10)
+	for rows.Next() {
+		var identityName string
+		var ownerUserID int64
+		var duplicateCount int
+		var sampleIDs string
+		if err := rows.Scan(&identityName, &ownerUserID, &duplicateCount, &sampleIDs); err != nil {
+			return nil, err
+		}
+		duplicates = append(duplicates, fmt.Sprintf(
+			"%s owner_user_id=%d count=%d sample_account_ids=%s",
+			identityName,
+			ownerUserID,
+			duplicateCount,
+			sampleIDs,
+		))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return duplicates, nil
+}
+
+func findDuplicatePaymentOrderOutTradeNos(ctx context.Context, db migrationConnection) ([]string, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT out_trade_no, COUNT(*) AS duplicate_count
 		FROM payment_orders
@@ -337,7 +505,7 @@ func findDuplicatePaymentOrderOutTradeNos(ctx context.Context, db *sql.DB) ([]st
 	return duplicates, nil
 }
 
-func indexIsInvalid(ctx context.Context, db *sql.DB, indexName string) (bool, error) {
+func indexIsInvalid(ctx context.Context, db migrationConnection, indexName string) (bool, error) {
 	var invalid bool
 	err := db.QueryRowContext(ctx, `
 		SELECT EXISTS (
@@ -353,7 +521,7 @@ func indexIsInvalid(ctx context.Context, db *sql.DB, indexName string) (bool, er
 	return invalid, err
 }
 
-func ensureAtlasBaselineAligned(ctx context.Context, db *sql.DB, fsys fs.FS) error {
+func ensureAtlasBaselineAligned(ctx context.Context, db migrationConnection, fsys fs.FS) error {
 	hasLegacy, err := tableExists(ctx, db, "schema_migrations")
 	if err != nil {
 		return fmt.Errorf("check schema_migrations: %w", err)
@@ -394,7 +562,7 @@ func ensureAtlasBaselineAligned(ctx context.Context, db *sql.DB, fsys fs.FS) err
 	return nil
 }
 
-func tableExists(ctx context.Context, db *sql.DB, tableName string) (bool, error) {
+func tableExists(ctx context.Context, db migrationConnection, tableName string) (bool, error) {
 	var exists bool
 	err := db.QueryRowContext(ctx, `
 		SELECT EXISTS (
@@ -525,7 +693,12 @@ func stripSQLLineComment(s string) string {
 // pgAdvisoryLock 获取 PostgreSQL Advisory Lock。
 // Advisory Lock 是一种轻量级的锁机制，不与任何特定的数据库对象关联。
 // 它非常适合用于应用层面的分布式锁场景，如迁移序列化。
-func pgAdvisoryLock(ctx context.Context, db *sql.DB) error {
+type advisoryLockConnection interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func pgAdvisoryLock(ctx context.Context, db advisoryLockConnection) error {
 	ticker := time.NewTicker(migrationsLockRetryInterval)
 	defer ticker.Stop()
 
@@ -547,7 +720,7 @@ func pgAdvisoryLock(ctx context.Context, db *sql.DB) error {
 
 // pgAdvisoryUnlock 释放 PostgreSQL Advisory Lock。
 // 必须在获取锁后确保释放，否则会阻塞其他实例的迁移操作。
-func pgAdvisoryUnlock(ctx context.Context, db *sql.DB) error {
+func pgAdvisoryUnlock(ctx context.Context, db advisoryLockConnection) error {
 	_, err := db.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", migrationsAdvisoryLockID)
 	if err != nil {
 		return fmt.Errorf("release migrations lock: %w", err)

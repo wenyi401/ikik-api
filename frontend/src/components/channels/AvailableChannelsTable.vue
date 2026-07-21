@@ -1,75 +1,165 @@
 <template>
-  <div v-if="loading" class="channel-state">
-    <Icon name="refresh" size="lg" class="animate-spin" />
-  </div>
+  <div class="table-wrapper">
+    <table class="channels-table">
+      <colgroup>
+        <col class="channel-name-column" />
+        <col class="channel-description-column" />
+        <col class="channel-platform-column" />
+        <col class="channel-groups-column" />
+        <col class="channel-models-column" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col">{{ columns.name }}</th>
+          <th scope="col">{{ columns.description }}</th>
+          <th scope="col">{{ columns.platform }}</th>
+          <th scope="col">{{ columns.groups }}</th>
+          <th scope="col">{{ columns.supportedModels }}</th>
+        </tr>
+      </thead>
 
-  <div v-else-if="rows.length === 0" class="channel-state channel-state--empty">
-    <Icon name="inbox" size="xl" />
-    <p>{{ emptyLabel }}</p>
-  </div>
+      <tbody v-if="loading">
+        <tr>
+          <td colspan="5">
+            <div class="channel-state">
+              <Icon name="refresh" size="lg" class="animate-spin" />
+            </div>
+          </td>
+        </tr>
+      </tbody>
 
-  <div v-else class="channel-list">
-    <article v-for="(channel, channelIndex) in rows" :key="`${channel.name}-${channelIndex}`" class="channel-panel">
-      <header class="channel-header">
-        <div class="min-w-0">
-          <h3>{{ channel.name }}</h3>
-          <p v-if="channel.description">{{ channel.description }}</p>
-        </div>
-        <div class="channel-summary">
-          <span>{{ channel.platforms.length }} {{ columns.platform }}</span>
-          <span aria-hidden="true">·</span>
-          <span>{{ t('availableChannels.summary.models', { count: channelModelCount(channel) }) }}</span>
-          <span aria-hidden="true">·</span>
-          <span>{{ t('availableChannels.summary.groups', { count: channelGroupCount(channel) }) }}</span>
-        </div>
-      </header>
+      <tbody v-else-if="rows.length === 0">
+        <tr>
+          <td colspan="5">
+            <div class="channel-state channel-state--empty">
+              <Icon name="inbox" size="xl" />
+              <p>{{ emptyLabel }}</p>
+            </div>
+          </td>
+        </tr>
+      </tbody>
 
-      <div class="channel-platforms">
-        <section
-          v-for="section in channel.platforms"
+      <tbody
+        v-else
+        v-for="(channel, channelIndex) in rows"
+        :key="`${channel.name}-${channelIndex}`"
+        class="channel-body"
+      >
+        <tr
+          v-for="(section, sectionIndex) in channel.platforms"
           :key="`${channel.name}-${section.platform}`"
-          class="channel-platform-row"
         >
-          <div class="channel-access">
-            <div class="channel-platform-name">
+          <td
+            v-if="sectionIndex === 0"
+            :rowspan="channel.platforms.length"
+            class="channel-name-cell"
+          >
+            {{ channel.name }}
+          </td>
+          <td
+            v-if="sectionIndex === 0"
+            :rowspan="channel.platforms.length"
+            class="channel-description-cell"
+          >
+            {{ channel.description || '-' }}
+          </td>
+
+          <td class="channel-platform-cell">
+            <span class="channel-platform-name">
               <PlatformIcon :platform="section.platform as GroupPlatform" size="sm" />
               <span>{{ platformLabel(section.platform) }}</span>
-            </div>
+            </span>
+          </td>
 
-            <div v-if="section.groups.length" class="channel-groups">
-              <GroupBadge
-                v-for="group in section.groups"
-                :key="group.id"
-                :name="group.name"
-                :platform="group.platform as GroupPlatform"
-                :subscription-type="(group.subscription_type || 'standard') as SubscriptionType"
-                :rate-multiplier="group.rate_multiplier"
-                :user-rate-multiplier="userGroupRates[group.id] ?? null"
-                always-show-rate
-              />
-            </div>
-            <span v-else class="channel-empty-value">-</span>
-          </div>
-
-          <div v-if="section.supported_models.length" class="channel-models">
-            <button
-              v-for="model in section.supported_models"
-              :key="`${section.platform}-${model.name}`"
-              type="button"
-              class="channel-model-row"
-              @click="emit('selectModel', { model, platform: section.platform })"
-            >
-              <span class="channel-model-main">
-                <span class="channel-model-name">{{ model.name }}</span>
-                <span class="channel-model-price">{{ priceSummary(model) }}</span>
+          <td class="channel-groups-cell">
+            <div v-if="exclusiveGroups(section).length" class="channel-group-set">
+              <span
+                class="channel-group-kind channel-group-kind--exclusive"
+                :title="t('availableChannels.exclusiveTooltip')"
+              >
+                <Icon name="shield" size="xs" />
+                {{ t('availableChannels.exclusive') }}
               </span>
-              <Icon name="chevronRight" size="sm" />
-            </button>
-          </div>
-          <span v-else class="channel-empty-value">{{ noModelsLabel }}</span>
-        </section>
-      </div>
-    </article>
+              <div
+                v-for="group in exclusiveGroups(section)"
+                :key="`exclusive-${group.id}`"
+                class="channel-group-item"
+              >
+                <GroupBadge
+                  :name="group.name"
+                  :platform="group.platform as GroupPlatform"
+                  :subscription-type="(group.subscription_type || 'standard') as SubscriptionType"
+                  :rate-multiplier="group.rate_multiplier"
+                  :user-rate-multiplier="userGroupRates[group.id] ?? null"
+                  always-show-rate
+                />
+                <span
+                  v-if="hasPeakRate(group)"
+                  class="channel-peak-rate"
+                  :title="peakRateTitle(group)"
+                >
+                  <Icon name="clock" size="xs" />
+                  {{ peakRateLabel(group) }}
+                </span>
+              </div>
+            </div>
+
+            <div v-if="publicGroups(section).length" class="channel-group-set">
+              <span
+                class="channel-group-kind"
+                :title="t('availableChannels.publicTooltip')"
+              >
+                <Icon name="globe" size="xs" />
+                {{ t('availableChannels.public') }}
+              </span>
+              <div
+                v-for="group in publicGroups(section)"
+                :key="`public-${group.id}`"
+                class="channel-group-item"
+              >
+                <GroupBadge
+                  :name="group.name"
+                  :platform="group.platform as GroupPlatform"
+                  :subscription-type="(group.subscription_type || 'standard') as SubscriptionType"
+                  :rate-multiplier="group.rate_multiplier"
+                  :user-rate-multiplier="userGroupRates[group.id] ?? null"
+                  always-show-rate
+                />
+                <span
+                  v-if="hasPeakRate(group)"
+                  class="channel-peak-rate"
+                  :title="peakRateTitle(group)"
+                >
+                  <Icon name="clock" size="xs" />
+                  {{ peakRateLabel(group) }}
+                </span>
+              </div>
+            </div>
+
+            <span v-if="section.groups.length === 0" class="channel-empty-value">-</span>
+          </td>
+
+          <td class="channel-models-cell">
+            <div v-if="section.supported_models.length" class="channel-models">
+              <button
+                v-for="model in section.supported_models"
+                :key="`${section.platform}-${model.name}`"
+                type="button"
+                class="channel-model-row"
+                @click="emit('selectModel', { model, platform: section.platform })"
+              >
+                <span class="channel-model-main">
+                  <span class="channel-model-name">{{ model.name }}</span>
+                  <span class="channel-model-price">{{ priceSummary(model) }}</span>
+                </span>
+                <Icon name="chevronRight" size="sm" />
+              </button>
+            </div>
+            <span v-else class="channel-empty-value">{{ noModelsLabel }}</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
 
@@ -78,17 +168,28 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
-import type { UserAvailableChannel, UserSupportedModel } from '@/api/channels'
+import type {
+  UserAvailableChannel,
+  UserAvailableGroup,
+  UserChannelPlatformSection,
+  UserSupportedModel,
+} from '@/api/channels'
 import type { GroupPlatform, SubscriptionType } from '@/types'
 import { platformLabel } from '@/utils/platformColors'
 import { formatScaled } from '@/utils/pricing'
+import { useAppStore } from '@/stores/app'
+import {
+  formatPeakRateWindow,
+  hasPeakRate as groupHasPeakRate,
+  serverTimezoneLabel,
+} from '@/utils/peak-rate'
 import {
   BILLING_MODE_IMAGE,
   BILLING_MODE_PER_REQUEST,
   BILLING_MODE_TOKEN,
 } from '@/constants/channel'
 
-defineProps<{
+const props = defineProps<{
   columns: {
     name: string
     description: string
@@ -109,18 +210,32 @@ const emit = defineEmits<{
   (event: 'selectModel', payload: { model: UserSupportedModel; platform: string }): void
 }>()
 const { t } = useI18n()
+const appStore = useAppStore()
 
-function channelModelCount(channel: UserAvailableChannel): number {
-  return channel.platforms.reduce((sum, section) => sum + section.supported_models.length, 0)
+function exclusiveGroups(section: UserChannelPlatformSection): UserAvailableGroup[] {
+  return section.groups.filter((group) => group.is_exclusive)
 }
 
-function channelGroupCount(channel: UserAvailableChannel): number {
-  return channel.platforms.reduce((sum, section) => sum + section.groups.length, 0)
+function publicGroups(section: UserChannelPlatformSection): UserAvailableGroup[] {
+  return section.groups.filter((group) => !group.is_exclusive)
+}
+
+function hasPeakRate(group: UserAvailableGroup): boolean {
+  return groupHasPeakRate(group)
+}
+
+function peakRateLabel(group: UserAvailableGroup): string {
+  const timezone = serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset)
+  return formatPeakRateWindow(group, timezone)
+}
+
+function peakRateTitle(group: UserAvailableGroup): string {
+  return t('common.peakRateTooltip', { window: peakRateLabel(group) }) + t('common.peakRateImageNote')
 }
 
 function priceSummary(model: UserSupportedModel): string {
   const pricing = model.pricing
-  if (!pricing) return t('availableChannels.noPricing')
+  if (!pricing) return props.noPricingLabel
 
   if (pricing.billing_mode === BILLING_MODE_TOKEN) {
     const parts: string[] = []
@@ -143,6 +258,64 @@ function priceSummary(model: UserSupportedModel): string {
 </script>
 
 <style scoped>
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+
+.channels-table {
+  width: 100%;
+  min-width: 64rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.channel-name-column {
+  width: 10rem;
+}
+
+.channel-description-column {
+  width: 13rem;
+}
+
+.channel-platform-column {
+  width: 10rem;
+}
+
+.channel-groups-column {
+  width: 21rem;
+}
+
+.channels-table th {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--ui-border);
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-tertiary);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.channels-table td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--ui-border);
+  color: var(--ui-text-secondary);
+  vertical-align: top;
+}
+
+.channel-body + .channel-body tr:first-child td {
+  border-top: 2px solid var(--ui-border-strong);
+}
+
+.channel-body:last-child tr:last-child td {
+  border-bottom: 0;
+}
+
 .channel-state {
   display: flex;
   min-height: 16rem;
@@ -157,72 +330,21 @@ function priceSummary(model: UserSupportedModel): string {
   font-size: 0.875rem;
 }
 
-.channel-list {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.channel-panel {
-  overflow: hidden;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-lg);
-  background: var(--ui-surface);
-}
-
-.channel-header {
-  display: flex;
-  min-width: 0;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.125rem;
-  border-bottom: 1px solid var(--ui-border);
-}
-
-.channel-header h3 {
-  overflow: hidden;
+.channel-name-cell {
   color: var(--ui-text);
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.channel-header p {
-  margin-top: 0.2rem;
+.channel-description-cell {
   color: var(--ui-text-tertiary);
   font-size: 0.75rem;
-  line-height: 1.45;
-}
-
-.channel-summary {
-  display: flex;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.375rem;
-  color: var(--ui-text-tertiary);
-  font-size: 0.75rem;
-}
-
-.channel-platform-row {
-  display: grid;
-  grid-template-columns: minmax(15rem, 0.8fr) minmax(24rem, 1.4fr);
-  gap: 1.5rem;
-  padding: 1rem 1.125rem;
-}
-
-.channel-platform-row:not(:last-child) {
-  border-bottom: 1px solid var(--ui-border);
-}
-
-.channel-access {
-  min-width: 0;
+  line-height: 1.5;
 }
 
 .channel-platform-name {
-  display: flex;
+  display: inline-flex;
   min-width: 0;
   align-items: center;
   gap: 0.5rem;
@@ -231,11 +353,51 @@ function priceSummary(model: UserSupportedModel): string {
   font-weight: 600;
 }
 
-.channel-groups {
+.channel-group-set {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem;
-  margin-top: 0.75rem;
+  align-items: center;
+  gap: 0.375rem 0.5rem;
+}
+
+.channel-group-set + .channel-group-set {
+  margin-top: 0.625rem;
+}
+
+.channel-group-kind,
+.channel-peak-rate {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.channel-group-kind {
+  width: 4rem;
+  color: var(--ui-text-tertiary);
+}
+
+.channel-group-kind--exclusive {
+  color: var(--ui-warning);
+}
+
+.channel-group-item {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.channel-peak-rate {
+  padding: 0.125rem 0.375rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-warning-soft);
+  color: var(--ui-warning);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .channel-models {
@@ -249,7 +411,7 @@ function priceSummary(model: UserSupportedModel): string {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.625rem 0;
+  padding: 0.5rem 0;
   color: var(--ui-text-tertiary);
   text-align: left;
 }
@@ -298,26 +460,12 @@ function priceSummary(model: UserSupportedModel): string {
 }
 
 @media (max-width: 900px) {
-  .channel-platform-row {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
+  .channels-table {
+    min-width: 58rem;
   }
 }
 
 @media (max-width: 640px) {
-  .channel-header {
-    flex-direction: column;
-    padding: 0.875rem;
-  }
-
-  .channel-summary {
-    justify-content: flex-start;
-  }
-
-  .channel-platform-row {
-    padding: 0.875rem;
-  }
-
   .channel-model-main {
     grid-template-columns: 1fr;
     gap: 0.15rem;

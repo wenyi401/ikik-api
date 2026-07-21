@@ -20,3 +20,6 @@ backend/migrations/*.sql text eol=lf
 
 # Dockerfile
 Dockerfile text eol=lf
+
+# Immutable source-freeze artifacts are verified by their manifest checksum.
+openspec/changes/add-openai-compatible-prompt-audit/source-freeze/*.patch -diff

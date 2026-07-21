@@ -25,12 +25,13 @@
         </div>
         <div class="shrink-0 text-right">
           <div class="flex items-baseline gap-1">
-            <span class="text-xs text-[var(--ui-text-tertiary)]">¥</span>
+            <span class="text-xs text-[var(--ui-text-tertiary)]">{{ planCurrencySymbol }}</span>
             <span class="text-2xl font-semibold tracking-tight text-[var(--ui-text)]">{{ plan.price }}</span>
+            <span v-if="plan.currency" class="text-xs font-medium text-[var(--ui-text-tertiary)]">{{ plan.currency }}</span>
           </div>
           <span class="text-[11px] text-[var(--ui-text-tertiary)]">/ {{ validitySuffix }}</span>
           <div v-if="plan.original_price" class="mt-0.5 flex items-center justify-end gap-1.5">
-            <span class="text-xs text-[var(--ui-text-tertiary)] line-through">¥{{ plan.original_price }}</span>
+            <span class="text-xs text-[var(--ui-text-tertiary)] line-through">{{ planCurrencySymbol }}{{ plan.original_price }}<template v-if="plan.currency"> {{ plan.currency }}</template></span>
             <span class="text-[10px] font-semibold text-[var(--ui-success)]">{{ discountText }}</span>
           </div>
         </div>
@@ -40,6 +41,10 @@
         <div class="flex items-center justify-between">
           <span class="text-[var(--ui-text-tertiary)]">{{ t('payment.planCard.rate') }}</span>
           <span class="font-medium text-[var(--ui-text)]">{{ rateDisplay }}</span>
+        </div>
+        <div v-if="hasPeakRate" class="col-span-2 flex items-center justify-between gap-2">
+          <span class="text-[var(--ui-text-tertiary)]">{{ t('payment.planCard.peakRate') }}</span>
+          <span class="text-right font-medium text-amber-700 dark:text-amber-300">{{ peakRateDisplay }}</span>
         </div>
         <div v-if="plan.daily_limit_usd != null" class="flex items-center justify-between">
           <span class="text-[var(--ui-text-tertiary)]">{{ t('payment.planCard.dailyLimit') }}</span>
@@ -118,6 +123,10 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { SubscriptionPlan } from '@/types/payment'
 import type { UserSubscription } from '@/types'
+import { useAppStore } from '@/stores/app'
+import { hasPeakRate as groupHasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
+import { planValiditySuffix } from './validity'
+import { currencySymbol } from '@/components/payment/currency'
 import {
   platformLabel,
 } from '@/utils/platformColors'
@@ -148,6 +157,15 @@ const rateDisplay = computed(() => {
   return `×${Number(rate.toPrecision(10))}`
 })
 
+const appStore = useAppStore()
+const planCurrencySymbol = computed(() => currencySymbol(props.plan.currency || 'USD'))
+
+const hasPeakRate = computed(() => groupHasPeakRate(props.plan))
+
+const peakRateDisplay = computed(() => {
+  return formatPeakRateWindow(props.plan, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
+})
+
 const MODEL_SCOPE_LABELS: Record<string, string> = {
   claude: 'Claude',
   gemini_text: 'Gemini',
@@ -175,10 +193,5 @@ const hasExpandableDetails = computed(() => {
   return modelScopeLabels.value.length > MAX_VISIBLE_MODEL_SCOPES || props.plan.features.length > MAX_VISIBLE_FEATURES
 })
 
-const validitySuffix = computed(() => {
-  const u = props.plan.validity_unit || 'day'
-  if (u === 'month') return t('payment.perMonth')
-  if (u === 'year') return t('payment.perYear')
-  return `${props.plan.validity_days}${t('payment.days')}`
-})
+const validitySuffix = computed(() => planValiditySuffix(props.plan, t))
 </script>

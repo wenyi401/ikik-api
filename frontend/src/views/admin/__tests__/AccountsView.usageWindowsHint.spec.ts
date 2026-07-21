@@ -7,6 +7,7 @@ const {
   listAccounts,
   listWithEtag,
   getBatchTodayStats,
+  getUpstreamBillingProbeSettings,
   listProxies,
   getAllProxies,
   getAllGroups
@@ -14,6 +15,7 @@ const {
   listAccounts: vi.fn(),
   listWithEtag: vi.fn(),
   getBatchTodayStats: vi.fn(),
+  getUpstreamBillingProbeSettings: vi.fn(),
   listProxies: vi.fn(),
   getAllProxies: vi.fn(),
   getAllGroups: vi.fn()
@@ -25,6 +27,7 @@ vi.mock('@/api/admin', () => ({
       list: listAccounts,
       listWithEtag,
       getBatchTodayStats,
+      getUpstreamBillingProbeSettings,
       delete: vi.fn(),
       batchClearError: vi.fn(),
       batchRefresh: vi.fn(),
@@ -70,6 +73,9 @@ const DataTableStub = {
     <div data-test="data-table">
       <template v-for="column in columns" :key="column.key">
         <div v-if="column.key === 'usage'" data-test="usage-header">
+          <slot :name="'header-' + column.key" :column="column" />
+        </div>
+        <div v-if="column.key === 'upstream_billing_rate'" data-test="upstream-billing-header">
           <slot :name="'header-' + column.key" :column="column" />
         </div>
       </template>
@@ -129,6 +135,7 @@ describe('admin AccountsView usage windows hint', () => {
     listAccounts.mockReset()
     listWithEtag.mockReset()
     getBatchTodayStats.mockReset()
+    getUpstreamBillingProbeSettings.mockReset()
     listProxies.mockReset()
     getAllProxies.mockReset()
     getAllGroups.mockReset()
@@ -146,6 +153,7 @@ describe('admin AccountsView usage windows hint', () => {
       data: null
     })
     getBatchTodayStats.mockResolvedValue({ stats: {} })
+    getUpstreamBillingProbeSettings.mockResolvedValue({ enabled: true, interval_minutes: 30 })
     listProxies.mockResolvedValue({ items: [], total: 0 })
     getAllProxies.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
@@ -162,5 +170,19 @@ describe('admin AccountsView usage windows hint', () => {
     const hint = wrapper.find('[data-test="usage-windows-hint"]')
     expect(hint.exists()).toBe(true)
     expect(hint.text()).toBe('admin.accounts.usageWindowsHint')
+  })
+
+  it('renders the upstream billing trust warning next to the declared-rate column', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const header = wrapper.find('[data-test="upstream-billing-header"]')
+    expect(header.exists()).toBe(true)
+    expect(header.text()).toContain('admin.accounts.columns.upstreamBillingRate')
+    expect(wrapper.findAll('[data-test="usage-windows-hint"]').some(node =>
+      node.text() === 'admin.accounts.upstreamBilling.trustWarning'
+    )).toBe(true)
+    const columns = wrapper.getComponent(DataTableStub).props('columns') as Array<{ key: string; sortable: boolean }>
+    expect(columns.find(column => column.key === 'upstream_billing_rate')?.sortable).toBe(true)
   })
 })

@@ -13,6 +13,11 @@ import (
 	"ikik-api/internal/service"
 )
 
+const (
+	legacyModerationCheckedContextKey  = "ikik.content_moderation.legacy_checked"
+	legacyModerationDecisionContextKey = "ikik.content_moderation.legacy_decision"
+)
+
 // ProvideGatewayHookChain 装配网关 pre-flight 钩子链（Wire 注入的核心钩子；
 // 裁决 H-C：只建链，不做 gateway.hook.* 命名空间的 Runtime 收集——该机制留待
 // Phase-3 与平台 Provider 真实需求合并设计）。当前链 = [content_moderation]。
@@ -75,7 +80,14 @@ func runGatewayPreFlight(chain *gatewayhook.Chain, c *gin.Context, reqLog *zap.L
 		return nil
 	}
 	req := newGatewayHookRequest(c, apiKey, subject, protocol, model, body)
-	return chain.Run(withPreFlightLogger(c.Request.Context(), reqLog), req)
+	decision := chain.Run(withPreFlightLogger(c.Request.Context(), reqLog), req)
+	// The production chain contains legacy content moderation. Mark completion
+	// even when that hook fails open so Prompt Audit does not invoke it again.
+	c.Set(legacyModerationCheckedContextKey, true)
+	if decision != nil {
+		c.Set(legacyModerationDecisionContextKey, decision)
+	}
+	return decision
 }
 
 // runPreFlightHooks 执行网关 pre-flight 钩子链（替代原 checkContentModeration 的 HTTP 调用面）。

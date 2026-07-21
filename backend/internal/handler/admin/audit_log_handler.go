@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"ikik-api/internal/pkg/ip"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
@@ -150,7 +149,7 @@ func (h *AuditLogHandler) Clear(c *gin.Context) {
 		CredentialMasked: middleware.MaskedRequestCredential(c),
 		Method:           http.MethodPost,
 		Path:             c.FullPath(),
-		ClientIP:         ip.GetTrustedClientIP(c),
+		ClientIP:         middleware.SecurityClientIP(c),
 		UserAgent:        c.Request.UserAgent(),
 		StatusCode:       http.StatusOK,
 	}

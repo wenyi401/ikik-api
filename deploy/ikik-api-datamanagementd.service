@@ -8,8 +8,9 @@ Type=simple
 User=ikik-api
 Group=ikik-api
 WorkingDirectory=/opt/ikik-api
+# Compatibility protocol: the ikik-api backend still probes this legacy socket path.
 ExecStart=/opt/ikik-api/datamanagementd \
-  -socket-path /tmp/ikik-api-datamanagement.sock \
+  -socket-path /tmp/sub2api-datamanagement.sock \
   -sqlite-path /var/lib/ikik-api/datamanagement/datamanagementd.db \
   -version 1.0.0
 Restart=always

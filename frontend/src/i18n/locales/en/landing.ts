@@ -191,8 +191,8 @@ export default {
 
   // Setup Wizard
   setup: {
-    title: 'Sub2API Setup',
-    description: 'Configure your Sub2API instance',
+    title: 'ikik-api Setup',
+    description: 'Configure your ikik-api instance',
     database: {
       title: 'Database Configuration',
       description: 'Connect to your PostgreSQL database',
@@ -215,8 +215,10 @@ export default {
       description: 'Connect to your Redis server',
       host: 'Host',
       port: 'Port',
+      username: 'Username (optional)',
       password: 'Password (optional)',
       database: 'Database',
+      usernamePlaceholder: 'Leave empty for default user',
       passwordPlaceholder: 'Password',
       enableTls: 'Enable TLS',
       enableTlsHint: 'Use TLS when connecting to Redis (public CA certs)'

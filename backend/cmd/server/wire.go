@@ -16,6 +16,7 @@ import (
 	"ikik-api/internal/payment"
 	"ikik-api/internal/plugin"
 	"ikik-api/internal/repository"
+	"ikik-api/internal/securityaudit"
 	"ikik-api/internal/server"
 	"ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
@@ -25,9 +26,10 @@ import (
 )
 
 type Application struct {
-	Server  *http.Server
-	Runtime *plugin.Runtime
-	Cleanup func()
+	Server      *http.Server
+	Runtime     *plugin.Runtime
+	PromptAudit *securityaudit.PromptService
+	Cleanup     func()
 }
 
 func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
@@ -38,6 +40,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 		// Business layer ProviderSets
 		repository.ProviderSet,
 		service.ProviderSet,
+		securityaudit.ProviderSet,
 		payment.ProviderSet,
 		middleware.ProviderSet,
 		handler.ProviderSet,
@@ -56,7 +59,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 		provideCleanup,
 
 		// Application struct
-		wire.Struct(new(Application), "Server", "Runtime", "Cleanup"),
+		wire.Struct(new(Application), "Server", "Runtime", "PromptAudit", "Cleanup"),
 	)
 	return nil, nil
 }
@@ -81,6 +84,10 @@ func provideCleanup(
 	opsCleanup *service.OpsCleanupService,
 	opsScheduledReport *service.OpsScheduledReportService,
 	opsSystemLogSink *service.OpsSystemLogSink,
+	opsService *service.OpsService,
+	opsIngressReject *service.OpsIngressRejectAggregator,
+	apiKeyService *service.APIKeyService,
+	authCacheInvalidationWorker *service.AuthCacheInvalidationWorker,
 	schedulerSnapshot *service.SchedulerSnapshotService,
 	groupRateSchedule *service.GroupRateScheduleService,
 	tokenRefresh *service.TokenRefreshService,
@@ -111,6 +118,7 @@ func provideCleanup(
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	auditLog *service.AuditLogService,
 	moduleRuntime *plugin.Runtime,
+	promptAudit *securityaudit.PromptService,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -138,6 +146,36 @@ func provideCleanup(
 			{"KiroOAuthService", func() error {
 				if kiroOAuth != nil {
 					kiroOAuth.Stop()
+				}
+				return nil
+			}},
+			{"OpsIngressRejectAggregator", func() error {
+				if opsIngressReject != nil {
+					opsIngressReject.Stop()
+				}
+				return nil
+			}},
+			{"AuthCacheInvalidationWorker", func() error {
+				if authCacheInvalidationWorker != nil {
+					authCacheInvalidationWorker.Stop()
+				}
+				return nil
+			}},
+			{"AuthCacheInvalidationSubscriber", func() error {
+				if apiKeyService != nil {
+					apiKeyService.StopAuthCacheInvalidationSubscriber()
+				}
+				return nil
+			}},
+			{"OpsRuntimeSettingsRefresh", func() error {
+				if opsService != nil {
+					opsService.StopRuntimeSettingsRefresh()
+				}
+				return nil
+			}},
+			{"PromptAuditService", func() error {
+				if promptAudit != nil {
+					return promptAudit.Shutdown(ctx)
 				}
 				return nil
 			}},

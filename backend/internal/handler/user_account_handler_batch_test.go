@@ -144,6 +144,9 @@ func (s *userAccountBatchRepoStub) ListSchedulableUngroupedByPlatform(context.Co
 func (s *userAccountBatchRepoStub) ListSchedulableUngroupedByPlatforms(context.Context, []string) ([]service.Account, error) {
 	panic("unexpected ListSchedulableUngroupedByPlatforms call")
 }
+func (s *userAccountBatchRepoStub) ListModelAvailabilityCandidates(context.Context, *int64, []string, bool) ([]service.Account, error) {
+	panic("unexpected ListModelAvailabilityCandidates call")
+}
 func (s *userAccountBatchRepoStub) SetRateLimited(context.Context, int64, time.Time) error {
 	panic("unexpected SetRateLimited call")
 }

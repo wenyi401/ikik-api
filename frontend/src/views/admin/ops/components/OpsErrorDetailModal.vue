@@ -106,6 +106,14 @@
             {{ detail.message || '—' }}
           </div>
         </div>
+
+        <div v-if="detail.api_key_prefix" class="rounded-xl bg-gray-50 p-4 dark:bg-dark-900">
+          <div class="text-xs font-bold uppercase tracking-wider text-gray-400">{{ t('admin.ops.errorDetail.apiKeyPrefix') }}</div>
+          <div class="mt-1 font-mono text-sm font-medium text-gray-900 dark:text-white">
+            {{ detail.api_key_prefix }}
+          </div>
+        </div>
+
       </div>
 
       <!-- Response content (client request -> error_body; upstream -> upstream_error_detail/message) -->

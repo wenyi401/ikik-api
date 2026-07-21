@@ -2,6 +2,7 @@ package handler
 
 import (
 	"ikik-api/internal/handler/admin"
+	"ikik-api/internal/securityaudit"
 )
 
 // AdminHandlers contains all admin-related HTTP handlers
@@ -39,6 +40,7 @@ type AdminHandlers struct {
 	ChannelMonitor         *admin.ChannelMonitorHandler
 	ChannelMonitorTemplate *admin.ChannelMonitorRequestTemplateHandler
 	ContentModeration      *admin.ContentModerationHandler
+	PromptAudit            *securityaudit.PromptAdminHandler
 	Payment                *admin.PaymentHandler
 	Revenue                *admin.RevenueHandler
 	Withdrawal             *admin.WithdrawalHandler
