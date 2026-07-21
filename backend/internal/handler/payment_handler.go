@@ -9,7 +9,6 @@ import (
 	dbent "ikik-api/ent"
 	"ikik-api/internal/payment"
 	infraerrors "ikik-api/internal/pkg/errors"
-	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/pkg/response"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
@@ -25,9 +24,8 @@ type PaymentHandler struct {
 }
 
 // NewPaymentHandler creates a new PaymentHandler.
-func NewPaymentHandler(paymentService *service.PaymentService, configService *service.PaymentConfigService, channelService *service.ChannelService) *PaymentHandler {
+func NewPaymentHandler(paymentService *service.PaymentService, configService *service.PaymentConfigService) *PaymentHandler {
 	return &PaymentHandler{
-		channelService: channelService,
 		paymentService: paymentService,
 		configService:  configService,
 	}
@@ -54,42 +52,43 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 	}
 	// Enrich plans with group platform for frontend color coding
 	type planWithPlatform struct {
-		ID            int64    `json:"id"`
-		GroupID       int64    `json:"group_id"`
-		GroupPlatform string   `json:"group_platform"`
-		Name          string   `json:"name"`
-		Description   string   `json:"description"`
-		Price         float64  `json:"price"`
-		OriginalPrice *float64 `json:"original_price,omitempty"`
-		ValidityDays  int      `json:"validity_days"`
-		ValidityUnit  string   `json:"validity_unit"`
-		Features      string   `json:"features"`
-		ProductName   string   `json:"product_name"`
-		ForSale       bool     `json:"for_sale"`
-		SortOrder     int      `json:"sort_order"`
+		ID                 int64    `json:"id"`
+		GroupID            int64    `json:"group_id"`
+		GroupPlatform      string   `json:"group_platform"`
+		GroupName          string   `json:"group_name"`
+		RateMultiplier     float64  `json:"rate_multiplier"`
+		PeakRateEnabled    bool     `json:"peak_rate_enabled"`
+		PeakStart          string   `json:"peak_start"`
+		PeakEnd            string   `json:"peak_end"`
+		PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
+		Name               string   `json:"name"`
+		Description        string   `json:"description"`
+		Price              float64  `json:"price"`
+		OriginalPrice      *float64 `json:"original_price,omitempty"`
+		Currency           string   `json:"currency,omitempty"`
+		ValidityDays       int      `json:"validity_days"`
+		ValidityUnit       string   `json:"validity_unit"`
+		Features           string   `json:"features"`
+		ProductName        string   `json:"product_name"`
+		ForSale            bool     `json:"for_sale"`
+		SortOrder          int      `json:"sort_order"`
 	}
-	platformMap := h.configService.GetGroupPlatformMap(c.Request.Context(), plans)
+	groupInfo := h.configService.GetGroupInfoMap(c.Request.Context(), plans)
 	result := make([]planWithPlatform, 0, len(plans))
 	for _, p := range plans {
+		gi := groupInfo[p.GroupID]
 		result = append(result, planWithPlatform{
-			ID: int64(p.ID), GroupID: p.GroupID, GroupPlatform: platformMap[p.GroupID],
+			ID: int64(p.ID), GroupID: p.GroupID,
+			GroupPlatform: gi.Platform, GroupName: gi.Name,
+			RateMultiplier: gi.RateMultiplier, PeakRateEnabled: gi.PeakRateEnabled,
+			PeakStart: gi.PeakStart, PeakEnd: gi.PeakEnd, PeakRateMultiplier: gi.PeakRateMultiplier,
 			Name: p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
+			Currency:     p.Currency,
 			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: p.Features,
 			ProductName: p.ProductName, ForSale: p.ForSale, SortOrder: p.SortOrder,
 		})
 	}
 	response.Success(c, result)
-}
-
-// GetChannels returns enabled payment channels.
-// GET /api/v1/payment/channels
-func (h *PaymentHandler) GetChannels(c *gin.Context) {
-	channels, _, err := h.channelService.List(c.Request.Context(), pagination.PaginationParams{Page: 1, PageSize: 1000}, "active", "")
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, channels)
 }
 
 // GetCheckoutInfo returns all data the payment page needs in a single call:
@@ -121,10 +120,14 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		planList = append(planList, checkoutPlan{
 			ID: int64(p.ID), GroupID: p.GroupID,
 			GroupPlatform: gi.Platform, GroupName: gi.Name,
-			RateMultiplier: gi.RateMultiplier, DailyLimitUSD: gi.DailyLimitUSD,
+			RateMultiplier:  gi.RateMultiplier,
+			PeakRateEnabled: gi.PeakRateEnabled, PeakStart: gi.PeakStart,
+			PeakEnd: gi.PeakEnd, PeakRateMultiplier: gi.PeakRateMultiplier,
+			DailyLimitUSD:  gi.DailyLimitUSD,
 			WeeklyLimitUSD: gi.WeeklyLimitUSD, MonthlyLimitUSD: gi.MonthlyLimitUSD,
 			ModelScopes: gi.ModelScopes,
 			Name:        p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
+			Currency:     p.Currency,
 			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
 			ProductName: p.ProductName,
 		})
@@ -134,15 +137,15 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		Methods:                   limitsResp.Methods,
 		GlobalMin:                 limitsResp.GlobalMin,
 		GlobalMax:                 limitsResp.GlobalMax,
-		MinAmount:                 cfg.MinAmount,
-		MaxAmount:                 cfg.MaxAmount,
 		Plans:                     planList,
 		BalanceDisabled:           cfg.BalanceDisabled,
 		BalanceRechargeMultiplier: cfg.BalanceRechargeMultiplier,
+		SubscriptionUSDToCNYRate:  cfg.SubscriptionUSDToCNYRate,
 		RechargeFeeRate:           cfg.RechargeFeeRate,
 		HelpText:                  cfg.HelpText,
 		HelpImageURL:              cfg.HelpImageURL,
 		StripePublishableKey:      cfg.StripePublishableKey,
+		AlipayForceQRCode:         cfg.AlipayForceQRCode,
 	})
 }
 
@@ -150,35 +153,40 @@ type checkoutInfoResponse struct {
 	Methods                   map[string]service.MethodLimits `json:"methods"`
 	GlobalMin                 float64                         `json:"global_min"`
 	GlobalMax                 float64                         `json:"global_max"`
-	MinAmount                 float64                         `json:"min_amount"`
-	MaxAmount                 float64                         `json:"max_amount"`
 	Plans                     []checkoutPlan                  `json:"plans"`
 	BalanceDisabled           bool                            `json:"balance_disabled"`
 	BalanceRechargeMultiplier float64                         `json:"balance_recharge_multiplier"`
+	SubscriptionUSDToCNYRate  float64                         `json:"subscription_usd_to_cny_rate"`
 	RechargeFeeRate           float64                         `json:"recharge_fee_rate"`
 	HelpText                  string                          `json:"help_text"`
 	HelpImageURL              string                          `json:"help_image_url"`
 	StripePublishableKey      string                          `json:"stripe_publishable_key"`
+	AlipayForceQRCode         bool                            `json:"alipay_force_qrcode"`
 }
 
 type checkoutPlan struct {
-	ID              int64    `json:"id"`
-	GroupID         int64    `json:"group_id"`
-	GroupPlatform   string   `json:"group_platform"`
-	GroupName       string   `json:"group_name"`
-	RateMultiplier  float64  `json:"rate_multiplier"`
-	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
-	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
-	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
-	ModelScopes     []string `json:"supported_model_scopes"`
-	Name            string   `json:"name"`
-	Description     string   `json:"description"`
-	Price           float64  `json:"price"`
-	OriginalPrice   *float64 `json:"original_price,omitempty"`
-	ValidityDays    int      `json:"validity_days"`
-	ValidityUnit    string   `json:"validity_unit"`
-	Features        []string `json:"features"`
-	ProductName     string   `json:"product_name"`
+	ID                 int64    `json:"id"`
+	GroupID            int64    `json:"group_id"`
+	GroupPlatform      string   `json:"group_platform"`
+	GroupName          string   `json:"group_name"`
+	RateMultiplier     float64  `json:"rate_multiplier"`
+	PeakRateEnabled    bool     `json:"peak_rate_enabled"`
+	PeakStart          string   `json:"peak_start"`
+	PeakEnd            string   `json:"peak_end"`
+	PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
+	DailyLimitUSD      *float64 `json:"daily_limit_usd"`
+	WeeklyLimitUSD     *float64 `json:"weekly_limit_usd"`
+	MonthlyLimitUSD    *float64 `json:"monthly_limit_usd"`
+	ModelScopes        []string `json:"supported_model_scopes"`
+	Name               string   `json:"name"`
+	Description        string   `json:"description"`
+	Price              float64  `json:"price"`
+	OriginalPrice      *float64 `json:"original_price,omitempty"`
+	Currency           string   `json:"currency,omitempty"`
+	ValidityDays       int      `json:"validity_days"`
+	ValidityUnit       string   `json:"validity_unit"`
+	Features           []string `json:"features"`
+	ProductName        string   `json:"product_name"`
 }
 
 // parseFeatures splits a newline-separated features string into a string slice.
@@ -244,7 +252,7 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 			response.ErrorFrom(c, err)
 			return
 		}
-		if err := applyWeChatPaymentResumeClaims(&req, claims, subject.UserID); err != nil {
+		if err := applyWeChatPaymentResumeClaims(&req, claims); err != nil {
 			response.ErrorFrom(c, err)
 			return
 		}
@@ -268,6 +276,7 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		PaymentSource:   req.PaymentSource,
 		OrderType:       req.OrderType,
 		PlanID:          req.PlanID,
+		Locale:          c.GetHeader("Accept-Language"),
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -276,12 +285,9 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 	response.Success(c, result)
 }
 
-func applyWeChatPaymentResumeClaims(req *CreateOrderRequest, claims *service.WeChatPaymentResumeClaims, userID int64) error {
+func applyWeChatPaymentResumeClaims(req *CreateOrderRequest, claims *service.WeChatPaymentResumeClaims) error {
 	if req == nil || claims == nil {
 		return infraerrors.BadRequest("INVALID_WECHAT_PAYMENT_RESUME_TOKEN", "wechat payment resume context is missing")
-	}
-	if claims.UserID > 0 && claims.UserID != userID {
-		return infraerrors.Forbidden("WECHAT_PAYMENT_USER_MISMATCH", "wechat payment resume token does not belong to the current user")
 	}
 	openid := strings.TrimSpace(claims.OpenID)
 	if openid == "" {
@@ -458,15 +464,16 @@ func (h *PaymentHandler) VerifyOrder(c *gin.Context) {
 	response.Success(c, sanitizePaymentOrderForResponse(order))
 }
 
-// PublicOrderResult is the limited order info returned by the public verify endpoint.
-// No user details are exposed — only payment status information.
+// PublicOrderResult is returned after a signed resume-token lookup. The token
+// proves possession of the checkout session, so the result keeps the legacy
+// frontend contract needed by payment result pages.
 type PublicOrderResult struct {
 	ID                  int64      `json:"id"`
 	OutTradeNo          string     `json:"out_trade_no"`
 	Amount              float64    `json:"amount"`
 	PayAmount           float64    `json:"pay_amount"`
-	Currency            string     `json:"currency"`
 	FeeRate             float64    `json:"fee_rate"`
+	Currency            string     `json:"currency"`
 	PaymentType         string     `json:"payment_type"`
 	OrderType           string     `json:"order_type"`
 	Status              string     `json:"status"`
@@ -480,7 +487,18 @@ type PublicOrderResult struct {
 	RefundRequestedBy   *string    `json:"refund_requested_by,omitempty"`
 	RefundRequestReason *string    `json:"refund_request_reason,omitempty"`
 	PlanID              *int64     `json:"plan_id,omitempty"`
-	ShopOrderID         *int64     `json:"shop_order_id,omitempty"`
+}
+
+// PublicOrderVerifyResult is returned by the legacy anonymous out_trade_no
+// lookup. Keep this intentionally minimal because out_trade_no is not secret.
+type PublicOrderVerifyResult struct {
+	OutTradeNo  string     `json:"out_trade_no"`
+	Status      string     `json:"status"`
+	Paid        bool       `json:"paid"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ExpiresAt   time.Time  `json:"expires_at"`
+	PaidAt      *time.Time `json:"paid_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
 
 func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
@@ -489,8 +507,8 @@ func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
 		OutTradeNo:          order.OutTradeNo,
 		Amount:              order.Amount,
 		PayAmount:           order.PayAmount,
-		Currency:            service.PaymentOrderCurrency(order),
 		FeeRate:             order.FeeRate,
+		Currency:            service.PaymentOrderCurrency(order),
 		PaymentType:         order.PaymentType,
 		OrderType:           order.OrderType,
 		Status:              order.Status,
@@ -504,7 +522,34 @@ func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
 		RefundRequestedBy:   order.RefundRequestedBy,
 		RefundRequestReason: order.RefundRequestReason,
 		PlanID:              order.PlanID,
-		ShopOrderID:         order.ShopOrderID,
+	}
+}
+
+func buildPublicOrderVerifyResult(order *dbent.PaymentOrder) PublicOrderVerifyResult {
+	return PublicOrderVerifyResult{
+		OutTradeNo:  order.OutTradeNo,
+		Status:      order.Status,
+		Paid:        publicOrderStatusPaid(order.Status),
+		CreatedAt:   order.CreatedAt,
+		ExpiresAt:   order.ExpiresAt,
+		PaidAt:      order.PaidAt,
+		CompletedAt: order.CompletedAt,
+	}
+}
+
+func publicOrderStatusPaid(status string) bool {
+	switch status {
+	case service.OrderStatusPaid,
+		service.OrderStatusCompleted,
+		service.OrderStatusRefundRequested,
+		service.OrderStatusRefunding,
+		service.OrderStatusRefundPending,
+		service.OrderStatusPartiallyRefunded,
+		service.OrderStatusRefunded,
+		service.OrderStatusRefundFailed:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -523,7 +568,7 @@ func (h *PaymentHandler) VerifyOrderPublic(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, buildPublicOrderResult(order))
+	response.Success(c, buildPublicOrderVerifyResult(order))
 }
 
 // ResolveOrderPublicByResumeToken resolves a payment order from a signed resume token.
@@ -565,24 +610,67 @@ func isMobile(c *gin.Context) bool {
 	return false
 }
 
-func sanitizePaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*dbent.PaymentOrder {
-	if len(orders) == 0 {
-		return orders
-	}
-	out := make([]*dbent.PaymentOrder, 0, len(orders))
+type PaymentOrderResult struct {
+	ID                  int64      `json:"id"`
+	UserID              int64      `json:"user_id"`
+	Amount              float64    `json:"amount"`
+	PayAmount           float64    `json:"pay_amount"`
+	FeeRate             float64    `json:"fee_rate"`
+	Currency            string     `json:"currency"`
+	PaymentType         string     `json:"payment_type"`
+	OutTradeNo          string     `json:"out_trade_no"`
+	Status              string     `json:"status"`
+	OrderType           string     `json:"order_type"`
+	CreatedAt           time.Time  `json:"created_at"`
+	ExpiresAt           time.Time  `json:"expires_at"`
+	PaidAt              *time.Time `json:"paid_at,omitempty"`
+	CompletedAt         *time.Time `json:"completed_at,omitempty"`
+	RefundAmount        float64    `json:"refund_amount"`
+	RefundReason        *string    `json:"refund_reason,omitempty"`
+	RefundRequestedAt   *time.Time `json:"refund_requested_at,omitempty"`
+	RefundRequestedBy   *string    `json:"refund_requested_by,omitempty"`
+	RefundRequestReason *string    `json:"refund_request_reason,omitempty"`
+	PlanID              *int64     `json:"plan_id,omitempty"`
+	ProviderInstanceID  *string    `json:"provider_instance_id,omitempty"`
+}
+
+func sanitizePaymentOrdersForResponse(orders []*dbent.PaymentOrder) []PaymentOrderResult {
+	out := make([]PaymentOrderResult, 0, len(orders))
 	for _, order := range orders {
-		out = append(out, sanitizePaymentOrderForResponse(order))
+		if item := sanitizePaymentOrderForResponse(order); item != nil {
+			out = append(out, *item)
+		}
 	}
 	return out
 }
 
-func sanitizePaymentOrderForResponse(order *dbent.PaymentOrder) *dbent.PaymentOrder {
+func sanitizePaymentOrderForResponse(order *dbent.PaymentOrder) *PaymentOrderResult {
 	if order == nil {
 		return nil
 	}
-	cloned := *order
-	cloned.ProviderSnapshot = nil
-	return &cloned
+	return &PaymentOrderResult{
+		ID:                  order.ID,
+		UserID:              order.UserID,
+		Amount:              order.Amount,
+		PayAmount:           order.PayAmount,
+		FeeRate:             order.FeeRate,
+		Currency:            service.PaymentOrderCurrency(order),
+		PaymentType:         order.PaymentType,
+		OutTradeNo:          order.OutTradeNo,
+		Status:              order.Status,
+		OrderType:           order.OrderType,
+		CreatedAt:           order.CreatedAt,
+		ExpiresAt:           order.ExpiresAt,
+		PaidAt:              order.PaidAt,
+		CompletedAt:         order.CompletedAt,
+		RefundAmount:        order.RefundAmount,
+		RefundReason:        order.RefundReason,
+		RefundRequestedAt:   order.RefundRequestedAt,
+		RefundRequestedBy:   order.RefundRequestedBy,
+		RefundRequestReason: order.RefundRequestReason,
+		PlanID:              order.PlanID,
+		ProviderInstanceID:  order.ProviderInstanceID,
+	}
 }
 
 func isWeChatBrowser(c *gin.Context) bool {

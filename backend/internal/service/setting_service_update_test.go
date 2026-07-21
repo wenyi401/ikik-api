@@ -5,10 +5,13 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"math"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/antigravity"
 	infraerrors "ikik-api/internal/pkg/errors"
 )
 
@@ -48,69 +51,185 @@ func (s *settingUpdateRepoStub) Delete(ctx context.Context, key string) error {
 	panic("unexpected Delete call")
 }
 
-type settingValueRepoStub struct {
+type settingGetAllRepoStub struct {
 	values map[string]string
 }
 
-func (s *settingValueRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
-	if value, ok := s.values[key]; ok {
-		return &Setting{Key: key, Value: value}, nil
-	}
-	return nil, ErrSettingNotFound
+func (s *settingGetAllRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
+	panic("unexpected Get call")
 }
 
-func (s *settingValueRepoStub) GetValue(ctx context.Context, key string) (string, error) {
+func (s *settingGetAllRepoStub) GetValue(ctx context.Context, key string) (string, error) {
+	panic("unexpected GetValue call")
+}
+
+func (s *settingGetAllRepoStub) Set(ctx context.Context, key, value string) error {
+	panic("unexpected Set call")
+}
+
+func (s *settingGetAllRepoStub) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
+	panic("unexpected GetMultiple call")
+}
+
+func (s *settingGetAllRepoStub) SetMultiple(ctx context.Context, settings map[string]string) error {
+	panic("unexpected SetMultiple call")
+}
+
+func (s *settingGetAllRepoStub) GetAll(ctx context.Context) (map[string]string, error) {
+	out := make(map[string]string, len(s.values))
+	for key, value := range s.values {
+		out[key] = value
+	}
+	return out, nil
+}
+
+func (s *settingGetAllRepoStub) Delete(ctx context.Context, key string) error {
+	panic("unexpected Delete call")
+}
+
+type settingAntigravityUARepoStub struct {
+	values map[string]string
+}
+
+func (s *settingAntigravityUARepoStub) Get(ctx context.Context, key string) (*Setting, error) {
+	panic("unexpected Get call")
+}
+
+func (s *settingAntigravityUARepoStub) GetValue(ctx context.Context, key string) (string, error) {
 	if value, ok := s.values[key]; ok {
 		return value, nil
 	}
 	return "", ErrSettingNotFound
 }
 
-func (s *settingValueRepoStub) Set(ctx context.Context, key, value string) error {
-	if s.values == nil {
-		s.values = map[string]string{}
-	}
-	s.values[key] = value
-	return nil
+func (s *settingAntigravityUARepoStub) Set(ctx context.Context, key, value string) error {
+	panic("unexpected Set call")
 }
 
-func (s *settingValueRepoStub) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
-	result := make(map[string]string, len(keys))
-	for _, key := range keys {
-		if value, ok := s.values[key]; ok {
-			result[key] = value
-		}
-	}
-	return result, nil
+func (s *settingAntigravityUARepoStub) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
+	panic("unexpected GetMultiple call")
 }
 
-func (s *settingValueRepoStub) SetMultiple(ctx context.Context, settings map[string]string) error {
-	if s.values == nil {
-		s.values = map[string]string{}
-	}
-	for key, value := range settings {
-		s.values[key] = value
-	}
-	return nil
+func (s *settingAntigravityUARepoStub) SetMultiple(ctx context.Context, settings map[string]string) error {
+	panic("unexpected SetMultiple call")
 }
 
-func (s *settingValueRepoStub) GetAll(ctx context.Context) (map[string]string, error) {
-	result := make(map[string]string, len(s.values))
-	for key, value := range s.values {
-		result[key] = value
-	}
-	return result, nil
+func (s *settingAntigravityUARepoStub) GetAll(ctx context.Context) (map[string]string, error) {
+	panic("unexpected GetAll call")
 }
 
-func (s *settingValueRepoStub) Delete(ctx context.Context, key string) error {
-	delete(s.values, key)
-	return nil
+func (s *settingAntigravityUARepoStub) Delete(ctx context.Context, key string) error {
+	panic("unexpected Delete call")
 }
 
 type defaultSubGroupReaderStub struct {
 	byID  map[int64]*Group
 	errBy map[int64]error
 	calls []int64
+}
+
+func TestSettingService_AffiliateAdminRechargeSetting(t *testing.T) {
+	t.Run("missing value defaults to disabled", func(t *testing.T) {
+		svc := NewSettingService(&settingGetAllRepoStub{values: map[string]string{}}, &config.Config{})
+
+		settings, err := svc.GetAllSettings(context.Background())
+		require.NoError(t, err)
+		require.False(t, settings.AdminRechargeRebateEnabled)
+	})
+
+	t.Run("explicit value is parsed", func(t *testing.T) {
+		svc := NewSettingService(&settingGetAllRepoStub{values: map[string]string{
+			SettingKeyAffiliateAdminRechargeEnabled: "true",
+		}}, &config.Config{})
+
+		settings, err := svc.GetAllSettings(context.Background())
+		require.NoError(t, err)
+		require.True(t, settings.AdminRechargeRebateEnabled)
+	})
+
+	t.Run("value is persisted", func(t *testing.T) {
+		repo := &settingUpdateRepoStub{}
+		svc := NewSettingService(repo, &config.Config{})
+
+		err := svc.UpdateSettings(context.Background(), &SystemSettings{
+			AdminRechargeRebateEnabled: true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "true", repo.updates[SettingKeyAffiliateAdminRechargeEnabled])
+	})
+}
+
+func TestSettingService_IkikFeatureFlagsRoundTrip(t *testing.T) {
+	t.Run("persist enabled flags", func(t *testing.T) {
+		repo := &settingUpdateRepoStub{}
+		svc := NewSettingService(repo, &config.Config{})
+		dailyLimit := 12.5
+
+		err := svc.UpdateSettings(context.Background(), &SystemSettings{
+			RegistrationEnabled:                       true,
+			FreeModelsEnabled:                         true,
+			CarpoolEnabled:                            true,
+			CarpoolBaseServiceFeeUSD:                  88,
+			CarpoolSystemProxyFeeUSD:                  12,
+			CarpoolRiskControlFeeUSD:                  18,
+			UserPrivateGroupDailyLimitUSD:             &dailyLimit,
+			UserPrivateGroupRateMultiplier:            1.25,
+			UserPrivateGroupRPMLimit:                  30,
+			OpenAIImagesResponsesReasoningEffort:      "high",
+			OpenAIFreeAccountRepairEnabled:            true,
+			OpenAIFreeAccountRepairWeeklyThresholdUSD: 75,
+			AutoModelSettings:                         AutoModelSettings{Enabled: true},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "true", repo.updates[SettingKeyRegistrationEnabled])
+		require.Equal(t, "true", repo.updates[SettingKeyFreeModelsEnabled])
+		require.Equal(t, "true", repo.updates[SettingKeyCarpoolEnabled])
+		require.Equal(t, "88.00000000", repo.updates[SettingKeyCarpoolBaseServiceFeeUSD])
+		require.Equal(t, "12.00000000", repo.updates[SettingKeyCarpoolSystemProxyFeeUSD])
+		require.Equal(t, "18.00000000", repo.updates[SettingKeyCarpoolRiskControlFeeUSD])
+		require.Equal(t, "12.50000000", repo.updates[SettingKeyUserPrivateGroupDailyLimitUSD])
+		require.Equal(t, "1.25000000", repo.updates[SettingKeyUserPrivateGroupRateMultiplier])
+		require.Equal(t, "30", repo.updates[SettingKeyUserPrivateGroupRPMLimit])
+		require.Equal(t, "high", repo.updates[SettingKeyOpenAIImagesResponsesReasoningEffort])
+		require.Equal(t, "true", repo.updates[SettingKeyOpenAIFreeAccountRepairEnabled])
+		require.Equal(t, "75.00000000", repo.updates[SettingKeyOpenAIFreeAccountRepairWeeklyThresholdUSD])
+		require.Contains(t, repo.updates[SettingKeyAutoModelSettings], `"enabled":true`)
+	})
+
+	t.Run("parse stored flags", func(t *testing.T) {
+		svc := NewSettingService(&settingGetAllRepoStub{values: map[string]string{
+			SettingKeyRegistrationEnabled:                       "true",
+			SettingKeyFreeModelsEnabled:                         "true",
+			SettingKeyCarpoolEnabled:                            "true",
+			SettingKeyCarpoolBaseServiceFeeUSD:                  "88",
+			SettingKeyCarpoolSystemProxyFeeUSD:                  "12",
+			SettingKeyCarpoolRiskControlFeeUSD:                  "18",
+			SettingKeyUserPrivateGroupDailyLimitUSD:             "12.5",
+			SettingKeyUserPrivateGroupRateMultiplier:            "1.25",
+			SettingKeyUserPrivateGroupRPMLimit:                  "30",
+			SettingKeyOpenAIImagesResponsesReasoningEffort:      "high",
+			SettingKeyOpenAIFreeAccountRepairEnabled:            "true",
+			SettingKeyOpenAIFreeAccountRepairWeeklyThresholdUSD: "75",
+			SettingKeyAutoModelSettings:                         `{"enabled":true,"models":[]}`,
+		}}, &config.Config{})
+
+		settings, err := svc.GetAllSettings(context.Background())
+		require.NoError(t, err)
+		require.True(t, settings.RegistrationEnabled)
+		require.True(t, settings.FreeModelsEnabled)
+		require.True(t, settings.CarpoolEnabled)
+		require.Equal(t, 88.0, settings.CarpoolBaseServiceFeeUSD)
+		require.Equal(t, 12.0, settings.CarpoolSystemProxyFeeUSD)
+		require.Equal(t, 18.0, settings.CarpoolRiskControlFeeUSD)
+		require.NotNil(t, settings.UserPrivateGroupDailyLimitUSD)
+		require.Equal(t, 12.5, *settings.UserPrivateGroupDailyLimitUSD)
+		require.Equal(t, 1.25, settings.UserPrivateGroupRateMultiplier)
+		require.Equal(t, 30, settings.UserPrivateGroupRPMLimit)
+		require.Equal(t, "high", settings.OpenAIImagesResponsesReasoningEffort)
+		require.True(t, settings.OpenAIFreeAccountRepairEnabled)
+		require.Equal(t, 75.0, settings.OpenAIFreeAccountRepairWeeklyThresholdUSD)
+		require.True(t, settings.AutoModelSettings.Enabled)
+	})
 }
 
 func (s *defaultSubGroupReaderStub) GetByID(ctx context.Context, id int64) (*Group, error) {
@@ -231,72 +350,15 @@ func TestSettingService_UpdateSettings_DefaultSubscriptions_RejectsDuplicateGrou
 	require.Nil(t, repo.updates)
 }
 
-func TestSettingService_UpdateSettings_HomeStatsGroup_AllowsAdministratorPublicGroup(t *testing.T) {
-	repo := &settingUpdateRepoStub{}
-	groupReader := &defaultSubGroupReaderStub{
-		byID: map[int64]*Group{
-			21: {ID: 21, Scope: GroupScopePublic},
-		},
-	}
-	svc := NewSettingService(repo, &config.Config{})
-	svc.SetDefaultSubscriptionGroupReader(groupReader)
-
-	err := svc.UpdateSettings(context.Background(), &SystemSettings{
-		HomeStatsGroupID: 21,
-	})
-	require.NoError(t, err)
-	require.Equal(t, "21", repo.updates[SettingKeyHomeStatsGroupID])
-}
-
-func TestSettingService_UpdateSettings_HomeStatsGroup_RejectsUserPrivateGroup(t *testing.T) {
-	ownerID := int64(7)
-	repo := &settingUpdateRepoStub{}
-	groupReader := &defaultSubGroupReaderStub{
-		byID: map[int64]*Group{
-			22: {ID: 22, Scope: GroupScopeUserPrivate, OwnerUserID: &ownerID},
-		},
-	}
-	svc := NewSettingService(repo, &config.Config{})
-	svc.SetDefaultSubscriptionGroupReader(groupReader)
-
-	err := svc.UpdateSettings(context.Background(), &SystemSettings{
-		HomeStatsGroupID: 22,
-	})
-	require.Error(t, err)
-	require.Equal(t, "HOME_STATS_GROUP_INVALID", infraerrors.Reason(err))
-	require.Equal(t, "22", infraerrors.FromError(err).Metadata["group_id"])
-	require.Nil(t, repo.updates)
-}
-
-func TestSettingService_UpdateSettings_HomeStatsGroup_RejectsCarpoolGroup(t *testing.T) {
-	ownerID := int64(8)
-	repo := &settingUpdateRepoStub{}
-	groupReader := &defaultSubGroupReaderStub{
-		byID: map[int64]*Group{
-			23: {ID: 23, Scope: GroupScopeUserCarpool, OwnerUserID: &ownerID},
-		},
-	}
-	svc := NewSettingService(repo, &config.Config{})
-	svc.SetDefaultSubscriptionGroupReader(groupReader)
-
-	err := svc.UpdateSettings(context.Background(), &SystemSettings{
-		HomeStatsGroupID: 23,
-	})
-	require.Error(t, err)
-	require.Equal(t, "HOME_STATS_GROUP_INVALID", infraerrors.Reason(err))
-	require.Equal(t, "23", infraerrors.FromError(err).Metadata["group_id"])
-	require.Nil(t, repo.updates)
-}
-
 func TestSettingService_UpdateSettings_RegistrationEmailSuffixWhitelist_Normalized(t *testing.T) {
 	repo := &settingUpdateRepoStub{}
 	svc := NewSettingService(repo, &config.Config{})
 
 	err := svc.UpdateSettings(context.Background(), &SystemSettings{
-		RegistrationEmailSuffixWhitelist: []string{"example.com", "@EXAMPLE.com", " @foo.bar "},
+		RegistrationEmailSuffixWhitelist: []string{"example.com", "@EXAMPLE.com", " @foo.bar ", "*.EDU.CN"},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `["@example.com","@foo.bar"]`, repo.updates[SettingKeyRegistrationEmailSuffixWhitelist])
+	require.Equal(t, `["@example.com","@foo.bar","*.edu.cn"]`, repo.updates[SettingKeyRegistrationEmailSuffixWhitelist])
 }
 
 func TestSettingService_UpdateSettings_RegistrationEmailSuffixWhitelist_Invalid(t *testing.T) {
@@ -341,22 +403,217 @@ func TestSettingService_UpdateSettings_TablePreferences(t *testing.T) {
 }
 
 func TestSettingService_UpdateSettings_PaymentVisibleMethodsAndAdvancedScheduler(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
+	defer resetOpenAIAdvancedSchedulerSettingCacheForTest()
+
 	repo := &settingUpdateRepoStub{}
 	svc := NewSettingService(repo, &config.Config{})
 
 	err := svc.UpdateSettings(context.Background(), &SystemSettings{
-		PaymentVisibleMethodAlipaySource:  "alipay",
-		PaymentVisibleMethodWxpaySource:   "easypay",
-		PaymentVisibleMethodAlipayEnabled: true,
-		PaymentVisibleMethodWxpayEnabled:  false,
-		OpenAIAdvancedSchedulerEnabled:    true,
+		PaymentVisibleMethodAlipaySource:                   "alipay",
+		PaymentVisibleMethodWxpaySource:                    "easypay",
+		PaymentVisibleMethodAlipayEnabled:                  true,
+		PaymentVisibleMethodWxpayEnabled:                   false,
+		OpenAILowUpstreamRatePriorityEnabled:               true,
+		OpenAIOAuthSchedulingRateMultiplier:                0.05,
+		OpenAIAdvancedSchedulerEnabled:                     true,
+		OpenAIAdvancedSchedulerStickyWeightedEnabled:       true,
+		OpenAIAdvancedSchedulerSubscriptionPriorityEnabled: true,
+		OpenAIAdvancedSchedulerLBTopK:                      " 3 ",
+		OpenAIAdvancedSchedulerWeightPriority:              "2.50",
+		OpenAIAdvancedSchedulerWeightLoad:                  "0",
+		OpenAIAdvancedSchedulerWeightQueue:                 "0.75",
+		OpenAIAdvancedSchedulerWeightErrorRate:             "1.25",
+		OpenAIAdvancedSchedulerWeightTTFT:                  "0.5",
+		OpenAIAdvancedSchedulerWeightReset:                 "",
+		OpenAIAdvancedSchedulerWeightQuotaHeadroom:         "0.2",
+		OpenAIAdvancedSchedulerWeightUpstreamCost:          "1.5",
+		OpenAIAdvancedSchedulerWeightPreviousResponse:      "8",
+		OpenAIAdvancedSchedulerWeightSessionSticky:         "4",
 	})
 	require.NoError(t, err)
 	require.Equal(t, VisibleMethodSourceOfficialAlipay, repo.updates[SettingPaymentVisibleMethodAlipaySource])
 	require.Equal(t, VisibleMethodSourceEasyPayWechat, repo.updates[SettingPaymentVisibleMethodWxpaySource])
 	require.Equal(t, "true", repo.updates[SettingPaymentVisibleMethodAlipayEnabled])
 	require.Equal(t, "false", repo.updates[SettingPaymentVisibleMethodWxpayEnabled])
+	require.Equal(t, "true", repo.updates[SettingKeyOpenAILowUpstreamRatePriorityEnabled])
+	require.Equal(t, "0.05", repo.updates[SettingKeyOpenAIOAuthSchedulingRateMultiplier])
 	require.Equal(t, "true", repo.updates[openAIAdvancedSchedulerSettingKey])
+	require.Equal(t, "true", repo.updates[SettingKeyOpenAIAdvancedSchedulerStickyWeightedEnabled])
+	require.Equal(t, "true", repo.updates[SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled])
+	require.Equal(t, "3", repo.updates[SettingKeyOpenAIAdvancedSchedulerLBTopK])
+	require.Equal(t, "2.5", repo.updates[SettingKeyOpenAIAdvancedSchedulerWeightPriority])
+	require.Equal(t, "0", repo.updates[SettingKeyOpenAIAdvancedSchedulerWeightLoad])
+	require.Equal(t, "0.75", repo.updates[SettingKeyOpenAIAdvancedSchedulerWeightQueue])
+	require.Equal(t, "1.25", repo.updates[SettingKeyOpenAIAdvancedSchedulerWeightErrorRate])
+	require.Equal(t, "0.5", repo.updates[SettingKeyOpenAIAdvancedSchedulerWeightTTFT])
+	require.Equal(t, "", repo.updates[SettingKeyOpenAIAdvancedSchedulerWeightReset])
+	require.Equal(t, "0.2", repo.updates[SettingKeyOpenAIAdvancedSchedulerWeightQuotaHeadroom])
+	require.Equal(t, "1.5", repo.updates[SettingKeyOpenAIAdvancedSchedulerWeightUpstreamCost])
+	require.Equal(t, "8", repo.updates[SettingKeyOpenAIAdvancedSchedulerWeightPreviousResponse])
+	require.Equal(t, "4", repo.updates[SettingKeyOpenAIAdvancedSchedulerWeightSessionSticky])
+}
+
+func TestSettingService_UpdateSettingsRejectsInvalidOpenAIOAuthSchedulingRateMultiplier(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+
+	for _, rate := range []float64{-0.01, math.NaN(), math.Inf(1)} {
+		err := svc.UpdateSettings(context.Background(), &SystemSettings{OpenAIOAuthSchedulingRateMultiplier: rate})
+		require.Error(t, err)
+	}
+}
+
+func TestSettingService_UpdateSettings_OpenAIAdvancedSchedulerWeightSums(t *testing.T) {
+	maxFloat := strconv.FormatFloat(math.MaxFloat64, 'g', -1, 64)
+	tests := []struct {
+		name    string
+		weights SystemSettings
+		wantErr bool
+	}{
+		{
+			name: "reset only base is valid",
+			weights: SystemSettings{
+				OpenAIAdvancedSchedulerWeightPriority:         "0",
+				OpenAIAdvancedSchedulerWeightLoad:             "0",
+				OpenAIAdvancedSchedulerWeightQueue:            "0",
+				OpenAIAdvancedSchedulerWeightErrorRate:        "0",
+				OpenAIAdvancedSchedulerWeightTTFT:             "0",
+				OpenAIAdvancedSchedulerWeightReset:            "1",
+				OpenAIAdvancedSchedulerWeightQuotaHeadroom:    "0",
+				OpenAIAdvancedSchedulerWeightUpstreamCost:     "0",
+				OpenAIAdvancedSchedulerWeightPreviousResponse: "0",
+				OpenAIAdvancedSchedulerWeightSessionSticky:    "0",
+			},
+		},
+		{
+			name: "base sum overflow is rejected",
+			weights: SystemSettings{
+				OpenAIAdvancedSchedulerWeightPriority: maxFloat,
+				OpenAIAdvancedSchedulerWeightLoad:     maxFloat,
+			},
+			wantErr: true,
+		},
+		{
+			name: "sticky total sum overflow is rejected",
+			weights: SystemSettings{
+				OpenAIAdvancedSchedulerWeightPriority:         maxFloat,
+				OpenAIAdvancedSchedulerWeightPreviousResponse: maxFloat,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := NewSettingService(&settingUpdateRepoStub{}, &config.Config{})
+			err := svc.UpdateSettings(context.Background(), &tt.weights)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestSettingService_ParseSettingsDefaultsOpenAIOAuthSchedulingRateMultiplier(t *testing.T) {
+	svc := NewSettingService(&settingUpdateRepoStub{}, &config.Config{})
+
+	require.Equal(t, 1.0, svc.parseSettings(map[string]string{}).OpenAIOAuthSchedulingRateMultiplier)
+	require.Equal(t, 0.05, svc.parseSettings(map[string]string{SettingKeyOpenAIOAuthSchedulingRateMultiplier: "0.05"}).OpenAIOAuthSchedulingRateMultiplier)
+}
+
+func TestSettingService_GetAllSettings_OpenAIAdvancedSchedulerEffectiveValuesUseConfig(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIWS.LBTopK = 13
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights = config.GatewayOpenAIWSSchedulerScoreWeights{
+		Priority:         2,
+		Load:             3,
+		Queue:            4,
+		ErrorRate:        5,
+		TTFT:             6,
+		Reset:            7,
+		QuotaHeadroom:    8,
+		UpstreamCost:     9,
+		PreviousResponse: 10,
+		SessionSticky:    11,
+	}
+	svc := NewSettingService(&settingGetAllRepoStub{values: map[string]string{
+		SettingKeyOpenAIAdvancedSchedulerLBTopK:              "3",
+		SettingKeyOpenAIAdvancedSchedulerWeightPriority:      "99",
+		SettingKeyOpenAIAdvancedSchedulerWeightSessionSticky: "88",
+	}}, cfg)
+
+	settings, err := svc.GetAllSettings(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "3", settings.OpenAIAdvancedSchedulerLBTopK)
+	require.Equal(t, "99", settings.OpenAIAdvancedSchedulerWeightPriority)
+	require.Equal(t, "88", settings.OpenAIAdvancedSchedulerWeightSessionSticky)
+	require.Equal(t, "13", settings.OpenAIAdvancedSchedulerEffectiveLBTopK)
+	require.Equal(t, "2", settings.OpenAIAdvancedSchedulerEffectiveWeightPriority)
+	require.Equal(t, "3", settings.OpenAIAdvancedSchedulerEffectiveWeightLoad)
+	require.Equal(t, "9", settings.OpenAIAdvancedSchedulerEffectiveWeightUpstreamCost)
+	require.Equal(t, "11", settings.OpenAIAdvancedSchedulerEffectiveWeightSessionSticky)
+}
+
+func TestSettingService_UpdateSettings_AntigravityUserAgentVersion(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.UpdateSettings(context.Background(), &SystemSettings{
+		AntigravityUserAgentVersion: "1.23.2",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "1.23.2", repo.updates[SettingKeyAntigravityUserAgentVersion])
+}
+
+func TestSettingService_UpdateSettings_APIKeyACLTrustForwardedIPRefreshesConfig(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	cfg := &config.Config{}
+	svc := NewSettingService(repo, cfg)
+
+	err := svc.UpdateSettings(context.Background(), &SystemSettings{
+		APIKeyACLTrustForwardedIP: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "true", repo.updates[SettingKeyAPIKeyACLTrustForwardedIP])
+	require.True(t, cfg.Security.TrustForwardedIPForAPIKeyACL)
+	require.True(t, cfg.TrustForwardedIPForAPIKeyACL())
+}
+
+func TestSettingService_ParseSettings_APIKeyACLTrustForwardedIPFallsBackToConfigWhenMissing(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Security.TrustForwardedIPForAPIKeyACL = true
+	svc := NewSettingService(&settingUpdateRepoStub{}, cfg)
+
+	got := svc.parseSettings(map[string]string{})
+
+	require.True(t, got.APIKeyACLTrustForwardedIP)
+}
+
+func TestSettingService_GetAntigravityUserAgentVersion_Precedence(t *testing.T) {
+	t.Run("后台设置优先", func(t *testing.T) {
+		svc := NewSettingService(&settingAntigravityUARepoStub{values: map[string]string{
+			SettingKeyAntigravityUserAgentVersion: "1.24.0",
+		}}, &config.Config{})
+
+		require.Equal(t, "1.24.0", svc.GetAntigravityUserAgentVersion(context.Background()))
+	})
+
+	t.Run("空值回退配置默认值", func(t *testing.T) {
+		svc := NewSettingService(&settingAntigravityUARepoStub{values: map[string]string{
+			SettingKeyAntigravityUserAgentVersion: "",
+		}}, &config.Config{})
+
+		require.Equal(t, antigravity.GetDefaultUserAgentVersion(), svc.GetAntigravityUserAgentVersion(context.Background()))
+	})
+
+	t.Run("缺失回退配置默认值", func(t *testing.T) {
+		svc := NewSettingService(&settingAntigravityUARepoStub{values: map[string]string{}}, &config.Config{})
+
+		require.Equal(t, antigravity.GetDefaultUserAgentVersion(), svc.GetAntigravityUserAgentVersion(context.Background()))
+	})
 }
 
 func TestSettingService_UpdateSettings_RejectsInvalidPaymentVisibleMethodSource(t *testing.T) {

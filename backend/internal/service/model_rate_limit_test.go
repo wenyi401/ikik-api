@@ -123,6 +123,36 @@ func TestIsModelRateLimited(t *testing.T) {
 			expected:       true,
 		},
 		{
+			name: "antigravity platform - gemini family rate limit blocks mapped preview",
+			account: &Account{
+				Platform: PlatformAntigravity,
+				Extra: map[string]any{
+					modelRateLimitsKey: map[string]any{
+						antigravityGeminiModelRateLimitKey: map[string]any{
+							"rate_limit_reset_at": future,
+						},
+					},
+				},
+			},
+			requestedModel: "gemini-3-pro-preview",
+			expected:       true,
+		},
+		{
+			name: "antigravity platform - gemini family rate limit does not block claude",
+			account: &Account{
+				Platform: PlatformAntigravity,
+				Extra: map[string]any{
+					modelRateLimitsKey: map[string]any{
+						antigravityGeminiModelRateLimitKey: map[string]any{
+							"rate_limit_reset_at": future,
+						},
+					},
+				},
+			},
+			requestedModel: "claude-sonnet-4-5",
+			expected:       false,
+		},
+		{
 			name: "non-antigravity platform - gemini-3-pro-preview NOT mapped",
 			account: &Account{
 				Platform: PlatformGemini,
@@ -166,6 +196,36 @@ func TestIsModelRateLimited(t *testing.T) {
 			requestedModel: "claude-3-5-sonnet-20241022",
 			expected:       false,
 		},
+		{
+			name: "openai image generation family key blocks image model",
+			account: &Account{
+				Platform: PlatformOpenAI,
+				Extra: map[string]any{
+					modelRateLimitsKey: map[string]any{
+						openAIImageGenerationRateLimitKey: map[string]any{
+							"rate_limit_reset_at": future,
+						},
+					},
+				},
+			},
+			requestedModel: "gpt-image-2",
+			expected:       true,
+		},
+		{
+			name: "openai image generation family key does not block text model",
+			account: &Account{
+				Platform: PlatformOpenAI,
+				Extra: map[string]any{
+					modelRateLimitsKey: map[string]any{
+						openAIImageGenerationRateLimitKey: map[string]any{
+							"rate_limit_reset_at": future,
+						},
+					},
+				},
+			},
+			requestedModel: "gpt-5.4",
+			expected:       false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -176,6 +236,23 @@ func TestIsModelRateLimited(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIsModelRateLimited_OpenAIImageGenerationIntentBlocksTextModelImageTool(t *testing.T) {
+	future := time.Now().Add(10 * time.Minute).Format(time.RFC3339)
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Extra: map[string]any{
+			modelRateLimitsKey: map[string]any{
+				openAIImageGenerationRateLimitKey: map[string]any{
+					"rate_limit_reset_at": future,
+				},
+			},
+		},
+	}
+
+	require.False(t, account.isModelRateLimitedWithContext(context.Background(), "gpt-5.4"))
+	require.True(t, account.isModelRateLimitedWithContext(WithOpenAIImageGenerationIntent(context.Background()), "gpt-5.4"))
 }
 
 func TestIsModelRateLimited_Antigravity_ThinkingAffectsModelKey(t *testing.T) {
@@ -307,6 +384,38 @@ func TestGetModelRateLimitRemainingTime(t *testing.T) {
 			minExpected:    4 * time.Minute,
 			maxExpected:    6 * time.Minute,
 		},
+		{
+			name: "antigravity platform - gemini family rate limit remaining",
+			account: &Account{
+				Platform: PlatformAntigravity,
+				Extra: map[string]any{
+					modelRateLimitsKey: map[string]any{
+						antigravityGeminiModelRateLimitKey: map[string]any{
+							"rate_limit_reset_at": future10m,
+						},
+					},
+				},
+			},
+			requestedModel: "gemini-3-pro-preview",
+			minExpected:    9 * time.Minute,
+			maxExpected:    11 * time.Minute,
+		},
+		{
+			name: "antigravity platform - gemini family remaining ignored for claude",
+			account: &Account{
+				Platform: PlatformAntigravity,
+				Extra: map[string]any{
+					modelRateLimitsKey: map[string]any{
+						antigravityGeminiModelRateLimitKey: map[string]any{
+							"rate_limit_reset_at": future10m,
+						},
+					},
+				},
+			},
+			requestedModel: "claude-sonnet-4-5",
+			minExpected:    0,
+			maxExpected:    0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -411,9 +520,9 @@ func TestIsModelRateLimited_AnthropicFableFamilyKey(t *testing.T) {
 		expected       bool
 	}{
 		{"claude-fable-5", true},
-		{"claude-fable-5[1m]", true},
-		{"Claude-Fable-5-20260601", true},
-		{"claude-sonnet-4-6", false},
+		{"claude-fable-5[1m]", true},      // 家族 key 覆盖变体
+		{"Claude-Fable-5-20260601", true}, // 大小写不敏感
+		{"claude-sonnet-4-6", false},      // 其他模型不受影响
 		{"claude-opus-4-8", false},
 	}
 

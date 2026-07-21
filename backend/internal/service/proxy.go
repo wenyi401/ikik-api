@@ -11,8 +11,6 @@ const (
 	FallbackModeNone   = "none"
 	FallbackModeProxy  = "proxy"
 	FallbackModeDirect = "direct"
-
-	ProxyDefaultExpiryWarnDays = 7
 )
 
 type Proxy struct {
@@ -37,6 +35,7 @@ func (p *Proxy) IsActive() bool {
 	return p.Status == StatusActive
 }
 
+// IsExpired 报告代理是否已过期（基于 expires_at，与 status 无关）。
 func (p *Proxy) IsExpired(now time.Time) bool {
 	return p.ExpiresAt != nil && !p.ExpiresAt.After(now)
 }

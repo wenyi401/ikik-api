@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"ikik-api/internal/pkg/apicompat"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/apicompat"
 )
 
 func TestApplyAnthropicCompatFullReplayGuard_TrimsOldMessages(t *testing.T) {

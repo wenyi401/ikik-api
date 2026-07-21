@@ -329,7 +329,6 @@ func schedInvNewHandler(t *testing.T, group *service.Group, accounts []*service.
 
 	gwSvc := service.NewGatewayService(
 		nil, // accountRepo（scheduler snapshot 命中，不需要）
-		nil, // accountSharePolicyRepo
 		&fakeGroupRepo{group: group},
 		nil, nil, nil, nil, nil, // usageLogRepo / usageBillingRepo / userRepo / userSubRepo / userGroupRateRepo
 		nil, // cache（粘性会话关闭）
@@ -345,19 +344,19 @@ func schedInvNewHandler(t *testing.T, group *service.Group, accounts []*service.
 		upstream,
 		nil,                // deferredService
 		nil, nil, nil, nil, // claudeTokenProvider / sessionLimitCache / rpmCache / digestStore
-		nil,                // settingService
-		nil, nil, nil, nil, // tlsFPProfileService / channelService / resolver / balanceNotifyService
+		nil,                     // settingService
+		nil, nil, nil, nil, nil, // tlsFPProfileService / channelService / resolver / balanceNotifyService / userPlatformQuotaRepo
 	)
 
 	// RunModeSimple 跳过计费检查，避免引入 repo/cache 依赖。
-	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, nil,
-		&config.Config{RunMode: config.RunModeSimple})
+	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil,
+		&config.Config{RunMode: config.RunModeSimple}, nil)
 
 	h := NewGatewayHandler(
 		gwSvc,
+		nil, // openAIGatewayService
 		nil, // geminiCompatService
 		nil, // antigravityGatewayService
-		ProvideGatewayPlatformRegistry(gwSvc, nil), // anthropic 账号经 anthropic provider → gwSvc.Forward
 		nil, // userService
 		concurrencySvc,
 		billingCacheSvc,
@@ -369,7 +368,6 @@ func schedInvNewHandler(t *testing.T, group *service.Group, accounts []*service.
 		nil, // userMsgQueueService
 		nil, // cfg → 默认换号上限
 		nil, // settingService
-		nil, // carpoolService
 	)
 	return h, func() { billingCacheSvc.Stop() }
 }
@@ -419,13 +417,13 @@ func schedInvMessagesBody() []byte {
 
 func TestSchedulingInvariant_FailoverSwitchLimit_DefaultValues(t *testing.T) {
 	t.Run("anthropic与gemini默认上限", func(t *testing.T) {
-		h := NewGatewayHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		h := NewGatewayHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 		require.Equal(t, 10, h.maxAccountSwitches, "anthropic 默认换号上限必须为 10")
 		require.Equal(t, 3, h.maxAccountSwitchesGemini, "gemini 默认换号上限必须为 3")
 	})
 
 	t.Run("openai默认上限", func(t *testing.T) {
-		oh := NewOpenAIGatewayHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		oh := NewOpenAIGatewayHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 		require.Equal(t, 3, oh.maxAccountSwitches, "openai 默认换号上限必须为 3")
 	})
 
@@ -433,7 +431,7 @@ func TestSchedulingInvariant_FailoverSwitchLimit_DefaultValues(t *testing.T) {
 		cfg := &config.Config{}
 		cfg.Gateway.MaxAccountSwitches = 5
 		cfg.Gateway.MaxAccountSwitchesGemini = 2
-		h := NewGatewayHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, cfg, nil, nil)
+		h := NewGatewayHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, cfg, nil)
 		require.Equal(t, 5, h.maxAccountSwitches)
 		require.Equal(t, 2, h.maxAccountSwitchesGemini)
 	})
@@ -559,7 +557,7 @@ func TestSchedulingInvariant_FailoverSameAccountRetry_FullChain(t *testing.T) {
 // （gemini 平台 Forward 的服务层内部 500 重试带秒级退避，完整 e2e 不可在
 // 单测时间预算内执行，故此处固化 handler 循环契约层语义。）
 func TestSchedulingInvariant_FailoverGemini_SwitchLimitLoopContract(t *testing.T) {
-	h := NewGatewayHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	h := NewGatewayHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	require.Equal(t, 3, h.maxAccountSwitchesGemini)
 
 	mock := &mockTempUnscheduler{}
@@ -569,7 +567,7 @@ func TestSchedulingInvariant_FailoverGemini_SwitchLimitLoopContract(t *testing.T
 	for i := 1; ; i++ {
 		require.LessOrEqual(t, i, 10, "防御：循环不应超过 10 次")
 		attempts++
-		action := fs.HandleFailoverError(context.Background(), mock, int64(i), service.PlatformGemini, newTestFailoverErr(500, false, false))
+		action := fs.HandleFailoverError(context.Background(), mock, int64(i), service.PlatformGemini, 0, newTestFailoverErr(500, false, false))
 		if action == FailoverExhausted {
 			break
 		}

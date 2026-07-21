@@ -490,23 +490,6 @@ func parseRankingLimit(raw string) int {
 	return limit
 }
 
-func parseUserBreakdownSortBy(raw string) (string, bool) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "", "actual_cost":
-		return "actual_cost", true
-	case "tokens", "total_tokens":
-		return "tokens", true
-	case "requests":
-		return "requests", true
-	case "cost":
-		return "cost", true
-	case "account_cost":
-		return "account_cost", true
-	default:
-		return "", false
-	}
-}
-
 // GetUserSpendingRanking handles getting user spending ranking data.
 // GET /api/v1/admin/dashboard/users-ranking
 func (h *DashboardHandler) GetUserSpendingRanking(c *gin.Context) {
@@ -563,9 +546,14 @@ func (h *DashboardHandler) GetBatchUsersUsage(c *gin.Context) {
 		return
 	}
 
+	// cacheKey 必须包含当日日期，否则跨午夜后 30s 内会复用昨天的 "today_*" 结果。
 	keyRaw, _ := json.Marshal(struct {
+		V       int     `json:"v"`
+		Day     string  `json:"day"`
 		UserIDs []int64 `json:"user_ids"`
 	}{
+		V:       2, // bump 当响应结构变化（如加入 by_platform 时）
+		Day:     timezone.Today().Format("2006-01-02"),
 		UserIDs: userIDs,
 	})
 	cacheKey := string(keyRaw)
@@ -652,12 +640,6 @@ func (h *DashboardHandler) GetUserBreakdown(c *gin.Context) {
 	dim.ModelType = rawModelSource
 	dim.Endpoint = c.Query("endpoint")
 	dim.EndpointType = c.DefaultQuery("endpoint_type", "inbound")
-	sortBy, ok := parseUserBreakdownSortBy(c.Query("sort_by"))
-	if !ok {
-		response.BadRequest(c, "Invalid sort_by, use actual_cost/tokens/requests/cost/account_cost")
-		return
-	}
-	dim.SortBy = sortBy
 
 	// Additional filter conditions
 	if v := c.Query("user_id"); v != "" {
@@ -676,21 +658,13 @@ func (h *DashboardHandler) GetUserBreakdown(c *gin.Context) {
 		}
 	}
 	if v := strings.TrimSpace(c.Query("request_type")); v != "" {
-		if parsed, err := service.ParseUsageRequestType(v); err == nil {
-			rtVal := int16(parsed)
-			dim.RequestType = &rtVal
-		} else if rt, parseErr := strconv.ParseInt(v, 10, 16); parseErr == nil {
-			requestType := service.RequestType(rt)
-			if !requestType.IsValid() {
-				response.BadRequest(c, "Invalid request_type")
-				return
-			}
-			rtVal := int16(requestType)
-			dim.RequestType = &rtVal
-		} else {
+		parsed, err := service.ParseUsageRequestType(v)
+		if err != nil {
 			response.BadRequest(c, err.Error())
 			return
 		}
+		rtVal := int16(parsed)
+		dim.RequestType = &rtVal
 	}
 	if v := c.Query("stream"); v != "" {
 		if s, err := strconv.ParseBool(v); err == nil {
@@ -703,7 +677,9 @@ func (h *DashboardHandler) GetUserBreakdown(c *gin.Context) {
 			dim.BillingType = &btVal
 		}
 	}
-	dim.BillingMode = strings.TrimSpace(c.Query("billing_mode"))
+
+	// sort_by 由 repo 层 allowlist 校验;非法值静默回退默认排序(actual_cost)。
+	dim.SortBy = strings.TrimSpace(c.Query("sort_by"))
 
 	limit := 50
 	if v := c.Query("limit"); v != "" {

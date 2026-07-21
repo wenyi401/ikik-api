@@ -195,7 +195,7 @@ func (p *AntigravityTokenProvider) markTempUnschedulable(account *Account, refre
 		return
 	}
 	now := time.Now()
-	until := now.Add(TokenRefreshTempUnschedDuration)
+	until := now.Add(tokenRefreshTempUnschedDuration)
 	reason := "token refresh failed on request path: " + refreshErr.Error()
 	bgCtx := context.Background()
 	if err := p.accountRepo.SetTempUnschedulable(bgCtx, account.ID, until, reason); err != nil {

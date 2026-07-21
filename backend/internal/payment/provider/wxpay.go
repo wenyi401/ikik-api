@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 
+	"ikik-api/internal/payment"
+	infraerrors "ikik-api/internal/pkg/errors"
 	"github.com/wechatpay-apiv3/wechatpay-go/core"
 	"github.com/wechatpay-apiv3/wechatpay-go/core/auth/verifiers"
 	"github.com/wechatpay-apiv3/wechatpay-go/core/notify"
@@ -21,8 +23,6 @@ import (
 	"github.com/wechatpay-apiv3/wechatpay-go/services/payments/native"
 	"github.com/wechatpay-apiv3/wechatpay-go/services/refunddomestic"
 	"github.com/wechatpay-apiv3/wechatpay-go/utils"
-	"ikik-api/internal/payment"
-	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 // WeChat Pay constants.
@@ -80,12 +80,6 @@ type Wxpay struct {
 }
 
 const wxpayAPIv3KeyLength = 32
-
-func init() {
-	register(payment.TypeWxpay, func(instanceID string, config map[string]string) (payment.Provider, error) {
-		return NewWxpay(instanceID, config)
-	})
-}
 
 func NewWxpay(instanceID string, config map[string]string) (*Wxpay, error) {
 	// All fields are required. Platform-certificate mode is intentionally unsupported —
@@ -486,18 +480,11 @@ func (w *Wxpay) Refund(ctx context.Context, req payment.RefundRequest) (*payment
 	if err != nil {
 		return nil, fmt.Errorf("wxpay refund: %w", err)
 	}
-	rid := wxSV(res.RefundId)
-	if rid == "" {
-		rid = fmt.Sprintf("%s-refund", req.OrderID)
-	}
 	st := payment.ProviderStatusPending
 	if res.Status != nil && *res.Status == refunddomestic.STATUS_SUCCESS {
 		st = payment.ProviderStatusSuccess
 	}
-	if outRefundNo != "" {
-		rid = outRefundNo
-	}
-	return &payment.RefundResponse{RefundID: rid, Status: st}, nil
+	return &payment.RefundResponse{RefundID: outRefundNo, Status: st}, nil
 }
 
 func (w *Wxpay) QueryRefund(ctx context.Context, req payment.RefundQueryRequest) (*payment.RefundResponse, error) {

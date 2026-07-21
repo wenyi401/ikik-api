@@ -1,3 +1,5 @@
+import zhAdminOps from './zh/admin/ops'
+
 export default {
   // Home Page
   home: {
@@ -268,19 +270,23 @@ export default {
     dateRangeToday: '今日',
     dateRange7d: '7 天',
     dateRange30d: '30 天',
+    dateRange90d: '90 天',
     dateRangeCustom: '自定义',
     apply: '应用',
     used: '已使用',
     detailInfo: '详细信息',
     tokenStats: 'Token 统计',
+    dailyDetail: '每日明细',
     modelStats: '模型用量统计',
     // Table headers
     model: '模型',
+    date: '日期',
     requests: '请求数',
     inputTokens: '输入 Tokens',
     outputTokens: '输出 Tokens',
     cacheCreationTokens: '缓存创建',
     cacheReadTokens: '缓存读取',
+    cacheWriteTokens: '缓存写入',
     totalTokens: '总 Tokens',
     cost: '费用',
     // Status
@@ -323,7 +329,8 @@ export default {
     enterApiKey: '请输入 API Key',
     querySuccess: '查询成功',
     queryFailed: '查询失败',
-    queryFailedRetry: '查询失败，请稍后重试'
+    queryFailedRetry: '查询失败，请稍后重试',
+    noDailyUsage: '暂无每日用量数据'
   },
 
   // Setup Wizard
@@ -496,6 +503,7 @@ export default {
     redeem: '兑换',
     affiliate: '邀请返利',
     profile: '个人资料',
+    withdrawals: '提现',
     users: '用户管理',
     groups: '分组管理',
     channels: '渠道管理',
@@ -911,7 +919,7 @@ export default {
     apiKey: 'API Key',
     baseUrl: 'Base URL',
     credentialsJson: '凭证 JSON',
-    credentialsJsonPlaceholder: '{\n  "access_token": "...",\n  "refresh_token": "...",\n  "expires_at": "..."\n}',
+    credentialsJsonPlaceholder: '{\'{\'}\n  "access_token": "...",\n  "refresh_token": "...",\n  "expires_at": "..."\n{\'}\'}',
     accountDetails: '账号信息',
     oauthAuthorization: 'OAuth 授权',
     completeAuthorization: '完成授权',
@@ -3775,6 +3783,12 @@ export default {
         title: '图片生成计费',
         description: '配置图片生成模型的图片生成价格，留空则使用默认价格'
       },
+      webSearchPricing: {
+        title: 'Codex 网页搜索计费',
+        pricePerCall: '搜索单次价格（USD/次）',
+        pricePerCallHint: '留空使用默认价 $0.01/次；填 0 表示免费。实际扣费会叠加分组费率倍数。',
+        finalPricePreview: '应用当前倍率后的单次价格：{price}'
+      },
       modelsList: {
         title: '自定义 /v1/models 模型列表',
         hint: '仅影响 /v1/models 展示结果，不影响白名单模型调用和账号调度。',
@@ -4312,6 +4326,8 @@ export default {
         unschedulableCount: '不可调度 {count}',
         concurrencyAvailable: '并发可用 {available} / {total}',
         concurrencyCapacity: '并发容量',
+        accountLevel: '账号类型 {level}',
+        rateMultiplier: '倍率 {rate}x',
         daily: '日额度',
         weekly: '周额度',
         total: '总额度',
@@ -4710,6 +4726,12 @@ export default {
         resetTooltipReady: '消耗 1 次重置次数以立即恢复当前窗口',
         resetTooltipNeedQuery: '先点击“次数”加载剩余重置次数',
         resetTooltipNoCredits: '没有可用的重置次数',
+        resetTooltipShadow: 'Spark 影子账号不能重置次数，请在母账号上重置',
+        expiresAt: '到期 {time}',
+        expiresAtFull: '重置次数到期时间：{time}',
+        expandExpirations: '展开其余 {count} 张重置次数到期时间',
+        collapseExpirations: '收起重置次数到期时间',
+        expirationDetails: '重置次数到期明细',
         noCreditsAvailable: '没有可用的重置次数',
         resetSuccess: '已重置 {windows} 个窗口'
       },
@@ -5912,6 +5934,22 @@ export default {
       used: '已使用',
       searchCodes: '搜索兑换码或邮箱...',
       exportCsv: '导出 CSV',
+      batchUpdate: '批量修改',
+      batchUpdateTitle: '批量修改兑换码',
+      selectedCount: '已选择 {count} 个兑换码',
+      clearSelection: '清空选择',
+      selectCodesFirst: '请先选择兑换码',
+      noBatchFieldsSelected: '请至少选择一个要修改的字段',
+      batchUpdateSuccess: '成功修改 {count} 个兑换码',
+      failedToBatchUpdate: '批量修改兑换码失败',
+      batchFields: {
+        status: '状态',
+        expiresAt: '过期时间',
+        notes: '备注',
+        group: '分组'
+      },
+      batchNotesPlaceholder: '输入新的备注，留空可清除备注',
+      clearGroup: '清除分组',
       deleteAllUnused: '删除全部未使用',
       deleteCodeConfirm: '确定要删除此兑换码吗？此操作无法撤销。',
       deleteAllUnusedConfirm: '确定要删除全部未使用的兑换码吗？此操作无法撤销。',
@@ -6312,6 +6350,7 @@ export default {
 
     // Ops Monitoring
     ops: {
+      ...zhAdminOps.ops,
       title: '运维监控',
       description: '运维监控与排障',
       // Dashboard
@@ -6513,6 +6552,8 @@ export default {
         group: '分组',
         user: '用户',
         userId: '用户 ID',
+        apiKey: 'API Key',
+        keyDeletedBadge: 'Key 已删除',
         account: '账号',
         accountId: '账号 ID',
         status: '状态码',
@@ -8064,11 +8105,13 @@ export default {
         scopeOAuth: '仅 OAuth 账号',
         scopeAPIKey: '仅 API Key 账号',
         scopeBedrock: '仅 Bedrock 账号',
-        userIds: '指定用户 ID',
-        userIdsHint: '留空表示全部用户，指定用户规则优先。',
-        userIdPlaceholder: '例如：1001',
-        addUserId: '添加用户',
-        removeUserId: '移除用户',
+        userIds: '指定用户',
+        userIdsHint: '输入任意邮箱关键词进行模糊搜索。留空表示对全部 ikik-api 用户生效；选中用户的 API Key 请求优先匹配用户规则。',
+        userSearchPlaceholder: '输入用户邮箱搜索',
+        userSearchEmpty: '未找到匹配用户',
+        userDeleted: '（已删除）',
+        userIdFallback: '用户 #{id}',
+        removeUser: '移除用户',
         errorMessage: '错误消息',
         errorMessagePlaceholder: '拦截时返回的自定义错误消息',
         errorMessageHint: '留空则使用默认错误消息。',

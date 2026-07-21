@@ -1,3 +1,5 @@
+import enAdminOps from './en/admin/ops'
+
 export default {
   // Home Page
   home: {
@@ -268,19 +270,23 @@ export default {
     dateRangeToday: 'Today',
     dateRange7d: '7 Days',
     dateRange30d: '30 Days',
+    dateRange90d: '90 Days',
     dateRangeCustom: 'Custom',
     apply: 'Apply',
     used: 'Used',
     detailInfo: 'Detail Information',
     tokenStats: 'Token Statistics',
+    dailyDetail: 'Daily Detail',
     modelStats: 'Model Usage Statistics',
     // Table headers
     model: 'Model',
+    date: 'Date',
     requests: 'Requests',
     inputTokens: 'Input Tokens',
     outputTokens: 'Output Tokens',
     cacheCreationTokens: 'Cache Creation',
     cacheReadTokens: 'Cache Read',
+    cacheWriteTokens: 'Cache Write',
     totalTokens: 'Total Tokens',
     cost: 'Cost',
     // Status
@@ -323,7 +329,8 @@ export default {
     enterApiKey: 'Please enter an API Key',
     querySuccess: 'Query successful',
     queryFailed: 'Query failed',
-    queryFailedRetry: 'Query failed, please try again later'
+    queryFailedRetry: 'Query failed, please try again later',
+    noDailyUsage: 'No daily usage data'
   },
 
   // Setup Wizard
@@ -496,6 +503,7 @@ export default {
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
     profile: 'Profile',
+    withdrawals: 'Withdrawals',
     users: 'Users',
     groups: 'Groups',
     channels: 'Channels',
@@ -911,7 +919,7 @@ export default {
     apiKey: 'API Key',
     baseUrl: 'Base URL',
     credentialsJson: 'Credentials JSON',
-    credentialsJsonPlaceholder: '{\n  "access_token": "...",\n  "refresh_token": "...",\n  "expires_at": "..."\n}',
+    credentialsJsonPlaceholder: '{\'{\'}\n  "access_token": "...",\n  "refresh_token": "...",\n  "expires_at": "..."\n{\'}\'}',
     accountDetails: 'Account Details',
     oauthAuthorization: 'OAuth Authorization',
     completeAuthorization: 'Complete Authorization',
@@ -3612,6 +3620,7 @@ export default {
       failedToLoad: 'Failed to load groups',
       failedToCreate: 'Failed to create group',
       failedToUpdate: 'Failed to update group',
+      failedToSave: 'Failed to save group',
       failedToDelete: 'Failed to delete group',
       nameRequired: 'Please enter group name',
       rateMultipliers: 'Rate Multipliers',
@@ -3692,6 +3701,12 @@ export default {
       imagePricing: {
         title: 'Image Generation Pricing',
         description: 'Configure pricing for image generation models. Leave empty to use default prices.'
+      },
+      webSearchPricing: {
+        title: 'Codex Web Search Pricing',
+        pricePerCall: 'Price per search call (USD)',
+        pricePerCallHint: 'Leave empty to use the default $0.01 per call; 0 means free. The group rate multiplier is applied on top.',
+        finalPricePreview: 'Per-call price after current multiplier: {price}'
       },
       modelsList: {
         title: 'Custom /v1/models List',
@@ -4237,6 +4252,8 @@ export default {
         unschedulableCount: 'Not schedulable {count}',
         concurrencyAvailable: 'Concurrency available {available} / {total}',
         concurrencyCapacity: 'Concurrency capacity',
+        accountLevel: 'Account type {level}',
+        rateMultiplier: 'Rate {rate}x',
         daily: 'Daily quota',
         weekly: 'Weekly quota',
         total: 'Total quota',
@@ -5479,6 +5496,12 @@ export default {
         resetTooltipReady: 'Consume 1 reset credit to immediately restore the window',
         resetTooltipNeedQuery: 'Click Credits first to load the available count',
         resetTooltipNoCredits: 'No reset credits available',
+        resetTooltipShadow: 'Spark shadow accounts cannot reset credits; reset on the parent account',
+        expiresAt: 'Expires {time}',
+        expiresAtFull: 'Reset credit expires at {time}',
+        expandExpirations: 'Expand the other {count} reset credit expiration(s)',
+        collapseExpirations: 'Collapse reset credit expirations',
+        expirationDetails: 'Reset credit expiration details',
         noCreditsAvailable: 'No reset credits available',
         resetSuccess: 'Reset {windows} window(s)'
       },
@@ -5753,6 +5776,22 @@ export default {
       },
       userPrefix: 'User #{id}',
       exportCsv: 'Export CSV',
+      batchUpdate: 'Batch Update',
+      batchUpdateTitle: 'Batch Update Redeem Codes',
+      selectedCount: '{count} redeem code(s) selected',
+      clearSelection: 'Clear selection',
+      selectCodesFirst: 'Select redeem codes first',
+      noBatchFieldsSelected: 'Select at least one field to update',
+      batchUpdateSuccess: 'Updated {count} redeem code(s)',
+      failedToBatchUpdate: 'Failed to batch update redeem codes',
+      batchFields: {
+        status: 'Status',
+        expiresAt: 'Expires At',
+        notes: 'Notes',
+        group: 'Group'
+      },
+      batchNotesPlaceholder: 'Enter the new note, or leave blank to clear it',
+      clearGroup: 'Clear group',
       deleteAllUnused: 'Delete All Unused Codes',
       deleteCode: 'Delete Redeem Code',
       deleteCodeConfirm: 'Are you sure you want to delete this redeem code? This action cannot be undone.',
@@ -6131,6 +6170,7 @@ export default {
 
     // Ops Monitoring
     ops: {
+      ...enAdminOps.ops,
       title: 'Ops Monitoring',
       description: 'Operational monitoring and troubleshooting',
       // Dashboard
@@ -6154,6 +6194,7 @@ export default {
       lastRun: 'last_run:',
       lastSuccess: 'last_success:',
       lastError: 'last_error:',
+      result: 'Result',
       noData: 'No data.',
       loadingText: 'loading',
       ready: 'ready',
@@ -6228,7 +6269,12 @@ export default {
         '6h': 'Last 6 hours',
         '24h': 'Last 24 hours',
         '7d': 'Last 7 days',
-        '30d': 'Last 30 days'
+        '30d': 'Last 30 days',
+        custom: 'Custom Range'
+      },
+      customTimeRange: {
+        startTime: 'Start Time',
+        endTime: 'End Time'
       },
       openaiTokenStats: {
         title: 'OpenAI Token Request Stats',
@@ -6326,6 +6372,8 @@ export default {
         group: 'Group',
         user: 'User',
         userId: 'User ID',
+        apiKey: 'API Key',
+        keyDeletedBadge: 'Key Deleted',
         account: 'Account',
         accountId: 'Account ID',
         status: 'Status',
@@ -7877,11 +7925,13 @@ export default {
         scopeOAuth: 'OAuth only',
         scopeAPIKey: 'API Key only',
         scopeBedrock: 'Bedrock only',
-        userIds: 'User IDs',
-        userIdsHint: 'Leave empty for all users. User-specific rules take priority.',
-        userIdPlaceholder: 'e.g. 1001',
-        addUserId: 'Add user',
-        removeUserId: 'Remove user',
+        userIds: 'Specific users',
+        userIdsHint: 'Type any part of a user email to search. Leave empty to apply to all ikik-api users. Selected users match requests from their API keys and take precedence over global rules.',
+        userSearchPlaceholder: 'Search by user email',
+        userSearchEmpty: 'No matching users found',
+        userDeleted: '(deleted)',
+        userIdFallback: 'User #{id}',
+        removeUser: 'Remove user',
         errorMessage: 'Error message',
         errorMessagePlaceholder: 'Custom error message when blocked',
         errorMessageHint: 'Leave empty for the default message.',

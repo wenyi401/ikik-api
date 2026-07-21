@@ -48,7 +48,11 @@ func ProvideAdminHandlers(
 	shopHandler *admin.ShopHandler,
 	affiliateHandler *admin.AffiliateHandler,
 	moduleHandler *admin.ModuleHandler,
+	complianceHandler *admin.ComplianceHandler,
+	auditLogHandler *admin.AuditLogHandler,
+	upstreamBillingProbe *service.UpstreamBillingProbeService,
 ) *AdminHandlers {
+	accountHandler.SetUpstreamBillingProbeService(upstreamBillingProbe)
 	return &AdminHandlers{
 		Dashboard:              dashboardHandler,
 		User:                   userHandler,
@@ -89,6 +93,8 @@ func ProvideAdminHandlers(
 		Shop:                   shopHandler,
 		Affiliate:              affiliateHandler,
 		Module:                 moduleHandler,
+		Compliance:             complianceHandler,
+		AuditLog:               auditLogHandler,
 	}
 }
 
@@ -98,38 +104,16 @@ func ProvideSystemHandler(updateService *service.UpdateService, lockService *ser
 }
 
 // ProvideSettingHandler creates SettingHandler with version from BuildInfo
-func ProvideSettingHandler(settingService *service.SettingService, buildInfo BuildInfo) *SettingHandler {
-	return NewSettingHandler(settingService, buildInfo.Version)
+func ProvideSettingHandler(settingService *service.SettingService, buildInfo BuildInfo, notificationEmailService *service.NotificationEmailService) *SettingHandler {
+	h := NewSettingHandler(settingService, buildInfo.Version)
+	h.SetNotificationEmailService(notificationEmailService)
+	return h
 }
 
-func ProvideUserAccountHandler(
-	accountService *service.AccountService,
-	accountUsageService *service.AccountUsageService,
-	accountTestService *service.AccountTestService,
-	oauthService *service.OAuthService,
-	openaiOAuthService *service.OpenAIOAuthService,
-	geminiOAuthService *service.GeminiOAuthService,
-	antigravityOAuthService *service.AntigravityOAuthService,
-	grokOAuthService *service.GrokOAuthService,
-	kiroOAuthService *service.KiroOAuthService,
-	accountBatchTaskService *service.AccountBatchTaskService,
-	carpoolService *service.CarpoolService,
-	settingService *service.SettingService,
-) *UserAccountHandler {
-	h := NewUserAccountHandler(
-		accountService,
-		accountUsageService,
-		accountTestService,
-		oauthService,
-		openaiOAuthService,
-		geminiOAuthService,
-		antigravityOAuthService,
-		accountBatchTaskService,
-	)
-	h.SetCarpoolService(carpoolService)
-	h.SetSettingService(settingService)
-	h.SetGrokOAuthService(grokOAuthService)
-	h.SetKiroOAuthService(kiroOAuthService)
+// ProvideAdminSettingHandler creates admin.SettingHandler with notification template APIs.
+func ProvideAdminSettingHandler(settingService *service.SettingService, emailService *service.EmailService, turnstileService *service.TurnstileService, opsService *service.OpsService, paymentConfigService *service.PaymentConfigService, paymentService *service.PaymentService, userAttributeService *service.UserAttributeService, notificationEmailService *service.NotificationEmailService) *admin.SettingHandler {
+	h := admin.NewSettingHandler(settingService, emailService, turnstileService, opsService, paymentConfigService, paymentService, userAttributeService)
+	h.SetNotificationEmailService(notificationEmailService)
 	return h
 }
 
@@ -152,12 +136,15 @@ func ProvideHandlers(
 	paymentHandler *PaymentHandler,
 	paymentWebhookHandler *PaymentWebhookHandler,
 	availableChannelHandler *AvailableChannelHandler,
+	asyncImageHandler *AsyncImageHandler,
+	batchImageHandler *BatchImageHandler,
 	playgroundHandler *PlaygroundHandler,
 	receiptCodeHandler *ReceiptCodeHandler,
 	withdrawalHandler *WithdrawalHandler,
 	shopHandler *ShopHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
+	_ *IkikHandlerRuntimeWiring,
 ) *Handlers {
 	return &Handlers{
 		Auth:             authHandler,
@@ -177,6 +164,8 @@ func ProvideHandlers(
 		Payment:          paymentHandler,
 		PaymentWebhook:   paymentWebhookHandler,
 		AvailableChannel: availableChannelHandler,
+		AsyncImage:       asyncImageHandler,
+		BatchImage:       batchImageHandler,
 		Playground:       playgroundHandler,
 		ReceiptCode:      receiptCodeHandler,
 		Withdrawal:       withdrawalHandler,
@@ -186,18 +175,16 @@ func ProvideHandlers(
 
 // ProviderSet is the Wire provider set for all handlers
 var ProviderSet = wire.NewSet(
+	IkikProviderSet,
 	// Top-level handlers
 	NewAuthHandler,
 	NewUserHandler,
 	NewAPIKeyHandler,
-	ProvideUserAccountHandler,
 	NewUsageHandler,
 	NewRedeemHandler,
 	NewSubscriptionHandler,
 	NewAnnouncementHandler,
 	NewChannelMonitorUserHandler,
-	ProvideGatewayHookChain,
-	ProvideGatewayPlatformRegistry,
 	NewGatewayHandler,
 	NewOpenAIGatewayHandler,
 	NewTotpHandler,
@@ -205,20 +192,15 @@ var ProviderSet = wire.NewSet(
 	NewPaymentHandler,
 	NewPaymentWebhookHandler,
 	NewAvailableChannelHandler,
-	NewPlaygroundHandler,
-	NewReceiptCodeHandler,
-	NewWithdrawalHandler,
-	NewShopHandler,
+	NewAsyncImageHandler,
+	NewBatchImageHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
 	admin.NewUserHandler,
 	admin.NewGroupHandler,
-	admin.NewAccountHandler,
-	admin.NewAccountSharePolicyHandler,
-	admin.NewCarpoolHandler,
+	admin.ProvideAccountHandler,
 	admin.NewAnnouncementHandler,
-	admin.NewEmailBroadcastHandler,
 	admin.NewDataManagementHandler,
 	admin.NewBackupHandler,
 	admin.NewOAuthHandler,
@@ -226,11 +208,10 @@ var ProviderSet = wire.NewSet(
 	admin.NewGeminiOAuthHandler,
 	admin.NewAntigravityOAuthHandler,
 	admin.NewGrokOAuthHandler,
-	admin.NewKiroOAuthHandler,
 	admin.NewProxyHandler,
 	admin.NewRedeemHandler,
 	admin.NewPromoHandler,
-	admin.NewSettingHandler,
+	ProvideAdminSettingHandler,
 	admin.NewOpsHandler,
 	ProvideSystemHandler,
 	admin.NewSubscriptionHandler,
@@ -245,11 +226,9 @@ var ProviderSet = wire.NewSet(
 	admin.NewChannelMonitorRequestTemplateHandler,
 	admin.NewContentModerationHandler,
 	admin.NewPaymentHandler,
-	admin.NewRevenueHandler,
-	admin.NewWithdrawalHandler,
-	admin.NewShopHandler,
 	admin.NewAffiliateHandler,
-	admin.NewModuleHandler,
+	admin.NewComplianceHandler,
+	admin.NewAuditLogHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

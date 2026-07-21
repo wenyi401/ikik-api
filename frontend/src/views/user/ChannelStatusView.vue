@@ -18,6 +18,7 @@
           :error="quotaPoolError"
           :desktop-page-size="3"
           :mobile-page-size="3"
+          prioritize-account-levels
           :title="t('channelStatus.quotaPool.platformTitle')"
           :empty-message="t('channelStatus.quotaPool.platformEmpty')"
           :load-failed-message="t('channelStatus.quotaPool.loadFailed')"

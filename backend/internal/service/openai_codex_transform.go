@@ -5,56 +5,52 @@ import (
 	"fmt"
 	"strings"
 
-	"go.uber.org/zap"
-	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/openai"
 )
 
 var codexModelMap = map[string]string{
-	"gpt-5.6-sol":                "gpt-5.6-sol",
-	"gpt-5.6-terra":              "gpt-5.6-terra",
-	"gpt-5.6-luna":               "gpt-5.6-luna",
-	"gpt-5.5":                    "gpt-5.5",
-	"gpt-5.4":                    "gpt-5.4",
-	"gpt-5.4-mini":               "gpt-5.4-mini",
-	"gpt-5.4-none":               "gpt-5.4",
-	"gpt-5.4-low":                "gpt-5.4",
-	"gpt-5.4-medium":             "gpt-5.4",
-	"gpt-5.4-high":               "gpt-5.4",
-	"gpt-5.4-xhigh":              "gpt-5.4",
-	"gpt-5.4-chat-latest":        "gpt-5.4",
-	"gpt-5.3":                    "gpt-5.3-codex",
-	"gpt-5.3-none":               "gpt-5.3-codex",
-	"gpt-5.3-low":                "gpt-5.3-codex",
-	"gpt-5.3-medium":             "gpt-5.3-codex",
-	"gpt-5.3-high":               "gpt-5.3-codex",
-	"gpt-5.3-xhigh":              "gpt-5.3-codex",
-	"gpt-5.3-codex":              "gpt-5.3-codex",
-	"gpt-5.3-codex-spark":        "gpt-5.3-codex-spark",
-	"gpt-5.3-codex-spark-low":    "gpt-5.3-codex-spark",
-	"gpt-5.3-codex-spark-medium": "gpt-5.3-codex-spark",
-	"gpt-5.3-codex-spark-high":   "gpt-5.3-codex-spark",
-	"gpt-5.3-codex-spark-xhigh":  "gpt-5.3-codex-spark",
-	"gpt-5.3-codex-low":          "gpt-5.3-codex",
-	"gpt-5.3-codex-medium":       "gpt-5.3-codex",
-	"gpt-5.3-codex-high":         "gpt-5.3-codex",
-	"gpt-5.3-codex-xhigh":        "gpt-5.3-codex",
-	"gpt-5.2":                    "gpt-5.2",
-	"gpt-5.2-none":               "gpt-5.2",
-	"gpt-5.2-low":                "gpt-5.2",
-	"gpt-5.2-medium":             "gpt-5.2",
-	"gpt-5.2-high":               "gpt-5.2",
-	"gpt-5.2-xhigh":              "gpt-5.2",
-	"gpt-5":                      "gpt-5.4",
-	"gpt-5-mini":                 "gpt-5.4",
-	"gpt-5-nano":                 "gpt-5.4",
-	"gpt-5.1":                    "gpt-5.4",
-	"gpt-5.1-codex":              "gpt-5.3-codex",
-	"gpt-5.1-codex-max":          "gpt-5.3-codex",
-	"gpt-5.1-codex-mini":         "gpt-5.3-codex",
-	"gpt-5.2-codex":              "gpt-5.2",
-	"codex-mini-latest":          "gpt-5.3-codex",
-	"gpt-5-codex":                "gpt-5.3-codex",
+	"gpt-5.6-sol":          "gpt-5.6-sol",
+	"gpt-5.6-terra":        "gpt-5.6-terra",
+	"gpt-5.6-luna":         "gpt-5.6-luna",
+	"gpt-5.5":              "gpt-5.5",
+	"gpt-5.5-pro":          "gpt-5.5-pro",
+	"codex-auto-review":    "codex-auto-review",
+	"gpt-5.4":              "gpt-5.4",
+	"gpt-5.4-mini":         "gpt-5.4-mini",
+	"gpt-5.4-none":         "gpt-5.4",
+	"gpt-5.4-low":          "gpt-5.4",
+	"gpt-5.4-medium":       "gpt-5.4",
+	"gpt-5.4-high":         "gpt-5.4",
+	"gpt-5.4-xhigh":        "gpt-5.4",
+	"gpt-5.4-chat-latest":  "gpt-5.4",
+	"gpt-5.3":              "gpt-5.3-codex",
+	"gpt-5.3-none":         "gpt-5.3-codex",
+	"gpt-5.3-low":          "gpt-5.3-codex",
+	"gpt-5.3-medium":       "gpt-5.3-codex",
+	"gpt-5.3-high":         "gpt-5.3-codex",
+	"gpt-5.3-xhigh":        "gpt-5.3-codex",
+	"gpt-5.3-codex":        "gpt-5.3-codex",
+	"gpt-5.3-codex-spark":  "gpt-5.3-codex-spark",
+	"gpt-5.3-codex-low":    "gpt-5.3-codex",
+	"gpt-5.3-codex-medium": "gpt-5.3-codex",
+	"gpt-5.3-codex-high":   "gpt-5.3-codex",
+	"gpt-5.3-codex-xhigh":  "gpt-5.3-codex",
+	"gpt-5.2":              "gpt-5.2",
+	"gpt-5.2-none":         "gpt-5.2",
+	"gpt-5.2-low":          "gpt-5.2",
+	"gpt-5.2-medium":       "gpt-5.2",
+	"gpt-5.2-high":         "gpt-5.2",
+	"gpt-5.2-xhigh":        "gpt-5.2",
+	"gpt-5":                "gpt-5.4",
+	"gpt-5-mini":           "gpt-5.4",
+	"gpt-5-nano":           "gpt-5.4",
+	"gpt-5.1":              "gpt-5.4",
+	"gpt-5.1-codex":        "gpt-5.3-codex",
+	"gpt-5.1-codex-max":    "gpt-5.3-codex",
+	"gpt-5.1-codex-mini":   "gpt-5.3-codex",
+	"gpt-5.2-codex":        "gpt-5.2",
+	"codex-mini-latest":    "gpt-5.3-codex",
+	"gpt-5-codex":          "gpt-5.3-codex",
 }
 
 var codexVersionModelPrefixes = []struct {
@@ -68,6 +64,7 @@ var codexVersionModelPrefixes = []struct {
 	{prefix: "gpt-5.3-codex", target: "gpt-5.3-codex"},
 	{prefix: "gpt-5.4-mini", target: "gpt-5.4-mini"},
 	{prefix: "gpt-5.4-nano", target: "gpt-5.4-nano"},
+	{prefix: "gpt-5.5-pro", target: "gpt-5.5-pro"},
 	{prefix: "gpt-5.5", target: "gpt-5.5"},
 	{prefix: "gpt-5.4", target: "gpt-5.4"},
 	{prefix: "gpt-5.2", target: "gpt-5.2"},
@@ -79,11 +76,21 @@ type codexTransformResult struct {
 	PromptCacheKey  string
 }
 
+type codexOAuthTransformOptions struct {
+	IsCodexCLI              bool
+	IsCompact               bool
+	BlockConnectorTools     bool
+	SkipDefaultInstructions bool
+	PreserveToolCallIDs     bool
+}
+
+const codexImageGenerationFunctionToolName = "image_gen.imagegen"
+
 const (
-	codexImageGenerationBridgeMarker = "<ikik-api-codex-image-generation>"
-	codexImageGenerationBridgeText   = codexImageGenerationBridgeMarker + "\nWhen the user asks for raster image generation or editing, use the OpenAI Responses native `image_generation` tool attached to this request. The local Codex client may not expose an `image_gen` namespace, but that does not mean image generation is unavailable. Do not ask the user to switch to CLI fallback solely because `image_gen` is absent.\n</ikik-api-codex-image-generation>"
-	codexSparkImageUnsupportedMarker = "<ikik-api-codex-spark-image-unsupported>"
-	codexSparkImageUnsupportedText   = codexSparkImageUnsupportedMarker + "\nThe current model is gpt-5.3-codex-spark, which does not support image generation, image editing, image input, the `image_generation` tool, or Codex `image_gen`/`$imagegen` workflows. If the user asks for image generation or image editing, clearly explain this model limitation and ask them to switch to a non-Spark Codex model such as gpt-5.3-codex or gpt-5.4. Do not claim that the local environment merely lacks image_gen tooling, and do not suggest CLI fallback as the primary fix while the model remains Spark.\n</ikik-api-codex-spark-image-unsupported>"
+	codexImageGenerationBridgeMarker = "<sub2api-codex-image-generation>"
+	codexImageGenerationBridgeText   = codexImageGenerationBridgeMarker + "\nWhen the user asks for raster image generation or editing, use the OpenAI Responses native `image_generation` tool attached to this request. The local Codex client may not expose an `image_gen` namespace, but that does not mean image generation is unavailable. Do not ask the user to switch to CLI fallback solely because `image_gen` is absent.\n</sub2api-codex-image-generation>"
+	codexSparkImageUnsupportedMarker = "<sub2api-codex-spark-image-unsupported>"
+	codexSparkImageUnsupportedText   = codexSparkImageUnsupportedMarker + "\nThe current model is gpt-5.3-codex-spark, which does not support image generation, image editing, image input, the `image_generation` tool, or Codex `image_gen`/`$imagegen` workflows. If the user asks for image generation or image editing, clearly explain this model limitation and ask them to switch to a non-Spark Codex model such as gpt-5.3-codex or gpt-5.4. Do not claim that the local environment merely lacks image_gen tooling, and do not suggest CLI fallback as the primary fix while the model remains Spark.\n</sub2api-codex-spark-image-unsupported>"
 )
 
 var openAIChatGPTInternalUnsupportedFields = []string{
@@ -103,13 +110,6 @@ var openAICodexOAuthUnsupportedFields = append([]string{
 	"presence_penalty",
 }, openAIChatGPTInternalUnsupportedFields...)
 
-type codexOAuthTransformOptions struct {
-	IsCodexCLI              bool
-	IsCompact               bool
-	BlockConnectorTools     bool
-	SkipDefaultInstructions bool
-}
-
 func applyCodexOAuthTransform(reqBody map[string]any, isCodexCLI bool, isCompact bool) codexTransformResult {
 	return applyCodexOAuthTransformWithOptions(reqBody, codexOAuthTransformOptions{
 		IsCodexCLI: isCodexCLI,
@@ -121,8 +121,6 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 	result := codexTransformResult{}
 	// 工具续链需求会影响存储策略与 input 过滤逻辑。
 	needsToolContinuation := NeedsToolContinuation(reqBody)
-	isCodexCLI := opts.IsCodexCLI
-	isCompact := opts.IsCompact
 
 	model := ""
 	if v, ok := reqBody["model"].(string); ok {
@@ -137,7 +135,7 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 		result.NormalizedModel = normalizedModel
 	}
 
-	if isCompact {
+	if opts.IsCompact {
 		if _, ok := reqBody["store"]; ok {
 			delete(reqBody, "store")
 			result.Modified = true
@@ -167,7 +165,9 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 		}
 	}
 
-	if !isCompact && ensureCodexReasoningInclude(reqBody) {
+	// 请求带 reasoning 时补齐 include:["reasoning.encrypted_content"]，与真实 Codex 对齐
+	// （compact 端点形态不同，单独处理，此处跳过）。
+	if !opts.IsCompact && ensureCodexReasoningInclude(reqBody) {
 		result.Modified = true
 	}
 
@@ -207,11 +207,8 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 	if normalizeCodexTools(reqBody) {
 		result.Modified = true
 	}
-	if opts.BlockConnectorTools {
-		if removed := stripCodexConnectorTools(reqBody); len(removed) > 0 {
-			result.Modified = true
-			logger.L().Warn("codex: stripped connector/app tools from forwarded request", zap.Strings("tools", removed))
-		}
+	if opts.BlockConnectorTools && len(stripCodexConnectorTools(reqBody)) > 0 {
+		result.Modified = true
 	}
 	if normalizeCodexToolChoice(reqBody) {
 		result.Modified = true
@@ -219,6 +216,10 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 
 	if v, ok := reqBody["prompt_cache_key"].(string); ok {
 		result.PromptCacheKey = strings.TrimSpace(v)
+		if isOpenAICompatMessagesBridgeRequestBody(reqBody) {
+			delete(reqBody, "prompt_cache_key")
+			result.Modified = true
+		}
 	}
 
 	// ChatGPT internal Codex endpoint does not accept role:"system".
@@ -229,10 +230,15 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 	}
 
 	// instructions 处理逻辑：根据是否是 Codex CLI 分别调用不同方法
-	if !opts.SkipDefaultInstructions && applyInstructions(reqBody, isCodexCLI) {
+	if !opts.SkipDefaultInstructions && applyInstructions(reqBody, opts.IsCodexCLI) {
 		result.Modified = true
 	}
 	if isCodexSparkModel(normalizedModel) && applyCodexSparkImageUnsupportedInstructions(reqBody) {
+		result.Modified = true
+	}
+	// gpt-5.3-codex-spark rejects the image_generation tool upstream (HTTP 400,
+	// param=tools); Codex CLI advertises it by default, so strip it for spark.
+	if isCodexSparkModel(normalizedModel) && stripCodexSparkImageGenerationTools(reqBody) {
 		result.Modified = true
 	}
 
@@ -246,7 +252,10 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 			input = normalizedInput
 			result.Modified = true
 		}
-		input = filterCodexInput(input, needsToolContinuation)
+		input = filterCodexInputWithOptions(input, codexInputFilterOptions{
+			PreserveReferences: needsToolContinuation,
+			PreserveCallIDs:    opts.PreserveToolCallIDs,
+		})
 		reqBody["input"] = input
 		result.Modified = true
 	} else if inputStr, ok := reqBody["input"].(string); ok {
@@ -309,11 +318,28 @@ func normalizeCodexToolChoice(reqBody map[string]any) bool {
 		}
 		return modified
 	}
-	if codexToolsContainType(reqBody["tools"], choiceType) {
+	if codexToolsContainType(reqBody["tools"], choiceType) || codexInputAdditionalToolsContainType(reqBody["input"], choiceType) {
 		return modified
 	}
 	reqBody["tool_choice"] = "auto"
 	return true
+}
+
+func codexInputAdditionalToolsContainType(rawInput any, toolType string) bool {
+	input, ok := rawInput.([]any)
+	if !ok || strings.TrimSpace(toolType) == "" {
+		return false
+	}
+	for _, rawItem := range input {
+		item, ok := rawItem.(map[string]any)
+		if !ok || strings.TrimSpace(firstNonEmptyString(item["type"])) != "additional_tools" {
+			continue
+		}
+		if codexToolsContainType(item["tools"], toolType) {
+			return true
+		}
+	}
+	return false
 }
 
 func codexToolsContainType(rawTools any, toolType string) bool {
@@ -511,7 +537,7 @@ func normalizeCodexModel(model string) string {
 	if mapped, ok := normalizeKnownCodexModel(model); ok {
 		return mapped
 	}
-	return "gpt-5.4"
+	return model
 }
 
 func normalizeKnownCodexModel(model string) (string, bool) {
@@ -524,6 +550,7 @@ func normalizeKnownCodexModel(model string) (string, bool) {
 	}
 
 	modelID := lastOpenAIModelSegment(model)
+
 	if normalized := canonicalizeOpenAIModelAliasSpelling(modelID); normalized != "" {
 		modelID = normalized
 	}
@@ -541,7 +568,8 @@ func normalizeKnownCodexModel(model string) (string, bool) {
 		if key == item.prefix {
 			return item.target, true
 		}
-		if suffix, ok := strings.CutPrefix(key, item.prefix+"-"); ok && isKnownCodexModelSuffix(suffix) {
+		suffix, ok := strings.CutPrefix(key, item.prefix+"-")
+		if ok && isKnownCodexModelSuffix(suffix) {
 			return item.target, true
 		}
 	}
@@ -594,14 +622,25 @@ func hasOpenAIImageGenerationTool(reqBody map[string]any) bool {
 	return inputContainsImageGenerationTool(reqBody["input"])
 }
 
+func hasCodexImageGenerationFunctionTool(reqBody map[string]any) bool {
+	return len(reqBody) > 0 &&
+		codexToolsContainFunctionName(reqBody["tools"], codexImageGenerationFunctionToolName)
+}
+
 func toolsContainImageGeneration(rawTools any) bool {
+	if rawTools == nil {
+		return false
+	}
 	tools, ok := rawTools.([]any)
 	if !ok {
 		return false
 	}
 	for _, rawTool := range tools {
 		toolMap, ok := rawTool.(map[string]any)
-		if ok && isOpenAIImageGenerationToolMap(toolMap) {
+		if !ok {
+			continue
+		}
+		if isOpenAIImageGenerationToolMap(toolMap) {
 			return true
 		}
 	}
@@ -609,7 +648,8 @@ func toolsContainImageGeneration(rawTools any) bool {
 }
 
 func isOpenAIImageGenerationToolMap(tool map[string]any) bool {
-	return isOpenAIImageGenerationType(firstNonEmptyString(tool["type"])) || isImageGenNamespaceToolMap(tool)
+	return isOpenAIImageGenerationType(firstNonEmptyString(tool["type"])) ||
+		isImageGenNamespaceToolMap(tool)
 }
 
 func isImageGenNamespaceToolMap(tool map[string]any) bool {
@@ -624,7 +664,10 @@ func inputContainsImageGenerationTool(rawInput any) bool {
 	}
 	for _, rawItem := range input {
 		item, ok := rawItem.(map[string]any)
-		if !ok || strings.TrimSpace(firstNonEmptyString(item["type"])) != "additional_tools" {
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(firstNonEmptyString(item["type"])) != "additional_tools" {
 			continue
 		}
 		if toolsContainImageGeneration(item["tools"]) {
@@ -634,6 +677,8 @@ func inputContainsImageGenerationTool(rawInput any) bool {
 	return false
 }
 
+// stripOpenAIImageGenerationTools keeps account-level strip policy symmetric
+// across standard Responses tools, Responses Lite additional_tools, and tool_choice.
 func stripOpenAIImageGenerationTools(reqBody map[string]any) bool {
 	if reqBody == nil {
 		return false
@@ -650,7 +695,11 @@ func stripOpenAIImageGenerationTools(reqBody map[string]any) bool {
 }
 
 func stripOpenAIImageGenerationToolList(container map[string]any, key string) bool {
-	tools, ok := container[key].([]any)
+	rawTools, ok := container[key]
+	if !ok || rawTools == nil {
+		return false
+	}
+	tools, ok := rawTools.([]any)
 	if !ok {
 		return false
 	}
@@ -679,6 +728,7 @@ func stripOpenAIImageGenerationToolsFromInput(reqBody map[string]any) bool {
 	if !ok {
 		return false
 	}
+
 	filteredInput := make([]any, 0, len(input))
 	modified := false
 	for _, rawItem := range input {
@@ -695,6 +745,8 @@ func stripOpenAIImageGenerationToolsFromInput(reqBody map[string]any) bool {
 		if _, hasTools := item["tools"]; hasTools {
 			filteredInput = append(filteredInput, rawItem)
 		}
+		// An empty additional_tools carrier is not useful upstream; drop the item
+		// after its only declared capability has been removed.
 	}
 	if modified {
 		reqBody["input"] = filteredInput
@@ -702,6 +754,8 @@ func stripOpenAIImageGenerationToolsFromInput(reqBody map[string]any) bool {
 	return modified
 }
 
+// stripOpenAIImageGenerationToolsFromRawPayload is the shared adapter for paths
+// that forward raw HTTP or WebSocket payloads without the normal request map.
 func stripOpenAIImageGenerationToolsFromRawPayload(payload []byte) ([]byte, bool, error) {
 	if !openAIRequestBodyHasImageGenerationDeclaration(payload) {
 		if json.Valid(payload) {
@@ -722,6 +776,13 @@ func stripOpenAIImageGenerationToolsFromRawPayload(payload []byte) ([]byte, bool
 		return payload, false, err
 	}
 	return rebuilt, true, nil
+}
+
+// stripCodexSparkImageGenerationTools removes image tool declarations and choices.
+// gpt-5.3-codex-spark rejects those capabilities upstream, while Codex clients may
+// advertise them by default.
+func stripCodexSparkImageGenerationTools(reqBody map[string]any) bool {
+	return stripOpenAIImageGenerationTools(reqBody)
 }
 
 func hasOpenAIInputImage(reqBody map[string]any) bool {
@@ -805,6 +866,12 @@ func ensureOpenAIResponsesImageGenerationTool(reqBody map[string]any) bool {
 	if isCodexSparkModel(firstNonEmptyString(reqBody["model"])) {
 		return false
 	}
+	if hasCodexImageGenerationFunctionTool(reqBody) {
+		return false
+	}
+	if hasOpenAIImageGenerationTool(reqBody) {
+		return false
+	}
 
 	tool := map[string]any{
 		"type":          "image_generation",
@@ -822,22 +889,26 @@ func ensureOpenAIResponsesImageGenerationTool(reqBody map[string]any) bool {
 		reqBody["tools"] = []any{tool}
 		return true
 	}
-	for _, rawTool := range tools {
-		toolMap, ok := rawTool.(map[string]any)
-		if !ok {
-			continue
-		}
-		if strings.TrimSpace(firstNonEmptyString(toolMap["type"])) == "image_generation" {
-			return false
-		}
-	}
-
 	reqBody["tools"] = append(tools, tool)
 	return true
 }
 
+func ensureOpenAIResponsesImageGenerationToolChoiceAuto(reqBody map[string]any) bool {
+	if len(reqBody) == 0 || hasCodexImageGenerationFunctionTool(reqBody) || !hasOpenAIImageGenerationTool(reqBody) {
+		return false
+	}
+	if isCodexSparkModel(firstNonEmptyString(reqBody["model"])) {
+		return false
+	}
+	if _, ok := reqBody["tool_choice"]; ok {
+		return false
+	}
+	reqBody["tool_choice"] = "auto"
+	return true
+}
+
 func applyCodexImageGenerationBridgeInstructions(reqBody map[string]any) bool {
-	if len(reqBody) == 0 || !hasOpenAIImageGenerationTool(reqBody) {
+	if len(reqBody) == 0 || hasCodexImageGenerationFunctionTool(reqBody) || !hasOpenAIImageGenerationTool(reqBody) {
 		return false
 	}
 	if isCodexSparkModel(firstNonEmptyString(reqBody["model"])) {
@@ -1070,6 +1141,33 @@ func extractSystemMessagesFromInput(reqBody map[string]any) bool {
 	return true
 }
 
+func extractPromptLikeInstructionsFromInput(reqBody map[string]any) string {
+	input, ok := reqBody["input"].([]any)
+	if !ok || len(input) == 0 {
+		return ""
+	}
+	var texts []string
+	for _, item := range input {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		role, _ := m["role"].(string)
+		switch role {
+		case "developer", "system":
+			if text := strings.TrimSpace(extractTextFromContent(m["content"])); text != "" {
+				texts = append(texts, text)
+			}
+		}
+	}
+	return strings.Join(texts, "\n\n")
+}
+
+// defaultCodexSynthInstructions 返回合成路径在 instructions 为空时应填入的默认提示词。
+//
+// 按 model 选择真实 Codex CLI 的 base instructions（codex 系→GPT-5-Codex，
+// gpt-5.2→GPT-5.2，gpt-5.1/gpt-5→GPT-5.1），使合成请求在提示词层面贴近真实 Codex 行为；
+// 若内嵌 prompt 意外为空，回退到最小占位符以保证字段非空。
 func defaultCodexSynthInstructions(model string) string {
 	if instructions := strings.TrimSpace(openai.CodexBaseInstructionsForModel(model)); instructions != "" {
 		return instructions
@@ -1077,12 +1175,15 @@ func defaultCodexSynthInstructions(model string) string {
 	return "You are a helpful coding assistant."
 }
 
+// ensureCodexReasoningInclude 在请求带 reasoning 时补齐 include:["reasoning.encrypted_content"]。
+//
+// 真实 Codex 在 reasoning 存在时总会请求加密推理内容（ChatGPT/store=false 场景下用于上下文回放）。
+// 该函数为加法式、幂等：仅在 include 缺失或未包含该项时追加；对非数组的异常 include 不做破坏性改写。
 func ensureCodexReasoningInclude(reqBody map[string]any) bool {
 	reasoning, ok := reqBody["reasoning"].(map[string]any)
 	if !ok || len(reasoning) == 0 {
 		return false
 	}
-
 	const encrypted = "reasoning.encrypted_content"
 	switch existing := reqBody["include"].(type) {
 	case nil:
@@ -1097,10 +1198,16 @@ func ensureCodexReasoningInclude(reqBody map[string]any) bool {
 		reqBody["include"] = append(existing, encrypted)
 		return true
 	default:
+		// include 为非预期类型时保持原样，避免破坏调用方意图。
 		return false
 	}
 }
 
+// applyCodexClientMetadata 在请求体补齐 client_metadata["x-codex-installation-id"]，
+// 取值为账号真实的 openai_device_id（最新 Codex 在请求体携带的安装标识）。
+//
+// 加法式、幂等：仅在账号存在 device_id 且该键缺失时注入，绝不覆盖既有 client_metadata
+// （如 turn metadata），也不伪造——无 device_id 时不写入。
 func applyCodexClientMetadata(reqBody map[string]any, account *Account) bool {
 	if account == nil {
 		return false
@@ -1109,7 +1216,6 @@ func applyCodexClientMetadata(reqBody map[string]any, account *Account) bool {
 	if deviceID == "" {
 		return false
 	}
-
 	const key = "x-codex-installation-id"
 	switch existing := reqBody["client_metadata"].(type) {
 	case map[string]any:
@@ -1117,6 +1223,7 @@ func applyCodexClientMetadata(reqBody map[string]any, account *Account) bool {
 			return false
 		}
 		existing[key] = deviceID
+		reqBody["client_metadata"] = existing
 		return true
 	case map[string]string:
 		if strings.TrimSpace(existing[key]) != "" {
@@ -1147,14 +1254,6 @@ func applyInstructions(reqBody map[string]any, isCodexCLI bool) bool {
 	return true
 }
 
-func ensureCodexOAuthInstructionsField(reqBody map[string]any) bool {
-	if reqBody == nil || !isInstructionsEmpty(reqBody) {
-		return false
-	}
-	reqBody["instructions"] = ""
-	return true
-}
-
 // isInstructionsEmpty 检查 instructions 字段是否为空
 // 处理以下情况：字段不存在、nil、空字符串、纯空白字符串
 func isInstructionsEmpty(reqBody map[string]any) bool {
@@ -1172,9 +1271,20 @@ func isInstructionsEmpty(reqBody map[string]any) bool {
 	return strings.TrimSpace(str) == ""
 }
 
+type codexInputFilterOptions struct {
+	PreserveReferences bool
+	PreserveCallIDs    bool
+}
+
 // filterCodexInput 按需过滤 item_reference 与 id。
 // preserveReferences 为 true 时保持引用与 id，以满足续链请求对上下文的依赖。
 func filterCodexInput(input []any, preserveReferences bool) []any {
+	return filterCodexInputWithOptions(input, codexInputFilterOptions{
+		PreserveReferences: preserveReferences,
+	})
+}
+
+func filterCodexInputWithOptions(input []any, opts codexInputFilterOptions) []any {
 	filtered := make([]any, 0, len(input))
 	for _, item := range input {
 		m, ok := item.(map[string]any)
@@ -1184,28 +1294,61 @@ func filterCodexInput(input []any, preserveReferences bool) []any {
 		}
 		typ, _ := m["type"].(string)
 
-		// chatgpt.com codex backend (OAuth path) does not persist reasoning
-		// items because applyCodexOAuthTransform forces store=false. Any rs_*
-		// reference replayed in input is guaranteed to 404 upstream
-		// ("Item with id 'rs_...' not found"). Drop reasoning items entirely.
+		// chatgpt.com codex (OAuth path) runs with store=false (forced by
+		// applyCodexOAuthTransform). Replaying a reasoning item with its rs_*
+		// id but no encrypted_content 404s upstream ("Item with id 'rs_...'
+		// not found") — the 404 is triggered by the id lookup, not by the
+		// reasoning item itself. So strip the id (always, independent of
+		// PreserveReferences) yet keep the item: under store=false
+		// encrypted_content is the official channel for carrying reasoning
+		// context across turns, and dropping the whole item silently degrades
+		// multi-turn agent reasoning. Preserve encrypted_content/content/
+		// summary and every other field verbatim. Upstream additionally
+		// requires a summary field — a missing one is rejected with 400
+		// "Missing required parameter 'input[N].summary'" — so backfill an
+		// empty array when it is absent. Contracts verified end-to-end against
+		// chatgpt.com codex (gpt-5.5); see issue #1957.
+		// compaction_summary items (cmp_*) are the other encrypted_content
+		// carrier. Verified against the live backend: they require
+		// encrypted_content (a missing one is rejected with 400), and with it
+		// present the cmp_* id does not 404 whether kept or stripped. Being
+		// neither reasoning nor tool calls, they flow through the generic path
+		// below (id stripped when !PreserveReferences, encrypted_content
+		// preserved either way), which is safe and needs no special-casing.
 		if typ == "reasoning" {
+			newItem := make(map[string]any, len(m))
+			for key, value := range m {
+				if key == "id" {
+					// rs_* id replayed under store=false 404s; strip it.
+					continue
+				}
+				newItem[key] = value
+			}
+			if summary, ok := newItem["summary"]; !ok || summary == nil {
+				// Upstream requires a summary field; an empty array satisfies it.
+				newItem["summary"] = []any{}
+			}
+			filtered = append(filtered, newItem)
 			continue
 		}
 
 		// 仅修正真正的 tool/function call 标识，避免误改普通 message/reasoning id；
 		// 若 item_reference 指向 legacy call_* 标识，则仅修正该引用本身。
 		fixCallIDPrefix := func(id string) string {
+			if opts.PreserveCallIDs {
+				return id
+			}
 			if id == "" || strings.HasPrefix(id, "fc") {
 				return id
 			}
 			if strings.HasPrefix(id, "call_") {
-				return "fc" + strings.TrimPrefix(id, "call_")
+				return "fc_" + strings.TrimPrefix(id, "call_")
 			}
 			return "fc_" + id
 		}
 
 		if typ == "item_reference" {
-			if !preserveReferences {
+			if !opts.PreserveReferences {
 				continue
 			}
 			newItem := make(map[string]any, len(m))
@@ -1273,9 +1416,28 @@ func filterCodexInput(input []any, preserveReferences bool) []any {
 			}
 		}
 
-		if !preserveReferences {
+		if !opts.PreserveReferences {
 			ensureCopy()
 			delete(newItem, "id")
+		} else if isCodexToolCallInputType(typ) {
+			// 续链模式下保留 id 以维持上下文引用，但 function_call 等
+			// call-input 类 item 的 id 必须以 "fc" 开头（上游校验
+			// "Expected an ID that begins with 'fc'"）。item_* 形式的 id
+			// 来自客户端回放，需要删除。
+			// 注意：function_call_output 等 output 类的 id 无此约束，不动。
+			if id, ok := m["id"].(string); ok && id != "" && !strings.HasPrefix(id, "fc") {
+				ensureCopy()
+				delete(newItem, "id")
+			}
+		} else if typ == "message" {
+			// 同理，message 类 item 的 id 必须以 "msg" 开头（上游校验
+			// "Expected an ID that begins with 'msg'"）。item_* 形式的 id
+			// 来自客户端回放，需要删除。
+			// 注意：不改写成 msg_*，改写出的 id 未必对应真实的上游对象。
+			if id, ok := m["id"].(string); ok && id != "" && !strings.HasPrefix(id, "msg") {
+				ensureCopy()
+				delete(newItem, "id")
+			}
 		}
 
 		filtered = append(filtered, newItem)
@@ -1295,6 +1457,22 @@ func isCodexToolCallItemType(typ string) bool {
 		"mcp_tool_call_output",
 		"custom_tool_call_output",
 		"tool_search_output":
+		return true
+	default:
+		return false
+	}
+}
+
+// isCodexToolCallInputType 仅匹配 call-input 类型（不含 output），这些类型的
+// id 必须以 "fc" 开头，上游会校验 "Expected an ID that begins with 'fc'."。
+func isCodexToolCallInputType(typ string) bool {
+	switch typ {
+	case "function_call",
+		"tool_call",
+		"local_shell_call",
+		"tool_search_call",
+		"custom_tool_call",
+		"mcp_tool_call":
 		return true
 	default:
 		return false
@@ -1386,106 +1564,4 @@ func normalizeCodexTools(reqBody map[string]any) bool {
 	}
 
 	return modified
-}
-
-var codexConnectorToolPrefixes = []string{
-	"codex_apps",
-}
-
-var codexConnectorToolExactNames = map[string]struct{}{
-	"app_list":             {},
-	"apps_list":            {},
-	"mcpserverstatus_list": {},
-	"list_connectors":      {},
-	"connectors_list":      {},
-}
-
-func normalizeCodexToolName(name string) string {
-	n := strings.ToLower(strings.TrimSpace(name))
-	if n == "" {
-		return ""
-	}
-	return strings.NewReplacer(".", "_", "-", "_", "/", "_").Replace(n)
-}
-
-func isCodexConnectorToolName(name string) bool {
-	normalized := normalizeCodexToolName(name)
-	if normalized == "" {
-		return false
-	}
-	if _, ok := codexConnectorToolExactNames[normalized]; ok {
-		return true
-	}
-	for _, prefix := range codexConnectorToolPrefixes {
-		if normalized == prefix || strings.HasPrefix(normalized, prefix+"_") {
-			return true
-		}
-	}
-	return false
-}
-
-func codexToolName(tool any) string {
-	toolMap, ok := tool.(map[string]any)
-	if !ok {
-		return ""
-	}
-	if name, ok := toolMap["name"].(string); ok && strings.TrimSpace(name) != "" {
-		return name
-	}
-	if function, ok := toolMap["function"].(map[string]any); ok {
-		if name, ok := function["name"].(string); ok {
-			return name
-		}
-	}
-	return ""
-}
-
-func stripCodexConnectorTools(reqBody map[string]any) []string {
-	rawTools, ok := reqBody["tools"]
-	if !ok || rawTools == nil {
-		return nil
-	}
-	tools, ok := rawTools.([]any)
-	if !ok {
-		return nil
-	}
-
-	var removed []string
-	kept := make([]any, 0, len(tools))
-	for _, tool := range tools {
-		if name := codexToolName(tool); name != "" && isCodexConnectorToolName(name) {
-			removed = append(removed, name)
-			continue
-		}
-		kept = append(kept, tool)
-	}
-	if len(removed) == 0 {
-		return nil
-	}
-
-	reqBody["tools"] = kept
-	resetCodexToolChoiceIfRemoved(reqBody, removed)
-	return removed
-}
-
-func resetCodexToolChoiceIfRemoved(reqBody map[string]any, removed []string) {
-	choice, ok := reqBody["tool_choice"].(map[string]any)
-	if !ok {
-		return
-	}
-	name, _ := choice["name"].(string)
-	if strings.TrimSpace(name) == "" {
-		if function, ok := choice["function"].(map[string]any); ok {
-			name, _ = function["name"].(string)
-		}
-	}
-	if strings.TrimSpace(name) == "" {
-		return
-	}
-	for _, removedName := range removed {
-		if removedName == name {
-			reqBody["tool_choice"] = "auto"
-			return
-		}
-	}
 }

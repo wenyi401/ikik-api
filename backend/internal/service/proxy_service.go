@@ -26,14 +26,15 @@ type ProxyRepository interface {
 	ListWithFiltersAndAccountCount(ctx context.Context, params pagination.PaginationParams, protocol, status, search string) ([]ProxyWithAccountCount, *pagination.PaginationResult, error)
 	ListActive(ctx context.Context) ([]Proxy, error)
 	ListActiveWithAccountCount(ctx context.Context) ([]ProxyWithAccountCount, error)
-	ListAllForFallback(ctx context.Context) ([]Proxy, error)
-	SweepExpiredProxies(ctx context.Context, now time.Time) (int64, error)
-	CountExpired(ctx context.Context) (int64, error)
-	CountExpiringSoon(ctx context.Context, now time.Time) (int64, error)
 
 	ExistsByHostPortAuth(ctx context.Context, host string, port int, username, password string) (bool, error)
 	CountAccountsByProxyID(ctx context.Context, proxyID int64) (int64, error)
 	ListAccountSummariesByProxyID(ctx context.Context, proxyID int64) ([]ProxyAccountSummary, error)
+
+	SweepExpiredProxies(ctx context.Context, now time.Time) (changed int64, err error)
+	ListAllForFallback(ctx context.Context) ([]Proxy, error)
+	CountExpired(ctx context.Context) (int64, error)
+	CountExpiringSoon(ctx context.Context, now time.Time) (int64, error)
 }
 
 // CreateProxyRequest 创建代理请求

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"ikik-api/internal/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/model"
 )
 
 // mockErrorPassthroughRepo 用于测试的 mock repository

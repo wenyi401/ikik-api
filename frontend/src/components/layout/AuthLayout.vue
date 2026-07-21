@@ -19,7 +19,7 @@
           <span class="auth-logo">
             <img
               v-if="settingsLoaded"
-              :src="siteLogo || '/logo.svg'"
+              :src="siteLogo || '/ik-logo.svg'"
               alt=""
               class="h-full w-full object-contain"
             />

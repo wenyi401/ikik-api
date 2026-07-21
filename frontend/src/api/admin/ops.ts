@@ -878,12 +878,14 @@ export interface OpsRuntimeLogConfig {
 export interface OpsSystemLog {
   id: number
   created_at: string
+  host: string
   level: string
   component: string
   message: string
   request_id?: string
   client_request_id?: string
   user_id?: number | null
+  api_key_id?: number | null
   account_id?: number | null
   platform?: string
   model?: string
@@ -898,11 +900,13 @@ export interface OpsSystemLogQuery {
   time_range?: '5m' | '30m' | '1h' | '6h' | '24h' | '7d' | '30d'
   start_time?: string
   end_time?: string
+  host?: string
   level?: string
   component?: string
   request_id?: string
   client_request_id?: string
   user_id?: number | null
+  api_key_id?: number | null
   account_id?: number | null
   platform?: string
   model?: string
@@ -912,11 +916,13 @@ export interface OpsSystemLogQuery {
 export interface OpsSystemLogCleanupRequest {
   start_time?: string
   end_time?: string
+  host?: string
   level?: string
   component?: string
   request_id?: string
   client_request_id?: string
   user_id?: number | null
+  api_key_id?: number | null
   account_id?: number | null
   platform?: string
   model?: string
@@ -963,6 +969,8 @@ export interface OpsErrorLog {
   user_id?: number | null
   user_email: string
   api_key_id?: number | null
+  api_key_name?: string
+  api_key_deleted?: boolean
   account_id?: number | null
   account_name: string
   group_id?: number | null
@@ -978,6 +986,10 @@ export interface OpsErrorLog {
   requested_model?: string
   upstream_model?: string
   request_type?: number | null
+  user_agent?: string
+
+  deleted_key_owner_user_id?: number | null
+  deleted_key_owner_email?: string | null
 }
 
 export interface OpsErrorDetail extends OpsErrorLog {

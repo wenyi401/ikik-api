@@ -307,6 +307,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/withdrawals',
+    name: 'UserWithdrawals',
+    component: () => import('@/views/user/WithdrawalsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Withdrawals',
+      titleKey: 'nav.withdrawals'
+    }
+  },
+  {
     path: '/subscriptions',
     name: 'Subscriptions',
     component: () => import('@/views/user/SubscriptionsView.vue'),
@@ -912,15 +923,19 @@ router.beforeEach(async (to, _from, next) => {
   // Check payment requirement. The purchase page can be backed by either
   // internal payment orders or an external card-code store URL.
   if (to.meta.requiresPayment) {
-    if (!appStore.publicSettingsLoaded && !appStore.cachedPublicSettings) {
-      await appStore.fetchPublicSettings()
+    if (!appStore.publicSettingsLoaded) {
+      try {
+        await appStore.fetchPublicSettings()
+      } catch (error) {
+        console.warn('Failed to load public settings in route guard', error)
+      }
     }
     const publicSettings = appStore.cachedPublicSettings
     const paymentEnabled = publicSettings?.payment_enabled === true
     const externalPurchaseEnabled =
       publicSettings?.purchase_subscription_enabled === true &&
       /^https?:\/\//i.test(publicSettings.purchase_subscription_url?.trim() || '')
-    if (!paymentEnabled && !externalPurchaseEnabled) {
+    if (appStore.publicSettingsLoaded && !paymentEnabled && !externalPurchaseEnabled) {
       next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
       return
     }
@@ -928,8 +943,14 @@ router.beforeEach(async (to, _from, next) => {
 
   // 简易模式下限制访问某些页面
   if (to.meta.requiresRiskControl) {
-    const riskControlEnabled = appStore.cachedPublicSettings?.risk_control_enabled === true
-    if (!riskControlEnabled) {
+    if (!appStore.publicSettingsLoaded) {
+      try {
+        await appStore.fetchPublicSettings()
+      } catch (error) {
+        console.warn('Failed to load public settings in route guard', error)
+      }
+    }
+    if (appStore.publicSettingsLoaded && appStore.cachedPublicSettings?.risk_control_enabled === false) {
       next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
       return
     }

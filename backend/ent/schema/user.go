@@ -91,10 +91,10 @@ func (User) Fields() []ent.Field {
 		field.String("signup_source").
 			Validate(func(value string) error {
 				switch value {
-				case "email", "linuxdo", "wechat", "oidc":
+				case "email", "linuxdo", "wechat", "oidc", "github", "google", "dingtalk":
 					return nil
 				default:
-					return fmt.Errorf("must be one of email, linuxdo, wechat, oidc")
+					return fmt.Errorf("must be one of email, linuxdo, wechat, oidc, github, google, dingtalk")
 				}
 			}).
 			Default("email"),
@@ -131,7 +131,10 @@ func (User) Fields() []ent.Field {
 
 		// 用户级每分钟请求数上限（0 = 不限制）。仅当所在分组未设置 rpm_limit 时作为兜底生效。
 		field.Int("rpm_limit").
-			Default(0),
+			Default(0), field.Float("frozen_balance").
+			SchemaType(map[string]string{dialect.
+				Postgres: "decimal(20,8)",
+			}).Default(0),
 	}
 }
 
@@ -154,7 +157,10 @@ func (User) Edges() []ent.Edge {
 		edge.To("owned_accounts", Account.Type),
 		edge.To("auth_identities", AuthIdentity.Type).
 			Annotations(entsql.OnDelete(entsql.Cascade)),
-		edge.To("pending_auth_sessions", PendingAuthSession.Type),
+		edge.To("pending_auth_sessions", PendingAuthSession.Type), edge.To("platform_quotas",
+
+			UserPlatformQuota.
+				Type),
 	}
 }
 

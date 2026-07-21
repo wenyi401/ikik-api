@@ -22,6 +22,7 @@ export interface IpGeoEntry {
 
 const IDLE_ENTRY: IpGeoEntry = { status: 'idle' }
 const CACHE_STORAGE_KEY = 'ikik-api:ip-geo-cache:v1'
+const LEGACY_CACHE_STORAGE_KEY = 'sub2api:ip-geo-cache:v1'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const BATCH_CHUNK_SIZE = 50
 const GEO_SINGLE_URL = 'https://get.geojs.io/v1/ip/geo'
@@ -71,7 +72,7 @@ export function isPrivateIp(ip: string): boolean {
 
 function loadFromStorage(): void {
   try {
-    const raw = localStorage.getItem(CACHE_STORAGE_KEY)
+    const raw = localStorage.getItem(CACHE_STORAGE_KEY) ?? localStorage.getItem(LEGACY_CACHE_STORAGE_KEY)
     if (!raw) return
     const parsed = JSON.parse(raw) as Record<string, StoredEntry>
     const now = Date.now()
@@ -93,7 +94,9 @@ function persistToStorage(): void {
         toStore[ip] = { label: entry.label, detail: entry.detail, fetchedAt: entry.fetchedAt }
       }
     }
-    localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(toStore))
+    const serialized = JSON.stringify(toStore)
+    localStorage.setItem(CACHE_STORAGE_KEY, serialized)
+    localStorage.setItem(LEGACY_CACHE_STORAGE_KEY, serialized)
   } catch {
     // Storage may be unavailable in private mode.
   }

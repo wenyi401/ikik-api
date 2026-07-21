@@ -88,6 +88,22 @@ const (
 	FieldCacheTTLOverridden = "cache_ttl_overridden"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
+	// FieldLongContextBillingApplied holds the string denoting the long_context_billing_applied field in the database.
+	FieldLongContextBillingApplied = "long_context_billing_applied"
+	// FieldImageInputSize holds the string denoting the image_input_size field in the database.
+	FieldImageInputSize = "image_input_size"
+	// FieldImageOutputSize holds the string denoting the image_output_size field in the database.
+	FieldImageOutputSize = "image_output_size"
+	// FieldImageSizeSource holds the string denoting the image_size_source field in the database.
+	FieldImageSizeSource = "image_size_source"
+	// FieldImageSizeBreakdown holds the string denoting the image_size_breakdown field in the database.
+	FieldImageSizeBreakdown = "image_size_breakdown"
+	// FieldVideoCount holds the string denoting the video_count field in the database.
+	FieldVideoCount = "video_count"
+	// FieldVideoResolution holds the string denoting the video_resolution field in the database.
+	FieldVideoResolution = "video_resolution"
+	// FieldVideoDurationSeconds holds the string denoting the video_duration_seconds field in the database.
+	FieldVideoDurationSeconds = "video_duration_seconds"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// EdgeAPIKey holds the string denoting the api_key edge name in mutations.
@@ -177,6 +193,14 @@ var Columns = []string{
 	FieldImageSize,
 	FieldCacheTTLOverridden,
 	FieldCreatedAt,
+	FieldLongContextBillingApplied,
+	FieldImageInputSize,
+	FieldImageOutputSize,
+	FieldImageSizeSource,
+	FieldImageSizeBreakdown,
+	FieldVideoCount,
+	FieldVideoResolution,
+	FieldVideoDurationSeconds,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -246,6 +270,18 @@ var (
 	DefaultCacheTTLOverridden bool
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
+	// DefaultLongContextBillingApplied holds the default value on creation for the "long_context_billing_applied" field.
+	DefaultLongContextBillingApplied bool
+	// ImageInputSizeValidator is a validator for the "image_input_size" field. It is called by the builders before save.
+	ImageInputSizeValidator func(string) error
+	// ImageOutputSizeValidator is a validator for the "image_output_size" field. It is called by the builders before save.
+	ImageOutputSizeValidator func(string) error
+	// ImageSizeSourceValidator is a validator for the "image_size_source" field. It is called by the builders before save.
+	ImageSizeSourceValidator func(string) error
+	// DefaultVideoCount holds the default value on creation for the "video_count" field.
+	DefaultVideoCount int
+	// VideoResolutionValidator is a validator for the "video_resolution" field. It is called by the builders before save.
+	VideoResolutionValidator func(string) error
 )
 
 // OrderOption defines the ordering options for the UsageLog queries.
@@ -439,6 +475,41 @@ func ByCacheTTLOverridden(opts ...sql.OrderTermOption) OrderOption {
 // ByCreatedAt orders the results by the created_at field.
 func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
+}
+
+// ByLongContextBillingApplied orders the results by the long_context_billing_applied field.
+func ByLongContextBillingApplied(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLongContextBillingApplied, opts...).ToFunc()
+}
+
+// ByImageInputSize orders the results by the image_input_size field.
+func ByImageInputSize(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldImageInputSize, opts...).ToFunc()
+}
+
+// ByImageOutputSize orders the results by the image_output_size field.
+func ByImageOutputSize(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldImageOutputSize, opts...).ToFunc()
+}
+
+// ByImageSizeSource orders the results by the image_size_source field.
+func ByImageSizeSource(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldImageSizeSource, opts...).ToFunc()
+}
+
+// ByVideoCount orders the results by the video_count field.
+func ByVideoCount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldVideoCount, opts...).ToFunc()
+}
+
+// ByVideoResolution orders the results by the video_resolution field.
+func ByVideoResolution(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldVideoResolution, opts...).ToFunc()
+}
+
+// ByVideoDurationSeconds orders the results by the video_duration_seconds field.
+func ByVideoDurationSeconds(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldVideoDurationSeconds, opts...).ToFunc()
 }
 
 // ByUserField orders the results by user field.

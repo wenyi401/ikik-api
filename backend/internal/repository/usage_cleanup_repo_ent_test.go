@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/enttest"
 	dbusagecleanuptask "ikik-api/ent/usagecleanuptask"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -211,28 +211,27 @@ func TestUsageCleanupTaskFromEntFull(t *testing.T) {
 	end := start.Add(24 * time.Hour)
 	errMsg := "failed"
 	canceledBy := int64(2)
+	createdBy := int64(11)
 	canceledAt := start.Add(time.Minute)
 	startedAt := start.Add(2 * time.Minute)
 	finishedAt := start.Add(3 * time.Minute)
-	createdBy := int64(11)
 	filters := service.UsageCleanupFilters{StartTime: start, EndTime: end}
 	filtersJSON, err := json.Marshal(filters)
 	require.NoError(t, err)
 
 	task, err := usageCleanupTaskFromEnt(&dbent.UsageCleanupTask{
-		ID:            10,
-		Status:        service.UsageCleanupStatusFailed,
-		Filters:       filtersJSON,
-		CreatedBy:     &createdBy,
-		CreatedSource: "admin",
-		DeletedRows:   7,
-		ErrorMessage:  &errMsg,
-		CanceledBy:    &canceledBy,
-		CanceledAt:    &canceledAt,
-		StartedAt:     &startedAt,
-		FinishedAt:    &finishedAt,
-		CreatedAt:     start,
-		UpdatedAt:     end,
+		ID:           10,
+		Status:       service.UsageCleanupStatusFailed,
+		Filters:      filtersJSON,
+		CreatedBy:    &createdBy,
+		DeletedRows:  7,
+		ErrorMessage: &errMsg,
+		CanceledBy:   &canceledBy,
+		CanceledAt:   &canceledAt,
+		StartedAt:    &startedAt,
+		FinishedAt:   &finishedAt,
+		CreatedAt:    start,
+		UpdatedAt:    end,
 	})
 	require.NoError(t, err)
 	require.Equal(t, int64(10), task.ID)

@@ -14,6 +14,9 @@ import (
 	"ikik-api/ent/apikeygrouproute"
 	"ikik-api/ent/authidentity"
 	"ikik-api/ent/authidentitychannel"
+	"ikik-api/ent/batchimageevent"
+	"ikik-api/ent/batchimageitem"
+	"ikik-api/ent/batchimagejob"
 	"ikik-api/ent/channelmonitor"
 	"ikik-api/ent/channelmonitordailyrollup"
 	"ikik-api/ent/channelmonitorhistory"
@@ -47,6 +50,7 @@ import (
 	"ikik-api/ent/userallowedgroup"
 	"ikik-api/ent/userattributedefinition"
 	"ikik-api/ent/userattributevalue"
+	"ikik-api/ent/userplatformquota"
 	"ikik-api/ent/usersubscription"
 	"reflect"
 	"sync"
@@ -122,6 +126,9 @@ func checkColumn(t, c string) error {
 			announcementread.Table:              announcementread.ValidColumn,
 			authidentity.Table:                  authidentity.ValidColumn,
 			authidentitychannel.Table:           authidentitychannel.ValidColumn,
+			batchimageevent.Table:               batchimageevent.ValidColumn,
+			batchimageitem.Table:                batchimageitem.ValidColumn,
+			batchimagejob.Table:                 batchimagejob.ValidColumn,
 			channelmonitor.Table:                channelmonitor.ValidColumn,
 			channelmonitordailyrollup.Table:     channelmonitordailyrollup.ValidColumn,
 			channelmonitorhistory.Table:         channelmonitorhistory.ValidColumn,
@@ -155,6 +162,7 @@ func checkColumn(t, c string) error {
 			userallowedgroup.Table:              userallowedgroup.ValidColumn,
 			userattributedefinition.Table:       userattributedefinition.ValidColumn,
 			userattributevalue.Table:            userattributevalue.ValidColumn,
+			userplatformquota.Table:             userplatformquota.ValidColumn,
 			usersubscription.Table:              usersubscription.ValidColumn,
 		})
 	})

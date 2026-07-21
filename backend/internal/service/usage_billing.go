@@ -137,13 +137,64 @@ type UsageBillingApplyResult struct {
 	NewPointsBalance     *float64           // post-deduction points balance (nil = no points deduction)
 	PointsDeducted       float64            // points deducted for the request
 	BalanceDeducted      float64            // balance deducted for the request
-	BalanceOverdrafted   bool               // true when the balance bucket fell below zero after deduction
+	BalanceOverdrafted   bool               // true when the sufficient-balance guard missed and debt was still recorded
 	CommissionDeducted   float64            // balance deducted for private-group commission
 	QuotaState           *AccountQuotaState // post-increment quota state (nil = no quota increment)
 	UsageLogID           *int64             // persisted usage log id when the billing transaction wrote one
-	BalanceCreditUserIDs []int64            // users credited by settlement side effects; callers should invalidate balance caches
+	BalanceCreditUserIDs []int64            // users credited by settlement side effects
+}
+
+// BatchImageBalanceHoldCommand describes an idempotent balance hold operation.
+type BatchImageBalanceHoldCommand struct {
+	RequestID          string
+	APIKeyID           int64
+	RequestFingerprint string
+	RequestPayloadHash string
+	UserID             int64
+	BatchID            string
+	HoldAmount         float64
+	ActualAmount       float64
+}
+
+func (c *BatchImageBalanceHoldCommand) Normalize() {
+	if c == nil {
+		return
+	}
+	c.RequestID = strings.TrimSpace(c.RequestID)
+	c.BatchID = strings.TrimSpace(c.BatchID)
+	if strings.TrimSpace(c.RequestFingerprint) == "" {
+		c.RequestFingerprint = buildBatchImageBalanceHoldFingerprint(c)
+	}
+}
+
+func buildBatchImageBalanceHoldFingerprint(c *BatchImageBalanceHoldCommand) string {
+	if c == nil {
+		return ""
+	}
+	raw := fmt.Sprintf(
+		"%d|%d|%s|%0.10f|%0.10f",
+		c.UserID,
+		c.APIKeyID,
+		strings.TrimSpace(c.BatchID),
+		c.HoldAmount,
+		c.ActualAmount,
+	)
+	if payloadHash := strings.TrimSpace(c.RequestPayloadHash); payloadHash != "" {
+		raw += "|" + payloadHash
+	}
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
+}
+
+type BatchImageBalanceHoldResult struct {
+	Applied       bool
+	NewBalance    *float64
+	FrozenBalance *float64
 }
 
 type UsageBillingRepository interface {
 	Apply(ctx context.Context, cmd *UsageBillingCommand) (*UsageBillingApplyResult, error)
+	ReserveBatchImageBalance(ctx context.Context, cmd *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error)
+	CaptureBatchImageBalance(ctx context.Context, cmd *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error)
+	ReleaseBatchImageBalance(ctx context.Context, cmd *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error)
 }

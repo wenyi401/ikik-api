@@ -20,6 +20,9 @@ func (s *apiKeyAvailableGroupsUserRepoStub) GetByID(context.Context, int64) (*Us
 	clone := *s.user
 	return &clone, nil
 }
+func (s *apiKeyAvailableGroupsUserRepoStub) GetByIDIncludeDeleted(context.Context, int64) (*User, error) {
+	panic("unexpected GetByIDIncludeDeleted call")
+}
 func (s *apiKeyAvailableGroupsUserRepoStub) GetByEmail(context.Context, string) (*User, error) {
 	panic("unexpected GetByEmail call")
 }
@@ -64,6 +67,15 @@ func (s *apiKeyAvailableGroupsUserRepoStub) DeductBalance(context.Context, int64
 }
 func (s *apiKeyAvailableGroupsUserRepoStub) UpdateConcurrency(context.Context, int64, int) error {
 	panic("unexpected UpdateConcurrency call")
+}
+func (s *apiKeyAvailableGroupsUserRepoStub) BatchAddConcurrency(context.Context, []int64, int) (int, error) {
+	panic("unexpected BatchAddConcurrency call")
+}
+func (s *apiKeyAvailableGroupsUserRepoStub) BatchSetConcurrency(context.Context, []int64, int) (int, error) {
+	panic("unexpected BatchSetConcurrency call")
+}
+func (s *apiKeyAvailableGroupsUserRepoStub) BatchUpdateLimits(context.Context, []int64, *int, *int) (int, error) {
+	panic("unexpected BatchUpdateLimits call")
 }
 func (s *apiKeyAvailableGroupsUserRepoStub) ExistsByEmail(context.Context, string) (bool, error) {
 	panic("unexpected ExistsByEmail call")
@@ -211,13 +223,16 @@ func (s *apiKeyAvailableGroupsSubRepoStub) UpdateNotes(context.Context, int64, s
 func (s *apiKeyAvailableGroupsSubRepoStub) ActivateWindows(context.Context, int64, time.Time) error {
 	panic("unexpected ActivateWindows call")
 }
-func (s *apiKeyAvailableGroupsSubRepoStub) ResetDailyUsage(context.Context, int64, time.Time) error {
+func (s *apiKeyAvailableGroupsSubRepoStub) ResetUsageWindows(context.Context, int64, bool, bool, bool, time.Time) error {
+	panic("unexpected ResetUsageWindows call")
+}
+func (s *apiKeyAvailableGroupsSubRepoStub) ResetDailyUsage(context.Context, int64, *time.Time, time.Time) error {
 	panic("unexpected ResetDailyUsage call")
 }
-func (s *apiKeyAvailableGroupsSubRepoStub) ResetWeeklyUsage(context.Context, int64, time.Time) error {
+func (s *apiKeyAvailableGroupsSubRepoStub) ResetWeeklyUsage(context.Context, int64, *time.Time, time.Time) error {
 	panic("unexpected ResetWeeklyUsage call")
 }
-func (s *apiKeyAvailableGroupsSubRepoStub) ResetMonthlyUsage(context.Context, int64, time.Time) error {
+func (s *apiKeyAvailableGroupsSubRepoStub) ResetMonthlyUsage(context.Context, int64, *time.Time, time.Time) error {
 	panic("unexpected ResetMonthlyUsage call")
 }
 func (s *apiKeyAvailableGroupsSubRepoStub) IncrementUsage(context.Context, int64, float64) error {

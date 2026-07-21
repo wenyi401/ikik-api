@@ -5,14 +5,11 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -129,8 +126,8 @@ func ensureDockerAvailable(t *testing.T) {
 }
 
 func dockerAvailable() bool {
-	if dockerHost := strings.TrimSpace(os.Getenv("DOCKER_HOST")); dockerHost != "" {
-		return dockerHostReachable(dockerHost)
+	if os.Getenv("DOCKER_HOST") != "" {
+		return true
 	}
 
 	socketCandidates := []string{
@@ -145,53 +142,11 @@ func dockerAvailable() bool {
 		if socket == "" {
 			continue
 		}
-		if dockerSocketReachable(socket) {
+		if _, err := os.Stat(socket); err == nil {
 			return true
 		}
 	}
 	return false
-}
-
-func dockerHostReachable(rawHost string) bool {
-	parsed, err := url.Parse(rawHost)
-	if err != nil {
-		return false
-	}
-	switch parsed.Scheme {
-	case "unix":
-		return dockerSocketReachable(parsed.Path)
-	case "tcp", "http", "https":
-		return dockerTCPReachable(parsed.Host)
-	default:
-		return false
-	}
-}
-
-func dockerSocketReachable(socket string) bool {
-	if socket == "" {
-		return false
-	}
-	if _, err := os.Stat(socket); err != nil {
-		return false
-	}
-	conn, err := net.DialTimeout("unix", socket, 500*time.Millisecond)
-	if err != nil {
-		return false
-	}
-	_ = conn.Close()
-	return true
-}
-
-func dockerTCPReachable(host string) bool {
-	if host == "" {
-		return false
-	}
-	conn, err := net.DialTimeout("tcp", host, 500*time.Millisecond)
-	if err != nil {
-		return false
-	}
-	_ = conn.Close()
-	return true
 }
 
 func userHomeDir() string {

@@ -2,11 +2,11 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	"ikik-api/internal/handler/dto"
+	"ikik-api/internal/handler/quotaview"
 	"ikik-api/internal/pkg/response"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
@@ -16,11 +16,12 @@ import (
 
 // UserHandler handles user-related requests
 type UserHandler struct {
-	userService      *service.UserService
-	authService      *service.AuthService
-	emailService     *service.EmailService
-	emailCache       service.EmailCache
-	affiliateService *service.AffiliateService
+	userService           *service.UserService
+	authService           *service.AuthService
+	emailService          *service.EmailService
+	emailCache            service.EmailCache
+	affiliateService      *service.AffiliateService
+	userPlatformQuotaRepo service.UserPlatformQuotaRepository
 }
 
 // NewUserHandler creates a new UserHandler
@@ -30,14 +31,42 @@ func NewUserHandler(
 	emailService *service.EmailService,
 	emailCache service.EmailCache,
 	affiliateService *service.AffiliateService,
+	userPlatformQuotaRepo service.UserPlatformQuotaRepository,
 ) *UserHandler {
 	return &UserHandler{
-		userService:      userService,
-		authService:      authService,
-		emailService:     emailService,
-		emailCache:       emailCache,
-		affiliateService: affiliateService,
+		userService:           userService,
+		authService:           authService,
+		emailService:          emailService,
+		emailCache:            emailCache,
+		affiliateService:      affiliateService,
+		userPlatformQuotaRepo: userPlatformQuotaRepo,
 	}
+}
+
+// GetMyPlatformQuotas GET /user/platform-quotas
+// 返回当前 JWT 用户的 platform quota 状态。
+// D14: 对每条记录逐档判断窗口过期，过期档位 usage=0、window_resets_at=null（不写 DB）
+func (h *UserHandler) GetMyPlatformQuotas(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	if h.userPlatformQuotaRepo == nil {
+		response.Success(c, map[string]any{"platform_quotas": []any{}})
+		return
+	}
+	records, err := h.userPlatformQuotaRepo.ListByUser(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	now := time.Now().UTC()
+	out := make([]map[string]any, 0, len(records))
+	for _, r := range records {
+		out = append(out, quotaview.LazyZeroQuotaForResponse(r, now, false))
+	}
+	response.Success(c, map[string]any{"platform_quotas": out})
 }
 
 // ChangePasswordRequest represents the change password request payload
@@ -50,7 +79,6 @@ type ChangePasswordRequest struct {
 type UpdateProfileRequest struct {
 	Username               *string  `json:"username"`
 	AvatarURL              *string  `json:"avatar_url"`
-	PreferPointsBilling    *bool    `json:"prefer_points_billing"`
 	BalanceNotifyEnabled   *bool    `json:"balance_notify_enabled"`
 	BalanceNotifyThreshold *float64 `json:"balance_notify_threshold"`
 }
@@ -70,6 +98,7 @@ type userProfileResponse struct {
 	LinuxDoBound      bool                                   `json:"linuxdo_bound"`
 	OIDCBound         bool                                   `json:"oidc_bound"`
 	WeChatBound       bool                                   `json:"wechat_bound"`
+	DingTalkBound     bool                                   `json:"dingtalk_bound"`
 }
 
 type userProfileSourceContext struct {
@@ -147,7 +176,6 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	svcReq := service.UpdateProfileRequest{
 		Username:               req.Username,
 		AvatarURL:              req.AvatarURL,
-		PreferPointsBilling:    req.PreferPointsBilling,
 		BalanceNotifyEnabled:   req.BalanceNotifyEnabled,
 		BalanceNotifyThreshold: req.BalanceNotifyThreshold,
 	}
@@ -175,43 +203,12 @@ func (h *UserHandler) GetAffiliate(c *gin.Context) {
 		return
 	}
 
-	query, err := parseAffiliateDetailQuery(c)
-	if err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	detail, err := h.affiliateService.GetAffiliateDetail(c.Request.Context(), subject.UserID, query)
+	detail, err := h.affiliateService.GetAffiliateDetail(c.Request.Context(), subject.UserID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 	response.Success(c, detail)
-}
-
-func parseAffiliateDetailQuery(c *gin.Context) (service.AffiliateDetailQuery, error) {
-	var query service.AffiliateDetailQuery
-	startRaw := strings.TrimSpace(c.Query("period_start_at"))
-	endRaw := strings.TrimSpace(c.Query("period_end_at"))
-
-	if startRaw != "" {
-		start, err := time.Parse(time.RFC3339, startRaw)
-		if err != nil {
-			return query, err
-		}
-		query.PeriodStart = &start
-	}
-	if endRaw != "" {
-		end, err := time.Parse(time.RFC3339, endRaw)
-		if err != nil {
-			return query, err
-		}
-		query.PeriodEnd = &end
-	}
-	if query.PeriodStart != nil && query.PeriodEnd != nil && !query.PeriodStart.Before(*query.PeriodEnd) {
-		return query, fmt.Errorf("period_start_at must be before period_end_at")
-	}
-	return query, nil
 }
 
 // TransferAffiliateQuota transfers all available affiliate quota into current balance.
@@ -369,7 +366,7 @@ func (h *UserHandler) SendEmailBindingCode(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.SendEmailIdentityBindCode(c.Request.Context(), subject.UserID, req.Email); err != nil {
+	if err := h.authService.SendEmailIdentityBindCode(c.Request.Context(), subject.UserID, req.Email, c.GetHeader("Accept-Language")); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
@@ -397,7 +394,7 @@ func (h *UserHandler) SendNotifyEmailCode(c *gin.Context) {
 		return
 	}
 
-	err := h.userService.SendNotifyEmailCode(c.Request.Context(), subject.UserID, req.Email, h.emailService, h.emailCache)
+	err := h.userService.SendNotifyEmailCode(c.Request.Context(), subject.UserID, req.Email, h.emailService, h.emailCache, c.GetHeader("Accept-Language"))
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -563,15 +560,17 @@ func userProfileResponseFromService(user *service.User, identities service.UserI
 		LinuxDoBound:      identities.LinuxDo.Bound,
 		OIDCBound:         identities.OIDC.Bound,
 		WeChatBound:       identities.WeChat.Bound,
+		DingTalkBound:     identities.DingTalk.Bound,
 	}
 }
 
 func userProfileBindingMap(identities service.UserIdentitySummarySet) map[string]service.UserIdentitySummary {
 	return map[string]service.UserIdentitySummary{
-		"email":   identities.Email,
-		"linuxdo": identities.LinuxDo,
-		"oidc":    identities.OIDC,
-		"wechat":  identities.WeChat,
+		"email":    identities.Email,
+		"linuxdo":  identities.LinuxDo,
+		"oidc":     identities.OIDC,
+		"wechat":   identities.WeChat,
+		"dingtalk": identities.DingTalk,
 	}
 }
 
@@ -620,7 +619,7 @@ func inferUserProfileSources(user *service.User, identities service.UserIdentity
 
 func thirdPartyIdentityProviders(identities service.UserIdentitySummarySet) []service.UserIdentitySummary {
 	out := make([]service.UserIdentitySummary, 0, 3)
-	for _, summary := range []service.UserIdentitySummary{identities.LinuxDo, identities.OIDC, identities.WeChat} {
+	for _, summary := range []service.UserIdentitySummary{identities.LinuxDo, identities.OIDC, identities.WeChat, identities.DingTalk} {
 		if summary.Bound {
 			out = append(out, summary)
 		}

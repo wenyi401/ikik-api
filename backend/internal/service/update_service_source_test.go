@@ -36,6 +36,14 @@ func (s *updateSourceClientStub) FetchLatestRelease(_ context.Context, repo stri
 	return s.release, nil
 }
 
+func (s *updateSourceClientStub) FetchRecentReleases(_ context.Context, repo string, _ int) ([]*GitHubRelease, error) {
+	s.requestedRepo = repo
+	if s.release == nil {
+		return nil, nil
+	}
+	return []*GitHubRelease{s.release}, nil
+}
+
 func (*updateSourceClientStub) DownloadFile(context.Context, string, string, int64) error {
 	return nil
 }

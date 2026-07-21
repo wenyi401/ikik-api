@@ -38,6 +38,31 @@ export interface SwipeSelectVirtualContext {
   getRowId: (row: any, index: number) => number
 }
 
+export function findRowIndexByDomPosition(scrollEl: Element, clientY: number): number {
+  const domRows = Array.from(scrollEl.querySelectorAll('tbody tr[data-index]')) as HTMLElement[]
+  const len = domRows.length
+  if (len === 0) return -1
+  const idxOf = (el: HTMLElement) => Number(el.getAttribute('data-index'))
+
+  if (clientY < domRows[0].getBoundingClientRect().top) return idxOf(domRows[0])
+  if (clientY > domRows[len - 1].getBoundingClientRect().bottom) return idxOf(domRows[len - 1])
+
+  let lo = 0
+  let hi = len - 1
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1
+    const rect = domRows[mid].getBoundingClientRect()
+    if (clientY < rect.top) hi = mid - 1
+    else if (clientY > rect.bottom) lo = mid + 1
+    else return idxOf(domRows[mid])
+  }
+  if (hi < 0) return idxOf(domRows[0])
+  if (lo >= len) return idxOf(domRows[len - 1])
+  const upperRect = domRows[hi].getBoundingClientRect()
+  const lowerRect = domRows[lo].getBoundingClientRect()
+  return clientY - upperRect.bottom < lowerRect.top - clientY ? idxOf(domRows[hi]) : idxOf(domRows[lo])
+}
+
 export function useSwipeSelect(
   containerRef: Ref<HTMLElement | null>,
   adapter: SwipeSelectAdapter,
@@ -123,6 +148,11 @@ export function useSwipeSelect(
     const items = virt.getVirtualItems()
     for (const item of items) {
       if (contentY >= item.start && contentY < item.end) return item.index
+    }
+
+    if (items.length === 0) {
+      const domIndex = findRowIndexByDomPosition(scrollEl, clientY)
+      if (domIndex >= 0) return domIndex
     }
 
     // Outside visible range: estimate

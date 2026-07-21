@@ -2,12 +2,15 @@ package admin
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 
 	"ikik-api/internal/handler/dto"
+	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/pkg/timezone"
 	"ikik-api/internal/service"
@@ -21,22 +24,6 @@ type GroupHandler struct {
 	dashboardService         *service.DashboardService
 	groupCapacityService     *service.GroupCapacityService
 	groupRateScheduleService *service.GroupRateScheduleService
-}
-
-func parseAdminGroupScope(scope string, includePrivate bool) (string, error) {
-	scope = strings.ToLower(strings.TrimSpace(scope))
-	if scope == "" {
-		if includePrivate {
-			return "all", nil
-		}
-		return service.GroupScopePublic, nil
-	}
-	switch scope {
-	case "all", service.GroupScopePublic, service.GroupScopeUserPrivate, service.GroupScopeUserCarpool:
-		return scope, nil
-	default:
-		return "", fmt.Errorf("invalid group scope: %s", scope)
-	}
 }
 
 type optionalLimitField struct {
@@ -89,34 +76,45 @@ func (f optionalLimitField) ToServiceInput() *float64 {
 }
 
 // NewGroupHandler creates a new admin group handler
-func NewGroupHandler(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService, groupRateScheduleService *service.GroupRateScheduleService) *GroupHandler {
+func NewGroupHandler(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService) *GroupHandler {
 	return &GroupHandler{
-		adminService:             adminService,
-		dashboardService:         dashboardService,
-		groupCapacityService:     groupCapacityService,
-		groupRateScheduleService: groupRateScheduleService,
+		adminService:         adminService,
+		dashboardService:     dashboardService,
+		groupCapacityService: groupCapacityService,
 	}
 }
 
 // CreateGroupRequest represents create group request
 type CreateGroupRequest struct {
-	Name                 string             `json:"name" binding:"required"`
-	Description          string             `json:"description"`
-	Platform             string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok kiro custom"`
-	RateMultiplier       float64            `json:"rate_multiplier"`
-	IsExclusive          bool               `json:"is_exclusive"`
-	SubscriptionType     string             `json:"subscription_type" binding:"omitempty,oneof=standard subscription"`
-	RequiredAccountLevel string             `json:"required_account_level"`
-	DailyLimitUSD        optionalLimitField `json:"daily_limit_usd"`
-	WeeklyLimitUSD       optionalLimitField `json:"weekly_limit_usd"`
-	MonthlyLimitUSD      optionalLimitField `json:"monthly_limit_usd"`
+	Name             string             `json:"name" binding:"required"`
+	Description      string             `json:"description"`
+	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok"`
+	RateMultiplier   float64            `json:"rate_multiplier"`
+	IsExclusive      bool               `json:"is_exclusive"`
+	SubscriptionType string             `json:"subscription_type" binding:"omitempty,oneof=standard subscription"`
+	DailyLimitUSD    optionalLimitField `json:"daily_limit_usd"`
+	WeeklyLimitUSD   optionalLimitField `json:"weekly_limit_usd"`
+	MonthlyLimitUSD  optionalLimitField `json:"monthly_limit_usd"`
 	// 图片生成计费配置（antigravity 和 gemini 平台使用，负数表示清除配置）
 	AllowImageGeneration            bool     `json:"allow_image_generation"`
+	AllowBatchImageGeneration       bool     `json:"allow_batch_image_generation"`
 	ImageRateIndependent            bool     `json:"image_rate_independent"`
 	ImageRateMultiplier             *float64 `json:"image_rate_multiplier"`
+	BatchImageDiscountMultiplier    *float64 `json:"batch_image_discount_multiplier"`
+	BatchImageHoldMultiplier        *float64 `json:"batch_image_hold_multiplier"`
+	VideoRateIndependent            bool     `json:"video_rate_independent"`
+	VideoRateMultiplier             *float64 `json:"video_rate_multiplier"`
+	PeakRateEnabled                 bool     `json:"peak_rate_enabled"`
+	PeakStart                       string   `json:"peak_start"`
+	PeakEnd                         string   `json:"peak_end"`
+	PeakRateMultiplier              *float64 `json:"peak_rate_multiplier"`
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
 	ImagePrice2K                    *float64 `json:"image_price_2k"`
 	ImagePrice4K                    *float64 `json:"image_price_4k"`
+	VideoPrice480P                  *float64 `json:"video_price_480p"`
+	VideoPrice720P                  *float64 `json:"video_price_720p"`
+	VideoPrice1080P                 *float64 `json:"video_price_1080p"`
+	WebSearchPricePerCall           *float64 `json:"web_search_price_per_call"`
 	ClaudeCodeOnly                  bool     `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id"`
 	FallbackGroupIDOnInvalidRequest *int64   `json:"fallback_group_id_on_invalid_request"`
@@ -135,36 +133,42 @@ type CreateGroupRequest struct {
 	ModelsListConfig            service.GroupModelsListConfig             `json:"models_list_config"`
 	// 分组 RPM 上限（0 = 不限制）
 	RPMLimit int `json:"rpm_limit"`
-	// Kiro 运行时配置（仅 kiro 平台生效）
-	KiroCacheEmulationEnabled   bool     `json:"kiro_cache_emulation_enabled"`
-	KiroAutoStickyEnabled       *bool    `json:"kiro_auto_sticky_enabled"`
-	KiroStickySessionTTLSeconds *int     `json:"kiro_sticky_session_ttl_seconds"`
-	KiroCacheEmulationRatio     *float64 `json:"kiro_cache_emulation_ratio"`
-	KiroEndpointMode            *string  `json:"kiro_endpoint_mode"`
 	// 从指定分组复制账号（创建后自动绑定）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
 }
 
 // UpdateGroupRequest represents update group request
 type UpdateGroupRequest struct {
-	Name                 string             `json:"name"`
-	Description          string             `json:"description"`
-	Platform             string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok kiro custom"`
-	RateMultiplier       *float64           `json:"rate_multiplier"`
-	IsExclusive          *bool              `json:"is_exclusive"`
-	Status               string             `json:"status" binding:"omitempty,oneof=active inactive"`
-	SubscriptionType     string             `json:"subscription_type" binding:"omitempty,oneof=standard subscription"`
-	RequiredAccountLevel *string            `json:"required_account_level"`
-	DailyLimitUSD        optionalLimitField `json:"daily_limit_usd"`
-	WeeklyLimitUSD       optionalLimitField `json:"weekly_limit_usd"`
-	MonthlyLimitUSD      optionalLimitField `json:"monthly_limit_usd"`
+	Name             string             `json:"name"`
+	Description      *string            `json:"description"`
+	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok"`
+	RateMultiplier   *float64           `json:"rate_multiplier"`
+	IsExclusive      *bool              `json:"is_exclusive"`
+	Status           string             `json:"status" binding:"omitempty,oneof=active inactive"`
+	SubscriptionType string             `json:"subscription_type" binding:"omitempty,oneof=standard subscription"`
+	DailyLimitUSD    optionalLimitField `json:"daily_limit_usd"`
+	WeeklyLimitUSD   optionalLimitField `json:"weekly_limit_usd"`
+	MonthlyLimitUSD  optionalLimitField `json:"monthly_limit_usd"`
 	// 图片生成计费配置（antigravity 和 gemini 平台使用，负数表示清除配置）
 	AllowImageGeneration            *bool    `json:"allow_image_generation"`
+	AllowBatchImageGeneration       *bool    `json:"allow_batch_image_generation"`
 	ImageRateIndependent            *bool    `json:"image_rate_independent"`
 	ImageRateMultiplier             *float64 `json:"image_rate_multiplier"`
+	BatchImageDiscountMultiplier    *float64 `json:"batch_image_discount_multiplier"`
+	BatchImageHoldMultiplier        *float64 `json:"batch_image_hold_multiplier"`
+	VideoRateIndependent            *bool    `json:"video_rate_independent"`
+	VideoRateMultiplier             *float64 `json:"video_rate_multiplier"`
+	PeakRateEnabled                 *bool    `json:"peak_rate_enabled"`
+	PeakStart                       *string  `json:"peak_start"`
+	PeakEnd                         *string  `json:"peak_end"`
+	PeakRateMultiplier              *float64 `json:"peak_rate_multiplier"`
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
 	ImagePrice2K                    *float64 `json:"image_price_2k"`
 	ImagePrice4K                    *float64 `json:"image_price_4k"`
+	VideoPrice480P                  *float64 `json:"video_price_480p"`
+	VideoPrice720P                  *float64 `json:"video_price_720p"`
+	VideoPrice1080P                 *float64 `json:"video_price_1080p"`
+	WebSearchPricePerCall           *float64 `json:"web_search_price_per_call"`
 	ClaudeCodeOnly                  *bool    `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id"`
 	FallbackGroupIDOnInvalidRequest *int64   `json:"fallback_group_id_on_invalid_request"`
@@ -183,12 +187,6 @@ type UpdateGroupRequest struct {
 	ModelsListConfig            *service.GroupModelsListConfig             `json:"models_list_config"`
 	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
 	RPMLimit *int `json:"rpm_limit"`
-	// Kiro 运行时配置（仅 kiro 平台生效）
-	KiroCacheEmulationEnabled   *bool    `json:"kiro_cache_emulation_enabled"`
-	KiroAutoStickyEnabled       *bool    `json:"kiro_auto_sticky_enabled"`
-	KiroStickySessionTTLSeconds *int     `json:"kiro_sticky_session_ttl_seconds"`
-	KiroCacheEmulationRatio     *float64 `json:"kiro_cache_emulation_ratio"`
-	KiroEndpointMode            *string  `json:"kiro_endpoint_mode"`
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
 }
@@ -200,11 +198,6 @@ func (h *GroupHandler) List(c *gin.Context) {
 	platform := c.Query("platform")
 	status := c.Query("status")
 	search := c.Query("search")
-	scope, err := parseAdminGroupScope(c.Query("scope"), c.Query("include_private") == "true")
-	if err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
 	// 标准化和验证 search 参数
 	search = strings.TrimSpace(search)
 	if len(search) > 100 {
@@ -220,7 +213,17 @@ func (h *GroupHandler) List(c *gin.Context) {
 		isExclusive = &val
 	}
 
-	groups, total, err := h.adminService.ListGroups(c.Request.Context(), page, pageSize, platform, status, search, isExclusive, scope, sortBy, sortOrder)
+	scope := c.DefaultQuery("scope", service.GroupScopePublic)
+	var groups []service.Group
+	var total int64
+	var err error
+	if lister, ok := h.adminService.(interface {
+		ListGroupsForManagement(context.Context, int, int, string, string, string, *bool, string, string, string) ([]service.Group, int64, error)
+	}); ok {
+		groups, total, err = lister.ListGroupsForManagement(c.Request.Context(), page, pageSize, platform, status, search, isExclusive, scope, sortBy, sortOrder)
+	} else {
+		groups, total, err = h.adminService.ListGroups(c.Request.Context(), page, pageSize, platform, status, search, isExclusive, sortBy, sortOrder)
+	}
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -233,39 +236,40 @@ func (h *GroupHandler) List(c *gin.Context) {
 	response.Paginated(c, outGroups, total, page, pageSize)
 }
 
-// GetAll handles getting all active groups without pagination
+// GetAll handles getting all active groups without pagination.
+// Pass ?include_inactive=true to also include disabled groups (used by the
+// API Key group filter, which needs to surface groups that still have API keys
+// bound to them even after the group is disabled).
 // GET /api/v1/admin/groups/all
 func (h *GroupHandler) GetAll(c *gin.Context) {
 	platform := c.Query("platform")
-	scope, err := parseAdminGroupScope(c.Query("scope"), c.Query("include_private") == "true")
-	if err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
+	includeInactive := c.Query("include_inactive") == "true"
+	scope := c.DefaultQuery("scope", service.GroupScopePublic)
 
 	var groups []service.Group
+	var err error
 
-	includeInactive := strings.EqualFold(c.Query("include_inactive"), "true")
 	if includeInactive {
-		groups, err = h.adminService.GetAllGroupsIncludingInactive(c.Request.Context(), scope)
-		if platform != "" {
-			filtered := make([]service.Group, 0, len(groups))
-			for i := range groups {
-				if strings.EqualFold(groups[i].Platform, platform) {
-					filtered = append(filtered, groups[i])
-				}
-			}
-			groups = filtered
-		}
+		groups, err = h.adminService.GetAllGroupsIncludingInactive(c.Request.Context())
 	} else if platform != "" {
-		groups, err = h.adminService.GetAllGroupsByPlatform(c.Request.Context(), platform, scope)
+		groups, err = h.adminService.GetAllGroupsByPlatform(c.Request.Context(), platform)
 	} else {
-		groups, err = h.adminService.GetAllGroups(c.Request.Context(), scope)
+		groups, err = h.adminService.GetAllGroups(c.Request.Context())
 	}
 
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	if scope != "all" {
+		normalizedScope := service.NormalizeGroupScope(scope)
+		filtered := groups[:0]
+		for i := range groups {
+			if service.NormalizeGroupScope(groups[i].Scope) == normalizedScope {
+				filtered = append(filtered, groups[i])
+			}
+		}
+		groups = filtered
 	}
 
 	outGroups := make([]dto.AdminGroup, 0, len(groups))
@@ -293,21 +297,26 @@ func (h *GroupHandler) GetByID(c *gin.Context) {
 	response.Success(c, dto.GroupFromServiceAdmin(group))
 }
 
-// GetModelsListCandidates returns candidate model ids for custom /v1/models config.
-// GET /api/v1/admin/groups/:id/models-list-candidates?platform=openai
+// GetModelsListCandidates handles getting candidate model IDs for custom /v1/models list.
+// GET /api/v1/admin/groups/:id/models-list-candidates
 func (h *GroupHandler) GetModelsListCandidates(c *gin.Context) {
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
+	if err != nil || groupID < 0 {
 		response.BadRequest(c, "Invalid group ID")
 		return
 	}
 
-	models, err := h.adminService.GetGroupModelsListCandidates(c.Request.Context(), groupID, c.Query("platform"))
+	models, err := h.adminService.GetGroupModelsListCandidates(
+		c.Request.Context(),
+		groupID,
+		c.Query("platform"),
+	)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, models)
+
+	response.Success(c, gin.H{"models": models})
 }
 
 // Create handles creating a new group
@@ -319,6 +328,11 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if err := service.ValidatePeakRateConfig(req.SubscriptionType, req.PeakRateEnabled, req.PeakStart, req.PeakEnd, float64ValueOrDefault(req.PeakRateMultiplier, 1.0)); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
 	group, err := h.adminService.CreateGroup(c.Request.Context(), &service.CreateGroupInput{
 		Name:                            req.Name,
 		Description:                     req.Description,
@@ -326,16 +340,28 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		RateMultiplier:                  req.RateMultiplier,
 		IsExclusive:                     req.IsExclusive,
 		SubscriptionType:                req.SubscriptionType,
-		RequiredAccountLevel:            req.RequiredAccountLevel,
 		DailyLimitUSD:                   req.DailyLimitUSD.ToServiceInput(),
 		WeeklyLimitUSD:                  req.WeeklyLimitUSD.ToServiceInput(),
 		MonthlyLimitUSD:                 req.MonthlyLimitUSD.ToServiceInput(),
 		AllowImageGeneration:            req.AllowImageGeneration,
+		AllowBatchImageGeneration:       req.AllowBatchImageGeneration,
 		ImageRateIndependent:            req.ImageRateIndependent,
 		ImageRateMultiplier:             req.ImageRateMultiplier,
+		BatchImageDiscountMultiplier:    req.BatchImageDiscountMultiplier,
+		BatchImageHoldMultiplier:        req.BatchImageHoldMultiplier,
+		VideoRateIndependent:            req.VideoRateIndependent,
+		VideoRateMultiplier:             req.VideoRateMultiplier,
+		PeakRateEnabled:                 req.PeakRateEnabled,
+		PeakStart:                       req.PeakStart,
+		PeakEnd:                         req.PeakEnd,
+		PeakRateMultiplier:              req.PeakRateMultiplier,
 		ImagePrice1K:                    req.ImagePrice1K,
 		ImagePrice2K:                    req.ImagePrice2K,
 		ImagePrice4K:                    req.ImagePrice4K,
+		VideoPrice480P:                  req.VideoPrice480P,
+		VideoPrice720P:                  req.VideoPrice720P,
+		VideoPrice1080P:                 req.VideoPrice1080P,
+		WebSearchPricePerCall:           req.WebSearchPricePerCall,
 		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
 		FallbackGroupID:                 req.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: req.FallbackGroupIDOnInvalidRequest,
@@ -350,11 +376,6 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		MessagesDispatchModelConfig:     req.MessagesDispatchModelConfig,
 		ModelsListConfig:                req.ModelsListConfig,
 		RPMLimit:                        req.RPMLimit,
-		KiroCacheEmulationEnabled:       req.KiroCacheEmulationEnabled,
-		KiroAutoStickyEnabled:           req.KiroAutoStickyEnabled,
-		KiroStickySessionTTLSeconds:     req.KiroStickySessionTTLSeconds,
-		KiroCacheEmulationRatio:         req.KiroCacheEmulationRatio,
-		KiroEndpointMode:                req.KiroEndpointMode,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {
@@ -363,6 +384,53 @@ func (h *GroupHandler) Create(c *gin.Context) {
 	}
 
 	response.Success(c, dto.GroupFromServiceAdmin(group))
+}
+
+// Duplicate handles creating an inactive group copy with the source account bindings.
+// POST /api/v1/admin/groups/:id/duplicate
+func (h *GroupHandler) Duplicate(c *gin.Context) {
+	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || groupID <= 0 {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	actorScope := adminActorScope(c)
+
+	result, err := executeAdminIdempotent(
+		c,
+		"admin.groups.duplicate",
+		struct {
+			GroupID int64 `json:"group_id"`
+		}{GroupID: groupID},
+		service.DefaultWriteIdempotencyTTL(),
+		func(ctx context.Context) (any, error) {
+			group, execErr := h.adminService.DuplicateGroup(ctx, groupID, actorScope, c.GetHeader("Idempotency-Key"))
+			if execErr != nil {
+				return nil, execErr
+			}
+			return dto.GroupFromServiceAdmin(group), nil
+		},
+	)
+	if err != nil {
+		reason := infraerrors.Reason(err)
+		if reason == infraerrors.Reason(service.ErrIdempotencyInProgress) || reason == infraerrors.Reason(service.ErrIdempotencyStoreUnavail) {
+			recovered, recoverErr := h.adminService.RecoverDuplicateGroup(c.Request.Context(), groupID, actorScope, c.GetHeader("Idempotency-Key"))
+			if recoverErr != nil {
+				slog.Warn("group_duplicate_recovery_failed", "group_id", groupID, "actor_scope", actorScope, "reason", reason, "error", recoverErr)
+			} else if recovered != nil {
+				c.Header("X-Idempotency-Recovered", "true")
+				response.Success(c, dto.GroupFromServiceAdmin(recovered))
+				return
+			}
+		}
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	if result != nil && result.Replayed {
+		c.Header("X-Idempotency-Replayed", "true")
+	}
+	response.Success(c, result.Data)
 }
 
 // Update handles updating a group
@@ -388,16 +456,28 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		IsExclusive:                     req.IsExclusive,
 		Status:                          req.Status,
 		SubscriptionType:                req.SubscriptionType,
-		RequiredAccountLevel:            req.RequiredAccountLevel,
 		DailyLimitUSD:                   req.DailyLimitUSD.ToServiceInput(),
 		WeeklyLimitUSD:                  req.WeeklyLimitUSD.ToServiceInput(),
 		MonthlyLimitUSD:                 req.MonthlyLimitUSD.ToServiceInput(),
 		AllowImageGeneration:            req.AllowImageGeneration,
+		AllowBatchImageGeneration:       req.AllowBatchImageGeneration,
 		ImageRateIndependent:            req.ImageRateIndependent,
 		ImageRateMultiplier:             req.ImageRateMultiplier,
+		BatchImageDiscountMultiplier:    req.BatchImageDiscountMultiplier,
+		BatchImageHoldMultiplier:        req.BatchImageHoldMultiplier,
+		VideoRateIndependent:            req.VideoRateIndependent,
+		VideoRateMultiplier:             req.VideoRateMultiplier,
+		PeakRateEnabled:                 req.PeakRateEnabled,
+		PeakStart:                       req.PeakStart,
+		PeakEnd:                         req.PeakEnd,
+		PeakRateMultiplier:              req.PeakRateMultiplier,
 		ImagePrice1K:                    req.ImagePrice1K,
 		ImagePrice2K:                    req.ImagePrice2K,
 		ImagePrice4K:                    req.ImagePrice4K,
+		VideoPrice480P:                  req.VideoPrice480P,
+		VideoPrice720P:                  req.VideoPrice720P,
+		VideoPrice1080P:                 req.VideoPrice1080P,
+		WebSearchPricePerCall:           req.WebSearchPricePerCall,
 		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
 		FallbackGroupID:                 req.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: req.FallbackGroupIDOnInvalidRequest,
@@ -412,11 +492,6 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		MessagesDispatchModelConfig:     req.MessagesDispatchModelConfig,
 		ModelsListConfig:                req.ModelsListConfig,
 		RPMLimit:                        req.RPMLimit,
-		KiroCacheEmulationEnabled:       req.KiroCacheEmulationEnabled,
-		KiroAutoStickyEnabled:           req.KiroAutoStickyEnabled,
-		KiroStickySessionTTLSeconds:     req.KiroStickySessionTTLSeconds,
-		KiroCacheEmulationRatio:         req.KiroCacheEmulationRatio,
-		KiroEndpointMode:                req.KiroEndpointMode,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {
@@ -556,88 +631,6 @@ func (h *GroupHandler) ClearGroupRateMultipliers(c *gin.Context) {
 // BatchSetGroupRateMultipliersRequest represents batch set rate multipliers request
 type BatchSetGroupRateMultipliersRequest struct {
 	Entries []service.GroupRateMultiplierInput `json:"entries" binding:"required"`
-}
-
-// GroupRateScheduleRequest represents one group time-range multiplier rule.
-type GroupRateScheduleRequest struct {
-	TargetUserID   *int64  `json:"target_user_id"`
-	StartMinute    int     `json:"start_minute"`
-	EndMinute      int     `json:"end_minute"`
-	RateMultiplier float64 `json:"rate_multiplier"`
-	Enabled        *bool   `json:"enabled"`
-}
-
-// ReplaceGroupRateSchedulesRequest represents replacing all rate schedules for a group.
-type ReplaceGroupRateSchedulesRequest struct {
-	Entries []GroupRateScheduleRequest `json:"entries"`
-}
-
-// GetGroupRateSchedules handles listing time-range rate schedules for a group.
-// GET /api/v1/admin/groups/:id/rate-schedules
-func (h *GroupHandler) GetGroupRateSchedules(c *gin.Context) {
-	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "Invalid group ID")
-		return
-	}
-	if h.groupRateScheduleService == nil {
-		response.Success(c, []service.GroupRateSchedule{})
-		return
-	}
-
-	schedules, err := h.groupRateScheduleService.List(c.Request.Context(), groupID)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	if schedules == nil {
-		schedules = []service.GroupRateSchedule{}
-	}
-	response.Success(c, schedules)
-}
-
-// ReplaceGroupRateSchedules handles replacing time-range rate schedules for a group.
-// PUT /api/v1/admin/groups/:id/rate-schedules
-func (h *GroupHandler) ReplaceGroupRateSchedules(c *gin.Context) {
-	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "Invalid group ID")
-		return
-	}
-	if h.groupRateScheduleService == nil {
-		response.Error(c, 500, "Group rate schedule service is not configured")
-		return
-	}
-
-	var req ReplaceGroupRateSchedulesRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	inputs := make([]service.GroupRateScheduleInput, 0, len(req.Entries))
-	for _, entry := range req.Entries {
-		enabled := true
-		if entry.Enabled != nil {
-			enabled = *entry.Enabled
-		}
-		inputs = append(inputs, service.GroupRateScheduleInput{
-			TargetUserID:   entry.TargetUserID,
-			StartMinute:    entry.StartMinute,
-			EndMinute:      entry.EndMinute,
-			RateMultiplier: entry.RateMultiplier,
-			Enabled:        enabled,
-		})
-	}
-	schedules, err := h.groupRateScheduleService.Replace(c.Request.Context(), groupID, inputs)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	if schedules == nil {
-		schedules = []service.GroupRateSchedule{}
-	}
-	response.Success(c, schedules)
 }
 
 // BatchSetGroupRateMultipliers handles batch setting rate multipliers for a group

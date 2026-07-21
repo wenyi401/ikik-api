@@ -41,7 +41,7 @@ func DefaultModelIDs() []string {
 }
 
 func DefaultModelMapping() map[string]string {
-	mapping := make(map[string]string, len(defaultModels)+8)
+	mapping := make(map[string]string, len(defaultModels)+5)
 	for _, model := range defaultModels {
 		mapping[model.ID] = model.ID
 	}

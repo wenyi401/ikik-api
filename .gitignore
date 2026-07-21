@@ -138,6 +138,8 @@ docs/*
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
 !docs/OFFICIAL_UPDATE_AND_DEPLOY_CN.md
 !docs/LOCAL_IMAGE_UPLOAD_DEPLOY_CN.md
+!docs/legal/
+!docs/legal/*.md
 .serena/
 .codex/
 frontend/coverage/
@@ -148,3 +150,5 @@ test/images/
 nul
 /issues/
 /.codex_tmp/
+/.vite/
+/.playwright-cli/

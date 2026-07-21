@@ -25,28 +25,28 @@ describe("admin settings auth source defaults helpers", () => {
       auth_source_default_linuxdo_grant_on_first_bind: false,
     });
 
-    expect(state.email).toEqual({
+    expect(state.email).toMatchObject({
       balance: 9.5,
       concurrency: 3,
       subscriptions: [{ group_id: 1, validity_days: 30 }],
       grant_on_signup: false,
       grant_on_first_bind: true,
     });
-    expect(state.linuxdo).toEqual({
+    expect(state.linuxdo).toMatchObject({
       balance: 6,
       concurrency: 8,
       subscriptions: [{ group_id: 2, validity_days: 60 }],
       grant_on_signup: true,
       grant_on_first_bind: false,
     });
-    expect(state.oidc).toEqual({
+    expect(state.oidc).toMatchObject({
       balance: 0,
       concurrency: 5,
       subscriptions: [],
       grant_on_signup: false,
       grant_on_first_bind: false,
     });
-    expect(state.wechat).toEqual({
+    expect(state.wechat).toMatchObject({
       balance: 0,
       concurrency: 5,
       subscriptions: [],

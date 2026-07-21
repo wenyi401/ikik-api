@@ -57,6 +57,10 @@ type JWTClaims struct {
 	Email        string `json:"email"`
 	Role         string `json:"role"`
 	TokenVersion int64  `json:"token_version"` // Used to invalidate tokens on password change
+	// SessionID 会话 ID（与 refresh token family 对应），用于单会话撤销与 step-up 授权绑定。
+	SessionID string `json:"sid,omitempty"`
+	// BindingHash 会话指纹哈希（IP+UA），会话绑定开启时校验；空值表示旧 token（平滑升级）。
+	BindingHash string `json:"bnd,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -74,6 +78,7 @@ type AuthService struct {
 	promoService            *PromoService
 	affiliateService        *AffiliateService
 	defaultSubAssigner      DefaultSubscriptionAssigner
+	userPlatformQuotaRepo   UserPlatformQuotaRepository
 	privateGroupProvisioner UserPrivateGroupProvisioner
 }
 
@@ -82,9 +87,10 @@ type DefaultSubscriptionAssigner interface {
 }
 
 type signupGrantPlan struct {
-	Balance       float64
-	Concurrency   int
-	Subscriptions []DefaultSubscriptionSetting
+	Balance        float64
+	Concurrency    int
+	Subscriptions  []DefaultSubscriptionSetting
+	PlatformQuotas map[string]*DefaultPlatformQuotaSetting
 }
 
 // NewAuthService 创建认证服务实例
@@ -101,20 +107,22 @@ func NewAuthService(
 	promoService *PromoService,
 	defaultSubAssigner DefaultSubscriptionAssigner,
 	affiliateService *AffiliateService,
+	userPlatformQuotaRepo UserPlatformQuotaRepository,
 ) *AuthService {
 	return &AuthService{
-		entClient:          entClient,
-		userRepo:           userRepo,
-		redeemRepo:         redeemRepo,
-		refreshTokenCache:  refreshTokenCache,
-		cfg:                cfg,
-		settingService:     settingService,
-		emailService:       emailService,
-		turnstileService:   turnstileService,
-		emailQueueService:  emailQueueService,
-		promoService:       promoService,
-		affiliateService:   affiliateService,
-		defaultSubAssigner: defaultSubAssigner,
+		entClient:             entClient,
+		userRepo:              userRepo,
+		redeemRepo:            redeemRepo,
+		refreshTokenCache:     refreshTokenCache,
+		cfg:                   cfg,
+		settingService:        settingService,
+		emailService:          emailService,
+		turnstileService:      turnstileService,
+		emailQueueService:     emailQueueService,
+		promoService:          promoService,
+		affiliateService:      affiliateService,
+		defaultSubAssigner:    defaultSubAssigner,
+		userPlatformQuotaRepo: userPlatformQuotaRepo,
 	}
 }
 
@@ -123,13 +131,6 @@ func (s *AuthService) EntClient() *dbent.Client {
 		return nil
 	}
 	return s.entClient
-}
-
-func (s *AuthService) SetUserPrivateGroupProvisioner(provisioner UserPrivateGroupProvisioner) {
-	if s == nil {
-		return
-	}
-	s.privateGroupProvisioner = provisioner
 }
 
 // Register 用户注册，返回token和用户
@@ -165,7 +166,7 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 			return "", nil, ErrInvitationCodeInvalid
 		}
 		// 检查类型和状态
-		if redeemCode.Type != RedeemTypeInvitation || redeemCode.Status != StatusUnused {
+		if redeemCode.Type != RedeemTypeInvitation || !redeemCode.CanUse() {
 			logger.LegacyPrintf("service.auth", "[Auth] Invitation code invalid: type=%s, status=%s", redeemCode.Type, redeemCode.Status)
 			return "", nil, ErrInvitationCodeInvalid
 		}
@@ -237,6 +238,8 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		return "", nil, err
 	}
 	s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
+	// snapshot user × platform quota（fail-open）
+	_ = s.snapshotPlatformQuotaDefaults(ctx, user.ID, &grantPlan)
 	if s.affiliateService != nil {
 		if _, err := s.affiliateService.EnsureUserAffiliate(ctx, user.ID); err != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to initialize affiliate profile for user %d: %v", user.ID, err)
@@ -270,7 +273,7 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 	}
 
 	// 生成token
-	token, err := s.GenerateToken(user)
+	token, err := s.GenerateToken(ctx, user)
 	if err != nil {
 		return "", nil, fmt.Errorf("generate token: %w", err)
 	}
@@ -284,7 +287,7 @@ type SendVerifyCodeResult struct {
 }
 
 // SendVerifyCode 发送邮箱验证码（同步方式）
-func (s *AuthService) SendVerifyCode(ctx context.Context, email string) error {
+func (s *AuthService) SendVerifyCode(ctx context.Context, email string, locale ...string) error {
 	// 检查是否开放注册（默认关闭）
 	if s.settingService == nil || !s.settingService.IsRegistrationEnabled(ctx) {
 		return ErrRegDisabled
@@ -313,16 +316,16 @@ func (s *AuthService) SendVerifyCode(ctx context.Context, email string) error {
 	}
 
 	// 获取网站名称
-	siteName := "ikik-api"
+	siteName := "Sub2API"
 	if s.settingService != nil {
 		siteName = s.settingService.GetSiteName(ctx)
 	}
 
-	return s.emailService.SendVerifyCode(ctx, email, siteName)
+	return s.emailService.SendVerifyCode(ctx, email, siteName, firstEmailLocale(locale))
 }
 
 // SendVerifyCodeAsync 异步发送邮箱验证码并返回倒计时
-func (s *AuthService) SendVerifyCodeAsync(ctx context.Context, email string) (*SendVerifyCodeResult, error) {
+func (s *AuthService) SendVerifyCodeAsync(ctx context.Context, email string, locale ...string) (*SendVerifyCodeResult, error) {
 	logger.LegacyPrintf("service.auth", "[Auth] SendVerifyCodeAsync called for email: %s", email)
 
 	// 检查是否开放注册（默认关闭）
@@ -356,14 +359,14 @@ func (s *AuthService) SendVerifyCodeAsync(ctx context.Context, email string) (*S
 	}
 
 	// 获取网站名称
-	siteName := "ikik-api"
+	siteName := "Sub2API"
 	if s.settingService != nil {
 		siteName = s.settingService.GetSiteName(ctx)
 	}
 
 	// 异步发送
 	logger.LegacyPrintf("service.auth", "[Auth] Enqueueing verify code for: %s", email)
-	if err := s.emailQueueService.EnqueueVerifyCode(email, siteName); err != nil {
+	if err := s.emailQueueService.EnqueueVerifyCode(email, siteName, firstEmailLocale(locale)); err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to enqueue: %v", err)
 		return nil, fmt.Errorf("enqueue verify code: %w", err)
 	}
@@ -441,17 +444,12 @@ func (s *AuthService) IsEmailVerifyEnabled(ctx context.Context) bool {
 	return s.settingService.IsEmailVerifyEnabled(ctx)
 }
 
-// Fixed cost-10 bcrypt hash used to keep missing-account login work comparable
-// to the existing-account password path. The value is not secret.
-const loginTimingDummyHash = "$2a$10$We5vWiVqEx4nqCGymPXeA.f2EWchUGN6wk33H32oa8M/ZYai9cT.O"
-
 // Login 用户登录，返回JWT token
 func (s *AuthService) Login(ctx context.Context, email, password string) (string, *User, error) {
 	// 查找用户
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
-			_ = s.CheckPassword(password, loginTimingDummyHash)
 			return "", nil, ErrInvalidCredentials
 		}
 		// 记录数据库错误但不暴露给用户
@@ -470,7 +468,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (string
 	}
 
 	// 生成JWT token
-	token, err := s.GenerateToken(user)
+	token, err := s.GenerateToken(ctx, user)
 	if err != nil {
 		return "", nil, fmt.Errorf("generate token: %w", err)
 	}
@@ -554,6 +552,8 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 					return "", nil, err
 				}
 				s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
+				// snapshot user × platform quota（fail-open）
+				_ = s.snapshotPlatformQuotaDefaults(ctx, user.ID, &grantPlan)
 			}
 		} else {
 			logger.LegacyPrintf("service.auth", "[Auth] Database error during oauth login: %v", err)
@@ -572,28 +572,43 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to update username after oauth login: %v", err)
 		}
 	}
-	token, err := s.GenerateToken(user)
+	token, err := s.GenerateToken(ctx, user)
 	if err != nil {
 		return "", nil, fmt.Errorf("generate token: %w", err)
 	}
 	return token, user, nil
 }
 
+// canBypassRegistrationDisabledForOAuth 在钉钉企业模式（internal_only）且
+// dingtalk_connect_bypass_registration=true 时，允许跳过全局 registration_enabled 检查。
+func (s *AuthService) canBypassRegistrationDisabledForOAuth(ctx context.Context, signupSource string) bool {
+	if signupSource != "dingtalk" {
+		return false
+	}
+	cfg, err := s.settingService.GetDingTalkConnectOAuthConfig(ctx)
+	if err != nil || !cfg.Enabled || !cfg.BypassRegistration {
+		return false
+	}
+	return cfg.CorpRestrictionPolicy == "internal_only"
+}
+
 // LoginOrRegisterOAuthWithTokenPair 用于第三方 OAuth/SSO 登录，返回完整的 TokenPair。
 // 与 LoginOrRegisterOAuth 功能相同，但返回 TokenPair 而非单个 token。
 // invitationCode 仅在邀请码注册模式下新用户注册时使用；已有账号登录时忽略。
 // affiliateCode 用于邀请返利绑定，仅在新用户注册时使用。
-func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, email, username, invitationCode, affiliateCode string) (*TokenPair, *User, error) {
-	return s.loginOrRegisterOAuthWithTokenPair(ctx, email, username, invitationCode, affiliateCode, "")
+// signupSource 标识来源渠道（"dingtalk"/"linuxdo"/"wechat"/"oidc" 等），仅用于豁免检查。
+func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, email, username, invitationCode, affiliateCode, signupSource string) (*TokenPair, *User, error) {
+	return s.loginOrRegisterOAuthWithTokenPair(ctx, email, username, invitationCode, affiliateCode, "", signupSource)
 }
 
-// LoginOrRegisterOAuthWithTokenPairAndPromoCode behaves like LoginOrRegisterOAuthWithTokenPair
-// and applies promoCode only when a new OAuth user is created.
-func (s *AuthService) LoginOrRegisterOAuthWithTokenPairAndPromoCode(ctx context.Context, email, username, invitationCode, affiliateCode, promoCode string) (*TokenPair, *User, error) {
-	return s.loginOrRegisterOAuthWithTokenPair(ctx, email, username, invitationCode, affiliateCode, promoCode)
+// LoginOrRegisterOAuthWithTokenPairAndPromoCode behaves like
+// LoginOrRegisterOAuthWithTokenPair and applies promoCode only when a new user
+// is created.
+func (s *AuthService) LoginOrRegisterOAuthWithTokenPairAndPromoCode(ctx context.Context, email, username, invitationCode, affiliateCode, promoCode, signupSource string) (*TokenPair, *User, error) {
+	return s.loginOrRegisterOAuthWithTokenPair(ctx, email, username, invitationCode, affiliateCode, promoCode, signupSource)
 }
 
-func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, email, username, invitationCode, affiliateCode, promoCode string) (*TokenPair, *User, error) {
+func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, email, username, invitationCode, affiliateCode, promoCode, signupSource string) (*TokenPair, *User, error) {
 	// 检查 refreshTokenCache 是否可用
 	if s.refreshTokenCache == nil {
 		return nil, nil, errors.New("refresh token cache not configured")
@@ -617,7 +632,7 @@ func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
 			// OAuth 首次登录视为注册
-			if s.settingService == nil || !s.settingService.IsRegistrationEnabled(ctx) {
+			if s.settingService == nil || (!s.settingService.IsRegistrationEnabled(ctx) && !s.canBypassRegistrationDisabledForOAuth(ctx, signupSource)) {
 				return nil, nil, ErrRegDisabled
 			}
 
@@ -631,7 +646,7 @@ func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 				if err != nil {
 					return nil, nil, ErrInvitationCodeInvalid
 				}
-				if redeemCode.Type != RedeemTypeInvitation || redeemCode.Status != StatusUnused {
+				if redeemCode.Type != RedeemTypeInvitation || !redeemCode.CanUse() {
 					return nil, nil, ErrInvitationCodeInvalid
 				}
 				invitationRedeemCode = redeemCode
@@ -647,7 +662,11 @@ func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 				return nil, nil, fmt.Errorf("hash password: %w", err)
 			}
 
-			signupSource := inferLegacySignupSource(email)
+			// 优先用 caller 显式传入的 signupSource（如 "dingtalk" / "linuxdo" / "oidc" / "wechat"），
+			// 否则才按邮箱后缀推断——避免有真实邮箱的 OAuth 用户被推断为 "email" 渠道，导致渠道授权错读。
+			if strings.TrimSpace(signupSource) == "" {
+				signupSource = inferLegacySignupSource(email)
+			}
 			grantPlan := s.resolveSignupGrantPlan(ctx, signupSource)
 			var defaultRPMLimit int
 			if s.settingService != nil {
@@ -701,6 +720,8 @@ func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 						return nil, nil, err
 					}
 					s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
+					// snapshot user × platform quota（fail-open）
+					_ = s.snapshotPlatformQuotaDefaults(ctx, user.ID, &grantPlan)
 					s.bindOAuthAffiliate(ctx, user.ID, affiliateCode)
 				}
 			} else {
@@ -723,6 +744,8 @@ func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 						return nil, nil, err
 					}
 					s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
+					// snapshot user × platform quota（fail-open）
+					_ = s.snapshotPlatformQuotaDefaults(ctx, user.ID, &grantPlan)
 					s.bindOAuthAffiliate(ctx, user.ID, affiliateCode)
 					if invitationRedeemCode != nil {
 						if err := s.redeemRepo.Use(ctx, invitationRedeemCode.ID, user.ID); err != nil {
@@ -795,16 +818,6 @@ func (s *AuthService) assignSubscriptions(ctx context.Context, userID int64, ite
 	}
 }
 
-func (s *AuthService) provisionUserPrivateGroups(ctx context.Context, userID int64) error {
-	if s == nil || s.privateGroupProvisioner == nil || userID <= 0 {
-		return nil
-	}
-	if err := s.privateGroupProvisioner.ProvisionUserPrivateGroups(ctx, userID); err != nil {
-		return fmt.Errorf("provision user private groups: %w", err)
-	}
-	return nil
-}
-
 func (s *AuthService) resolveSignupGrantPlan(ctx context.Context, signupSource string) signupGrantPlan {
 	plan := signupGrantPlan{}
 	if s != nil && s.cfg != nil {
@@ -819,18 +832,39 @@ func (s *AuthService) resolveSignupGrantPlan(ctx context.Context, signupSource s
 	plan.Concurrency = s.settingService.GetDefaultConcurrency(ctx)
 	plan.Subscriptions = s.settingService.GetDefaultSubscriptions(ctx)
 
+	// ============ 全局 quota 装载（必须在 ResolveAuthSourceGrantSettings 之前） ============
+	// 无论 auth source 是否 enabled，全局层都要先装载，确保 !enabled 早退路径也携带全局 quota。
+	if quotas, err := s.settingService.GetDefaultPlatformQuotas(ctx); err == nil {
+		plan.PlatformQuotas = quotas
+	} else {
+		logger.LegacyPrintf("service.auth", "[Auth] Warning: load default platform quotas failed: %v (fail-open)", err)
+	}
+	// ============================================================================================
+
 	resolved, enabled, err := s.settingService.ResolveAuthSourceGrantSettings(ctx, signupSource, false)
 	if err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to load auth source signup defaults for %s: %v", signupSource, err)
 		return plan
 	}
 	if !enabled {
-		return plan
+		return plan // plan.PlatformQuotas 已含全局层
 	}
 
 	plan.Balance = resolved.Balance
 	plan.Concurrency = resolved.Concurrency
 	plan.Subscriptions = resolved.Subscriptions
+
+	// ============ auth source quota merge（仅在 enabled 分支内） ============
+	asQuotas := s.settingService.GetAuthSourcePlatformQuotas(ctx, signupSource)
+	if plan.PlatformQuotas != nil {
+		for platform, patch := range asQuotas {
+			if dst := plan.PlatformQuotas[platform]; dst != nil {
+				mergePlatformQuotaDefaults(dst, patch)
+			}
+		}
+	}
+	// ==============================================================================
+
 	return plan
 }
 
@@ -852,6 +886,8 @@ func authSourceSignupSettings(defaults *AuthSourceDefaultSettings, signupSource 
 		return defaults.GitHub, true
 	case "google":
 		return defaults.Google, true
+	case "dingtalk":
+		return defaults.DingTalk, true
 	default:
 		return ProviderDefaultGrantSettings{}, false
 	}
@@ -1065,6 +1101,8 @@ func (s *AuthService) ensureEmailAuthIdentity(ctx context.Context, user *User, s
 func inferLegacySignupSource(email string) string {
 	normalized := strings.ToLower(strings.TrimSpace(email))
 	switch {
+	case strings.HasSuffix(normalized, DingTalkConnectSyntheticEmailDomain):
+		return "dingtalk"
 	case strings.HasSuffix(normalized, LinuxDoConnectSyntheticEmailDomain):
 		return "linuxdo"
 	case strings.HasSuffix(normalized, OIDCConnectSyntheticEmailDomain):
@@ -1159,12 +1197,23 @@ func isReservedEmail(email string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(email))
 	return strings.HasSuffix(normalized, LinuxDoConnectSyntheticEmailDomain) ||
 		strings.HasSuffix(normalized, OIDCConnectSyntheticEmailDomain) ||
-		strings.HasSuffix(normalized, WeChatConnectSyntheticEmailDomain)
+		strings.HasSuffix(normalized, WeChatConnectSyntheticEmailDomain) ||
+		strings.HasSuffix(normalized, DingTalkConnectSyntheticEmailDomain)
 }
 
 // GenerateToken 生成JWT access token
-// 使用新的access_token_expire_minutes配置项（如果配置了），否则回退到expire_hour
-func (s *AuthService) GenerateToken(user *User) (string, error) {
+// 使用新的access_token_expire_minutes配置项（如果配置了），否则回退到expire_hour。
+// 会话指纹（IP/UA）从 ctx 中提取（由 HTTP 入口中间件注入），缺失时生成不带绑定的 token。
+func (s *AuthService) GenerateToken(ctx context.Context, user *User) (string, error) {
+	sessionID, err := randomHexString(8)
+	if err != nil {
+		return "", fmt.Errorf("generate session id: %w", err)
+	}
+	return s.generateAccessToken(user, sessionID, sessionBindingHashFromContext(ctx))
+}
+
+// generateAccessToken 生成带会话 ID 与绑定指纹的 access token。
+func (s *AuthService) generateAccessToken(user *User, sessionID, bindingHash string) (string, error) {
 	now := time.Now()
 	var expiresAt time.Time
 	if s.cfg.JWT.AccessTokenExpireMinutes > 0 {
@@ -1179,6 +1228,8 @@ func (s *AuthService) GenerateToken(user *User) (string, error) {
 		Email:        user.Email,
 		Role:         user.Role,
 		TokenVersion: resolvedTokenVersion(user),
+		SessionID:    sessionID,
+		BindingHash:  bindingHash,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -1248,8 +1299,16 @@ func (s *AuthService) RefreshToken(ctx context.Context, oldTokenString string) (
 		return "", ErrTokenRevoked
 	}
 
+	// 会话绑定检查：指纹变化的旧 token 不允许换发新 token。
+	if s.settingService != nil && s.settingService.IsSessionBindingEnabled(ctx) && claims.BindingHash != "" {
+		if current := sessionBindingHashFromContext(ctx); current != "" && current != claims.BindingHash {
+			_ = s.RevokeSessionFamily(ctx, claims.SessionID)
+			return "", ErrSessionBindingMismatch
+		}
+	}
+
 	// 生成新token
-	return s.GenerateToken(user)
+	return s.GenerateToken(ctx, user)
 }
 
 // IsPasswordResetEnabled 检查是否启用密码重置功能
@@ -1288,7 +1347,7 @@ func (s *AuthService) preparePasswordReset(ctx context.Context, email, frontendB
 	}
 
 	// Get site name
-	siteName := "ikik-api"
+	siteName := "Sub2API"
 	if s.settingService != nil {
 		siteName = s.settingService.GetSiteName(ctx)
 	}
@@ -1301,7 +1360,7 @@ func (s *AuthService) preparePasswordReset(ctx context.Context, email, frontendB
 
 // RequestPasswordReset 请求密码重置（同步发送）
 // Security: Returns the same response regardless of whether the email exists (prevent user enumeration)
-func (s *AuthService) RequestPasswordReset(ctx context.Context, email, frontendBaseURL string) error {
+func (s *AuthService) RequestPasswordReset(ctx context.Context, email, frontendBaseURL string, locale ...string) error {
 	if !s.IsPasswordResetEnabled(ctx) {
 		return infraerrors.Forbidden("PASSWORD_RESET_DISABLED", "password reset is not enabled")
 	}
@@ -1314,7 +1373,7 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email, frontendB
 		return nil // Silent success to prevent enumeration
 	}
 
-	if err := s.emailService.SendPasswordResetEmail(ctx, email, siteName, resetURL); err != nil {
+	if err := s.emailService.SendPasswordResetEmail(ctx, email, siteName, resetURL, firstEmailLocale(locale)); err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to send password reset email to %s: %v", email, err)
 		return nil // Silent success to prevent enumeration
 	}
@@ -1325,7 +1384,7 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email, frontendB
 
 // RequestPasswordResetAsync 异步请求密码重置（队列发送）
 // Security: Returns the same response regardless of whether the email exists (prevent user enumeration)
-func (s *AuthService) RequestPasswordResetAsync(ctx context.Context, email, frontendBaseURL string) error {
+func (s *AuthService) RequestPasswordResetAsync(ctx context.Context, email, frontendBaseURL string, locale ...string) error {
 	if !s.IsPasswordResetEnabled(ctx) {
 		return infraerrors.Forbidden("PASSWORD_RESET_DISABLED", "password reset is not enabled")
 	}
@@ -1338,7 +1397,7 @@ func (s *AuthService) RequestPasswordResetAsync(ctx context.Context, email, fron
 		return nil // Silent success to prevent enumeration
 	}
 
-	if err := s.emailQueueService.EnqueuePasswordReset(email, siteName, resetURL); err != nil {
+	if err := s.emailQueueService.EnqueuePasswordReset(email, siteName, resetURL, firstEmailLocale(locale)); err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to enqueue password reset email for %s: %v", email, err)
 		return nil // Silent success to prevent enumeration
 	}
@@ -1427,8 +1486,18 @@ func (s *AuthService) GenerateTokenPair(ctx context.Context, user *User, familyI
 		return nil, errors.New("refresh token cache not configured")
 	}
 
-	// 生成Access Token
-	accessToken, err := s.GenerateToken(user)
+	// 提前确定家族ID：作为 access token 的会话ID（sid），保证同一会话的
+	// access/refresh token 可以互相关联（单会话撤销、step-up 授权绑定）。
+	if familyID == "" {
+		familyBytes := make([]byte, 16)
+		if _, err := rand.Read(familyBytes); err != nil {
+			return nil, fmt.Errorf("generate family id: %w", err)
+		}
+		familyID = hex.EncodeToString(familyBytes)
+	}
+
+	// 生成Access Token（携带会话ID与绑定指纹）
+	accessToken, err := s.generateAccessToken(user, familyID, sessionBindingHashFromContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("generate access token: %w", err)
 	}
@@ -1474,6 +1543,7 @@ func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, fami
 		UserID:       user.ID,
 		TokenVersion: resolvedTokenVersion(user),
 		FamilyID:     familyID,
+		BindingHash:  sessionBindingHashFromContext(ctx),
 		CreatedAt:    now,
 		ExpiresAt:    now.Add(ttl),
 	}
@@ -1558,6 +1628,16 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 		return nil, ErrTokenRevoked
 	}
 
+	// 会话绑定检查：IP/UA 任一变化即撤销整个会话家族。
+	// data.BindingHash 为空表示功能开启前签发的旧会话，放行并在轮转时补齐绑定。
+	if s.settingService != nil && s.settingService.IsSessionBindingEnabled(ctx) && data.BindingHash != "" {
+		if current := sessionBindingHashFromContext(ctx); current != "" && current != data.BindingHash {
+			_ = s.refreshTokenCache.DeleteTokenFamily(ctx, data.FamilyID)
+			logger.LegacyPrintf("service.auth", "[Auth] Session binding mismatch on refresh for user %d, family revoked", data.UserID)
+			return nil, ErrSessionBindingMismatch
+		}
+	}
+
 	// Token轮转：立即使旧Token失效
 	if err := s.refreshTokenCache.DeleteRefreshToken(ctx, tokenHash); err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to delete old refresh token: %v", err)
@@ -1586,6 +1666,15 @@ func (s *AuthService) RevokeRefreshToken(ctx context.Context, refreshToken strin
 
 	tokenHash := hashToken(refreshToken)
 	return s.refreshTokenCache.DeleteRefreshToken(ctx, tokenHash)
+}
+
+// RevokeSessionFamily 撤销单个会话家族（该会话的所有 refresh token）。
+// 用于会话绑定失效等单会话级撤销场景，不影响用户的其他设备会话。
+func (s *AuthService) RevokeSessionFamily(ctx context.Context, familyID string) error {
+	if s.refreshTokenCache == nil || familyID == "" {
+		return nil
+	}
+	return s.refreshTokenCache.DeleteTokenFamily(ctx, familyID)
 }
 
 // RevokeAllUserSessions 撤销用户的所有会话（所有Refresh Token）
@@ -1635,4 +1724,35 @@ func resolvedTokenVersion(user *User) int64 {
 	sum := sha256.Sum256([]byte(material))
 	fingerprint := int64(binary.BigEndian.Uint64(sum[:8]) & 0x7fffffffffffffff)
 	return user.TokenVersion ^ fingerprint
+}
+
+// snapshotPlatformQuotaDefaults 把 plan.PlatformQuotas（platform × 3 window）以
+// BulkInsertInitial 形式写入 user_platform_quotas 表。失败 fail-open（仅 warn log）。
+func (s *AuthService) snapshotPlatformQuotaDefaults(ctx context.Context, userID int64, plan *signupGrantPlan) error {
+	if s.userPlatformQuotaRepo == nil || plan == nil || len(plan.PlatformQuotas) == 0 {
+		return nil
+	}
+	// 平台配额快照是 best-effort（fail-open）：必须脱离调用方事务执行。
+	// 否则某平台违反 user_platform_quotas 的 CHECK 约束（如尚未进约束的新平台）会让
+	// 整个调用方事务被 Postgres 标记 aborted，把"无关紧要的默认配额快照"放大成
+	// "整笔注册失败"（OAuth pending 路径曾因此 500 → 清 cookie → 404）。
+	ctx = dbent.WithoutTx(ctx)
+	records := make([]UserPlatformQuotaRecord, 0, len(plan.PlatformQuotas))
+	for platform, q := range plan.PlatformQuotas {
+		rec := UserPlatformQuotaRecord{
+			UserID:   userID,
+			Platform: platform,
+		}
+		if q != nil {
+			rec.DailyLimitUSD = q.DailyLimitUSD
+			rec.WeeklyLimitUSD = q.WeeklyLimitUSD
+			rec.MonthlyLimitUSD = q.MonthlyLimitUSD
+		}
+		records = append(records, rec)
+	}
+	if err := s.userPlatformQuotaRepo.BulkInsertInitial(ctx, records); err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Warning: snapshot platform quota failed user=%d: %v (fail-open)", userID, err)
+		return nil // fail-open：返回 nil，让调用方继续
+	}
+	return nil
 }

@@ -129,7 +129,7 @@ onUnmounted(() => {
 }
 
 .table-page-layout.mobile-mode .table-scroll-container :deep(.table-wrapper) {
-  @apply overflow-visible;
+  @apply overflow-x-auto overflow-y-visible;
 }
 
 .table-page-layout.mobile-mode .table-scroll-container :deep(table) {

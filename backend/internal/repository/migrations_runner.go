@@ -53,23 +53,10 @@ const migrationsLockRetryInterval = 500 * time.Millisecond
 const nonTransactionalMigrationSuffix = "_notx.sql"
 const paymentOrdersOutTradeNoUniqueMigration = "120_enforce_payment_orders_out_trade_no_unique_notx.sql"
 const paymentOrdersOutTradeNoUniqueIndex = "paymentorder_out_trade_no_unique"
-const ownedAccountIdentityUniqueMigration = "140_owned_account_identity_unique_notx.sql"
-
-var ownedAccountIdentityUniqueIndexes = []string{
-	"idx_accounts_owned_openai_chatgpt_account_id_uniq",
-	"idx_accounts_owned_openai_chatgpt_user_id_uniq",
-	"idx_accounts_owned_anthropic_org_account_uniq",
-	"idx_accounts_owned_gemini_project_uniq",
-	"idx_accounts_owned_antigravity_project_uniq",
-}
-
-var ownedAccountIdentityUniqueIndexSet = map[string]struct{}{
-	"idx_accounts_owned_openai_chatgpt_account_id_uniq": {},
-	"idx_accounts_owned_openai_chatgpt_user_id_uniq":    {},
-	"idx_accounts_owned_anthropic_org_account_uniq":     {},
-	"idx_accounts_owned_gemini_project_uniq":            {},
-	"idx_accounts_owned_antigravity_project_uniq":       {},
-}
+const schedulerOutboxPendingDedupKeyMigration = "153_scheduler_outbox_pending_dedup_key_index_notx.sql"
+const schedulerOutboxPendingDedupKeyIndex = "idx_scheduler_outbox_pending_dedup_key"
+const latestAPIKeyIPIndexMigration = "174_add_usage_logs_api_key_latest_ip_index_notx.sql"
+const latestAPIKeyIPIndex = "idx_usage_logs_api_key_latest_ip"
 
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
@@ -92,10 +79,8 @@ var migrationChecksumCompatibilityRules = map[string]migrationChecksumCompatibil
 	"119_enforce_payment_orders_out_trade_no_unique.sql":      newMigrationChecksumCompatibilityRule("0bbe809ae48a9d811dabda1ba1c74955bd71c4a9cc610f9128816818dfa6c11e", "ebd2c67cce0116393fb4f1b5d5116a67c6aceb73820dfb5133d1ff6f36d72d34"),
 	"120_enforce_payment_orders_out_trade_no_unique_notx.sql": newMigrationChecksumCompatibilityRule("34aadc0db59a4e390f92a12b73bd74642d9724f33124f73638ae00089ea5e074", "e77921f79d539bc24575cb9c16cbe566d2b23ce816190343d0a7568f6a3fcf61", "707431450603e70a43ce9fbd61e0c12fa67da4875158ccefabacea069587ab22", "04b082b5a239c525154fe9185d324ee2b05ff90da9297e10dba19f9be79aa59a"),
 	"123_fix_legacy_auth_source_grant_on_signup_defaults.sql": newMigrationChecksumCompatibilityRule("2ce43c2cd89e9f9e1febd34a407ed9e84d177386c5544b6f02c1f58a21129f57", "6cd33422f215dcd1f486ab6f35c0ea5805d9ca69bb25906d94bc649156657145"),
-	"154_affiliate_ledger_audit_snapshots.sql":                newMigrationChecksumCompatibilityRule("80fb2e9033d58cc611412c97301e0c66a86a8bfcd178abfe7877b93519cd2d8a", "608193cd329ec0c47025e26569eac5843c2bae836b06fd103fa72bf66ed9d0fd"),
-	"155_image_generation_group_controls.sql":                 newMigrationChecksumCompatibilityRule("8a8bc4ad03b36bf001290c674a790597cf399ff79c7be298d6bb8071a66d8cf8", "f5afcb0b91287ca1422c2163a39471b4cddc3673d9e7ff71e2402b3088ab5e2e"),
-	"156_allow_email_oauth_provider_types.sql":                newMigrationChecksumCompatibilityRule("e5e3512fd7ff6e9225414bf79425fd8ddbf6d78a66998142bfb2441f8e7e4708", "deb09c00432066d3194255d952e8d1d78483ad885c43777f3b06a1c0369b1a02"),
-	"157_content_moderation.sql":                              newMigrationChecksumCompatibilityRule("f9545c941580e8cad2b6b5ca4c6522bf1a6335b5a5a04bdc2b143678b289df67", "ae967e621e3bf66bbce6dd0624ee6c647ac57643dbdb4449a3d7f77f6531937a"),
+	"159_batch_image_foundation.sql":                          newMigrationChecksumCompatibilityRule("d902b70982025ec519749faf058aab7631e82c3f48167b9a4ae4db718eb72cce", "82da85b5d98e67a0507647b873a40373e84538e4adafdeed6767c0ac8b6570b2"),
+	"161_batch_image_pricing_snapshot.sql":                    newMigrationChecksumCompatibilityRule("4012af3e43636cb6af22e0176d59d1fcc70615c0f310194329461ae462c4fbd6", "96d915c9b7a6941ae99039e0ff3f1a61481eb9bddd933d11c6fadb2274554e87"),
 	"190_allow_kiro_user_platform_quotas.sql":                 newMigrationChecksumCompatibilityRule("84759e7fd445111e8706e2433d1d98a2af39c5072e0ed058018e96ebf91ffec9", "bc174c2b9dd244f10090a322bb685c8fd6c3e8050777a07b3c92c08b1d8cae94"),
 }
 
@@ -280,8 +265,10 @@ func prepareNonTransactionalMigration(ctx context.Context, db *sql.DB, name stri
 	switch name {
 	case paymentOrdersOutTradeNoUniqueMigration:
 		return preparePaymentOrdersOutTradeNoUniqueMigration(ctx, db)
-	case ownedAccountIdentityUniqueMigration:
-		return prepareOwnedAccountIdentityUniqueMigration(ctx, db)
+	case schedulerOutboxPendingDedupKeyMigration:
+		return dropInvalidIndexIfPresent(ctx, db, schedulerOutboxPendingDedupKeyIndex)
+	case latestAPIKeyIPIndexMigration:
+		return dropInvalidIndexIfPresent(ctx, db, latestAPIKeyIPIndex)
 	default:
 		return nil
 	}
@@ -300,163 +287,22 @@ func preparePaymentOrdersOutTradeNoUniqueMigration(ctx context.Context, db *sql.
 		)
 	}
 
-	invalid, err := indexIsInvalid(ctx, db, paymentOrdersOutTradeNoUniqueIndex)
+	return dropInvalidIndexIfPresent(ctx, db, paymentOrdersOutTradeNoUniqueIndex)
+}
+
+func dropInvalidIndexIfPresent(ctx context.Context, db *sql.DB, indexName string) error {
+	invalid, err := indexIsInvalid(ctx, db, indexName)
 	if err != nil {
-		return fmt.Errorf("check invalid index %s: %w", paymentOrdersOutTradeNoUniqueIndex, err)
+		return fmt.Errorf("check invalid index %s: %w", indexName, err)
 	}
 	if !invalid {
 		return nil
 	}
 
-	if _, err := db.ExecContext(ctx, fmt.Sprintf("DROP INDEX CONCURRENTLY IF EXISTS %s", paymentOrdersOutTradeNoUniqueIndex)); err != nil {
-		return fmt.Errorf("drop invalid index %s: %w", paymentOrdersOutTradeNoUniqueIndex, err)
+	if _, err := db.ExecContext(ctx, fmt.Sprintf("DROP INDEX CONCURRENTLY IF EXISTS %s", indexName)); err != nil {
+		return fmt.Errorf("drop invalid index %s: %w", indexName, err)
 	}
 	return nil
-}
-
-func prepareOwnedAccountIdentityUniqueMigration(ctx context.Context, db *sql.DB) error {
-	duplicates, err := findDuplicateOwnedAccountIdentities(ctx, db)
-	if err != nil {
-		return fmt.Errorf("precheck duplicate owned account identities: %w", err)
-	}
-	if len(duplicates) > 0 {
-		return fmt.Errorf(
-			"duplicate owned account identities block %s; remediate duplicates before retrying: %s",
-			ownedAccountIdentityUniqueMigration,
-			strings.Join(duplicates, ", "),
-		)
-	}
-
-	for _, indexName := range ownedAccountIdentityUniqueIndexes {
-		invalid, err := indexIsInvalid(ctx, db, indexName)
-		if err != nil {
-			return fmt.Errorf("check invalid index %s: %w", indexName, err)
-		}
-		if !invalid {
-			continue
-		}
-		if _, err := db.ExecContext(ctx, fmt.Sprintf("DROP INDEX CONCURRENTLY IF EXISTS %s", indexName)); err != nil {
-			return fmt.Errorf("drop invalid index %s: %w", indexName, err)
-		}
-	}
-	return nil
-}
-
-func findDuplicateOwnedAccountIdentities(ctx context.Context, db *sql.DB) ([]string, error) {
-	rows, err := db.QueryContext(ctx, `
-		WITH identities AS (
-			SELECT
-				owner_user_id,
-				'openai.chatgpt_account_id' AS identity_name,
-				NULLIF(BTRIM(credentials->>'chatgpt_account_id'), '') AS identity_value,
-				id
-			FROM accounts
-			WHERE deleted_at IS NULL
-			  AND owner_user_id IS NOT NULL
-			  AND platform = 'openai'
-			  AND type = 'oauth'
-			  AND NULLIF(BTRIM(credentials->>'chatgpt_account_id'), '') IS NOT NULL
-
-			UNION ALL
-
-			SELECT
-				owner_user_id,
-				'openai.chatgpt_user_id' AS identity_name,
-				NULLIF(BTRIM(credentials->>'chatgpt_user_id'), '') AS identity_value,
-				id
-			FROM accounts
-			WHERE deleted_at IS NULL
-			  AND owner_user_id IS NOT NULL
-			  AND platform = 'openai'
-			  AND type = 'oauth'
-			  AND NULLIF(BTRIM(credentials->>'chatgpt_user_id'), '') IS NOT NULL
-
-			UNION ALL
-
-			SELECT
-				owner_user_id,
-				'anthropic.org_account' AS identity_name,
-				LOWER(COALESCE(NULLIF(BTRIM(extra->>'org_uuid'), ''), NULLIF(BTRIM(credentials->>'org_uuid'), ''))) ||
-					'|' ||
-					LOWER(COALESCE(NULLIF(BTRIM(extra->>'account_uuid'), ''), NULLIF(BTRIM(credentials->>'account_uuid'), ''))) AS identity_value,
-				id
-			FROM accounts
-			WHERE deleted_at IS NULL
-			  AND owner_user_id IS NOT NULL
-			  AND platform = 'anthropic'
-			  AND type = 'oauth'
-			  AND COALESCE(NULLIF(BTRIM(extra->>'org_uuid'), ''), NULLIF(BTRIM(credentials->>'org_uuid'), '')) IS NOT NULL
-			  AND COALESCE(NULLIF(BTRIM(extra->>'account_uuid'), ''), NULLIF(BTRIM(credentials->>'account_uuid'), '')) IS NOT NULL
-
-			UNION ALL
-
-			SELECT
-				owner_user_id,
-				'gemini.project' AS identity_name,
-				LOWER(COALESCE(NULLIF(BTRIM(credentials->>'oauth_type'), ''), 'code_assist')) ||
-					'|' ||
-					LOWER(NULLIF(BTRIM(credentials->>'project_id'), '')) AS identity_value,
-				id
-			FROM accounts
-			WHERE deleted_at IS NULL
-			  AND owner_user_id IS NOT NULL
-			  AND platform = 'gemini'
-			  AND type = 'oauth'
-			  AND NULLIF(BTRIM(credentials->>'project_id'), '') IS NOT NULL
-
-			UNION ALL
-
-			SELECT
-				owner_user_id,
-				'antigravity.project_id' AS identity_name,
-				LOWER(NULLIF(BTRIM(credentials->>'project_id'), '')) AS identity_value,
-				id
-			FROM accounts
-			WHERE deleted_at IS NULL
-			  AND owner_user_id IS NOT NULL
-			  AND platform = 'antigravity'
-			  AND type = 'oauth'
-			  AND NULLIF(BTRIM(credentials->>'project_id'), '') IS NOT NULL
-		)
-		SELECT
-			identity_name,
-			owner_user_id,
-			COUNT(*) AS duplicate_count,
-			ARRAY_TO_STRING((ARRAY_AGG(id ORDER BY id))[1:5], ',') AS sample_ids
-		FROM identities
-		GROUP BY identity_name, owner_user_id, identity_value
-		HAVING COUNT(*) > 1
-		ORDER BY duplicate_count DESC, identity_name, owner_user_id
-		LIMIT 10
-	`)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	duplicates := make([]string, 0, 10)
-	for rows.Next() {
-		var identityName string
-		var ownerUserID int64
-		var duplicateCount int
-		var sampleIDs string
-		if err := rows.Scan(&identityName, &ownerUserID, &duplicateCount, &sampleIDs); err != nil {
-			return nil, err
-		}
-		duplicates = append(duplicates, fmt.Sprintf(
-			"%s owner_user_id=%d count=%d sample_account_ids=%s",
-			identityName,
-			ownerUserID,
-			duplicateCount,
-			sampleIDs,
-		))
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return duplicates, nil
 }
 
 func findDuplicatePaymentOrderOutTradeNos(ctx context.Context, db *sql.DB) ([]string, error) {

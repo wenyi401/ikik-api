@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"ikik-api/internal/pkg/ctxkey"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/ctxkey"
 )
 
 func TestRequestMetadataWriteAndRead_NoBridge(t *testing.T) {

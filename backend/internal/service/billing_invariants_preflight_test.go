@@ -63,7 +63,7 @@ func billInvNewBillingCacheService(t *testing.T, cache BillingCache, cfg *config
 	if len(rpmCache) > 0 {
 		rpm = rpmCache[0]
 	}
-	svc := NewBillingCacheService(cache, nil, nil, nil, nil, rpm, nil, cfg)
+	svc := NewBillingCacheService(cache, nil, nil, nil, rpm, nil, cfg, nil)
 	t.Cleanup(svc.Stop)
 	return svc
 }
@@ -74,13 +74,13 @@ func TestBillingInvariant_PreflightBalanceEligibility(t *testing.T) {
 
 	t.Run("余额耗尽拒绝", func(t *testing.T) {
 		svc := billInvNewBillingCacheService(t, &billInvBillingCacheStub{balance: 0}, nil)
-		err := svc.CheckBillingEligibility(context.Background(), user, nil, nil, nil)
+		err := svc.CheckBillingEligibility(context.Background(), user, nil, nil, nil, "")
 		require.ErrorIs(t, err, ErrInsufficientBalance)
 	})
 
 	t.Run("余额为正放行", func(t *testing.T) {
 		svc := billInvNewBillingCacheService(t, &billInvBillingCacheStub{balance: 5.0}, nil)
-		err := svc.CheckBillingEligibility(context.Background(), user, nil, nil, nil)
+		err := svc.CheckBillingEligibility(context.Background(), user, nil, nil, nil, "")
 		require.NoError(t, err)
 	})
 
@@ -89,11 +89,11 @@ func TestBillingInvariant_PreflightBalanceEligibility(t *testing.T) {
 		svc := billInvNewBillingCacheService(t, cache, nil)
 
 		// 第一次检查（获取并发槽前）：余额尚存 → 放行
-		require.NoError(t, svc.CheckBillingEligibility(context.Background(), user, nil, nil, nil))
+		require.NoError(t, svc.CheckBillingEligibility(context.Background(), user, nil, nil, nil, ""))
 
 		// 等待期间其他请求把余额扣到 0 → 等待结束后的二次检查必须拒绝
 		cache.balance = 0
-		err := svc.CheckBillingEligibility(context.Background(), user, nil, nil, nil)
+		err := svc.CheckBillingEligibility(context.Background(), user, nil, nil, nil, "")
 		require.ErrorIs(t, err, ErrInsufficientBalance)
 	})
 }
@@ -152,7 +152,7 @@ func TestBillingInvariant_PreflightSubscriptionLimits(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := billInvNewBillingCacheService(t, &billInvBillingCacheStub{sub: tt.sub}, nil)
-			err := svc.CheckBillingEligibility(context.Background(), user, nil, group, subscription)
+			err := svc.CheckBillingEligibility(context.Background(), user, nil, group, subscription, "")
 			if tt.wantErr == nil {
 				require.NoError(t, err)
 			} else {
@@ -175,7 +175,7 @@ func TestBillingInvariant_PreflightRPM(t *testing.T) {
 			nil,
 			&billInvUserRPMCacheStub{userGroupCount: 2},
 		)
-		err := svc.CheckBillingEligibility(context.Background(), user, nil, group, nil)
+		err := svc.CheckBillingEligibility(context.Background(), user, nil, group, nil, "")
 		require.ErrorIs(t, err, ErrGroupRPMExceeded)
 	})
 
@@ -187,7 +187,7 @@ func TestBillingInvariant_PreflightRPM(t *testing.T) {
 			nil,
 			&billInvUserRPMCacheStub{userGroupCount: 5},
 		)
-		err := svc.CheckBillingEligibility(context.Background(), user, nil, group, nil)
+		err := svc.CheckBillingEligibility(context.Background(), user, nil, group, nil, "")
 		require.NoError(t, err)
 	})
 
@@ -199,7 +199,7 @@ func TestBillingInvariant_PreflightRPM(t *testing.T) {
 			nil,
 			&billInvUserRPMCacheStub{userCount: 2},
 		)
-		err := svc.CheckBillingEligibility(context.Background(), user, nil, nil, nil)
+		err := svc.CheckBillingEligibility(context.Background(), user, nil, nil, nil, "")
 		require.ErrorIs(t, err, ErrUserRPMExceeded)
 	})
 }
@@ -209,6 +209,6 @@ func TestBillingInvariant_PreflightRPM(t *testing.T) {
 func TestBillingInvariant_PreflightSimpleModeBypass(t *testing.T) {
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	svc := billInvNewBillingCacheService(t, &billInvBillingCacheStub{balance: 0}, cfg)
-	err := svc.CheckBillingEligibility(context.Background(), &User{ID: 601}, nil, nil, nil)
+	err := svc.CheckBillingEligibility(context.Background(), &User{ID: 601}, nil, nil, nil, "")
 	require.NoError(t, err)
 }

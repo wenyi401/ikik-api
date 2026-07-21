@@ -809,6 +809,7 @@ function addPricingEntry(sectionIdx: number) {
     output_price: null,
     cache_write_price: null,
     cache_read_price: null,
+    image_input_price: null,
     image_output_price: null,
     per_request_price: null,
     intervals: []
@@ -867,6 +868,7 @@ function addRulePricingEntry(sectionIdx: number, ruleIndex: number) {
     output_price: null,
     cache_write_price: null,
     cache_read_price: null,
+    image_input_price: null,
     image_output_price: null,
     per_request_price: null,
     intervals: []
@@ -1383,7 +1385,7 @@ async function handleSubmit() {
   for (const section of form.platforms.filter(s => s.enabled)) {
     for (const entry of section.model_pricing) {
       if (!entry.intervals || entry.intervals.length === 0) continue
-      const intervalErr = validateIntervals(entry.intervals)
+      const intervalErr = validateIntervals(entry.intervals, entry.billing_mode, t)
       if (intervalErr) {
         const platformLabel = t('admin.groups.platforms.' + section.platform, section.platform)
         const modelLabel = entry.models.join(', ') || t('admin.channels.form.unnamed')

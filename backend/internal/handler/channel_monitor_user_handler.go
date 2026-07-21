@@ -6,7 +6,6 @@ import (
 	"ikik-api/internal/handler/admin"
 	"ikik-api/internal/handler/dto"
 	"ikik-api/internal/pkg/response"
-	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -24,12 +23,10 @@ type ChannelMonitorUserHandler struct {
 func NewChannelMonitorUserHandler(
 	monitorService *service.ChannelMonitorService,
 	settingService *service.SettingService,
-	groupCapacityService *service.GroupCapacityService,
 ) *ChannelMonitorUserHandler {
 	return &ChannelMonitorUserHandler{
-		monitorService:       monitorService,
-		settingService:       settingService,
-		groupCapacityService: groupCapacityService,
+		monitorService: monitorService,
+		settingService: settingService,
 	}
 }
 
@@ -73,11 +70,6 @@ type channelMonitorUserDetailResponse struct {
 	Provider  string                        `json:"provider"`
 	GroupName string                        `json:"group_name"`
 	Models    []channelMonitorUserModelStat `json:"models"`
-}
-
-type channelMonitorCapacitySummaryResponse struct {
-	Items []service.GroupCapacitySummary `json:"items"`
-	Total service.GroupCapacitySummary   `json:"total"`
 }
 
 type channelMonitorUserModelStat struct {
@@ -145,22 +137,6 @@ func userMonitorDetailToResponse(d *service.UserMonitorDetail) *channelMonitorUs
 	}
 }
 
-func channelMonitorCapacitySummary(items []service.GroupCapacitySummary) channelMonitorCapacitySummaryResponse {
-	total := service.GroupCapacitySummary{}
-	for _, item := range items {
-		total.ConcurrencyUsed += item.ConcurrencyUsed
-		total.ConcurrencyMax += item.ConcurrencyMax
-		total.SessionsUsed += item.SessionsUsed
-		total.SessionsMax += item.SessionsMax
-		total.RPMUsed += item.RPMUsed
-		total.RPMMax += item.RPMMax
-	}
-	return channelMonitorCapacitySummaryResponse{
-		Items: items,
-		Total: total,
-	}
-}
-
 // --- Handlers ---
 
 // List GET /api/v1/channel-monitors
@@ -179,31 +155,6 @@ func (h *ChannelMonitorUserHandler) List(c *gin.Context) {
 		items = append(items, userMonitorViewToItem(v))
 	}
 	response.Success(c, gin.H{"items": items})
-}
-
-// CapacitySummary GET /api/v1/channel-monitors/capacity-summary
-func (h *ChannelMonitorUserHandler) CapacitySummary(c *gin.Context) {
-	if !h.featureEnabled(c) {
-		response.Success(c, channelMonitorCapacitySummary([]service.GroupCapacitySummary{}))
-		return
-	}
-	if h.groupCapacityService == nil {
-		response.Error(c, 500, "Group capacity service is unavailable")
-		return
-	}
-
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
-	if !ok {
-		response.Unauthorized(c, "User not authenticated")
-		return
-	}
-
-	items, err := h.groupCapacityService.GetUserVisibleGroupCapacity(c.Request.Context(), subject.UserID)
-	if err != nil {
-		response.Error(c, 500, "Failed to get group capacity summary")
-		return
-	}
-	response.Success(c, channelMonitorCapacitySummary(items))
 }
 
 // GetStatus GET /api/v1/channel-monitors/:id/status

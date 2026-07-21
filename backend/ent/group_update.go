@@ -791,6 +791,268 @@ func (_u *GroupUpdate) SetNillableKiroEndpointMode(v *string) *GroupUpdate {
 	return _u
 }
 
+// SetPeakRateEnabled sets the "peak_rate_enabled" field.
+func (_u *GroupUpdate) SetPeakRateEnabled(v bool) *GroupUpdate {
+	_u.mutation.SetPeakRateEnabled(v)
+	return _u
+}
+
+// SetNillablePeakRateEnabled sets the "peak_rate_enabled" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillablePeakRateEnabled(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetPeakRateEnabled(*v)
+	}
+	return _u
+}
+
+// SetPeakStart sets the "peak_start" field.
+func (_u *GroupUpdate) SetPeakStart(v string) *GroupUpdate {
+	_u.mutation.SetPeakStart(v)
+	return _u
+}
+
+// SetNillablePeakStart sets the "peak_start" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillablePeakStart(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetPeakStart(*v)
+	}
+	return _u
+}
+
+// SetPeakEnd sets the "peak_end" field.
+func (_u *GroupUpdate) SetPeakEnd(v string) *GroupUpdate {
+	_u.mutation.SetPeakEnd(v)
+	return _u
+}
+
+// SetNillablePeakEnd sets the "peak_end" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillablePeakEnd(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetPeakEnd(*v)
+	}
+	return _u
+}
+
+// SetPeakRateMultiplier sets the "peak_rate_multiplier" field.
+func (_u *GroupUpdate) SetPeakRateMultiplier(v float64) *GroupUpdate {
+	_u.mutation.ResetPeakRateMultiplier()
+	_u.mutation.SetPeakRateMultiplier(v)
+	return _u
+}
+
+// SetNillablePeakRateMultiplier sets the "peak_rate_multiplier" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillablePeakRateMultiplier(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetPeakRateMultiplier(*v)
+	}
+	return _u
+}
+
+// AddPeakRateMultiplier adds value to the "peak_rate_multiplier" field.
+func (_u *GroupUpdate) AddPeakRateMultiplier(v float64) *GroupUpdate {
+	_u.mutation.AddPeakRateMultiplier(v)
+	return _u
+}
+
+// SetAllowBatchImageGeneration sets the "allow_batch_image_generation" field.
+func (_u *GroupUpdate) SetAllowBatchImageGeneration(v bool) *GroupUpdate {
+	_u.mutation.SetAllowBatchImageGeneration(v)
+	return _u
+}
+
+// SetNillableAllowBatchImageGeneration sets the "allow_batch_image_generation" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableAllowBatchImageGeneration(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetAllowBatchImageGeneration(*v)
+	}
+	return _u
+}
+
+// SetBatchImageDiscountMultiplier sets the "batch_image_discount_multiplier" field.
+func (_u *GroupUpdate) SetBatchImageDiscountMultiplier(v float64) *GroupUpdate {
+	_u.mutation.ResetBatchImageDiscountMultiplier()
+	_u.mutation.SetBatchImageDiscountMultiplier(v)
+	return _u
+}
+
+// SetNillableBatchImageDiscountMultiplier sets the "batch_image_discount_multiplier" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableBatchImageDiscountMultiplier(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetBatchImageDiscountMultiplier(*v)
+	}
+	return _u
+}
+
+// AddBatchImageDiscountMultiplier adds value to the "batch_image_discount_multiplier" field.
+func (_u *GroupUpdate) AddBatchImageDiscountMultiplier(v float64) *GroupUpdate {
+	_u.mutation.AddBatchImageDiscountMultiplier(v)
+	return _u
+}
+
+// SetBatchImageHoldMultiplier sets the "batch_image_hold_multiplier" field.
+func (_u *GroupUpdate) SetBatchImageHoldMultiplier(v float64) *GroupUpdate {
+	_u.mutation.ResetBatchImageHoldMultiplier()
+	_u.mutation.SetBatchImageHoldMultiplier(v)
+	return _u
+}
+
+// SetNillableBatchImageHoldMultiplier sets the "batch_image_hold_multiplier" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableBatchImageHoldMultiplier(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetBatchImageHoldMultiplier(*v)
+	}
+	return _u
+}
+
+// AddBatchImageHoldMultiplier adds value to the "batch_image_hold_multiplier" field.
+func (_u *GroupUpdate) AddBatchImageHoldMultiplier(v float64) *GroupUpdate {
+	_u.mutation.AddBatchImageHoldMultiplier(v)
+	return _u
+}
+
+// SetVideoRateIndependent sets the "video_rate_independent" field.
+func (_u *GroupUpdate) SetVideoRateIndependent(v bool) *GroupUpdate {
+	_u.mutation.SetVideoRateIndependent(v)
+	return _u
+}
+
+// SetNillableVideoRateIndependent sets the "video_rate_independent" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableVideoRateIndependent(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetVideoRateIndependent(*v)
+	}
+	return _u
+}
+
+// SetVideoRateMultiplier sets the "video_rate_multiplier" field.
+func (_u *GroupUpdate) SetVideoRateMultiplier(v float64) *GroupUpdate {
+	_u.mutation.ResetVideoRateMultiplier()
+	_u.mutation.SetVideoRateMultiplier(v)
+	return _u
+}
+
+// SetNillableVideoRateMultiplier sets the "video_rate_multiplier" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableVideoRateMultiplier(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetVideoRateMultiplier(*v)
+	}
+	return _u
+}
+
+// AddVideoRateMultiplier adds value to the "video_rate_multiplier" field.
+func (_u *GroupUpdate) AddVideoRateMultiplier(v float64) *GroupUpdate {
+	_u.mutation.AddVideoRateMultiplier(v)
+	return _u
+}
+
+// SetVideoPrice480p sets the "video_price_480p" field.
+func (_u *GroupUpdate) SetVideoPrice480p(v float64) *GroupUpdate {
+	_u.mutation.ResetVideoPrice480p()
+	_u.mutation.SetVideoPrice480p(v)
+	return _u
+}
+
+// SetNillableVideoPrice480p sets the "video_price_480p" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableVideoPrice480p(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetVideoPrice480p(*v)
+	}
+	return _u
+}
+
+// AddVideoPrice480p adds value to the "video_price_480p" field.
+func (_u *GroupUpdate) AddVideoPrice480p(v float64) *GroupUpdate {
+	_u.mutation.AddVideoPrice480p(v)
+	return _u
+}
+
+// ClearVideoPrice480p clears the value of the "video_price_480p" field.
+func (_u *GroupUpdate) ClearVideoPrice480p() *GroupUpdate {
+	_u.mutation.ClearVideoPrice480p()
+	return _u
+}
+
+// SetVideoPrice720p sets the "video_price_720p" field.
+func (_u *GroupUpdate) SetVideoPrice720p(v float64) *GroupUpdate {
+	_u.mutation.ResetVideoPrice720p()
+	_u.mutation.SetVideoPrice720p(v)
+	return _u
+}
+
+// SetNillableVideoPrice720p sets the "video_price_720p" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableVideoPrice720p(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetVideoPrice720p(*v)
+	}
+	return _u
+}
+
+// AddVideoPrice720p adds value to the "video_price_720p" field.
+func (_u *GroupUpdate) AddVideoPrice720p(v float64) *GroupUpdate {
+	_u.mutation.AddVideoPrice720p(v)
+	return _u
+}
+
+// ClearVideoPrice720p clears the value of the "video_price_720p" field.
+func (_u *GroupUpdate) ClearVideoPrice720p() *GroupUpdate {
+	_u.mutation.ClearVideoPrice720p()
+	return _u
+}
+
+// SetVideoPrice1080p sets the "video_price_1080p" field.
+func (_u *GroupUpdate) SetVideoPrice1080p(v float64) *GroupUpdate {
+	_u.mutation.ResetVideoPrice1080p()
+	_u.mutation.SetVideoPrice1080p(v)
+	return _u
+}
+
+// SetNillableVideoPrice1080p sets the "video_price_1080p" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableVideoPrice1080p(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetVideoPrice1080p(*v)
+	}
+	return _u
+}
+
+// AddVideoPrice1080p adds value to the "video_price_1080p" field.
+func (_u *GroupUpdate) AddVideoPrice1080p(v float64) *GroupUpdate {
+	_u.mutation.AddVideoPrice1080p(v)
+	return _u
+}
+
+// ClearVideoPrice1080p clears the value of the "video_price_1080p" field.
+func (_u *GroupUpdate) ClearVideoPrice1080p() *GroupUpdate {
+	_u.mutation.ClearVideoPrice1080p()
+	return _u
+}
+
+// SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
+func (_u *GroupUpdate) SetWebSearchPricePerCall(v float64) *GroupUpdate {
+	_u.mutation.ResetWebSearchPricePerCall()
+	_u.mutation.SetWebSearchPricePerCall(v)
+	return _u
+}
+
+// SetNillableWebSearchPricePerCall sets the "web_search_price_per_call" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableWebSearchPricePerCall(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetWebSearchPricePerCall(*v)
+	}
+	return _u
+}
+
+// AddWebSearchPricePerCall adds value to the "web_search_price_per_call" field.
+func (_u *GroupUpdate) AddWebSearchPricePerCall(v float64) *GroupUpdate {
+	_u.mutation.AddWebSearchPricePerCall(v)
+	return _u
+}
+
+// ClearWebSearchPricePerCall clears the value of the "web_search_price_per_call" field.
+func (_u *GroupUpdate) ClearWebSearchPricePerCall() *GroupUpdate {
+	_u.mutation.ClearWebSearchPricePerCall()
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *GroupUpdate) AddAPIKeyIDs(ids ...int64) *GroupUpdate {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -1132,6 +1394,16 @@ func (_u *GroupUpdate) check() error {
 			return &ValidationError{Name: "kiro_endpoint_mode", err: fmt.Errorf(`ent: validator failed for field "Group.kiro_endpoint_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PeakStart(); ok {
+		if err := group.PeakStartValidator(v); err != nil {
+			return &ValidationError{Name: "peak_start", err: fmt.Errorf(`ent: validator failed for field "Group.peak_start": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.PeakEnd(); ok {
+		if err := group.PeakEndValidator(v); err != nil {
+			return &ValidationError{Name: "peak_end", err: fmt.Errorf(`ent: validator failed for field "Group.peak_end": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -1176,6 +1448,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(group.FieldStatus, field.TypeString, value)
+	}
+	if _u.mutation.DuplicateOperationIDCleared() {
+		_spec.ClearField(group.FieldDuplicateOperationID, field.TypeString)
 	}
 	if value, ok := _u.mutation.OwnerUserID(); ok {
 		_spec.SetField(group.FieldOwnerUserID, field.TypeInt64, value)
@@ -1361,6 +1636,81 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.KiroEndpointMode(); ok {
 		_spec.SetField(group.FieldKiroEndpointMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PeakRateEnabled(); ok {
+		_spec.SetField(group.FieldPeakRateEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.PeakStart(); ok {
+		_spec.SetField(group.FieldPeakStart, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PeakEnd(); ok {
+		_spec.SetField(group.FieldPeakEnd, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PeakRateMultiplier(); ok {
+		_spec.SetField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedPeakRateMultiplier(); ok {
+		_spec.AddField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AllowBatchImageGeneration(); ok {
+		_spec.SetField(group.FieldAllowBatchImageGeneration, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BatchImageDiscountMultiplier(); ok {
+		_spec.SetField(group.FieldBatchImageDiscountMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedBatchImageDiscountMultiplier(); ok {
+		_spec.AddField(group.FieldBatchImageDiscountMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.BatchImageHoldMultiplier(); ok {
+		_spec.SetField(group.FieldBatchImageHoldMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedBatchImageHoldMultiplier(); ok {
+		_spec.AddField(group.FieldBatchImageHoldMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.VideoRateIndependent(); ok {
+		_spec.SetField(group.FieldVideoRateIndependent, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.VideoRateMultiplier(); ok {
+		_spec.SetField(group.FieldVideoRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedVideoRateMultiplier(); ok {
+		_spec.AddField(group.FieldVideoRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.VideoPrice480p(); ok {
+		_spec.SetField(group.FieldVideoPrice480p, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedVideoPrice480p(); ok {
+		_spec.AddField(group.FieldVideoPrice480p, field.TypeFloat64, value)
+	}
+	if _u.mutation.VideoPrice480pCleared() {
+		_spec.ClearField(group.FieldVideoPrice480p, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.VideoPrice720p(); ok {
+		_spec.SetField(group.FieldVideoPrice720p, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedVideoPrice720p(); ok {
+		_spec.AddField(group.FieldVideoPrice720p, field.TypeFloat64, value)
+	}
+	if _u.mutation.VideoPrice720pCleared() {
+		_spec.ClearField(group.FieldVideoPrice720p, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.VideoPrice1080p(); ok {
+		_spec.SetField(group.FieldVideoPrice1080p, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedVideoPrice1080p(); ok {
+		_spec.AddField(group.FieldVideoPrice1080p, field.TypeFloat64, value)
+	}
+	if _u.mutation.VideoPrice1080pCleared() {
+		_spec.ClearField(group.FieldVideoPrice1080p, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.WebSearchPricePerCall(); ok {
+		_spec.SetField(group.FieldWebSearchPricePerCall, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedWebSearchPricePerCall(); ok {
+		_spec.AddField(group.FieldWebSearchPricePerCall, field.TypeFloat64, value)
+	}
+	if _u.mutation.WebSearchPricePerCallCleared() {
+		_spec.ClearField(group.FieldWebSearchPricePerCall, field.TypeFloat64)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -2475,6 +2825,268 @@ func (_u *GroupUpdateOne) SetNillableKiroEndpointMode(v *string) *GroupUpdateOne
 	return _u
 }
 
+// SetPeakRateEnabled sets the "peak_rate_enabled" field.
+func (_u *GroupUpdateOne) SetPeakRateEnabled(v bool) *GroupUpdateOne {
+	_u.mutation.SetPeakRateEnabled(v)
+	return _u
+}
+
+// SetNillablePeakRateEnabled sets the "peak_rate_enabled" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillablePeakRateEnabled(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetPeakRateEnabled(*v)
+	}
+	return _u
+}
+
+// SetPeakStart sets the "peak_start" field.
+func (_u *GroupUpdateOne) SetPeakStart(v string) *GroupUpdateOne {
+	_u.mutation.SetPeakStart(v)
+	return _u
+}
+
+// SetNillablePeakStart sets the "peak_start" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillablePeakStart(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetPeakStart(*v)
+	}
+	return _u
+}
+
+// SetPeakEnd sets the "peak_end" field.
+func (_u *GroupUpdateOne) SetPeakEnd(v string) *GroupUpdateOne {
+	_u.mutation.SetPeakEnd(v)
+	return _u
+}
+
+// SetNillablePeakEnd sets the "peak_end" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillablePeakEnd(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetPeakEnd(*v)
+	}
+	return _u
+}
+
+// SetPeakRateMultiplier sets the "peak_rate_multiplier" field.
+func (_u *GroupUpdateOne) SetPeakRateMultiplier(v float64) *GroupUpdateOne {
+	_u.mutation.ResetPeakRateMultiplier()
+	_u.mutation.SetPeakRateMultiplier(v)
+	return _u
+}
+
+// SetNillablePeakRateMultiplier sets the "peak_rate_multiplier" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillablePeakRateMultiplier(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetPeakRateMultiplier(*v)
+	}
+	return _u
+}
+
+// AddPeakRateMultiplier adds value to the "peak_rate_multiplier" field.
+func (_u *GroupUpdateOne) AddPeakRateMultiplier(v float64) *GroupUpdateOne {
+	_u.mutation.AddPeakRateMultiplier(v)
+	return _u
+}
+
+// SetAllowBatchImageGeneration sets the "allow_batch_image_generation" field.
+func (_u *GroupUpdateOne) SetAllowBatchImageGeneration(v bool) *GroupUpdateOne {
+	_u.mutation.SetAllowBatchImageGeneration(v)
+	return _u
+}
+
+// SetNillableAllowBatchImageGeneration sets the "allow_batch_image_generation" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableAllowBatchImageGeneration(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetAllowBatchImageGeneration(*v)
+	}
+	return _u
+}
+
+// SetBatchImageDiscountMultiplier sets the "batch_image_discount_multiplier" field.
+func (_u *GroupUpdateOne) SetBatchImageDiscountMultiplier(v float64) *GroupUpdateOne {
+	_u.mutation.ResetBatchImageDiscountMultiplier()
+	_u.mutation.SetBatchImageDiscountMultiplier(v)
+	return _u
+}
+
+// SetNillableBatchImageDiscountMultiplier sets the "batch_image_discount_multiplier" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableBatchImageDiscountMultiplier(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetBatchImageDiscountMultiplier(*v)
+	}
+	return _u
+}
+
+// AddBatchImageDiscountMultiplier adds value to the "batch_image_discount_multiplier" field.
+func (_u *GroupUpdateOne) AddBatchImageDiscountMultiplier(v float64) *GroupUpdateOne {
+	_u.mutation.AddBatchImageDiscountMultiplier(v)
+	return _u
+}
+
+// SetBatchImageHoldMultiplier sets the "batch_image_hold_multiplier" field.
+func (_u *GroupUpdateOne) SetBatchImageHoldMultiplier(v float64) *GroupUpdateOne {
+	_u.mutation.ResetBatchImageHoldMultiplier()
+	_u.mutation.SetBatchImageHoldMultiplier(v)
+	return _u
+}
+
+// SetNillableBatchImageHoldMultiplier sets the "batch_image_hold_multiplier" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableBatchImageHoldMultiplier(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetBatchImageHoldMultiplier(*v)
+	}
+	return _u
+}
+
+// AddBatchImageHoldMultiplier adds value to the "batch_image_hold_multiplier" field.
+func (_u *GroupUpdateOne) AddBatchImageHoldMultiplier(v float64) *GroupUpdateOne {
+	_u.mutation.AddBatchImageHoldMultiplier(v)
+	return _u
+}
+
+// SetVideoRateIndependent sets the "video_rate_independent" field.
+func (_u *GroupUpdateOne) SetVideoRateIndependent(v bool) *GroupUpdateOne {
+	_u.mutation.SetVideoRateIndependent(v)
+	return _u
+}
+
+// SetNillableVideoRateIndependent sets the "video_rate_independent" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableVideoRateIndependent(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetVideoRateIndependent(*v)
+	}
+	return _u
+}
+
+// SetVideoRateMultiplier sets the "video_rate_multiplier" field.
+func (_u *GroupUpdateOne) SetVideoRateMultiplier(v float64) *GroupUpdateOne {
+	_u.mutation.ResetVideoRateMultiplier()
+	_u.mutation.SetVideoRateMultiplier(v)
+	return _u
+}
+
+// SetNillableVideoRateMultiplier sets the "video_rate_multiplier" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableVideoRateMultiplier(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetVideoRateMultiplier(*v)
+	}
+	return _u
+}
+
+// AddVideoRateMultiplier adds value to the "video_rate_multiplier" field.
+func (_u *GroupUpdateOne) AddVideoRateMultiplier(v float64) *GroupUpdateOne {
+	_u.mutation.AddVideoRateMultiplier(v)
+	return _u
+}
+
+// SetVideoPrice480p sets the "video_price_480p" field.
+func (_u *GroupUpdateOne) SetVideoPrice480p(v float64) *GroupUpdateOne {
+	_u.mutation.ResetVideoPrice480p()
+	_u.mutation.SetVideoPrice480p(v)
+	return _u
+}
+
+// SetNillableVideoPrice480p sets the "video_price_480p" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableVideoPrice480p(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetVideoPrice480p(*v)
+	}
+	return _u
+}
+
+// AddVideoPrice480p adds value to the "video_price_480p" field.
+func (_u *GroupUpdateOne) AddVideoPrice480p(v float64) *GroupUpdateOne {
+	_u.mutation.AddVideoPrice480p(v)
+	return _u
+}
+
+// ClearVideoPrice480p clears the value of the "video_price_480p" field.
+func (_u *GroupUpdateOne) ClearVideoPrice480p() *GroupUpdateOne {
+	_u.mutation.ClearVideoPrice480p()
+	return _u
+}
+
+// SetVideoPrice720p sets the "video_price_720p" field.
+func (_u *GroupUpdateOne) SetVideoPrice720p(v float64) *GroupUpdateOne {
+	_u.mutation.ResetVideoPrice720p()
+	_u.mutation.SetVideoPrice720p(v)
+	return _u
+}
+
+// SetNillableVideoPrice720p sets the "video_price_720p" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableVideoPrice720p(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetVideoPrice720p(*v)
+	}
+	return _u
+}
+
+// AddVideoPrice720p adds value to the "video_price_720p" field.
+func (_u *GroupUpdateOne) AddVideoPrice720p(v float64) *GroupUpdateOne {
+	_u.mutation.AddVideoPrice720p(v)
+	return _u
+}
+
+// ClearVideoPrice720p clears the value of the "video_price_720p" field.
+func (_u *GroupUpdateOne) ClearVideoPrice720p() *GroupUpdateOne {
+	_u.mutation.ClearVideoPrice720p()
+	return _u
+}
+
+// SetVideoPrice1080p sets the "video_price_1080p" field.
+func (_u *GroupUpdateOne) SetVideoPrice1080p(v float64) *GroupUpdateOne {
+	_u.mutation.ResetVideoPrice1080p()
+	_u.mutation.SetVideoPrice1080p(v)
+	return _u
+}
+
+// SetNillableVideoPrice1080p sets the "video_price_1080p" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableVideoPrice1080p(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetVideoPrice1080p(*v)
+	}
+	return _u
+}
+
+// AddVideoPrice1080p adds value to the "video_price_1080p" field.
+func (_u *GroupUpdateOne) AddVideoPrice1080p(v float64) *GroupUpdateOne {
+	_u.mutation.AddVideoPrice1080p(v)
+	return _u
+}
+
+// ClearVideoPrice1080p clears the value of the "video_price_1080p" field.
+func (_u *GroupUpdateOne) ClearVideoPrice1080p() *GroupUpdateOne {
+	_u.mutation.ClearVideoPrice1080p()
+	return _u
+}
+
+// SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
+func (_u *GroupUpdateOne) SetWebSearchPricePerCall(v float64) *GroupUpdateOne {
+	_u.mutation.ResetWebSearchPricePerCall()
+	_u.mutation.SetWebSearchPricePerCall(v)
+	return _u
+}
+
+// SetNillableWebSearchPricePerCall sets the "web_search_price_per_call" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableWebSearchPricePerCall(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetWebSearchPricePerCall(*v)
+	}
+	return _u
+}
+
+// AddWebSearchPricePerCall adds value to the "web_search_price_per_call" field.
+func (_u *GroupUpdateOne) AddWebSearchPricePerCall(v float64) *GroupUpdateOne {
+	_u.mutation.AddWebSearchPricePerCall(v)
+	return _u
+}
+
+// ClearWebSearchPricePerCall clears the value of the "web_search_price_per_call" field.
+func (_u *GroupUpdateOne) ClearWebSearchPricePerCall() *GroupUpdateOne {
+	_u.mutation.ClearWebSearchPricePerCall()
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *GroupUpdateOne) AddAPIKeyIDs(ids ...int64) *GroupUpdateOne {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -2829,6 +3441,16 @@ func (_u *GroupUpdateOne) check() error {
 			return &ValidationError{Name: "kiro_endpoint_mode", err: fmt.Errorf(`ent: validator failed for field "Group.kiro_endpoint_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PeakStart(); ok {
+		if err := group.PeakStartValidator(v); err != nil {
+			return &ValidationError{Name: "peak_start", err: fmt.Errorf(`ent: validator failed for field "Group.peak_start": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.PeakEnd(); ok {
+		if err := group.PeakEndValidator(v); err != nil {
+			return &ValidationError{Name: "peak_end", err: fmt.Errorf(`ent: validator failed for field "Group.peak_end": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -2890,6 +3512,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(group.FieldStatus, field.TypeString, value)
+	}
+	if _u.mutation.DuplicateOperationIDCleared() {
+		_spec.ClearField(group.FieldDuplicateOperationID, field.TypeString)
 	}
 	if value, ok := _u.mutation.OwnerUserID(); ok {
 		_spec.SetField(group.FieldOwnerUserID, field.TypeInt64, value)
@@ -3075,6 +3700,81 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.KiroEndpointMode(); ok {
 		_spec.SetField(group.FieldKiroEndpointMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PeakRateEnabled(); ok {
+		_spec.SetField(group.FieldPeakRateEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.PeakStart(); ok {
+		_spec.SetField(group.FieldPeakStart, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PeakEnd(); ok {
+		_spec.SetField(group.FieldPeakEnd, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PeakRateMultiplier(); ok {
+		_spec.SetField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedPeakRateMultiplier(); ok {
+		_spec.AddField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AllowBatchImageGeneration(); ok {
+		_spec.SetField(group.FieldAllowBatchImageGeneration, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.BatchImageDiscountMultiplier(); ok {
+		_spec.SetField(group.FieldBatchImageDiscountMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedBatchImageDiscountMultiplier(); ok {
+		_spec.AddField(group.FieldBatchImageDiscountMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.BatchImageHoldMultiplier(); ok {
+		_spec.SetField(group.FieldBatchImageHoldMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedBatchImageHoldMultiplier(); ok {
+		_spec.AddField(group.FieldBatchImageHoldMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.VideoRateIndependent(); ok {
+		_spec.SetField(group.FieldVideoRateIndependent, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.VideoRateMultiplier(); ok {
+		_spec.SetField(group.FieldVideoRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedVideoRateMultiplier(); ok {
+		_spec.AddField(group.FieldVideoRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.VideoPrice480p(); ok {
+		_spec.SetField(group.FieldVideoPrice480p, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedVideoPrice480p(); ok {
+		_spec.AddField(group.FieldVideoPrice480p, field.TypeFloat64, value)
+	}
+	if _u.mutation.VideoPrice480pCleared() {
+		_spec.ClearField(group.FieldVideoPrice480p, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.VideoPrice720p(); ok {
+		_spec.SetField(group.FieldVideoPrice720p, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedVideoPrice720p(); ok {
+		_spec.AddField(group.FieldVideoPrice720p, field.TypeFloat64, value)
+	}
+	if _u.mutation.VideoPrice720pCleared() {
+		_spec.ClearField(group.FieldVideoPrice720p, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.VideoPrice1080p(); ok {
+		_spec.SetField(group.FieldVideoPrice1080p, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedVideoPrice1080p(); ok {
+		_spec.AddField(group.FieldVideoPrice1080p, field.TypeFloat64, value)
+	}
+	if _u.mutation.VideoPrice1080pCleared() {
+		_spec.ClearField(group.FieldVideoPrice1080p, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.WebSearchPricePerCall(); ok {
+		_spec.SetField(group.FieldWebSearchPricePerCall, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedWebSearchPricePerCall(); ok {
+		_spec.AddField(group.FieldWebSearchPricePerCall, field.TypeFloat64, value)
+	}
+	if _u.mutation.WebSearchPricePerCallCleared() {
+		_spec.ClearField(group.FieldWebSearchPricePerCall, field.TypeFloat64)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{

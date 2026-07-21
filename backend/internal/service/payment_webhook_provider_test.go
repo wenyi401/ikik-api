@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/internal/payment"
-	"github.com/stretchr/testify/require"
 )
 
 const webhookProviderTestEncryptionKey = "0123456789abcdef0123456789abcdef"

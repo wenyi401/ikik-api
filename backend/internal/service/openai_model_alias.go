@@ -106,6 +106,8 @@ func normalizeKnownOpenAICodexModel(model string) string {
 	}
 }
 
+// isOpenAIGPT56Model 判断是否 GPT-5.6 系列模型；入参可为原始模型名
+// （含大小写/路径/后缀变体）或已归一化的基名，两者均能正确识别。
 func isOpenAIGPT56Model(model string) bool {
 	normalized := canonicalizeOpenAIModelAliasSpelling(model)
 	if normalized == "gpt-5.6" {

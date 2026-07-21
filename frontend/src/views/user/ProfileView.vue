@@ -14,8 +14,6 @@
         :wechat-mp-enabled="wechatOAuthMPEnabled"
       >
         <template #main-after>
-          <ProfileWithdrawalCard />
-
           <ProfileBalanceNotifyCard
             v-if="user && balanceLowNotifyEnabled"
             :enabled="user.balance_notify_enabled ?? true"
@@ -62,7 +60,6 @@ import ProfileBalanceNotifyCard from '@/components/user/profile/ProfileBalanceNo
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
 import ProfilePasswordForm from '@/components/user/profile/ProfilePasswordForm.vue'
 import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
-import ProfileWithdrawalCard from '@/components/user/profile/ProfileWithdrawalCard.vue'
 import { isWeChatWebOAuthEnabled } from '@/api/auth'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'

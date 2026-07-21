@@ -50,7 +50,7 @@
         <input
           v-model="form.name"
           type="text"
-          required
+          :required="!isGrokSSOInputMethod"
           class="input"
           :placeholder="t('admin.accounts.enterAccountName')"
           data-tour="account-form-name"
@@ -90,10 +90,10 @@
               form.share_mode === 'public'
                 ? 'border-primary-400 bg-primary-50 text-primary-700 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-300'
                 : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-200 dark:hover:bg-dark-700',
-              userApiKeyForcesPrivate && 'cursor-not-allowed opacity-50'
+              userCredentialForcesPrivate && 'cursor-not-allowed opacity-50'
             ]"
-            :disabled="userApiKeyForcesPrivate"
-            @click="!userApiKeyForcesPrivate && (form.share_mode = 'public')"
+            :disabled="userCredentialForcesPrivate"
+            @click="!userCredentialForcesPrivate && (form.share_mode = 'public')"
           >
             <Icon name="globe" size="sm" class="mr-2" />
             {{ t('userAccounts.publicMode') }}
@@ -226,7 +226,7 @@
       <!-- Account Type Selection (Anthropic) -->
       <div v-if="form.platform === 'anthropic'">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
-        <div :class="['mt-2 grid gap-3', isUserScope ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-4']" data-tour="account-form-type">
+        <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" data-tour="account-form-type">
           <button
             type="button"
             @click="accountCategory = 'oauth-based'"
@@ -288,7 +288,6 @@
           </button>
 
           <button
-            v-if="!isUserScope"
             type="button"
             @click="accountCategory = 'bedrock'"
             :class="[
@@ -319,7 +318,6 @@
           </button>
 
           <button
-            v-if="!isUserScope"
             type="button"
             @click="accountCategory = 'service_account'"
             :class="[
@@ -348,7 +346,7 @@
         </div>
 
         <div
-          v-if="!isUserScope && accountCategory === 'service_account'"
+          v-if="accountCategory === 'service_account'"
           class="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-800/40 dark:bg-sky-900/20 dark:text-sky-200"
         >
           <p>{{ t('admin.accounts.vertexAnthropicHint') }}</p>
@@ -356,9 +354,9 @@
       </div>
 
       <!-- Account Type Selection (OpenAI) -->
-      <div v-if="!isUserScope && form.platform === 'openai'">
+      <div v-if="form.platform === 'openai'">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
-        <div :class="['mt-2 grid gap-3', isUserScope ? 'grid-cols-1' : 'grid-cols-2']" data-tour="account-form-type">
+        <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2" data-tour="account-form-type">
           <button
             type="button"
             @click="accountCategory = 'oauth-based'"
@@ -440,7 +438,7 @@
             {{ t('admin.accounts.gemini.helpButton') }}
           </button>
         </div>
-        <div :class="['mt-2 grid gap-3', isUserScope ? 'grid-cols-1' : 'grid-cols-3']" data-tour="account-form-type">
+        <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3" data-tour="account-form-type">
           <button
             type="button"
             @click="accountCategory = 'oauth-based'"
@@ -514,7 +512,6 @@
           </button>
 
           <button
-            v-if="!isUserScope"
             type="button"
             @click="accountCategory = 'service_account'"
             :class="[
@@ -546,7 +543,7 @@
         </div>
 
         <div
-          v-if="!isUserScope && accountCategory === 'apikey'"
+          v-if="accountCategory === 'apikey'"
           class="mt-3 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-xs text-purple-800 dark:border-purple-800/40 dark:bg-purple-900/20 dark:text-purple-200"
         >
           <p>{{ t('admin.accounts.gemini.accountType.apiKeyNote') }}</p>
@@ -563,7 +560,7 @@
         </div>
 
         <div
-          v-if="!isUserScope && accountCategory === 'service_account'"
+          v-if="accountCategory === 'service_account'"
           class="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-800/40 dark:bg-sky-900/20 dark:text-sky-200"
         >
           <p>{{ t('admin.accounts.vertexGeminiHint') }}</p>
@@ -806,7 +803,7 @@
       <!-- Account Type Selection (Antigravity - OAuth or Upstream) -->
       <div v-if="form.platform === 'antigravity'">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
-        <div :class="['mt-2 grid gap-3', isUserScope ? 'grid-cols-1' : 'grid-cols-2']">
+        <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
             type="button"
             @click="antigravityAccountType = 'oauth'"
@@ -834,7 +831,6 @@
           </button>
 
           <button
-            v-if="!isUserScope"
             type="button"
             @click="antigravityAccountType = 'upstream'"
             :class="[
@@ -893,6 +889,7 @@
           </button>
           <button
             type="button"
+            data-testid="grok-account-type-api-key"
             @click="accountCategory = 'apikey'"
             :class="[
               'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
@@ -1025,7 +1022,7 @@
               </div>
             </button>
             <button
-              v-if="!isUserScope"
+              v-if="accountCategory === 'oauth-based'"
               type="button"
               @click="kiroAuthMode = 'import'"
               :class="[
@@ -1125,7 +1122,7 @@
       </div>
 
       <!-- Upstream config (only for Antigravity upstream type) -->
-      <div v-if="!isUserScope && form.platform === 'antigravity' && antigravityAccountType === 'upstream'" class="space-y-4">
+      <div v-if="form.platform === 'antigravity' && antigravityAccountType === 'upstream'" class="space-y-4">
         <div>
           <label class="input-label">{{ t('admin.accounts.upstream.baseUrl') }}</label>
           <input
@@ -1332,7 +1329,7 @@
       </div>
 
       <!-- Add Method (only for Anthropic OAuth-based type) -->
-      <div v-if="!isUserScope && form.platform === 'anthropic' && isOAuthFlow">
+      <div v-if="form.platform === 'anthropic' && isOAuthFlow">
         <label class="input-label">{{ t('admin.accounts.addMethod') }}</label>
         <div class="mt-2 flex gap-4">
           <label class="flex cursor-pointer items-center">
@@ -1767,7 +1764,7 @@
       </div>
 
       <!-- Bedrock credentials (only for Anthropic Bedrock type) -->
-      <div v-if="!isUserScope && form.platform === 'anthropic' && accountCategory === 'bedrock'" class="space-y-4">
+      <div v-if="form.platform === 'anthropic' && accountCategory === 'bedrock'" class="space-y-4">
         <!-- Auth Mode Radio -->
         <div>
           <label class="input-label">{{ t('admin.accounts.bedrockAuthMode') }}</label>
@@ -2030,7 +2027,7 @@
 
       <!-- 配额控制 (Anthropic apikey/bedrock: 配额限制 + 亲和) -->
       <div
-        v-if="!isUserScope && form.platform === 'anthropic' && (form.type === 'apikey' || form.type === 'bedrock')"
+        v-if="form.platform === 'anthropic' && (form.type === 'apikey' || form.type === 'bedrock')"
         class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4"
       >
         <div class="mb-3">
@@ -2082,7 +2079,7 @@
 
       <!-- 配额控制 (非 Anthropic apikey/bedrock) -->
       <div
-        v-else-if="!isUserScope && (form.type === 'apikey' || form.type === 'bedrock')"
+        v-else-if="form.type === 'apikey' || form.type === 'bedrock'"
         class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4"
       >
         <div class="mb-3">
@@ -2131,6 +2128,55 @@
           @update:resetTimezone="editResetTimezone = $event"
         />
       </div>
+
+      <!-- Grok OAuth custom upstream URL -->
+      <div
+        v-if="form.platform === 'grok' && isOAuthFlow && !isUserScope"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="mb-3 flex items-center justify-between gap-4">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.grokCustomBaseUrl.title') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.grokCustomBaseUrl.hint') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="grok-custom-base-url-toggle"
+            @click="grokOAuthCustomBaseUrlEnabled = !grokOAuthCustomBaseUrlEnabled"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              grokOAuthCustomBaseUrlEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                grokOAuthCustomBaseUrlEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+        <div v-if="grokOAuthCustomBaseUrlEnabled" class="space-y-2">
+          <input
+            v-model="grokOAuthBaseUrl"
+            type="text"
+            class="input"
+            data-testid="grok-custom-base-url-input"
+            :placeholder="t('admin.accounts.grokCustomBaseUrl.placeholder')"
+          />
+          <GrokBaseUrlPresets @select="grokOAuthBaseUrl = $event" />
+        </div>
+      </div>
+
+      <!-- Grok OAuth header override -->
+      <HeaderOverrideEditor
+        v-if="form.platform === 'grok' && isOAuthFlow"
+        v-model:enabled="headerOverrideEnabled"
+        v-model:rows="headerOverrideRows"
+        :platform="form.platform"
+      />
 
       <!-- OpenAI OAuth Model Mapping (OAuth 类型没有 apikey 容器，需要独立的模型映射区域) -->
       <div
@@ -2844,11 +2890,7 @@
             v-model.number="form.concurrency"
             type="number"
             min="1"
-            :readonly="isUserScope"
-            :class="[
-              'input',
-              isUserScope && 'cursor-not-allowed bg-gray-50 text-gray-500 dark:bg-dark-800 dark:text-dark-400'
-            ]"
+            class="input"
             @input="normalizeConcurrencyInput"
           />
         </div>
@@ -2930,6 +2972,39 @@
           <div class="w-52">
             <Select v-model="openaiResponsesWebSocketV2Mode" :options="openAIWSModeOptions" />
           </div>
+        </div>
+      </div>
+
+      <!-- OpenAI long-context billing ownership -->
+      <div
+        v-if="form.platform === 'openai' && (accountCategory === 'oauth-based' || accountCategory === 'apikey') && !isUserScope"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.openai.longContextBilling') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.longContextBillingDesc') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="openai-long-context-billing-toggle"
+            role="switch"
+            :aria-checked="openAILongContextBillingEnabled"
+            @click="toggleOpenAILongContextBilling"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              openAILongContextBillingEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                openAILongContextBillingEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
         </div>
       </div>
 
@@ -3182,11 +3257,17 @@
         :show-help="form.platform === 'anthropic'"
         :show-proxy-warning="form.platform !== 'openai' && form.platform !== 'grok' && !!form.proxy_id"
         :allow-multiple="form.platform === 'anthropic'"
-        :show-cookie-option="!isUserScope && form.platform === 'anthropic'"
-        :show-refresh-token-option="!isUserScope && (form.platform === 'openai' || form.platform === 'antigravity' || form.platform === 'grok' || (form.platform === 'kiro' && kiroAuthMode === 'oauth'))"
-        :show-mobile-refresh-token-option="!isUserScope && form.platform === 'openai'"
+        :show-cookie-option="form.platform === 'anthropic'"
+        :show-refresh-token-option="form.platform === 'openai' || form.platform === 'antigravity' || form.platform === 'grok' || (form.platform === 'kiro' && kiroAuthMode === 'oauth')"
+        :show-mobile-refresh-token-option="form.platform === 'openai'"
         :show-session-token-option="false"
         :show-access-token-option="false"
+        :show-codex-session-import-option="!isUserScope && form.platform === 'openai'"
+        :show-agent-identity-option="!isUserScope && form.platform === 'openai'"
+        :show-codex-pat-option="!isUserScope && form.platform === 'openai'"
+        :show-sso-option="form.platform === 'grok'"
+        :show-manual-option="true"
+        :initial-input-method="'manual'"
         :platform="form.platform"
         :show-project-id="form.platform === 'gemini' && geminiOAuthType === 'code_assist'"
         @generate-url="handleGenerateUrl"
@@ -3194,6 +3275,9 @@
         @validate-refresh-token="handleValidateRefreshToken"
         @validate-mobile-refresh-token="handleOpenAIValidateMobileRT"
         @validate-session-token="handleValidateSessionToken"
+        @import-codex-session="handleOpenAIImportCodexSession"
+        @import-codex-pat="handleOpenAIImportCodexPAT"
+        @import-sso="handleGrokImportSSO"
       />
 
     </div>
@@ -3550,6 +3634,7 @@ import type {
   AccountShareMode,
   AccountType,
   CheckMixedChannelResponse,
+  CodexSessionImportMessage,
   CreateAccountRequest,
   CustomAccountProtocol,
   GroupPlatform,
@@ -3565,6 +3650,7 @@ import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import HeaderOverrideEditor from '@/components/account/HeaderOverrideEditor.vue'
+import GrokBaseUrlPresets from '@/components/account/GrokBaseUrlPresets.vue'
 import {
   applyHeaderOverride,
   applyInterceptWarmup,
@@ -3604,6 +3690,8 @@ interface OAuthFlowExposed {
   sessionKey: string
   refreshToken: string
   sessionToken: string
+  codexSession: string
+  codexPAT: string
   inputMethod: AuthInputMethod
   reset: () => void
 }
@@ -3653,7 +3741,7 @@ const apiKeySecretPlaceholder = computed(() => {
   if (form.platform === 'custom') return 'sk-...'
   if (form.platform === 'kiro') return 'sk-...'
   if (form.platform === 'openai') return 'sk-proj-...'
-  return 'sk-ant-...'
+  return form.platform === 'grok' ? 'xai-...' : 'sk-ant-...'
 })
 
 interface Props {
@@ -3677,7 +3765,9 @@ const isUserScope = computed(() => accountScope.value === 'user')
 const canManageProxy = computed(() => props.allowProxy !== false)
 const canManageBillingRate = computed(() => !isUserScope.value && props.allowBillingRate !== false)
 const assignableGroups = computed(() => accountAssignableGroups(props.groups))
-const userApiKeyForcesPrivate = computed(() => isUserScope.value && form.type === 'apikey')
+const userCredentialForcesPrivate = computed(() =>
+  isUserScope.value && form.type !== 'oauth' && form.type !== 'setup-token'
+)
 const showHeaderOverrideEditor = computed(() =>
   !isUserScope.value &&
   form.type === 'apikey' &&
@@ -3814,9 +3904,42 @@ const selectedErrorCodes = ref<number[]>([])
 const customErrorCodeInput = ref<number | null>(null)
 const headerOverrideEnabled = ref(false)
 const headerOverrideRows = ref<HeaderOverrideRow[]>([])
+const grokOAuthCustomBaseUrlEnabled = ref(false)
+const grokOAuthBaseUrl = ref('')
+
+const validateGrokOAuthUpstreamConfig = (): boolean => {
+  if (grokOAuthCustomBaseUrlEnabled.value) {
+    const trimmed = grokOAuthBaseUrl.value.trim()
+    if (!trimmed) {
+      appStore.showError(t('admin.accounts.grokCustomBaseUrl.required'))
+      return false
+    }
+    if (!/^https?:\/\//i.test(trimmed)) {
+      appStore.showError(t('admin.accounts.grokCustomBaseUrl.invalid'))
+      return false
+    }
+  }
+  if (headerOverrideEnabled.value) {
+    const headerError = validateHeaderOverrideRows(headerOverrideRows.value)
+    if (headerError) {
+      appStore.showError(t(`admin.accounts.headerOverride.${headerError}`))
+      return false
+    }
+  }
+  return true
+}
+
+const applyGrokOAuthUpstreamConfig = (credentials: Record<string, unknown>) => {
+  if (grokOAuthCustomBaseUrlEnabled.value) {
+    credentials.base_url = grokOAuthBaseUrl.value.trim()
+  }
+  applyHeaderOverride(credentials, headerOverrideEnabled.value, headerOverrideRows.value, 'create')
+}
 const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(true)
 const openaiPassthroughEnabled = ref(false)
+const openAILongContextBillingEnabled = ref(false)
+const openAILongContextBillingTouched = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
@@ -3825,6 +3948,11 @@ const anthropicPassthroughEnabled = ref(false)
 const anthropicAPIKeyAuthScheme = ref<AnthropicAPIKeyAuthScheme>(ANTHROPIC_API_KEY_AUTH_SCHEME_X_API_KEY)
 const webSearchEmulationMode = ref('default')
 const webSearchGlobalEnabled = ref(false)
+
+const toggleOpenAILongContextBilling = () => {
+  openAILongContextBillingEnabled.value = !openAILongContextBillingEnabled.value
+  openAILongContextBillingTouched.value = true
+}
 const {
   globalEnabled: quotaNotifyGlobalEnabled,
   state: quotaNotifyState,
@@ -4086,10 +4214,6 @@ const syncPreviewCredentials = computed(() => {
 })
 
 const normalizeConcurrencyInput = () => {
-  if (isUserScope.value) {
-    form.concurrency = PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY
-    return
-  }
   form.concurrency = Math.max(1, form.concurrency || 1)
 }
 
@@ -4107,7 +4231,7 @@ const applyOpenAIPlusConcurrencyDefaults = () => {
 
 watch(() => [form.platform, form.account_level], applyOpenAIPlusConcurrencyDefaults)
 
-watch(userApiKeyForcesPrivate, (forced) => {
+watch(userCredentialForcesPrivate, (forced) => {
   if (forced) {
     form.share_mode = 'private'
   }
@@ -4128,6 +4252,10 @@ const isOAuthFlow = computed(() => {
   }
   return accountCategory.value === 'oauth-based'
 })
+
+const isGrokSSOInputMethod = computed(
+  () => form.platform === 'grok' && oauthFlowRef.value?.inputMethod === 'sso_cookie'
+)
 
 const isManualInputMethod = computed(() => {
   return oauthFlowRef.value?.inputMethod === 'manual'
@@ -4209,31 +4337,8 @@ watch(
 
 // Sync form.type based on accountCategory, addMethod, and platform-specific type
 watch(
-  [accountCategory, addMethod, antigravityAccountType, () => form.platform, isUserScope],
+  [accountCategory, addMethod, antigravityAccountType, () => form.platform],
   ([category, method, agType]) => {
-    if (isUserScope.value) {
-      if (category === 'bedrock' || category === 'service_account') {
-        accountCategory.value = 'oauth-based'
-      }
-      if (addMethod.value !== 'oauth') {
-        addMethod.value = 'oauth'
-      }
-      if (antigravityAccountType.value !== 'oauth') {
-        antigravityAccountType.value = 'oauth'
-      }
-      if (form.platform === 'custom') {
-        accountCategory.value = 'apikey'
-        form.type = 'apikey'
-        return
-      }
-      if (form.platform === 'antigravity') {
-        accountCategory.value = 'oauth-based'
-        form.type = 'oauth'
-        return
-      }
-      form.type = accountCategory.value === 'apikey' ? 'apikey' : 'oauth'
-      return
-    }
     if (form.platform === 'custom') {
       if (accountCategory.value !== 'apikey') {
         accountCategory.value = 'apikey'
@@ -4249,13 +4354,13 @@ watch(
       return
     }
     if (form.platform === 'grok') {
-      if (accountCategory.value !== 'oauth-based') {
+      if (accountCategory.value !== 'oauth-based' && accountCategory.value !== 'apikey') {
         accountCategory.value = 'oauth-based'
       }
       if (addMethod.value !== 'oauth') {
         addMethod.value = 'oauth'
       }
-      form.type = 'oauth'
+      form.type = accountCategory.value === 'apikey' ? 'apikey' : 'oauth'
       return
     }
     // Antigravity upstream 类型（实际创建为 apikey）
@@ -4284,10 +4389,6 @@ watch(
   () => form.platform,
   (newPlatform) => {
     if (isUserScope.value) {
-      accountCategory.value = newPlatform === 'custom' || newPlatform === 'grok' ? 'apikey' : 'oauth-based'
-      addMethod.value = 'oauth'
-      antigravityAccountType.value = 'oauth'
-      form.type = accountCategory.value === 'apikey' ? 'apikey' : 'oauth'
       form.concurrency = PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY
       form.load_factor = null
       form.priority = PERSONAL_ACCOUNT_DEFAULT_PRIORITY
@@ -4334,21 +4435,17 @@ watch(
       modelMappings.value = getKiroDefaultModelMappings()
       allowedModels.value = []
     } else if (newPlatform === 'grok') {
-      accountCategory.value = isUserScope.value ? 'apikey' : 'oauth-based'
+      accountCategory.value = 'oauth-based'
       addMethod.value = 'oauth'
       modelRestrictionMode.value = 'mapping'
       form.concurrency = 1
     } else {
+      accountCategory.value = 'oauth-based'
+      addMethod.value = 'oauth'
       allowOverages.value = false
       antigravityWhitelistModels.value = []
       antigravityModelMappings.value = []
       antigravityModelRestrictionMode.value = 'mapping'
-    }
-    if (newPlatform !== 'gemini' && newPlatform !== 'anthropic' && accountCategory.value === 'service_account') {
-      accountCategory.value = 'oauth-based'
-    }
-    if (newPlatform !== 'anthropic' && accountCategory.value === 'bedrock') {
-      accountCategory.value = 'oauth-based'
     }
     // Reset Bedrock fields when switching platforms
     bedrockAccessKeyId.value = ''
@@ -4378,6 +4475,10 @@ watch(
       anthropicAPIKeyAuthScheme.value = ANTHROPIC_API_KEY_AUTH_SCHEME_X_API_KEY
       webSearchEmulationMode.value = 'default'
     }
+    headerOverrideEnabled.value = false
+    headerOverrideRows.value = []
+    grokOAuthCustomBaseUrlEnabled.value = false
+    grokOAuthBaseUrl.value = ''
     // Reset OAuth states
     oauth.resetState()
     openaiOAuth.resetState()
@@ -4713,9 +4814,12 @@ const ensureAntigravityMixedChannelConfirmed = async (onConfirm: () => Promise<v
 }
 
 const sanitizeCreatePayload = (payload: CreateAccountRequest): CreateAccountRequest => {
+  const credentialForcesPrivate = ['apikey', 'bedrock', 'service_account'].includes(payload.type)
   const next: CreateAccountRequest = {
     ...payload,
-    share_mode: isUserScope.value && payload.type === 'apikey' ? 'private' : (isUserScope.value ? form.share_mode : payload.share_mode)
+    share_mode: isUserScope.value && credentialForcesPrivate
+      ? 'private'
+      : (isUserScope.value ? form.share_mode : payload.share_mode)
   }
   if (!canManageProxy.value) {
     delete next.proxy_id
@@ -4726,9 +4830,15 @@ const sanitizeCreatePayload = (payload: CreateAccountRequest): CreateAccountRequ
   if (isUserScope.value) {
     delete next.account_level
     delete next.group_ids
-    next.concurrency = PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY
-    next.load_factor = undefined
-    next.priority = PERSONAL_ACCOUNT_DEFAULT_PRIORITY
+    if (next.share_mode === 'public') {
+      next.concurrency = PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY
+      next.load_factor = undefined
+      next.priority = PERSONAL_ACCOUNT_DEFAULT_PRIORITY
+    } else {
+      next.concurrency = Math.max(1, next.concurrency || PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY)
+      next.load_factor = next.load_factor && next.load_factor >= 1 ? next.load_factor : undefined
+      next.priority = Math.max(1, next.priority || PERSONAL_ACCOUNT_DEFAULT_PRIORITY)
+    }
     next.auto_pause_on_expired = PERSONAL_ACCOUNT_DEFAULT_AUTO_PAUSE_ON_EXPIRED
     if (next.type === 'oauth') {
       const templated = applyPersonalAccountTemplate(
@@ -4848,9 +4958,13 @@ const resetForm = () => {
   customErrorCodeInput.value = null
   headerOverrideEnabled.value = false
   headerOverrideRows.value = []
+  grokOAuthCustomBaseUrlEnabled.value = false
+  grokOAuthBaseUrl.value = ''
   interceptWarmupRequests.value = false
   autoPauseOnExpired.value = PERSONAL_ACCOUNT_DEFAULT_AUTO_PAUSE_ON_EXPIRED
   openaiPassthroughEnabled.value = false
+  openAILongContextBillingEnabled.value = false
+  openAILongContextBillingTouched.value = false
   openAICompactMode.value = isUserScope.value ? PERSONAL_ACCOUNT_DEFAULT_OPENAI_COMPACT_MODE : 'auto'
   openaiOAuthResponsesWebSocketV2Mode.value = PERSONAL_ACCOUNT_DEFAULT_OPENAI_WS_MODE
   openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
@@ -4941,6 +5055,7 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
     delete extra.openai_passthrough
     delete extra.openai_oauth_passthrough
   }
+  extra.openai_long_context_billing_enabled = openAILongContextBillingEnabled.value
 
   if (accountCategory.value === 'oauth-based' && codexCLIOnlyEnabled.value) {
     extra.codex_cli_only = true
@@ -4953,6 +5068,15 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
     delete extra.openai_compact_mode
   }
 
+  return Object.keys(extra).length > 0 ? extra : undefined
+}
+
+const buildOpenAICodexImportExtra = (): Record<string, unknown> | undefined => {
+  const extra = buildOpenAIExtra()
+  if (!extra) return undefined
+  if (!openAILongContextBillingTouched.value) {
+    delete extra.openai_long_context_billing_enabled
+  }
   return Object.keys(extra).length > 0 ? extra : undefined
 }
 
@@ -5073,15 +5197,6 @@ const handleVertexServiceAccountDrop = async (event: DragEvent) => {
 }
 
 const handleSubmit = async () => {
-  if (isUserScope.value && !isOAuthFlow.value && accountCategory.value !== 'apikey') {
-    accountCategory.value = 'oauth-based'
-    addMethod.value = 'oauth'
-    antigravityAccountType.value = 'oauth'
-    form.type = 'oauth'
-    appStore.showError(t('userAccounts.typeNotAllowed'))
-    return
-  }
-
   if (form.platform === 'kiro' && accountCategory.value === 'oauth-based' && kiroAuthMode.value === 'import') {
     await handleKiroImportToken()
     return
@@ -5089,7 +5204,7 @@ const handleSubmit = async () => {
 
   // For OAuth-based type, handle OAuth flow (goes to step 2)
   if (isOAuthFlow.value) {
-    if (!form.name.trim()) {
+    if (!isGrokSSOInputMethod.value && !form.name.trim()) {
       appStore.showError(t('admin.accounts.pleaseEnterAccountName'))
       return
     }
@@ -5551,6 +5666,165 @@ const handleOpenAIExchange = async (authCode: string) => {
 // OpenAI Mobile RT client_id
 const OPENAI_MOBILE_RT_CLIENT_ID = 'app_LlGpXReQgckcGGUo2JrYvtJK'
 
+const buildOpenAICodexImportCredentialExtras = (): Record<string, unknown> | null => {
+  const credentials: Record<string, unknown> = {}
+  if (!isOpenAIModelRestrictionDisabled.value) {
+    const modelMapping = buildModelMappingObject(
+      modelRestrictionMode.value,
+      allowedModels.value,
+      modelMappings.value
+    )
+    if (modelMapping) credentials.model_mapping = modelMapping
+  }
+
+  const compactModelMapping = buildOpenAICompactModelMapping()
+  if (compactModelMapping) credentials.compact_model_mapping = compactModelMapping
+  if (!applyTempUnschedConfig(credentials)) return null
+  return credentials
+}
+
+const formatCodexImportMessages = (messages?: CodexSessionImportMessage[]) =>
+  (messages || [])
+    .map((item) => `#${item.index}${item.name ? ` ${item.name}` : ''}: ${item.message}`)
+    .join('\n')
+
+const isAgentIdentityImportContent = (content: string) => {
+  const isAgentIdentityValue = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.length > 0 && value.every(isAgentIdentityValue)
+    if (!value || typeof value !== 'object') return false
+    const record = value as Record<string, unknown>
+    const authMode = record.auth_mode ?? record.authMode
+    const agentIdentity = record.agent_identity ?? record.agentIdentity
+    return (typeof authMode === 'string' && authMode.toLowerCase() === 'agentidentity')
+      || (!!agentIdentity && typeof agentIdentity === 'object')
+  }
+
+  try {
+    return isAgentIdentityValue(JSON.parse(content))
+  } catch {
+    const lines = content.split('\n').map((line) => line.trim()).filter(Boolean)
+    if (lines.length === 0) return false
+    try {
+      return lines.every((line) => isAgentIdentityValue(JSON.parse(line)))
+    } catch {
+      return false
+    }
+  }
+}
+
+const handleOpenAIImportCodexSession = async (content: string) => {
+  const trimmed = content.trim()
+  if (!trimmed) {
+    openaiOAuth.error.value = t('admin.accounts.oauth.openai.codexSessionEmpty')
+    return
+  }
+  if (oauthFlowRef.value?.inputMethod === 'agent_identity' && !isAgentIdentityImportContent(trimmed)) {
+    openaiOAuth.error.value = t('admin.accounts.oauth.openai.agentIdentityInvalid')
+    return
+  }
+
+  const credentialExtras = buildOpenAICodexImportCredentialExtras()
+  if (credentialExtras === null) return
+
+  openaiOAuth.loading.value = true
+  openaiOAuth.error.value = ''
+  try {
+    const result = await adminAPI.accounts.importCodexSession({
+      content: trimmed,
+      name: form.name,
+      notes: form.notes || null,
+      proxy_id: form.proxy_id,
+      concurrency: form.concurrency,
+      load_factor: form.load_factor ?? undefined,
+      priority: form.priority,
+      rate_multiplier: form.rate_multiplier,
+      group_ids: form.group_ids,
+      expires_at: form.expires_at,
+      auto_pause_on_expired: autoPauseOnExpired.value,
+      credential_extras: Object.keys(credentialExtras).length > 0 ? credentialExtras : undefined,
+      extra: buildOpenAICodexImportExtra(),
+      update_existing: true
+    })
+
+    const successCount = result.created + result.updated
+    const params = {
+      created: result.created,
+      updated: result.updated,
+      skipped: result.skipped,
+      failed: result.failed
+    }
+    if (successCount > 0 && result.failed === 0) {
+      appStore.showSuccess(t('admin.accounts.oauth.openai.codexSessionImportSuccess', params))
+      emit('created')
+      handleClose()
+      return
+    }
+
+    openaiOAuth.error.value = [
+      formatCodexImportMessages(result.errors),
+      formatCodexImportMessages(result.warnings)
+    ].filter(Boolean).join('\n')
+    if (result.failed === 0) {
+      appStore.showWarning(t('admin.accounts.oauth.openai.codexSessionImportSuccess', params))
+    } else if (successCount > 0) {
+      appStore.showWarning(t('admin.accounts.oauth.openai.codexSessionImportPartial', params))
+      emit('created')
+    } else {
+      appStore.showError(t('admin.accounts.oauth.openai.codexSessionImportFailed'))
+    }
+  } catch (error: any) {
+    openaiOAuth.error.value = error.response?.data?.detail
+      || error.response?.data?.message
+      || error.message
+      || t('admin.accounts.oauth.openai.codexSessionImportFailed')
+    appStore.showError(openaiOAuth.error.value)
+  } finally {
+    openaiOAuth.loading.value = false
+  }
+}
+
+const handleOpenAIImportCodexPAT = async (accessToken: string) => {
+  const trimmed = accessToken.trim()
+  if (!trimmed) {
+    openaiOAuth.error.value = t('admin.accounts.oauth.openai.codexPatEmpty')
+    return
+  }
+
+  const credentialExtras = buildOpenAICodexImportCredentialExtras()
+  if (credentialExtras === null) return
+
+  openaiOAuth.loading.value = true
+  openaiOAuth.error.value = ''
+  try {
+    await adminAPI.accounts.createOpenAICodexPAT({
+      access_token: trimmed,
+      name: form.name,
+      notes: form.notes || null,
+      proxy_id: form.proxy_id,
+      concurrency: form.concurrency,
+      load_factor: form.load_factor ?? undefined,
+      priority: form.priority,
+      rate_multiplier: form.rate_multiplier,
+      group_ids: form.group_ids,
+      expires_at: form.expires_at,
+      auto_pause_on_expired: autoPauseOnExpired.value,
+      credential_extras: Object.keys(credentialExtras).length > 0 ? credentialExtras : undefined,
+      extra: buildOpenAICodexImportExtra()
+    })
+    appStore.showSuccess(t('admin.accounts.accountCreated'))
+    emit('created')
+    handleClose()
+  } catch (error: any) {
+    openaiOAuth.error.value = error.response?.data?.detail
+      || error.response?.data?.message
+      || error.message
+      || t('admin.accounts.oauth.openai.codexPatImportFailed')
+    appStore.showError(openaiOAuth.error.value)
+  } finally {
+    openaiOAuth.loading.value = false
+  }
+}
+
 // OpenAI RT 批量验证和创建（共享逻辑）
 const handleOpenAIBatchRT = async (refreshTokenInput: string, clientId?: string) => {
   const oauthClient = openaiOAuth
@@ -5775,6 +6049,7 @@ const handleGrokValidateRT = async (refreshTokenInput: string) => {
     grokOAuth.error.value = t('admin.accounts.oauth.grok.pleaseEnterRefreshToken')
     return
   }
+  if (!validateGrokOAuthUpstreamConfig()) return
 
   grokOAuth.loading.value = true
   grokOAuth.error.value = ''
@@ -5795,6 +6070,7 @@ const handleGrokValidateRT = async (refreshTokenInput: string) => {
         }
 
         const credentials = grokOAuth.buildCredentials(tokenInfo)
+        applyGrokOAuthUpstreamConfig(credentials)
         const extra = grokOAuth.buildExtraInfo(tokenInfo)
         const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
         if (modelMapping) {
@@ -5849,6 +6125,82 @@ const handleGrokValidateRT = async (refreshTokenInput: string) => {
       grokOAuth.error.value = errors.join('\n')
       appStore.showError(t('admin.accounts.oauth.batchFailed'))
     }
+  } finally {
+    grokOAuth.loading.value = false
+  }
+}
+
+const handleGrokImportSSO = async (ssoInput: string) => {
+  const ssoTokens = ssoInput
+    .split('\n')
+    .map((token) => token.trim())
+    .filter((token) => token)
+  if (ssoTokens.length === 0) return
+  if (!isUserScope.value && !validateGrokOAuthUpstreamConfig()) return
+
+  grokOAuth.loading.value = true
+  grokOAuth.error.value = ''
+
+  const credentials: Record<string, unknown> = {}
+  if (!isUserScope.value) {
+    applyGrokOAuthUpstreamConfig(credentials)
+  }
+  const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
+  if (modelMapping) {
+    credentials.model_mapping = modelMapping
+  }
+  if (!applyTempUnschedConfig(credentials)) {
+    grokOAuth.loading.value = false
+    return
+  }
+
+  try {
+    const payload = {
+      sso_tokens: ssoTokens,
+      name: form.name || undefined,
+      notes: form.notes || undefined,
+      proxy_id: form.proxy_id,
+      share_mode: isUserScope.value ? form.share_mode : undefined,
+      group_ids: form.group_ids,
+      credentials,
+      concurrency: form.concurrency,
+      load_factor: form.load_factor ?? undefined,
+      priority: form.priority,
+      rate_multiplier: form.rate_multiplier,
+      expires_at: form.expires_at,
+      auto_pause_on_expired: autoPauseOnExpired.value
+    }
+    const result = isUserScope.value
+      ? await accountsAPI.importGrokSSO(payload)
+      : await adminAPI.grok.createFromSSO(payload)
+
+    const successCount = result.created?.length || 0
+    const failedCount = result.failed?.length || 0
+    if (successCount > 0 && failedCount === 0) {
+      appStore.showSuccess(
+        ssoTokens.length > 1
+          ? t('admin.accounts.oauth.batchSuccess', { count: successCount })
+          : t('admin.accounts.accountCreated')
+      )
+      emit('created')
+      handleClose()
+    } else if (successCount > 0) {
+      appStore.showWarning(
+        t('admin.accounts.oauth.batchPartialSuccess', { success: successCount, failed: failedCount })
+      )
+      grokOAuth.error.value = (result.failed || [])
+        .map((item) => `#${item.index}: ${item.error || 'Unknown error'}`)
+        .join('\n')
+      emit('created')
+    } else {
+      grokOAuth.error.value = (result.failed || [])
+        .map((item) => `#${item.index}: ${item.error || 'Unknown error'}`)
+        .join('\n') || t('admin.accounts.oauth.grok.failedToConvertSSO')
+      appStore.showError(t('admin.accounts.oauth.batchFailed'))
+    }
+  } catch (error: any) {
+    grokOAuth.error.value = error.response?.data?.detail || error.message || t('admin.accounts.oauth.grok.failedToConvertSSO')
+    appStore.showError(grokOAuth.error.value)
   } finally {
     grokOAuth.loading.value = false
   }
@@ -6045,6 +6397,7 @@ const handleAntigravityExchange = async (authCode: string) => {
 // Grok OAuth 授权码兑换
 const handleGrokExchange = async (authCode: string) => {
   if (!authCode.trim() || !grokOAuth.sessionId.value) return
+  if (!validateGrokOAuthUpstreamConfig()) return
 
   grokOAuth.loading.value = true
   grokOAuth.error.value = ''
@@ -6067,6 +6420,7 @@ const handleGrokExchange = async (authCode: string) => {
     if (!tokenInfo) return
 
     const credentials = grokOAuth.buildCredentials(tokenInfo)
+    applyGrokOAuthUpstreamConfig(credentials)
     const extra = grokOAuth.buildExtraInfo(tokenInfo)
     const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
     if (modelMapping) {

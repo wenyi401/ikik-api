@@ -2,6 +2,13 @@ package service
 
 import "time"
 
+// ResolveProxyFallbackTarget 计算一个过期代理 start 应把账号改投到哪里。
+// 返回 (targetID, change)：
+//   - change=false：不改动账号（mode=none，或链路成环/无解的兜底）
+//   - change=true, targetID=nil：改投为直连
+//   - change=true, targetID!=nil：改投到该备用代理 id
+//
+// byID 是「全部代理」的快照（id -> Proxy），now 为判定基准时间。
 func ResolveProxyFallbackTarget(start Proxy, byID map[int64]Proxy, now time.Time) (*int64, bool) {
 	switch start.FallbackMode {
 	case FallbackModeDirect:

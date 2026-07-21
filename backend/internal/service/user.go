@@ -24,6 +24,7 @@ type User struct {
 	ShareIncomeBalance  float64
 	PointsBalance       float64
 	PreferPointsBilling bool
+	FrozenBalance       float64
 	Concurrency         int
 	Status              string
 	AllowedGroups       []int64
@@ -37,6 +38,7 @@ type User struct {
 	LastUsedAt           *time.Time
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	DeletedAt            *time.Time // 非 nil 表示用户已软删除
 
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]rateMultiplier
@@ -75,14 +77,6 @@ func (u *User) IsAdmin() bool {
 
 func (u *User) IsActive() bool {
 	return u.Status == StatusActive
-}
-
-func CanUsePointsForUsage(user *User) bool {
-	return user != nil && user.PreferPointsBilling && user.PointsBalance > 0
-}
-
-func HasUsageBillingFunds(user *User) bool {
-	return user != nil && (user.Balance > 0 || CanUsePointsForUsage(user))
 }
 
 // CanBindGroup checks whether a user can bind to a given group.

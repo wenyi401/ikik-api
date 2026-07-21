@@ -66,7 +66,7 @@ func TestStripOpenAIImageGenerationToolsRemovesNamespaceEverywhere(t *testing.T)
 	require.False(t, stripOpenAIImageGenerationTools(reqBody))
 }
 
-func TestStripOpenAIImageGenerationToolsFromRawPayload(t *testing.T) {
+func TestStripOpenAIImageGenerationToolsFromRawPayloadNamespaceOnly(t *testing.T) {
 	payload := []byte(`{"model":"gpt-5.5","tools":[{"type":"namespace","name":"image_gen"}],"tool_choice":{"type":"namespace","name":"image_gen"}}`)
 	stripped, changed, err := stripOpenAIImageGenerationToolsFromRawPayload(payload)
 	require.NoError(t, err)

@@ -480,7 +480,7 @@ onMounted(async () => {
   syncAffiliateReferralCode()
 
   try {
-    const settings = await appStore.fetchPublicSettings()
+    const settings = await appStore.fetchPublicSettings(true)
     if (settings) {
       applyPublicSettings(settings)
     }

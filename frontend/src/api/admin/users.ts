@@ -44,6 +44,17 @@ export interface AdminBoundAuthIdentity {
   channel?: AdminBoundAuthIdentityChannel | null
 }
 
+export interface BatchUpdateUserLimitsRequest {
+  user_ids: number[]
+  all?: boolean
+  concurrency?: number
+  rpm_limit?: number
+}
+
+export interface BatchUpdateUserLimitsResponse {
+  affected: number
+}
+
 /**
  * List all users with pagination
  * @param page - Page number (default: 1)
@@ -104,8 +115,9 @@ export async function list(
  * @param id - User ID
  * @returns User details
  */
-export async function getById(id: number): Promise<AdminUser> {
-  const { data } = await apiClient.get<AdminUser>(`/admin/users/${id}`)
+export async function getById(id: number, includeDeleted = false): Promise<AdminUser> {
+  const url = includeDeleted ? `/admin/users/${id}?include_deleted=true` : `/admin/users/${id}`
+  const { data } = await apiClient.get<AdminUser>(url)
   return data
 }
 
@@ -201,6 +213,16 @@ export async function updatePoints(
  */
 export async function updateConcurrency(id: number, concurrency: number): Promise<AdminUser> {
   return update(id, { concurrency })
+}
+
+export async function batchUpdateLimits(
+  request: BatchUpdateUserLimitsRequest
+): Promise<BatchUpdateUserLimitsResponse> {
+  const { data } = await apiClient.post<BatchUpdateUserLimitsResponse>(
+    '/admin/users/batch-limits',
+    request
+  )
+  return data
 }
 
 /**
@@ -324,6 +346,66 @@ export async function bindUserAuthIdentity(
   return data
 }
 
+export type PlatformQuotaPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
+export type PlatformQuotaWindow = 'daily' | 'weekly' | 'monthly'
+
+export interface PlatformQuotaItem {
+  platform: PlatformQuotaPlatform
+  daily_limit_usd: number | null
+  weekly_limit_usd: number | null
+  monthly_limit_usd: number | null
+  daily_usage_usd: number
+  weekly_usage_usd: number
+  monthly_usage_usd: number
+  daily_window_start?: string | null
+  weekly_window_start?: string | null
+  monthly_window_start?: string | null
+  daily_window_resets_at?: string | null
+  weekly_window_resets_at?: string | null
+  monthly_window_resets_at?: string | null
+}
+
+export interface PlatformQuotaUpdateItem {
+  platform: PlatformQuotaPlatform
+  daily_limit_usd: number | null
+  weekly_limit_usd: number | null
+  monthly_limit_usd: number | null
+}
+
+export interface PlatformQuotasResponse {
+  platform_quotas: PlatformQuotaItem[]
+}
+
+export async function getPlatformQuotas(id: number): Promise<PlatformQuotasResponse> {
+  const { data } = await apiClient.get<PlatformQuotasResponse>(
+    `/admin/users/${id}/platform-quotas`
+  )
+  return data
+}
+
+export async function updatePlatformQuotas(
+  id: number,
+  quotas: PlatformQuotaUpdateItem[]
+): Promise<PlatformQuotasResponse> {
+  const { data } = await apiClient.put<PlatformQuotasResponse>(
+    `/admin/users/${id}/platform-quotas`,
+    { quotas }
+  )
+  return data
+}
+
+export async function resetPlatformQuotaWindow(
+  id: number,
+  platform: PlatformQuotaPlatform,
+  window: PlatformQuotaWindow
+): Promise<PlatformQuotasResponse> {
+  const { data } = await apiClient.post<PlatformQuotasResponse>(
+    `/admin/users/${id}/platform-quotas/reset`,
+    { platform, window }
+  )
+  return data
+}
+
 export const usersAPI = {
   list,
   getById,
@@ -333,12 +415,16 @@ export const usersAPI = {
   updateBalance,
   updatePoints,
   updateConcurrency,
+  batchUpdateLimits,
   toggleStatus,
   getUserApiKeys,
   getUserUsageStats,
   getUserBalanceHistory,
   replaceGroup,
-  bindUserAuthIdentity
+  bindUserAuthIdentity,
+  getPlatformQuotas,
+  updatePlatformQuotas,
+  resetPlatformQuotaWindow
 }
 
 export default usersAPI

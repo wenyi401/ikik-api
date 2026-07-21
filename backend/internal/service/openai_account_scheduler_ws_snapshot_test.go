@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"ikik-api/internal/config"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/config"
 )
 
 func TestOpenAIGatewayService_SelectAccountWithScheduler_UsesWSPassthroughSnapshotFlags(t *testing.T) {
@@ -20,6 +20,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_UsesWSPassthroughSnapsh
 		Status:      StatusActive,
 		Schedulable: true,
 		Concurrency: 10,
+		GroupIDs:    []int64{groupID},
 		Extra: map[string]any{
 			"openai_oauth_responses_websockets_v2_mode": OpenAIWSIngressModePassthrough,
 		},

@@ -55,6 +55,8 @@ const props = defineProps<{
   account: Account
 }>()
 
+const emit = defineEmits<{ probed: [result: GrokQuotaProbeResult] }>()
+
 const { t } = useI18n()
 
 const visible = computed(() => props.account.platform === 'grok' && props.account.type === 'oauth')
@@ -117,6 +119,8 @@ const handleProbe = async () => {
   error.value = null
   try {
     data.value = await adminAPI.grok.queryQuota(props.account.id)
+    error.value = data.value.probe_error || null
+    emit('probed', data.value)
   } catch (e) {
     error.value = extractErrorMessage(e)
   } finally {

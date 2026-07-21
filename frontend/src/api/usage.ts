@@ -10,7 +10,8 @@ import type {
   UsageStatsResponse,
   PaginatedResponse,
   TrendDataPoint,
-  ModelStat
+  ModelStat,
+  UserErrorRequestDetail
 } from '@/types'
 
 // ==================== Dashboard Types ====================
@@ -329,6 +330,11 @@ export async function getDashboardAccountSharing(params?: AccountSharingDashboar
   return data
 }
 
+export async function getMyErrorDetail(id: number): Promise<UserErrorRequestDetail> {
+  const { data } = await apiClient.get<UserErrorRequestDetail>(`/usage/errors/${id}`)
+  return data
+}
+
 export interface BatchApiKeyUsageStats {
   api_key_id: number
   today_actual_cost: number
@@ -376,7 +382,8 @@ export const usageAPI = {
   getDashboardTrend,
   getDashboardModels,
   getDashboardAccountSharing,
-  getDashboardApiKeysUsage
+  getDashboardApiKeysUsage,
+  getMyErrorDetail
 }
 
 export default usageAPI

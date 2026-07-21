@@ -30,7 +30,14 @@ const colors = computed(() => ({
   text: isDarkMode.value ? '#b4b4b4' : '#676767'
 }))
 
-const hasData = computed(() => (props.data?.total ?? 0) > 0)
+const totalSLAErrors = computed(() =>
+  (props.data?.items || []).reduce((total, item) => {
+    const count = Number(item.sla || 0)
+    return total + (Number.isFinite(count) ? count : 0)
+  }, 0)
+)
+
+const hasData = computed(() => totalSLAErrors.value > 0)
 
 const state = computed<ChartState>(() => {
   if (hasData.value) return 'ready'
@@ -54,7 +61,7 @@ const categories = computed<ErrorCategory[]>(() => {
 
   for (const item of props.data.items || []) {
     const code = Number(item.status_code || 0)
-    const count = Number(item.total || 0)
+    const count = Number(item.sla || 0)
     if (!Number.isFinite(code) || !Number.isFinite(count)) continue
 
     if ([502, 503, 504].includes(code)) upstream += count

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	dbent "ikik-api/ent"
+	dbaccount "ikik-api/ent/account"
 	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -85,15 +86,10 @@ func mustCreateGroup(t *testing.T, client *dbent.Client, g *service.Group) *serv
 	create := client.Group.Create().
 		SetName(g.Name).
 		SetPlatform(g.Platform).
-		SetRequiredAccountLevel(service.NormalizeRequiredAccountLevel(g.RequiredAccountLevel)).
 		SetStatus(g.Status).
-		SetScope(service.NormalizeGroupScope(g.Scope)).
 		SetSubscriptionType(g.SubscriptionType).
 		SetRateMultiplier(g.RateMultiplier).
 		SetIsExclusive(g.IsExclusive)
-	if g.OwnerUserID != nil {
-		create.SetOwnerUserID(*g.OwnerUserID)
-	}
 	if g.Description != "" {
 		create.SetDescription(g.Description)
 	}
@@ -199,7 +195,6 @@ func mustCreateAccount(t *testing.T, client *dbent.Client, a *service.Account) *
 	create := client.Account.Create().
 		SetName(a.Name).
 		SetPlatform(a.Platform).
-		SetAccountLevel(service.NormalizeAccountLevel(a.AccountLevel)).
 		SetType(a.Type).
 		SetCredentials(a.Credentials).
 		SetExtra(a.Extra).
@@ -238,6 +233,12 @@ func mustCreateAccount(t *testing.T, client *dbent.Client, a *service.Account) *
 	}
 	if !a.UpdatedAt.IsZero() {
 		create.SetUpdatedAt(a.UpdatedAt)
+	}
+	if a.ParentAccountID != nil {
+		create.SetParentAccountID(*a.ParentAccountID)
+	}
+	if a.QuotaDimension != "" {
+		create.SetQuotaDimension(dbaccount.QuotaDimension(a.QuotaDimension))
 	}
 
 	created, err := create.Save(ctx)

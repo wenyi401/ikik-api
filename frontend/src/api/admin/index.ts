@@ -38,6 +38,7 @@ import accountSharePoliciesAPI from './accountSharePolicies'
 import riskControlAPI from './riskControl'
 import carpoolsAPI from './carpools'
 import modulesAPI from './modules'
+import auditAPI from './audit'
 
 /**
  * Unified admin API object for convenient access
@@ -77,7 +78,8 @@ export const adminAPI = {
   accountSharePolicies: accountSharePoliciesAPI,
   riskControl: riskControlAPI,
   carpools: carpoolsAPI,
-  modules: modulesAPI
+  modules: modulesAPI,
+  audit: auditAPI
 }
 
 export {
@@ -115,12 +117,14 @@ export {
   accountSharePoliciesAPI,
   riskControlAPI,
   carpoolsAPI,
-  modulesAPI
+  modulesAPI,
+  auditAPI
 }
 
 export default adminAPI
 
 // Re-export types used by components
+export type { AuditLog, AuditLogQuery, AuditLogListResponse } from './audit'
 export type { BalanceHistoryItem } from './users'
 export type { ErrorPassthroughRule, CreateRuleRequest, UpdateRuleRequest } from './errorPassthrough'
 export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'

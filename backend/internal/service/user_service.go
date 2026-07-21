@@ -32,7 +32,6 @@ var (
 	ErrUserNotFound             = infraerrors.NotFound("USER_NOT_FOUND", "user not found")
 	ErrPasswordIncorrect        = infraerrors.BadRequest("PASSWORD_INCORRECT", "current password is incorrect")
 	ErrInsufficientPerms        = infraerrors.Forbidden("INSUFFICIENT_PERMISSIONS", "insufficient permissions")
-	ErrUserConcurrencyRange     = infraerrors.BadRequest("USER_CONCURRENCY_INVALID", fmt.Sprintf("user concurrency must be at least %d", UserMinConcurrency))
 	ErrNotifyCodeUserRateLimit  = infraerrors.TooManyRequests("NOTIFY_CODE_USER_RATE_LIMIT", "too many verification codes requested, please try again later")
 	ErrAvatarInvalid            = infraerrors.BadRequest("AVATAR_INVALID", "avatar must be a valid image data URL or http(s) URL")
 	ErrAvatarTooLarge           = infraerrors.BadRequest("AVATAR_TOO_LARGE", "avatar image must be 100KB or smaller")
@@ -44,20 +43,6 @@ var (
 		"bind another sign-in method before unbinding this provider",
 	)
 )
-
-func validatePersonalUserConcurrency(concurrency int) error {
-	if concurrency < UserMinConcurrency {
-		return ErrUserConcurrencyRange
-	}
-	return nil
-}
-
-func defaultPersonalUserConcurrency(concurrency int) int {
-	if concurrency <= 0 {
-		return UserDefaultConcurrency
-	}
-	return concurrency
-}
 
 const (
 	maxNotifyEmails      = 3 // Maximum number of notification emails per user
@@ -80,21 +65,29 @@ var (
 
 // UserListFilters contains all filter options for listing users
 type UserListFilters struct {
-	Status        string           // User status filter
-	Role          string           // User role filter
-	Search        string           // Search in email, username
-	GroupName     string           // Filter by allowed group name (fuzzy match)
-	APIKeyGroupID int64            // Filter users that have an API key routed to this group
+	Status    string // User status filter
+	Role      string // User role filter
+	Search    string // Search in email, username
+	GroupName string // Filter by allowed group name (fuzzy match)
+	// APIKeyGroupID filters users who own at least one non-soft-deleted API key
+	// bound to this group (api_keys.group_id). 0 = no filter. Covers all three
+	// group types since it matches the key's group directly, not allowed_groups.
+	APIKeyGroupID int64
 	Attributes    map[int64]string // Custom attribute filters: attributeID -> value
 	// IncludeSubscriptions controls whether ListWithFilters should load active subscriptions.
 	// For large datasets this can be expensive; admin list pages should enable it on demand.
 	// nil means not specified (default: load subscriptions for backward compatibility).
 	IncludeSubscriptions *bool
+	// IncludeDeleted 为 true 时绕过软删除过滤，返回含已删除（deleted_at 非空）的用户。
+	// 仅供 /admin/usage 的 SearchUsers 端点使用，其他列表调用方不要设置。
+	IncludeDeleted bool
 }
 
 type UserRepository interface {
 	Create(ctx context.Context, user *User) error
 	GetByID(ctx context.Context, id int64) (*User, error)
+	// GetByIDIncludeDeleted 绕过软删除过滤按 ID 取用户（含已删）。仅供管理员审计/usage 点击使用。
+	GetByIDIncludeDeleted(ctx context.Context, id int64) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetFirstAdmin(ctx context.Context) (*User, error)
 	Update(ctx context.Context, user *User) error
@@ -112,6 +105,9 @@ type UserRepository interface {
 	UpdateBalance(ctx context.Context, id int64, amount float64) error
 	DeductBalance(ctx context.Context, id int64, amount float64) error
 	UpdateConcurrency(ctx context.Context, id int64, amount int) error
+	BatchSetConcurrency(ctx context.Context, userIDs []int64, value int) (int, error)
+	BatchAddConcurrency(ctx context.Context, userIDs []int64, delta int) (int, error)
+	BatchUpdateLimits(ctx context.Context, userIDs []int64, concurrency, rpmLimit *int) (int, error)
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 	RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error)
 	// AddGroupToAllowedGroups 将指定分组增量添加到用户的 allowed_groups（幂等，冲突忽略）
@@ -125,6 +121,14 @@ type UserRepository interface {
 	UpdateTotpSecret(ctx context.Context, userID int64, encryptedSecret *string) error
 	EnableTotp(ctx context.Context, userID int64) error
 	DisableTotp(ctx context.Context, userID int64) error
+}
+
+// RedeemUserAdjustmentRepository provides the atomic, floor-at-zero updates
+// used by negative-value redeem codes. It is intentionally narrower than
+// UserRepository because normal usage billing is allowed to overdraw.
+type RedeemUserAdjustmentRepository interface {
+	ApplyRedeemBalanceAdjustment(ctx context.Context, id int64, delta float64) error
+	ApplyRedeemConcurrencyAdjustment(ctx context.Context, id int64, delta int) error
 }
 
 type UserAuthIdentityRecord struct {
@@ -155,10 +159,11 @@ type UserIdentitySummary struct {
 }
 
 type UserIdentitySummarySet struct {
-	Email   UserIdentitySummary `json:"email"`
-	LinuxDo UserIdentitySummary `json:"linuxdo"`
-	OIDC    UserIdentitySummary `json:"oidc"`
-	WeChat  UserIdentitySummary `json:"wechat"`
+	Email    UserIdentitySummary `json:"email"`
+	LinuxDo  UserIdentitySummary `json:"linuxdo"`
+	OIDC     UserIdentitySummary `json:"oidc"`
+	WeChat   UserIdentitySummary `json:"wechat"`
+	DingTalk UserIdentitySummary `json:"dingtalk"`
 }
 
 type StartUserIdentityBindingRequest struct {
@@ -185,7 +190,6 @@ type UpdateProfileRequest struct {
 	Username               *string  `json:"username"`
 	AvatarURL              *string  `json:"avatar_url"`
 	Concurrency            *int     `json:"concurrency"`
-	PreferPointsBilling    *bool    `json:"prefer_points_billing"`
 	BalanceNotifyEnabled   *bool    `json:"balance_notify_enabled"`
 	BalanceNotifyThreshold *float64 `json:"balance_notify_threshold"`
 }
@@ -275,10 +279,11 @@ func (s *UserService) GetProfileIdentitySummaries(ctx context.Context, userID in
 	}
 
 	summaries := UserIdentitySummarySet{
-		Email:   s.buildEmailIdentitySummary(user, records),
-		LinuxDo: s.buildProviderIdentitySummary("linuxdo", user, records),
-		OIDC:    s.buildProviderIdentitySummary("oidc", user, records),
-		WeChat:  s.buildProviderIdentitySummary("wechat", user, records),
+		Email:    s.buildEmailIdentitySummary(user, records),
+		LinuxDo:  s.buildProviderIdentitySummary("linuxdo", user, records),
+		OIDC:     s.buildProviderIdentitySummary("oidc", user, records),
+		WeChat:   s.buildProviderIdentitySummary("wechat", user, records),
+		DingTalk: s.buildProviderIdentitySummary("dingtalk", user, records),
 	}
 
 	s.applyExplicitProviderAvailability(ctx, &summaries)
@@ -298,6 +303,7 @@ func (s *UserService) applyExplicitProviderAvailability(ctx context.Context, sum
 		SettingKeyWeChatConnectMPEnabled,
 		SettingKeyWeChatConnectMobileEnabled,
 		SettingKeyWeChatConnectMode,
+		SettingKeyDingTalkConnectEnabled,
 	})
 	if err != nil {
 		return
@@ -305,6 +311,9 @@ func (s *UserService) applyExplicitProviderAvailability(ctx context.Context, sum
 
 	if raw, ok := settings[SettingKeyLinuxDoConnectEnabled]; ok && strings.TrimSpace(raw) != "" && raw != "true" {
 		disableIdentityBindAction(&summaries.LinuxDo)
+	}
+	if raw, ok := settings[SettingKeyDingTalkConnectEnabled]; ok && strings.TrimSpace(raw) != "" && raw != "true" {
+		disableIdentityBindAction(&summaries.DingTalk)
 	}
 	if raw, ok := settings[SettingKeyOIDCConnectEnabled]; ok && strings.TrimSpace(raw) != "" && raw != "true" {
 		disableIdentityBindAction(&summaries.OIDC)
@@ -392,25 +401,28 @@ func (s *UserService) UnbindUserAuthProviderWithResult(ctx context.Context, user
 // UpdateProfile 更新用户资料
 func (s *UserService) UpdateProfile(ctx context.Context, userID int64, req UpdateProfileRequest) (*User, error) {
 	if txRunner, ok := s.userRepo.(userProfileIdentityTxRunner); ok {
-		var updated *User
+		var (
+			updated        *User
+			oldConcurrency int
+		)
 		if err := txRunner.WithUserProfileIdentityTx(ctx, func(txCtx context.Context) error {
 			var err error
-			updated, _, err = s.updateProfile(txCtx, userID, req)
+			updated, oldConcurrency, err = s.updateProfile(txCtx, userID, req)
 			return err
 		}); err != nil {
 			return nil, err
 		}
-		if s.authCacheInvalidator != nil && updated != nil {
+		if s.authCacheInvalidator != nil && updated != nil && updated.Concurrency != oldConcurrency {
 			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 		}
 		return updated, nil
 	}
 
-	updated, _, err := s.updateProfile(ctx, userID, req)
+	updated, oldConcurrency, err := s.updateProfile(ctx, userID, req)
 	if err != nil {
 		return nil, err
 	}
-	if s.authCacheInvalidator != nil && updated != nil {
+	if s.authCacheInvalidator != nil && updated.Concurrency != oldConcurrency {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 	}
 	return updated, nil
@@ -450,9 +462,6 @@ func (s *UserService) updateProfile(ctx context.Context, userID int64, req Updat
 
 	if req.Concurrency != nil {
 		user.Concurrency = *req.Concurrency
-	}
-	if req.PreferPointsBilling != nil {
-		user.PreferPointsBilling = *req.PreferPointsBilling
 	}
 
 	if req.BalanceNotifyEnabled != nil {
@@ -711,7 +720,7 @@ func (s *UserService) canUnbindProvider(provider string, user *User, records []U
 		return true
 	}
 
-	for _, candidate := range []string{"linuxdo", "oidc", "wechat"} {
+	for _, candidate := range []string{"linuxdo", "oidc", "wechat", "dingtalk"} {
 		if candidate == provider {
 			continue
 		}
@@ -787,6 +796,8 @@ func buildUserIdentityBindAuthorizeURL(provider, redirectTo string) (string, err
 		path = "/api/v1/auth/oauth/oidc/bind/start"
 	case "wechat":
 		path = "/api/v1/auth/oauth/wechat/bind/start"
+	case "dingtalk":
+		path = "/api/v1/auth/oauth/dingtalk/bind/start"
 	default:
 		return "", ErrIdentityProviderInvalid
 	}
@@ -805,6 +816,8 @@ func normalizeUserIdentityProvider(provider string) string {
 		return "oidc"
 	case "wechat":
 		return "wechat"
+	case "dingtalk":
+		return "dingtalk"
 	case "email":
 		return "email"
 	default:
@@ -1086,16 +1099,6 @@ func (s *UserService) UpdateBalance(ctx context.Context, userID int64, amount fl
 
 // UpdateConcurrency 更新用户并发数（管理员功能）
 func (s *UserService) UpdateConcurrency(ctx context.Context, userID int64, concurrency int) error {
-	user, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("get user: %w", err)
-	}
-	if user.Role == RoleUser {
-		nextConcurrency := user.Concurrency + concurrency
-		if err := validatePersonalUserConcurrency(nextConcurrency); err != nil {
-			return err
-		}
-	}
 	if err := s.userRepo.UpdateConcurrency(ctx, userID, concurrency); err != nil {
 		return fmt.Errorf("update concurrency: %w", err)
 	}
@@ -1136,7 +1139,7 @@ func (s *UserService) Delete(ctx context.Context, userID int64) error {
 }
 
 // SendNotifyEmailCode sends a verification code to the extra notification email.
-func (s *UserService) SendNotifyEmailCode(ctx context.Context, userID int64, email string, emailService *EmailService, cache EmailCache) error {
+func (s *UserService) SendNotifyEmailCode(ctx context.Context, userID int64, email string, emailService *EmailService, cache EmailCache, locale ...string) error {
 	if err := checkNotifyCodeRateLimit(ctx, cache, userID, email); err != nil {
 		return err
 	}
@@ -1148,7 +1151,7 @@ func (s *UserService) SendNotifyEmailCode(ctx context.Context, userID int64, ema
 
 	// Send email first — if SMTP fails, don't write cache or increment counters,
 	// so the user is not locked out by cooldown/rate-limit for a code they never received.
-	if err := s.sendNotifyVerifyEmail(ctx, emailService, email, code); err != nil {
+	if err := s.sendNotifyVerifyEmail(ctx, emailService, userID, email, code, firstEmailLocale(locale)); err != nil {
 		return err
 	}
 
@@ -1194,11 +1197,31 @@ func saveNotifyVerifyCode(ctx context.Context, cache EmailCache, email, code str
 }
 
 // sendNotifyVerifyEmail builds and sends the verification email.
-func (s *UserService) sendNotifyVerifyEmail(ctx context.Context, emailService *EmailService, email, code string) error {
-	siteName := "ikik-api"
+func (s *UserService) sendNotifyVerifyEmail(ctx context.Context, emailService *EmailService, userID int64, email, code, locale string) error {
+	siteName := "Sub2API"
 	if s.settingRepo != nil {
 		if name, err := s.settingRepo.GetValue(ctx, SettingKeySiteName); err == nil && name != "" {
 			siteName = name
+		}
+	}
+	if emailService.notificationEmailService != nil {
+		if err := emailService.notificationEmailService.Send(ctx, NotificationEmailSendInput{
+			Event:          NotificationEmailEventNotificationEmailVerifyCode,
+			Locale:         locale,
+			RecipientEmail: email,
+			RecipientName:  emailRecipientName(email),
+			UserID:         userID,
+			Variables: map[string]string{
+				"verification_code":  code,
+				"expires_in_minutes": strconv.Itoa(int(verifyCodeTTL / time.Minute)),
+			},
+		}); err == nil {
+			return nil
+		} else {
+			if !shouldFallbackNotificationEmail(err) {
+				return err
+			}
+			slog.Warn("template notification email verification failed; falling back to built-in body", "recipient_hash", notificationEmailHash(email), "err", err.Error())
 		}
 	}
 	subject := fmt.Sprintf("[%s] 通知邮箱验证码 / Notification Email Verification", siteName)
@@ -1322,14 +1345,14 @@ const notifyVerifyEmailTemplate = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background-color: #f7f7f8; margin: 0; padding: 20px; color: #202123; }
-        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; }
-        .header { background: #ffffff; color: #0d0d0d; padding: 28px 30px; text-align: left; border-bottom: 1px solid #e5e5e5; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 30px; text-align: center; }
         .header h1 { margin: 0; font-size: 24px; }
         .content { padding: 40px 30px; text-align: center; }
-        .code { font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #0d0d0d; background-color: #f7f7f8; border: 1px solid #e5e5e5; padding: 20px 30px; border-radius: 8px; display: inline-block; margin: 20px 0; font-family: monospace; }
-        .info { color: #6e6e80; font-size: 14px; line-height: 1.6; margin-top: 20px; }
-        .footer { background-color: #ffffff; padding: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6e6e80; font-size: 12px; }
+        .code { font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #333; background-color: #f8f9fa; padding: 20px 30px; border-radius: 8px; display: inline-block; margin: 20px 0; font-family: monospace; }
+        .info { color: #666; font-size: 14px; line-height: 1.6; margin-top: 20px; }
+        .footer { background-color: #f8f9fa; padding: 20px; text-align: center; color: #999; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -1338,7 +1361,7 @@ const notifyVerifyEmailTemplate = `<!DOCTYPE html>
             <h1>%s</h1>
         </div>
         <div class="content">
-            <p style="font-size: 18px; color: #202123;">通知邮箱验证码 / Notification Email Verification</p>
+            <p style="font-size: 18px; color: #333;">通知邮箱验证码 / Notification Email Verification</p>
             <div class="code">%s</div>
             <div class="info">
                 <p>您正在添加额外的通知邮箱，请输入此验证码完成验证。</p>

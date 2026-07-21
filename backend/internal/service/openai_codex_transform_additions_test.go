@@ -53,8 +53,7 @@ func TestApplyCodexClientMetadata(t *testing.T) {
 	// 既有 client_metadata（如 turn metadata）保留，仅补 installation 键
 	body3 := map[string]any{"client_metadata": map[string]any{"x-codex-turn-metadata": "t"}}
 	require.True(t, applyCodexClientMetadata(body3, acc))
-	cm3, ok := body3["client_metadata"].(map[string]any)
-	require.True(t, ok)
+	cm3, _ := body3["client_metadata"].(map[string]any)
 	require.Equal(t, "t", cm3["x-codex-turn-metadata"])
 	require.Equal(t, "dev-xyz", cm3["x-codex-installation-id"])
 }
@@ -62,7 +61,7 @@ func TestApplyCodexClientMetadata(t *testing.T) {
 // defaultCodexSynthInstructions：按模型选用真实 Codex base prompt。
 func TestDefaultCodexSynthInstructionsModelAware(t *testing.T) {
 	require.True(t, strings.Contains(defaultCodexSynthInstructions("gpt-5-codex"), "You are Codex, based on GPT-5"))
-	require.True(t, strings.Contains(defaultCodexSynthInstructions("gpt-5.5"), "You are GPT-5.5 running in the Codex CLI"))
+	require.True(t, strings.Contains(defaultCodexSynthInstructions("gpt-5.5"), "You are Codex, a coding agent based on GPT-5"))
 	require.False(t, strings.Contains(defaultCodexSynthInstructions("gpt-5.5"), "You are GPT-5.1 running in the Codex CLI"))
 	require.True(t, strings.Contains(defaultCodexSynthInstructions("gpt-5.2"), "You are GPT-5.2 running in the Codex CLI"))
 	require.True(t, strings.Contains(defaultCodexSynthInstructions("gpt-5.1"), "You are GPT-5.1 running in the Codex CLI"))

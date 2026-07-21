@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	// Canonical tier IDs used by ikik-api (2026-aligned).
+	// Canonical tier IDs used by sub2api (2026-aligned).
 	GeminiTierGoogleOneFree    = "google_one_free"
 	GeminiTierGoogleAIPro      = "google_ai_pro"
 	GeminiTierGoogleAIUltra    = "google_ai_ultra"

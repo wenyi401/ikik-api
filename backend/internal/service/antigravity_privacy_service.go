@@ -68,10 +68,6 @@ func setAntigravityPrivacy(ctx context.Context, accessToken, projectID, proxyURL
 	return AntigravityPrivacySet
 }
 
-func SetAntigravityPrivacy(ctx context.Context, accessToken, projectID, proxyURL string) string {
-	return setAntigravityPrivacy(ctx, accessToken, projectID, proxyURL)
-}
-
 func applyAntigravityPrivacyMode(account *Account, mode string) {
 	if account == nil || strings.TrimSpace(mode) == "" {
 		return

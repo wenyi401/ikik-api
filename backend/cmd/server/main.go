@@ -9,11 +9,8 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	// #nosec G108 -- pprof is disabled by default and only starts on the explicit PPROF_ENABLED debug listener.
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -28,8 +25,6 @@ import (
 	"ikik-api/internal/web"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 )
 
 //go:embed VERSION
@@ -68,7 +63,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		log.Printf("ikik-api %s (commit: %s, built: %s)\n", Version, Commit, Date)
+		log.Printf("Sub2API %s (commit: %s, built: %s)\n", Version, Commit, Date)
 		return
 	}
 
@@ -118,13 +113,18 @@ func runSetupServer() {
 	// This allows users to run setup on a different address if needed
 	addr := config.GetServerAddress()
 	log.Printf("Setup wizard available at http://%s", addr)
-	log.Println("Complete the setup wizard to configure ikik-api")
+	log.Println("Complete the setup wizard to configure Sub2API")
+
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
 
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           h2c.NewHandler(r, &http2.Server{}),
+		Handler:           r,
 		ReadHeaderTimeout: 30 * time.Second,
 		IdleTimeout:       120 * time.Second,
+		Protocols:         protocols,
 	}
 
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -154,19 +154,14 @@ func runMainServer() {
 		log.Fatalf("Failed to initialize application: %v", err)
 	}
 	defer app.Cleanup()
-
 	if app.Runtime != nil {
 		if err := app.Runtime.Build(); err != nil {
-			app.Cleanup()
 			log.Fatalf("Failed to build plugin modules: %v", err)
 		}
 		if err := app.Runtime.Start(context.Background()); err != nil {
-			app.Cleanup()
 			log.Fatalf("Failed to start plugin modules: %v", err)
 		}
 	}
-
-	pprofServer := startPprofServer()
 
 	// 启动服务器
 	go func() {
@@ -191,47 +186,5 @@ func runMainServer() {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	if pprofServer != nil {
-		if err := pprofServer.Shutdown(ctx); err != nil {
-			log.Fatalf("pprof server forced to shutdown: %v", err)
-		}
-	}
-
 	log.Println("Server exited")
-}
-
-func startPprofServer() *http.Server {
-	enabledValue := strings.TrimSpace(os.Getenv("PPROF_ENABLED"))
-	if enabledValue == "" {
-		return nil
-	}
-
-	enabled, err := strconv.ParseBool(enabledValue)
-	if err != nil {
-		log.Fatalf("Invalid PPROF_ENABLED value %q: %v", enabledValue, err)
-	}
-	if !enabled {
-		return nil
-	}
-
-	addr := strings.TrimSpace(os.Getenv("PPROF_ADDR"))
-	if addr == "" {
-		addr = "127.0.0.1:6060"
-	}
-
-	server := &http.Server{
-		Addr:              addr,
-		Handler:           http.DefaultServeMux,
-		ReadHeaderTimeout: 5 * time.Second,
-		IdleTimeout:       30 * time.Second,
-	}
-
-	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("Failed to start pprof server on %s: %v", addr, err)
-		}
-	}()
-
-	log.Printf("pprof server started on %s", addr)
-	return server
 }

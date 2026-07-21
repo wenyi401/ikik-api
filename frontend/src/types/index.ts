@@ -105,6 +105,7 @@ export interface User {
   last_active_at?: string | null
   created_at: string
   updated_at: string
+  deleted_at?: string | null
 }
 
 export type ReceiptCodePaymentMethod = 'alipay' | 'wechat'
@@ -597,6 +598,22 @@ export interface Group {
   daily_limit_usd: number | null
   weekly_limit_usd: number | null
   monthly_limit_usd: number | null
+  allow_image_generation: boolean
+  allow_batch_image_generation: boolean
+  image_rate_independent: boolean
+  image_rate_multiplier: number
+  batch_image_discount_multiplier: number
+  batch_image_hold_multiplier: number
+  video_rate_independent: boolean
+  video_rate_multiplier: number
+  video_price_480p: number | null
+  video_price_720p: number | null
+  video_price_1080p: number | null
+  web_search_price_per_call: number | null
+  peak_rate_enabled: boolean
+  peak_start: string
+  peak_end: string
+  peak_rate_multiplier: number
   // 图片生成计费配置（仅 antigravity 平台使用）
   image_price_1k: number | null
   image_price_2k: number | null
@@ -921,6 +938,48 @@ export interface TempUnschedulableStatus {
   state?: TempUnschedulableState
 }
 
+export interface UpstreamBillingData {
+  object: 'sub2api.key_billing'
+  schema_version: 1
+  billing_scope: 'token'
+  group_rate_multiplier: number
+  user_rate_multiplier?: number
+  resolved_rate_multiplier: number
+  peak_rate_enabled: boolean
+  peak_start?: string
+  peak_end?: string
+  peak_rate_multiplier?: number
+  applied_peak_multiplier?: number
+  effective_rate_multiplier: number
+  timezone?: string
+  observed_at: string
+}
+
+export type UpstreamBillingProbeStatus = 'ok' | 'unsupported' | 'failed'
+
+export interface UpstreamBillingProbeSnapshot {
+  status: UpstreamBillingProbeStatus
+  data?: UpstreamBillingData
+  received_at?: string
+  fresh_until?: string
+  last_attempt_at: string
+  next_probe_at: string
+  failure_count?: number
+  http_status?: number
+  last_error?: string
+}
+
+export interface UpstreamBillingProbeSettings {
+  enabled: boolean
+  interval_minutes: number
+}
+
+export interface UpstreamBillingProbeResult {
+  account_id: number
+  snapshot?: UpstreamBillingProbeSnapshot
+  error?: string
+}
+
 export interface Account {
   id: number
   name: string
@@ -929,11 +988,14 @@ export interface Account {
   account_level: AccountLevel
   type: AccountType
   credentials?: Record<string, unknown>
+  credentials_status?: Record<string, boolean>
   // Extra fields including Codex usage, OpenAI compact capability, and model-level rate limits.
   extra?: CodexUsageSnapshot &
     OpenAICompactState & {
       model_rate_limits?: Record<string, { rate_limited_at: string; rate_limit_reset_at: string }>
       antigravity_credits_overages?: Record<string, { activated_at: string; active_until: string }>
+      upstream_billing_probe_enabled?: boolean
+      upstream_billing_probe?: UpstreamBillingProbeSnapshot
     } & Record<string, unknown>
   proxy_id: number | null
   proxy_fallback_origin_id?: number | null
@@ -945,6 +1007,13 @@ export interface Account {
   concurrency: number
   load_factor?: number | null
   current_concurrency?: number // Real-time concurrency count from Redis
+  scheduler_score?: {
+    base_score: number
+    sticky_score?: number
+    sticky_score_infinity?: boolean
+    sticky_weighted_enabled: boolean
+  } | null
+  scheduler_scores?: AccountSchedulerGroupScore[] | null
   priority: number
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
   status: AccountStatus
@@ -1023,6 +1092,25 @@ export interface Account {
   current_window_cost?: number | null // 当前窗口费用
   active_sessions?: number | null // 当前活跃会话数
   current_rpm?: number | null // 当前分钟 RPM 计数
+
+  // Spark shadow account relationship and parent display fallbacks.
+  parent_account_id?: number | null
+  quota_dimension?: string
+  parent_email?: string
+  parent_plan_type?: string
+  parent_privacy_mode?: string
+  parent_subscription_expires_at?: string
+  parent_chatgpt_account_id?: string
+}
+
+export interface AccountSchedulerGroupScore {
+  group_id?: number | null
+  group_name?: string
+  group_priority?: number | null
+  base_score: number
+  sticky_score?: number
+  sticky_score_infinity?: boolean
+  sticky_weighted_enabled: boolean
 }
 
 export interface AccountQuotaDimensionSummary {
@@ -1070,6 +1158,8 @@ export interface AccountQuotaGroupSummary {
   group_name: string
   group_status: string
   platform: AccountPlatform | 'all' | string
+  account_level?: string
+  rate_multiplier: number
   account_count: number
   active_account_count: number
   schedulable_account_count: number
@@ -1267,6 +1357,34 @@ export interface GrokQuotaWindow {
   remaining?: number | null
   reset_unix?: number | null
   reset_at?: string | null
+}
+
+export interface GrokBillingProductUsage {
+  product: string
+  usage_percent?: number | null
+}
+
+export interface GrokBillingSummary {
+  period_type?: string
+  usage_percent?: number | null
+  period_start?: string
+  period_end?: string
+  product_usage?: GrokBillingProductUsage[]
+  monthly_limit_cents?: number | null
+  used_cents?: number | null
+  included_used_cents?: number | null
+  billing_period_start?: string
+  billing_period_end?: string
+  used_percent?: number | null
+  plan?: string
+  status_code?: number
+  source?: string
+  fetched_at?: string
+  updated_at?: string
+  weekly_updated_at?: string
+  monthly_updated_at?: string
+  partial?: boolean
+  failed_windows?: string[]
 }
 
 export interface AccountUsageInfo {
@@ -1493,10 +1611,73 @@ export interface AdminDataImportResult {
   errors?: AdminDataImportError[]
 }
 
+export interface CodexSessionImportRequest {
+  content?: string
+  contents?: string[]
+  name?: string
+  notes?: string | null
+  group_ids?: number[]
+  proxy_id?: number | null
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number | null
+  expires_at?: number | null
+  auto_pause_on_expired?: boolean
+  credential_extras?: Record<string, unknown>
+  extra?: Record<string, unknown>
+  update_existing?: boolean
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
+export interface OpenAICodexPATCreateRequest {
+  access_token: string
+  name?: string
+  notes?: string | null
+  group_ids?: number[]
+  proxy_id?: number | null
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number | null
+  expires_at?: number | null
+  auto_pause_on_expired?: boolean
+  credential_extras?: Record<string, unknown>
+  extra?: Record<string, unknown>
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
+export interface CodexSessionImportMessage {
+  index: number
+  name?: string
+  message: string
+}
+
+export interface CodexSessionImportItem {
+  index: number
+  name?: string
+  action: 'created' | 'updated' | 'skipped' | 'failed'
+  account_id?: number
+  message?: string
+}
+
+export interface CodexSessionImportResult {
+  total: number
+  created: number
+  updated: number
+  skipped: number
+  failed: number
+  items?: CodexSessionImportItem[]
+  warnings?: CodexSessionImportMessage[]
+  errors?: CodexSessionImportMessage[]
+}
+
 // ==================== Usage & Redeem Types ====================
 
 export type RedeemCodeType = 'balance' | 'points' | 'concurrency' | 'subscription' | 'invitation'
-export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2'
+export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2' | 'cyber'
 
 export interface UsageLog {
   id: number
@@ -1637,6 +1818,20 @@ export interface GenerateRedeemCodesRequest {
   value: number
   group_id?: number | null // 订阅类型专用
   validity_days?: number // 订阅类型专用
+  expires_at?: string | null
+  expires_in_days?: number
+}
+
+export interface BatchUpdateRedeemCodeFields {
+  status?: 'unused' | 'disabled'
+  expires_at?: string | null
+  notes?: string
+  group_id?: number | null
+}
+
+export interface BatchUpdateRedeemCodesRequest {
+  ids: number[]
+  fields: BatchUpdateRedeemCodeFields
 }
 
 export interface RedeemCodeRequest {
@@ -1758,6 +1953,9 @@ export interface UserBreakdownItem {
   user_id: number
   email: string
   requests: number
+  input_tokens: number
+  output_tokens: number
+  cache_tokens: number
   total_tokens: number
   cost: number
   actual_cost: number
@@ -1829,6 +2027,7 @@ export interface UserSubscription {
   user_id: number
   group_id: number
   status: 'active' | 'expired' | 'revoked' | 'suspended'
+  starts_at: string
   daily_usage_usd: number
   weekly_usage_usd: number
   monthly_usage_usd: number
@@ -1837,6 +2036,7 @@ export interface UserSubscription {
   monthly_window_start: string | null
   created_at: string
   updated_at: string
+  revoked_at?: string | null
   expires_at: string | null
   user?: User
   group?: Group
@@ -1883,6 +2083,43 @@ export interface ExtendSubscriptionRequest {
 }
 
 // ==================== Query Parameters ====================
+
+export interface UserErrorRequest {
+  id: number
+  created_at: string
+  model: string
+  inbound_endpoint: string
+  status_code: number
+  category: string
+  platform: string
+  message: string
+  key_name: string
+  key_deleted: boolean
+  client_ip?: string
+  group_name?: string
+  request_type?: number
+  stream?: boolean
+  user_agent?: string
+}
+
+export interface UserErrorRequestDetail extends UserErrorRequest {
+  error_body: string
+  upstream_status_code?: number
+}
+
+export interface UserErrorListParams {
+  page?: number
+  page_size?: number
+  start_date?: string
+  end_date?: string
+  timezone?: string
+  model?: string
+  status_code?: number
+  category?: string
+  api_key_id?: number
+  sort_by?: string
+  sort_order?: 'asc' | 'desc'
+}
 
 export interface UsageQueryParams {
   page?: number
@@ -2169,3 +2406,11 @@ export interface UpdateScheduledTestPlanRequest {
 
 // Payment types
 export type { SubscriptionPlan, PaymentOrder, CheckoutInfoResponse } from './payment'
+
+export type {
+  PlatformQuotaItem,
+  PlatformQuotaUpdateItem,
+  PlatformQuotaPlatform,
+  PlatformQuotaWindow,
+  PlatformQuotasResponse
+} from '@/api/admin/users'

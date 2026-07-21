@@ -47,19 +47,11 @@ type UpdateProxyRequest struct {
 	Port           int    `json:"port" binding:"omitempty,min=1,max=65535"`
 	Username       string `json:"username"`
 	Password       string `json:"password"`
-	Status         string `json:"status" binding:"omitempty,oneof=active inactive expired"`
+	Status         string `json:"status" binding:"omitempty,oneof=active inactive"`
 	ExpiresAt      *int64 `json:"expires_at"`
 	FallbackMode   string `json:"fallback_mode" binding:"omitempty,oneof=none proxy direct"`
 	BackupProxyID  *int64 `json:"backup_proxy_id"`
 	ExpiryWarnDays int    `json:"expiry_warn_days" binding:"omitempty,min=0"`
-}
-
-func proxyUnixSecondsToTime(value *int64) *time.Time {
-	if value == nil || *value <= 0 {
-		return nil
-	}
-	t := time.Unix(*value, 0).UTC()
-	return &t
 }
 
 // List handles listing all proxies with pagination
@@ -151,7 +143,11 @@ func (h *ProxyHandler) Create(c *gin.Context) {
 	}
 
 	executeAdminIdempotentJSON(c, "admin.proxies.create", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
-		expiresAt := proxyUnixSecondsToTime(req.ExpiresAt)
+		var expiresAt *time.Time
+		if req.ExpiresAt != nil && *req.ExpiresAt > 0 {
+			t := time.Unix(*req.ExpiresAt, 0).UTC()
+			expiresAt = &t
+		}
 		proxy, err := h.adminService.CreateProxy(ctx, &service.CreateProxyInput{
 			Name:           strings.TrimSpace(req.Name),
 			Protocol:       strings.TrimSpace(req.Protocol),
@@ -186,7 +182,11 @@ func (h *ProxyHandler) Update(c *gin.Context) {
 		return
 	}
 
-	expiresAt := proxyUnixSecondsToTime(req.ExpiresAt)
+	var expiresAt *time.Time
+	if req.ExpiresAt != nil && *req.ExpiresAt > 0 {
+		t := time.Unix(*req.ExpiresAt, 0).UTC()
+		expiresAt = &t
+	}
 	proxy, err := h.adminService.UpdateProxy(c.Request.Context(), proxyID, &service.UpdateProxyInput{
 		Name:           strings.TrimSpace(req.Name),
 		Protocol:       strings.TrimSpace(req.Protocol),

@@ -13,6 +13,7 @@ import (
 
 	"ikik-api/internal/handler/dto"
 	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/pkg/timezone"
@@ -98,7 +99,7 @@ type createUserAccountRequest struct {
 	Notes              *string        `json:"notes"`
 	Platform           string         `json:"platform" binding:"required"`
 	AccountLevel       *string        `json:"account_level"`
-	Type               string         `json:"type" binding:"required,oneof=oauth apikey"`
+	Type               string         `json:"type" binding:"required,oneof=oauth setup-token apikey bedrock service_account"`
 	Credentials        map[string]any `json:"credentials" binding:"required"`
 	Extra              map[string]any `json:"extra"`
 	ShareMode          string         `json:"share_mode" binding:"omitempty,oneof=private public"`
@@ -196,6 +197,18 @@ type userOpenAIExchangeCodeRequest struct {
 	ProxyID     *int64 `json:"proxy_id"`
 }
 
+type userRefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token"`
+	RT           string `json:"rt"`
+	ClientID     string `json:"client_id"`
+	ProxyID      *int64 `json:"proxy_id"`
+}
+
+type userAnthropicCookieAuthRequest struct {
+	SessionKey string `json:"code" binding:"required"`
+	ProxyID    *int64 `json:"proxy_id"`
+}
+
 type userGeminiGenerateAuthURLRequest struct {
 	ProxyID   *int64 `json:"proxy_id"`
 	ProjectID string `json:"project_id"`
@@ -256,6 +269,23 @@ type userKiroExchangeCodeRequest struct {
 	ProxyID      *int64 `json:"proxy_id"`
 }
 
+type userKiroRefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+	AuthMethod   string `json:"auth_method"`
+	Provider     string `json:"provider"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	StartURL     string `json:"start_url"`
+	Region       string `json:"region"`
+	ProfileArn   string `json:"profile_arn"`
+	ProxyID      *int64 `json:"proxy_id"`
+}
+
+type userKiroImportTokenRequest struct {
+	TokenJSON              string `json:"token_json" binding:"required"`
+	DeviceRegistrationJSON string `json:"device_registration_json"`
+}
+
 type userBatchTodayStatsRequest struct {
 	AccountIDs []int64 `json:"account_ids" binding:"required"`
 }
@@ -306,10 +336,6 @@ func requireUserAccountAuth(c *gin.Context) bool {
 	return true
 }
 
-func rejectUserManualCredentialAuth(c *gin.Context) {
-	response.BadRequest(c, "manual credential account creation is not allowed for user accounts; use official OAuth or import OAuth credentials")
-}
-
 func (h *UserAccountHandler) resolveUserProxyID(c *gin.Context, ownerUserID int64, proxyID *int64) (*int64, bool) {
 	id, err := h.accountService.ValidateOwnedProxyID(c.Request.Context(), ownerUserID, proxyID)
 	if err != nil {
@@ -326,6 +352,25 @@ func (h *UserAccountHandler) resolveUserOAuthProxyID(c *gin.Context, ownerUserID
 		return nil, false
 	}
 	return id, true
+}
+
+func (h *UserAccountHandler) resolveUserOAuthProxyURL(c *gin.Context, ownerUserID int64, proxyID *int64) (string, bool) {
+	id, ok := h.resolveUserOAuthProxyID(c, ownerUserID, proxyID)
+	if !ok || id == nil {
+		return "", ok
+	}
+	proxies, err := h.accountService.ListOwnedProxies(c.Request.Context(), ownerUserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return "", false
+	}
+	for i := range proxies {
+		if proxies[i].ID == *id {
+			return proxies[i].URL(), true
+		}
+	}
+	response.ErrorFrom(c, service.ErrProxyNotFound)
+	return "", false
 }
 
 func userUnixSecondsToTime(value *int64) *time.Time {
@@ -1784,7 +1829,24 @@ func (h *UserAccountHandler) GenerateAnthropicOAuthURL(c *gin.Context) {
 }
 
 func (h *UserAccountHandler) GenerateAnthropicSetupTokenURL(c *gin.Context) {
-	rejectUserManualCredentialAuth(c)
+	if !requireUserAccountAuth(c) {
+		return
+	}
+	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	var req userOAuthProxyRequest
+	if !bindOptionalJSON(c, &req) {
+		return
+	}
+	proxyID, ok := h.resolveUserOAuthProxyID(c, subject.UserID, req.ProxyID)
+	if !ok {
+		return
+	}
+	result, err := h.oauthService.GenerateSetupTokenURL(c.Request.Context(), proxyID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
 }
 
 func (h *UserAccountHandler) ExchangeAnthropicOAuthCode(c *gin.Context) {
@@ -1814,15 +1876,63 @@ func (h *UserAccountHandler) ExchangeAnthropicOAuthCode(c *gin.Context) {
 }
 
 func (h *UserAccountHandler) ExchangeAnthropicSetupTokenCode(c *gin.Context) {
-	rejectUserManualCredentialAuth(c)
+	if !requireUserAccountAuth(c) {
+		return
+	}
+	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	var req userExchangeCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	proxyID, ok := h.resolveUserOAuthProxyID(c, subject.UserID, req.ProxyID)
+	if !ok {
+		return
+	}
+	tokenInfo, err := h.oauthService.ExchangeCode(c.Request.Context(), &service.ExchangeCodeInput{
+		SessionID: req.SessionID,
+		Code:      req.Code,
+		ProxyID:   proxyID,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, tokenInfo)
 }
 
 func (h *UserAccountHandler) AnthropicCookieAuth(c *gin.Context) {
-	rejectUserManualCredentialAuth(c)
+	h.anthropicCookieAuth(c, "full")
 }
 
 func (h *UserAccountHandler) AnthropicSetupTokenCookieAuth(c *gin.Context) {
-	rejectUserManualCredentialAuth(c)
+	h.anthropicCookieAuth(c, "inference")
+}
+
+func (h *UserAccountHandler) anthropicCookieAuth(c *gin.Context, scope string) {
+	if !requireUserAccountAuth(c) {
+		return
+	}
+	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	var req userAnthropicCookieAuthRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	proxyID, ok := h.resolveUserOAuthProxyID(c, subject.UserID, req.ProxyID)
+	if !ok {
+		return
+	}
+	tokenInfo, err := h.oauthService.CookieAuth(c.Request.Context(), &service.CookieAuthInput{
+		SessionKey: req.SessionKey,
+		ProxyID:    proxyID,
+		Scope:      scope,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, tokenInfo)
 }
 
 func (h *UserAccountHandler) GenerateOpenAIOAuthURL(c *gin.Context) {
@@ -1880,7 +1990,37 @@ func (h *UserAccountHandler) ExchangeOpenAIOAuthCode(c *gin.Context) {
 }
 
 func (h *UserAccountHandler) RefreshOpenAIToken(c *gin.Context) {
-	rejectUserManualCredentialAuth(c)
+	if !requireUserAccountAuth(c) {
+		return
+	}
+	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	var req userRefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	refreshToken := strings.TrimSpace(req.RefreshToken)
+	if refreshToken == "" {
+		refreshToken = strings.TrimSpace(req.RT)
+	}
+	if refreshToken == "" {
+		response.BadRequest(c, "refresh_token is required")
+		return
+	}
+	proxyURL, ok := h.resolveUserOAuthProxyURL(c, subject.UserID, req.ProxyID)
+	if !ok {
+		return
+	}
+	clientID := strings.TrimSpace(req.ClientID)
+	if clientID == "" {
+		clientID, _ = openai.OAuthClientConfigByPlatform(service.PlatformOpenAI)
+	}
+	tokenInfo, err := h.openaiOAuthService.RefreshTokenWithClientID(c.Request.Context(), refreshToken, proxyURL, clientID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, tokenInfo)
 }
 
 func (h *UserAccountHandler) GetGeminiOAuthCapabilities(c *gin.Context) {
@@ -2026,7 +2166,33 @@ func (h *UserAccountHandler) ExchangeAntigravityOAuthCode(c *gin.Context) {
 }
 
 func (h *UserAccountHandler) RefreshAntigravityToken(c *gin.Context) {
-	rejectUserManualCredentialAuth(c)
+	if !requireUserAccountAuth(c) {
+		return
+	}
+	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	var req userRefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	refreshToken := strings.TrimSpace(req.RefreshToken)
+	if refreshToken == "" {
+		refreshToken = strings.TrimSpace(req.RT)
+	}
+	if refreshToken == "" {
+		response.BadRequest(c, "refresh_token is required")
+		return
+	}
+	proxyID, ok := h.resolveUserOAuthProxyID(c, subject.UserID, req.ProxyID)
+	if !ok {
+		return
+	}
+	tokenInfo, err := h.antigravityOAuthService.ValidateRefreshToken(c.Request.Context(), refreshToken, proxyID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, tokenInfo)
 }
 
 func (h *UserAccountHandler) GenerateGrokOAuthURL(c *gin.Context) {
@@ -2087,7 +2253,37 @@ func (h *UserAccountHandler) ExchangeGrokOAuthCode(c *gin.Context) {
 }
 
 func (h *UserAccountHandler) RefreshGrokToken(c *gin.Context) {
-	rejectUserManualCredentialAuth(c)
+	if !requireUserAccountAuth(c) {
+		return
+	}
+	if h.grokOAuthService == nil {
+		response.InternalError(c, "Grok OAuth service is not configured")
+		return
+	}
+	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	var req userRefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	refreshToken := strings.TrimSpace(req.RefreshToken)
+	if refreshToken == "" {
+		refreshToken = strings.TrimSpace(req.RT)
+	}
+	if refreshToken == "" {
+		response.BadRequest(c, "refresh_token is required")
+		return
+	}
+	proxyURL, ok := h.resolveUserOAuthProxyURL(c, subject.UserID, req.ProxyID)
+	if !ok {
+		return
+	}
+	tokenInfo, err := h.grokOAuthService.RefreshToken(c.Request.Context(), refreshToken, proxyURL, strings.TrimSpace(req.ClientID))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, tokenInfo)
 }
 
 func (h *UserAccountHandler) GenerateKiroOAuthURL(c *gin.Context) {
@@ -2181,11 +2377,63 @@ func (h *UserAccountHandler) ExchangeKiroOAuthCode(c *gin.Context) {
 }
 
 func (h *UserAccountHandler) RefreshKiroToken(c *gin.Context) {
-	rejectUserManualCredentialAuth(c)
+	if !requireUserAccountAuth(c) {
+		return
+	}
+	if h.kiroOAuthService == nil {
+		response.InternalError(c, "Kiro OAuth service is not configured")
+		return
+	}
+	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	var req userKiroRefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	proxyID, ok := h.resolveUserOAuthProxyID(c, subject.UserID, req.ProxyID)
+	if !ok {
+		return
+	}
+	tokenInfo, err := h.kiroOAuthService.RefreshToken(c.Request.Context(), &service.KiroRefreshTokenInput{
+		RefreshToken: strings.TrimSpace(req.RefreshToken),
+		AuthMethod:   req.AuthMethod,
+		Provider:     req.Provider,
+		ClientID:     req.ClientID,
+		ClientSecret: req.ClientSecret,
+		StartURL:     req.StartURL,
+		Region:       req.Region,
+		ProfileArn:   req.ProfileArn,
+		ProxyID:      proxyID,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, tokenInfo)
 }
 
 func (h *UserAccountHandler) ImportKiroToken(c *gin.Context) {
-	rejectUserManualCredentialAuth(c)
+	if !requireUserAccountAuth(c) {
+		return
+	}
+	if h.kiroOAuthService == nil {
+		response.InternalError(c, "Kiro OAuth service is not configured")
+		return
+	}
+	var req userKiroImportTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	tokenInfo, err := h.kiroOAuthService.ImportToken(&service.KiroImportTokenInput{
+		TokenJSON:              req.TokenJSON,
+		DeviceRegistrationJSON: req.DeviceRegistrationJSON,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, tokenInfo)
 }
 
 func deriveUserGeminiRedirectURI(c *gin.Context) string {

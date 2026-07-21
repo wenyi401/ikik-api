@@ -197,6 +197,20 @@ func (_c *ChannelMonitorCreate) SetBodyOverride(v map[string]interface{}) *Chann
 	return _c
 }
 
+// SetAPIMode sets the "api_mode" field.
+func (_c *ChannelMonitorCreate) SetAPIMode(v string) *ChannelMonitorCreate {
+	_c.mutation.SetAPIMode(v)
+	return _c
+}
+
+// SetNillableAPIMode sets the "api_mode" field if the given value is not nil.
+func (_c *ChannelMonitorCreate) SetNillableAPIMode(v *string) *ChannelMonitorCreate {
+	if v != nil {
+		_c.SetAPIMode(*v)
+	}
+	return _c
+}
+
 // AddHistoryIDs adds the "history" edge to the ChannelMonitorHistory entity by IDs.
 func (_c *ChannelMonitorCreate) AddHistoryIDs(ids ...int64) *ChannelMonitorCreate {
 	_c.mutation.AddHistoryIDs(ids...)
@@ -313,6 +327,10 @@ func (_c *ChannelMonitorCreate) defaults() {
 		v := channelmonitor.DefaultBodyOverrideMode
 		_c.mutation.SetBodyOverrideMode(v)
 	}
+	if _, ok := _c.mutation.APIMode(); !ok {
+		v := channelmonitor.DefaultAPIMode
+		_c.mutation.SetAPIMode(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -402,6 +420,14 @@ func (_c *ChannelMonitorCreate) check() error {
 	if v, ok := _c.mutation.BodyOverrideMode(); ok {
 		if err := channelmonitor.BodyOverrideModeValidator(v); err != nil {
 			return &ValidationError{Name: "body_override_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.body_override_mode": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.APIMode(); !ok {
+		return &ValidationError{Name: "api_mode", err: errors.New(`ent: missing required field "ChannelMonitor.api_mode"`)}
+	}
+	if v, ok := _c.mutation.APIMode(); ok {
+		if err := channelmonitor.APIModeValidator(v); err != nil {
+			return &ValidationError{Name: "api_mode", err: fmt.Errorf(`ent: validator failed for field "ChannelMonitor.api_mode": %w`, err)}
 		}
 	}
 	return nil
@@ -498,6 +524,10 @@ func (_c *ChannelMonitorCreate) createSpec() (*ChannelMonitor, *sqlgraph.CreateS
 	if value, ok := _c.mutation.BodyOverride(); ok {
 		_spec.SetField(channelmonitor.FieldBodyOverride, field.TypeJSON, value)
 		_node.BodyOverride = value
+	}
+	if value, ok := _c.mutation.APIMode(); ok {
+		_spec.SetField(channelmonitor.FieldAPIMode, field.TypeString, value)
+		_node.APIMode = value
 	}
 	if nodes := _c.mutation.HistoryIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -846,6 +876,18 @@ func (u *ChannelMonitorUpsert) ClearBodyOverride() *ChannelMonitorUpsert {
 	return u
 }
 
+// SetAPIMode sets the "api_mode" field.
+func (u *ChannelMonitorUpsert) SetAPIMode(v string) *ChannelMonitorUpsert {
+	u.Set(channelmonitor.FieldAPIMode, v)
+	return u
+}
+
+// UpdateAPIMode sets the "api_mode" field to the value that was provided on create.
+func (u *ChannelMonitorUpsert) UpdateAPIMode() *ChannelMonitorUpsert {
+	u.SetExcluded(channelmonitor.FieldAPIMode)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -1175,6 +1217,20 @@ func (u *ChannelMonitorUpsertOne) UpdateBodyOverride() *ChannelMonitorUpsertOne 
 func (u *ChannelMonitorUpsertOne) ClearBodyOverride() *ChannelMonitorUpsertOne {
 	return u.Update(func(s *ChannelMonitorUpsert) {
 		s.ClearBodyOverride()
+	})
+}
+
+// SetAPIMode sets the "api_mode" field.
+func (u *ChannelMonitorUpsertOne) SetAPIMode(v string) *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.SetAPIMode(v)
+	})
+}
+
+// UpdateAPIMode sets the "api_mode" field to the value that was provided on create.
+func (u *ChannelMonitorUpsertOne) UpdateAPIMode() *ChannelMonitorUpsertOne {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.UpdateAPIMode()
 	})
 }
 
@@ -1673,6 +1729,20 @@ func (u *ChannelMonitorUpsertBulk) UpdateBodyOverride() *ChannelMonitorUpsertBul
 func (u *ChannelMonitorUpsertBulk) ClearBodyOverride() *ChannelMonitorUpsertBulk {
 	return u.Update(func(s *ChannelMonitorUpsert) {
 		s.ClearBodyOverride()
+	})
+}
+
+// SetAPIMode sets the "api_mode" field.
+func (u *ChannelMonitorUpsertBulk) SetAPIMode(v string) *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.SetAPIMode(v)
+	})
+}
+
+// UpdateAPIMode sets the "api_mode" field to the value that was provided on create.
+func (u *ChannelMonitorUpsertBulk) UpdateAPIMode() *ChannelMonitorUpsertBulk {
+	return u.Update(func(s *ChannelMonitorUpsert) {
+		s.UpdateAPIMode()
 	})
 }
 

@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"ikik-api/internal/domain"
-	infraerrors "ikik-api/internal/pkg/errors"
 	"github.com/gin-gonic/gin"
 	"github.com/lib/pq"
+	"ikik-api/internal/domain"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 const (
@@ -327,7 +327,7 @@ func (s *OpsService) retryWithErrorLog(ctx context.Context, requestedByUserID in
 	}); err != nil {
 		log.Printf("[Ops] UpdateRetryAttempt failed: %v", err)
 	} else if success {
-		if err := s.opsRepo.UpdateErrorResolution(updateCtx, errorID, true, &requestedByUserID, &attemptID, &finishedAt); err != nil {
+		if err := s.opsRepo.UpdateErrorResolution(updateCtx, errorID, true, &requestedByUserID, &finishedAt); err != nil {
 			log.Printf("[Ops] UpdateErrorResolution failed: %v", err)
 		}
 	}
@@ -361,7 +361,7 @@ func (s *OpsService) executeRetry(ctx context.Context, errorLog *OpsErrorLogDeta
 
 	switch reqType {
 	case opsRetryTypeMessages:
-		bodyBytes = FilterThinkingBlocksForRetry(bodyBytes)
+		bodyBytes = FilterThinkingBlocksForRetry(bodyBytes, errorLog.UpstreamModel)
 	case opsRetryTypeOpenAI, opsRetryTypeGeminiV1B:
 		// No-op
 	}
@@ -706,15 +706,6 @@ func extractResponsePreview(w *limitedResponseWriter) (preview string, truncated
 		return string(b[:opsRetryResponsePreviewMax]), true
 	}
 	return string(b), w.truncated()
-}
-
-func containsInt64(items []int64, needle int64) bool {
-	for _, v := range items {
-		if v == needle {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *OpsService) isFailoverError(message string) bool {

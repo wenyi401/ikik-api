@@ -17,6 +17,7 @@ func RegisterAuthRoutes(
 	v1 *gin.RouterGroup,
 	h *handler.Handlers,
 	jwtAuth servermiddleware.JWTAuthMiddleware,
+	auditLog servermiddleware.AuditLogMiddleware,
 	redisClient *redis.Client,
 	settingService *service.SettingService,
 ) {
@@ -26,6 +27,8 @@ func RegisterAuthRoutes(
 	// 公开接口
 	auth := v1.Group("/auth")
 	auth.Use(servermiddleware.BackendModeAuthGuard(settingService))
+	// 认证事件（登录/注册/2FA/token 刷新失败）入审计
+	auth.Use(gin.HandlerFunc(auditLog))
 	{
 		// 注册/登录/2FA/验证码发送均属于高风险入口，增加服务端兜底限流（Redis 故障时 fail-close）
 		auth.POST("/register", rateLimiter.LimitWithOptions("auth-register", 5, time.Minute, middleware.RateLimitOptions{
@@ -182,12 +185,39 @@ func RegisterAuthRoutes(
 			}),
 			h.Auth.CreateOIDCOAuthAccount,
 		)
+		auth.GET("/oauth/dingtalk/start", h.Auth.DingTalkOAuthStart)
+		auth.GET("/oauth/dingtalk/bind/start", func(c *gin.Context) {
+			query := c.Request.URL.Query()
+			query.Set("intent", "bind_current_user")
+			c.Request.URL.RawQuery = query.Encode()
+			h.Auth.DingTalkOAuthStart(c)
+		})
+		auth.GET("/oauth/dingtalk/callback", h.Auth.DingTalkOAuthCallback)
+		auth.POST("/oauth/dingtalk/complete-registration",
+			rateLimiter.LimitWithOptions("oauth-dingtalk-complete", 10, time.Minute, middleware.RateLimitOptions{
+				FailureMode: middleware.RateLimitFailClose,
+			}),
+			h.Auth.CompleteDingTalkOAuthRegistration,
+		)
+		auth.POST("/oauth/dingtalk/bind-login",
+			rateLimiter.LimitWithOptions("oauth-dingtalk-bind-login", 20, time.Minute, middleware.RateLimitOptions{
+				FailureMode: middleware.RateLimitFailClose,
+			}),
+			h.Auth.BindDingTalkOAuthLogin,
+		)
+		auth.POST("/oauth/dingtalk/create-account",
+			rateLimiter.LimitWithOptions("oauth-dingtalk-create-account", 10, time.Minute, middleware.RateLimitOptions{
+				FailureMode: middleware.RateLimitFailClose,
+			}),
+			h.Auth.CreateDingTalkOAuthAccount,
+		)
 	}
 
 	// 公开设置（无需认证）
 	settings := v1.Group("/settings")
 	{
 		settings.GET("/public", h.Setting.GetPublicSettings)
+		settings.GET("/email-unsubscribe", h.Setting.UnsubscribeNotificationEmail)
 	}
 
 	// 需要认证的当前用户信息

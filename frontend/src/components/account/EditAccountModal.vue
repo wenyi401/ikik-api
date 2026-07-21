@@ -468,6 +468,46 @@
 
       </div>
 
+      <div
+        v-if="account.platform === 'grok' && account.type === 'oauth'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.grokCustomBaseUrl.title') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.grokCustomBaseUrl.hint') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="grok-custom-base-url-toggle"
+            @click="grokOAuthCustomBaseUrlEnabled = !grokOAuthCustomBaseUrlEnabled"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              grokOAuthCustomBaseUrlEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                grokOAuthCustomBaseUrlEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+        <div v-if="grokOAuthCustomBaseUrlEnabled" class="space-y-2">
+          <input
+            v-model="grokOAuthBaseUrl"
+            type="text"
+            class="input"
+            data-testid="grok-custom-base-url-input"
+            :placeholder="t('admin.accounts.grokCustomBaseUrl.placeholder')"
+          />
+          <GrokBaseUrlPresets @select="grokOAuthBaseUrl = $event" />
+        </div>
+      </div>
+
       <!-- OAuth model mapping. OAuth accounts do not render the API key credential card. -->
       <div
         v-if="showOAuthModelMappingEditor"
@@ -2259,12 +2299,14 @@ import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
+import GrokBaseUrlPresets from '@/components/account/GrokBaseUrlPresets.vue'
 import HeaderOverrideEditor from '@/components/account/HeaderOverrideEditor.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import {
   applyHeaderOverride,
   applyInterceptWarmup,
+  isCustomGrokBaseUrl,
   isHeaderOverridePlatform,
   splitHeaderOverridesObject,
   validateHeaderOverrideRows,
@@ -2443,6 +2485,8 @@ const selectedErrorCodes = ref<number[]>([])
 const customErrorCodeInput = ref<number | null>(null)
 const headerOverrideEnabled = ref(false)
 const headerOverrideRows = ref<HeaderOverrideRow[]>([])
+const grokOAuthCustomBaseUrlEnabled = ref(false)
+const grokOAuthBaseUrl = ref('')
 const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(false)
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
@@ -2596,7 +2640,7 @@ const isOpenAIModelRestrictionDisabled = computed(() =>
 const showOAuthModelMappingEditor = computed(() => {
   if (!props.account || props.account.type !== 'oauth') return false
   if (props.account.platform === 'kiro') return true
-  return !isUserScope.value && props.account.platform === 'openai'
+  return !isUserScope.value && (props.account.platform === 'openai' || props.account.platform === 'grok')
 })
 const openAICompactStatusKey = computed(() => {
   const extra = props.account?.extra as Record<string, unknown> | undefined
@@ -2858,6 +2902,14 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   interceptWarmupRequests.value = credentials?.intercept_warmup_requests === true
   headerOverrideEnabled.value = false
   headerOverrideRows.value = []
+  grokOAuthCustomBaseUrlEnabled.value = false
+  grokOAuthBaseUrl.value = ''
+  if (newAccount.platform === 'grok' && newAccount.type === 'oauth' && credentials) {
+    if (isCustomGrokBaseUrl(credentials.base_url)) {
+      grokOAuthCustomBaseUrlEnabled.value = true
+      grokOAuthBaseUrl.value = String(credentials.base_url).trim()
+    }
+  }
   autoPauseOnExpired.value = isUserScope.value
     ? PERSONAL_ACCOUNT_DEFAULT_AUTO_PAUSE_ON_EXPIRED
     : newAccount.auto_pause_on_expired === true
@@ -4006,12 +4058,12 @@ const handleSubmit = async () => {
       updatePayload.credentials = newCredentials
     }
 
-    // OpenAI/Kiro OAuth: persist model mapping to credentials.
-    if ((props.account.platform === 'openai' || props.account.platform === 'kiro') && props.account.type === 'oauth') {
+    // OAuth providers with editable model routing persist mappings in credentials.
+    if ((props.account.platform === 'openai' || props.account.platform === 'grok' || props.account.platform === 'kiro') && props.account.type === 'oauth') {
       const currentCredentials = (updatePayload.credentials as Record<string, unknown>) ||
         ((props.account.credentials as Record<string, unknown>) || {})
       const newCredentials: Record<string, unknown> = { ...currentCredentials }
-      const shouldApplyModelMapping = props.account.platform === 'kiro' || !openaiPassthroughEnabled.value
+      const shouldApplyModelMapping = props.account.platform !== 'openai' || !openaiPassthroughEnabled.value
 
       if (shouldApplyModelMapping) {
         const modelMapping = buildEditableModelMapping(props.account.platform)
@@ -4033,6 +4085,27 @@ const handleSubmit = async () => {
         }
       }
 
+      updatePayload.credentials = newCredentials
+    }
+
+    if (props.account.platform === 'grok' && props.account.type === 'oauth') {
+      const currentCredentials = (updatePayload.credentials as Record<string, unknown>)
+        || ((props.account.credentials as Record<string, unknown>) || {})
+      const newCredentials: Record<string, unknown> = { ...currentCredentials }
+      if (grokOAuthCustomBaseUrlEnabled.value) {
+        const baseUrl = grokOAuthBaseUrl.value.trim()
+        if (!baseUrl) {
+          appStore.showError(t('admin.accounts.grokCustomBaseUrl.required'))
+          return
+        }
+        if (!/^https?:\/\//i.test(baseUrl)) {
+          appStore.showError(t('admin.accounts.grokCustomBaseUrl.invalid'))
+          return
+        }
+        newCredentials.base_url = baseUrl
+      } else {
+        delete newCredentials.base_url
+      }
       updatePayload.credentials = newCredentials
     }
 

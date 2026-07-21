@@ -142,7 +142,10 @@ func (UsageLog) Fields() []ent.Field {
 		field.Time("created_at").
 			Default(time.Now).
 			Immutable().
-			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
+			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}), field.Bool("long_context_billing_applied").Default(false).Comment("Whether long-context pricing changed token prices for this request"), field.String("image_input_size").MaxLen(32).Optional().Nillable(), field.String("image_output_size").MaxLen(32).Optional().Nillable(), field.String("image_size_source").MaxLen(16).Optional().Nillable(), field.JSON("image_size_breakdown", map[string]int{}).Optional().SchemaType(map[string]string{dialect.Postgres: "jsonb"}), field.Int("video_count").Default(0).Comment("视频生成数量；>0 表示本行是视频生成用量"), field.String("video_resolution").MaxLen(10).Optional().Nillable().
+			Comment("计费用视频分辨率 480p/720p/1080p"), field.Int("video_duration_seconds").Optional().Nillable().Comment(
+			"提交时请求的视频时长（秒），按秒计费的乘数",
+		),
 	}
 }
 

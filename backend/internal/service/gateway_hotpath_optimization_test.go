@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
+	gocache "github.com/patrickmn/go-cache"
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/ctxkey"
 	"ikik-api/internal/pkg/usagestats"
-	gocache "github.com/patrickmn/go-cache"
-	"github.com/stretchr/testify/require"
 )
 
 type userGroupRateRepoHotpathStub struct {
@@ -141,18 +141,6 @@ func (s *stickyGatewayCacheHotpathStub) RefreshSessionTTL(ctx context.Context, g
 }
 
 func (s *stickyGatewayCacheHotpathStub) DeleteSessionAccountID(ctx context.Context, groupID int64, sessionHash string) error {
-	return nil
-}
-
-func (s *stickyGatewayCacheHotpathStub) GetSessionString(ctx context.Context, groupID int64, sessionHash string) (string, error) {
-	return "", errors.New("not found")
-}
-
-func (s *stickyGatewayCacheHotpathStub) SetSessionString(ctx context.Context, groupID int64, sessionHash string, value string, ttl time.Duration) error {
-	return nil
-}
-
-func (s *stickyGatewayCacheHotpathStub) DeleteSessionString(ctx context.Context, groupID int64, sessionHash string) error {
 	return nil
 }
 

@@ -1,12 +1,13 @@
-# ikik-api Deployment Files
+# Sub2API Deployment Files
 
-This directory contains files for deploying ikik-api on Linux servers.
+This directory contains files for deploying Sub2API on Linux servers and Apple-silicon Macs.
 
 ## Deployment Methods
 
 | Method | Best For | Setup Wizard |
 |--------|----------|--------------|
 | **Docker Compose** | Quick setup, all-in-one | Not needed (auto-setup) |
+| **Apple container** | Native local stack on macOS 26 | Not needed (auto-setup) |
 | **Binary Install** | Production servers, systemd | Web-based wizard |
 
 ## Files
@@ -16,14 +17,33 @@ This directory contains files for deploying ikik-api on Linux servers.
 | `docker-compose.yml` | Docker Compose configuration (named volumes) |
 | `docker-compose.local.yml` | Docker Compose configuration (local directories, easy migration) |
 | `docker-deploy.sh` | **One-click Docker deployment script (recommended)** |
-| `.env.example` | Docker environment variables template |
+| `apple-container.sh` | Native Apple `container` lifecycle script |
+| `APPLE_CONTAINER.md` | Apple `container` deployment and operations guide |
+| `.env.example` | Container environment variables template |
 | `DOCKER.md` | Docker Hub documentation |
 | `install.sh` | One-click binary installation script |
-| `install-datamanagementd.sh` | datamanagementd 涓€閿畨瑁呰剼鏈?|
-| `ikik-api.service` | Systemd service unit file |
-| `ikik-api-datamanagementd.service` | datamanagementd systemd service unit file |
-| `DATAMANAGEMENTD_CN.md` | datamanagementd 閮ㄧ讲涓庤仈鍔ㄨ鏄庯紙涓枃锛?|
+| `install-datamanagementd.sh` | datamanagementd 一键安装脚本 |
+| `sub2api.service` | Systemd service unit file |
+| `sub2api-datamanagementd.service` | datamanagementd systemd service unit file |
+| `DATAMANAGEMENTD_CN.md` | datamanagementd 部署与联动说明（中文） |
 | `config.example.yaml` | Example configuration file |
+
+---
+
+## Apple container Deployment
+
+Apple-silicon Macs running macOS 26 can run the complete Sub2API, PostgreSQL, and Redis stack with Apple `container` 1.1.0 or newer:
+
+```bash
+./apple-container.sh init
+./apple-container.sh up
+./apple-container.sh status
+./apple-container.sh logs app -f
+```
+
+The script uses Apple named volumes, starts dependencies in order, and performs live readiness checks. It does not provide a continuous restart supervisor; run `./apple-container.sh up` after a host reboot. Docker Compose remains the recommended production deployment path.
+
+See [APPLE_CONTAINER.md](./APPLE_CONTAINER.md) for configuration, upgrades, persistence, networking behavior, and limitations.
 
 ---
 
@@ -35,10 +55,10 @@ Use the automated preparation script for the easiest setup:
 
 ```bash
 # Download and run the preparation script
-curl -sSL https://raw.githubusercontent.com/wenyi401/ikik-api/main/deploy/docker-deploy.sh | bash
+curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/docker-deploy.sh | bash
 
 # Or download first, then run
-curl -sSL https://raw.githubusercontent.com/wenyi401/ikik-api/main/deploy/docker-deploy.sh -o docker-deploy.sh
+curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/docker-deploy.sh -o docker-deploy.sh
 chmod +x docker-deploy.sh
 ./docker-deploy.sh
 ```
@@ -56,10 +76,10 @@ chmod +x docker-deploy.sh
 docker compose -f docker-compose.local.yml up -d
 
 # View logs
-docker compose -f docker-compose.local.yml logs -f ikik-api
+docker compose -f docker-compose.local.yml logs -f sub2api
 
 # If admin password was auto-generated, find it in logs:
-docker compose -f docker-compose.local.yml logs ikik-api | grep "admin password"
+docker compose -f docker-compose.local.yml logs sub2api | grep "admin password"
 
 # Access Web UI
 # http://localhost:8080
@@ -71,11 +91,12 @@ If you prefer manual control:
 
 ```bash
 # Clone repository
-git clone https://github.com/wenyi401/ikik-api.git
-cd ikik-api/deploy
+git clone https://ikik-api.git
+cd sub2api/deploy
 
 # Configure environment
 cp .env.example .env
+chmod 600 .env
 nano .env  # Set POSTGRES_PASSWORD and other required variables
 
 # Generate secure secrets (recommended)
@@ -91,7 +112,7 @@ mkdir -p data postgres_data redis_data
 docker compose -f docker-compose.local.yml up -d
 
 # View logs (check for auto-generated admin password)
-docker compose -f docker-compose.local.yml logs -f ikik-api
+docker compose -f docker-compose.local.yml logs -f sub2api
 
 # Access Web UI
 # http://localhost:8080
@@ -101,8 +122,8 @@ docker compose -f docker-compose.local.yml logs -f ikik-api
 
 | Version | Data Storage | Migration | Best For |
 |---------|-------------|-----------|----------|
-| **docker-compose.local.yml** | Local directories (./data, ./postgres_data, ./redis_data) | 鉁?Easy (tar entire directory) | Production, need frequent backups/migration |
-| **docker-compose.yml** | Named volumes (/var/lib/docker/volumes/) | 鈿狅笍 Requires docker commands | Simple setup, don't need migration |
+| **docker-compose.local.yml** | Local directories (./data, ./postgres_data, ./redis_data) | ✅ Easy (tar entire directory) | Production, need frequent backups/migration |
+| **docker-compose.yml** | Named volumes (/var/lib/docker/volumes/) | ⚠️ Requires docker commands | Simple setup, don't need migration |
 
 **Recommendation:** Use `docker-compose.local.yml` (deployed by `docker-deploy.sh`) for easier data management and migration.
 
@@ -121,7 +142,7 @@ When using Docker Compose with `AUTO_SETUP=true`:
 
 3. If `ADMIN_PASSWORD` is not set, check logs for the generated password:
    ```bash
-   docker compose logs ikik-api | grep "admin password"
+   docker compose logs sub2api | grep "admin password"
    ```
 
 ### Database Migration Notes (PostgreSQL)
@@ -130,9 +151,9 @@ When using Docker Compose with `AUTO_SETUP=true`:
 - `schema_migrations` tracks applied migrations (filename + checksum).
 - Migrations are forward-only; rollback requires a DB backup restore or a manual compensating SQL script.
 
-**Verify `users.allowed_groups` 鈫?`user_allowed_groups` backfill**
+**Verify `users.allowed_groups` → `user_allowed_groups` backfill**
 
-During the incremental GORM鈫扙nt migration, `users.allowed_groups` (legacy `BIGINT[]`) is being replaced by a normalized join table `user_allowed_groups(user_id, group_id)`.
+During the incremental GORM→Ent migration, `users.allowed_groups` (legacy `BIGINT[]`) is being replaced by a normalized join table `user_allowed_groups(user_id, group_id)`.
 
 Run this query to compare the legacy data vs the join table:
 
@@ -148,12 +169,13 @@ SELECT
   (SELECT COUNT(*) FROM user_allowed_groups) AS new_pair_count;
 ```
 
-### datamanagementd锛堟暟鎹鐞嗭級鑱斿姩
+### datamanagementd（数据管理）联动
 
-濡傞渶鍚敤绠＄悊鍚庡彴鈥滄暟鎹鐞嗏€濆姛鑳斤紝璇烽澶栭儴缃插涓绘満 `datamanagementd`锛?
-- 涓昏繘绋嬪浐瀹氭帰娴?`/tmp/ikik-api-datamanagement.sock`
-- Docker 鍦烘櫙涓嬮渶鎶婂涓绘満 Socket 鎸傝浇鍒板鍣ㄥ唴鍚岃矾寰?- 璇︾粏姝ラ瑙侊細`deploy/DATAMANAGEMENTD_CN.md`
+如需启用管理后台“数据管理”功能，请额外部署宿主机 `datamanagementd`：
 
+- 主进程固定探测 `/tmp/sub2api-datamanagement.sock`
+- Docker 场景下需把宿主机 Socket 挂载到容器内同路径
+- 详细步骤见：`deploy/DATAMANAGEMENTD_CN.md`
 
 ### Commands
 
@@ -167,10 +189,10 @@ docker compose -f docker-compose.local.yml up -d
 docker compose -f docker-compose.local.yml down
 
 # View logs
-docker compose -f docker-compose.local.yml logs -f ikik-api
+docker compose -f docker-compose.local.yml logs -f sub2api
 
-# Restart ikik-api only
-docker compose -f docker-compose.local.yml restart ikik-api
+# Restart Sub2API only
+docker compose -f docker-compose.local.yml restart sub2api
 
 # Update to latest version
 docker compose -f docker-compose.local.yml pull
@@ -191,10 +213,10 @@ docker compose up -d
 docker compose down
 
 # View logs
-docker compose logs -f ikik-api
+docker compose logs -f sub2api
 
-# Restart ikik-api only
-docker compose restart ikik-api
+# Restart Sub2API only
+docker compose restart sub2api
 
 # Update to latest version
 docker compose pull
@@ -212,7 +234,7 @@ docker compose down -v
 | `JWT_SECRET` | **Recommended** | *(auto-generated)* | JWT secret (fixed for persistent sessions) |
 | `TOTP_ENCRYPTION_KEY` | **Recommended** | *(auto-generated)* | TOTP encryption key (fixed for persistent 2FA) |
 | `SERVER_PORT` | No | `8080` | Server port |
-| `ADMIN_EMAIL` | No | `admin@ikik-api.local` | Admin email |
+| `ADMIN_EMAIL` | No | `admin@sub2api.local` | Admin email |
 | `ADMIN_PASSWORD` | No | *(auto-generated)* | Admin password |
 | `TZ` | No | `Asia/Shanghai` | Timezone |
 | `GEMINI_OAUTH_CLIENT_ID` | No | *(builtin)* | Google OAuth client ID (Gemini OAuth). Leave empty to use the built-in Gemini CLI client. |
@@ -233,13 +255,13 @@ When using `docker-compose.local.yml`, all data is stored in local directories, 
 cd /path/to/deployment
 docker compose -f docker-compose.local.yml down
 cd ..
-tar czf ikik-api-complete.tar.gz deployment/
+tar czf sub2api-complete.tar.gz deployment/
 
 # Transfer to new server
-scp ikik-api-complete.tar.gz user@new-server:/path/to/destination/
+scp sub2api-complete.tar.gz user@new-server:/path/to/destination/
 
 # On new server: Extract and start
-tar xzf ikik-api-complete.tar.gz
+tar xzf sub2api-complete.tar.gz
 cd deployment/
 docker compose -f docker-compose.local.yml up -d
 ```
@@ -250,7 +272,7 @@ Your entire deployment (configuration + data) is migrated!
 
 ## Gemini OAuth Configuration
 
-ikik-api supports three methods to connect to Gemini:
+Sub2API supports three methods to connect to Gemini:
 
 ### Method 1: Code Assist OAuth (Recommended for GCP Users)
 
@@ -282,24 +304,24 @@ Requires your own OAuth client credentials.
 1. Go to [Google Cloud Console - Credentials](https://console.cloud.google.com/apis/credentials)
 2. Create a new project or select an existing one
 3. **Enable the Generative Language API:**
-   - Go to "APIs & Services" 鈫?"Library"
+   - Go to "APIs & Services" → "Library"
    - Search for "Generative Language API"
    - Click "Enable"
 4. **Configure OAuth Consent Screen** (if not done):
-   - Go to "APIs & Services" 鈫?"OAuth consent screen"
+   - Go to "APIs & Services" → "OAuth consent screen"
    - Choose "External" user type
    - Fill in app name, user support email, developer contact
    - Add scopes: `https://www.googleapis.com/auth/generative-language.retriever` (and optionally `https://www.googleapis.com/auth/cloud-platform`)
    - Add test users (your Google account email)
 5. **Create OAuth 2.0 credentials:**
-   - Go to "APIs & Services" 鈫?"Credentials"
-   - Click "Create Credentials" 鈫?"OAuth client ID"
+   - Go to "APIs & Services" → "Credentials"
+   - Click "Create Credentials" → "OAuth client ID"
    - Application type: **Web application** (or **Desktop app**)
-   - Name: e.g., "ikik-api Gemini"
+   - Name: e.g., "Sub2API Gemini"
    - Authorized redirect URIs: Add `http://localhost:1455/auth/callback`
 6. Copy the **Client ID** and **Client Secret**
-7. **鈿狅笍 Publish to Production (IMPORTANT):**
-   - Go to "APIs & Services" 鈫?"OAuth consent screen"
+7. **⚠️ Publish to Production (IMPORTANT):**
+   - Go to "APIs & Services" → "OAuth consent screen"
    - Click "PUBLISH APP" to move from Testing to Production
    - **Testing mode limitations:**
      - Only manually added test users can authenticate (max 100 users)
@@ -314,7 +336,9 @@ Requires your own OAuth client credentials.
 GEMINI_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GEMINI_OAUTH_CLIENT_SECRET=GOCSPX-your-client-secret
 
-# 鍙€夛細濡傞渶浣跨敤 Gemini CLI 鍐呯疆 OAuth Client锛圕ode Assist / Google One锛?# 瀹夊叏璇存槑锛氭湰浠撳簱涓嶄細鍐呯疆璇?client_secret锛岃鍦ㄨ繍琛岀幆澧冮€氳繃鐜鍙橀噺娉ㄥ叆銆?# GEMINI_CLI_OAUTH_CLIENT_SECRET=GOCSPX-your-built-in-secret
+# 可选：如需使用 Gemini CLI 内置 OAuth Client（Code Assist / Google One）
+# 安全说明：本仓库不会内置该 client_secret，请在运行环境通过环境变量注入。
+# GEMINI_CLI_OAUTH_CLIENT_SECRET=GOCSPX-your-built-in-secret
 ```
 
 **Step 3: Create Account in Admin UI**
@@ -350,19 +374,19 @@ For production servers using systemd.
 ### One-Line Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/wenyi401/ikik-api/main/deploy/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install.sh | sudo bash
 ```
 
 ### Manual Installation
 
-1. Download the latest release from [GitHub Releases](https://github.com/wenyi401/ikik-api/releases)
-2. Extract and copy the binary to `/opt/ikik-api/`
-3. Copy `ikik-api.service` to `/etc/systemd/system/`
+1. Download the latest release from [GitHub Releases](https://ikik-api/releases)
+2. Extract and copy the binary to `/opt/sub2api/`
+3. Copy `sub2api.service` to `/etc/systemd/system/`
 4. Run:
    ```bash
    sudo systemctl daemon-reload
-   sudo systemctl enable ikik-api
-   sudo systemctl start ikik-api
+   sudo systemctl enable sub2api
+   sudo systemctl start sub2api
    ```
 5. Open the Setup Wizard in your browser to complete configuration
 
@@ -383,22 +407,22 @@ sudo ./install.sh uninstall
 
 ```bash
 # Start the service
-sudo systemctl start ikik-api
+sudo systemctl start sub2api
 
 # Stop the service
-sudo systemctl stop ikik-api
+sudo systemctl stop sub2api
 
 # Restart the service
-sudo systemctl restart ikik-api
+sudo systemctl restart sub2api
 
 # Check status
-sudo systemctl status ikik-api
+sudo systemctl status sub2api
 
 # View logs
-sudo journalctl -u ikik-api -f
+sudo journalctl -u sub2api -f
 
 # Enable auto-start on boot
-sudo systemctl enable ikik-api
+sudo systemctl enable sub2api
 ```
 
 ### Configuration
@@ -411,7 +435,7 @@ To change after installation:
 
 1. Edit the systemd service:
    ```bash
-   sudo systemctl edit ikik-api
+   sudo systemctl edit sub2api
    ```
 
 2. Add or modify:
@@ -424,7 +448,7 @@ To change after installation:
 3. Reload and restart:
    ```bash
    sudo systemctl daemon-reload
-   sudo systemctl restart ikik-api
+   sudo systemctl restart sub2api
    ```
 
 #### Gemini OAuth Configuration
@@ -433,7 +457,7 @@ If you need to use AI Studio OAuth for Gemini accounts, add the OAuth client cre
 
 1. Edit the service file:
    ```bash
-   sudo nano /etc/systemd/system/ikik-api.service
+   sudo nano /etc/systemd/system/sub2api.service
    ```
 
 2. Add your OAuth credentials in the `[Service]` section (after the existing `Environment=` lines):
@@ -442,7 +466,7 @@ If you need to use AI Studio OAuth for Gemini accounts, add the OAuth client cre
    Environment=GEMINI_OAUTH_CLIENT_SECRET=GOCSPX-your-client-secret
    ```
 
-   濡傞渶浣跨敤鈥滃唴缃?Gemini CLI OAuth Client鈥濓紙Code Assist / Google One锛夛紝杩橀渶瑕佹敞鍏ワ細
+   如需使用“内置 Gemini CLI OAuth Client”（Code Assist / Google One），还需要注入：
    ```ini
    Environment=GEMINI_CLI_OAUTH_CLIENT_SECRET=GOCSPX-your-built-in-secret
    ```
@@ -450,7 +474,7 @@ If you need to use AI Studio OAuth for Gemini accounts, add the OAuth client cre
 3. Reload and restart:
    ```bash
    sudo systemctl daemon-reload
-   sudo systemctl restart ikik-api
+   sudo systemctl restart sub2api
    ```
 
 > **Note:** Code Assist OAuth does not require any configuration - it uses the built-in Gemini CLI client.
@@ -458,7 +482,7 @@ If you need to use AI Studio OAuth for Gemini accounts, add the OAuth client cre
 
 #### Application Configuration
 
-The main config file is at `/etc/ikik-api/config.yaml` (created by Setup Wizard).
+The main config file is at `/etc/sub2api/config.yaml` (created by Setup Wizard).
 
 ### Prerequisites
 
@@ -470,13 +494,13 @@ The main config file is at `/etc/ikik-api/config.yaml` (created by Setup Wizard)
 ### Directory Structure
 
 ```
-/opt/ikik-api/
-鈹溾攢鈹€ ikik-api              # Main binary
-鈹溾攢鈹€ ikik-api.backup       # Backup (after upgrade)
-鈹斺攢鈹€ data/                # Runtime data
+/opt/sub2api/
+├── sub2api              # Main binary
+├── sub2api.backup       # Backup (after upgrade)
+└── data/                # Runtime data
 
-/etc/ikik-api/
-鈹斺攢鈹€ config.yaml          # Configuration file
+/etc/sub2api/
+└── config.yaml          # Configuration file
 ```
 
 ---
@@ -492,7 +516,7 @@ For **local directory version**:
 docker compose -f docker-compose.local.yml ps
 
 # View detailed logs
-docker compose -f docker-compose.local.yml logs --tail=100 ikik-api
+docker compose -f docker-compose.local.yml logs --tail=100 sub2api
 
 # Check database connection
 docker compose -f docker-compose.local.yml exec postgres pg_isready
@@ -514,7 +538,7 @@ For **named volumes version**:
 docker compose ps
 
 # View detailed logs
-docker compose logs --tail=100 ikik-api
+docker compose logs --tail=100 sub2api
 
 # Check database connection
 docker compose exec postgres pg_isready
@@ -530,13 +554,13 @@ docker compose restart
 
 ```bash
 # Check service status
-sudo systemctl status ikik-api
+sudo systemctl status sub2api
 
 # View recent logs
-sudo journalctl -u ikik-api -n 50
+sudo journalctl -u sub2api -n 50
 
 # Check config file
-sudo cat /etc/ikik-api/config.yaml
+sudo cat /etc/sub2api/config.yaml
 
 # Check PostgreSQL
 sudo systemctl status postgresql
@@ -556,9 +580,9 @@ sudo systemctl status redis
 
 ## TLS Fingerprint Configuration
 
-ikik-api supports TLS fingerprint simulation to make requests appear as if they come from the official Claude CLI (Node.js client).
+Sub2API supports TLS fingerprint simulation to make requests appear as if they come from the official Claude CLI (Node.js client).
 
-> **馃挕 Tip:** Visit **[tls.ikik-api.example](https://tls.ikik-api.example/)** to get TLS fingerprint information for different devices and browsers.
+> **💡 Tip:** Visit **[tls.sub2api.org](https://tls.sub2api.org/)** to get TLS fingerprint information for different devices and browsers.
 
 ### Default Behavior
 

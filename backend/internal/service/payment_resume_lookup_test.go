@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/payment"
 	infraerrors "ikik-api/internal/pkg/errors"
-	"github.com/stretchr/testify/require"
 )
 
 type paymentResumeLookupProvider struct {

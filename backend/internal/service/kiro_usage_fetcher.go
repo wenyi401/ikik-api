@@ -24,6 +24,19 @@ const (
 	kiroDefaultRegion = "us-east-1"
 )
 
+func (s *AccountUsageService) SetKiroTokenProvider(provider *KiroTokenProvider) {
+	if s != nil {
+		s.kiroTokenProvider = provider
+	}
+}
+
+func (s *AccountUsageService) SetKiroCooldownStore(store KiroCooldownStore) *AccountUsageService {
+	if s != nil {
+		s.kiroCooldownStore = store
+	}
+	return s
+}
+
 var resolveKiroRuntimeEndpoint = kiroRuntimeEndpoint
 
 type kiroUsageLimitsResponse struct {

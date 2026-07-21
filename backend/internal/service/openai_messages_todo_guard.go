@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	openAICompatClaudeCodeTodoGuardMarker = "<ikik-api-claude-code-todo-guard>"
-	openAICompatClaudeCodeTodoGuardText   = openAICompatClaudeCodeTodoGuardMarker + "\nWhen using Claude Code todo or task tracking tools, keep the visible task list consistent. Do not send final or summary text while any item remains in_progress. Before finishing, asking the user to choose, or reporting a blocker, update the todo list so completed work is completed and deferred work is pending/open; leave an item in_progress only when active work will continue in the same turn.\n</ikik-api-claude-code-todo-guard>"
+	openAICompatClaudeCodeTodoGuardMarker       = "<sub2api-claude-code-todo-guard>"
+	openAICompatClaudeCodeTodoGuardText         = openAICompatClaudeCodeTodoGuardMarker + "\nWhen using Claude Code todo or task tracking tools, keep the visible task list consistent. Do not send final or summary text while any item remains in_progress. Before finishing, asking the user to choose, or reporting a blocker, update the todo list so completed work is completed and deferred work is pending/open; leave an item in_progress only when active work will continue in the same turn.\n</sub2api-claude-code-todo-guard>"
+	openAICompatClaudeCodeTodoGuardLegacyMarker = "<ikik-api-claude-code-todo-guard>"
 )
 
 func appendOpenAICompatClaudeCodeTodoGuard(req *apicompat.ResponsesRequest) bool {
@@ -21,7 +22,7 @@ func appendOpenAICompatClaudeCodeTodoGuard(req *apicompat.ResponsesRequest) bool
 	if err := json.Unmarshal(req.Input, &items); err != nil {
 		return false
 	}
-	if len(items) == 0 || responsesInputItemsContainText(items, openAICompatClaudeCodeTodoGuardMarker) {
+	if len(items) == 0 || responsesInputItemsContainText(items, openAICompatClaudeCodeTodoGuardMarker) || responsesInputItemsContainText(items, openAICompatClaudeCodeTodoGuardLegacyMarker) {
 		return false
 	}
 
@@ -62,7 +63,7 @@ func appendOpenAICompatClaudeCodeTodoGuardToRequestBody(reqBody map[string]any) 
 	}
 
 	input, ok := reqBody["input"].([]any)
-	if !ok || len(input) == 0 || inputContainsText(input, openAICompatClaudeCodeTodoGuardMarker) {
+	if !ok || len(input) == 0 || inputContainsText(input, openAICompatClaudeCodeTodoGuardMarker) || inputContainsText(input, openAICompatClaudeCodeTodoGuardLegacyMarker) {
 		return false
 	}
 
@@ -99,6 +100,10 @@ func responsesInputItemsContainText(items []apicompat.ResponsesInputItem, needle
 		return false
 	}
 	for _, item := range items {
+		var content any
+		if err := json.Unmarshal(item.Content, &content); err == nil && jsonValueContainsText(content, needle) {
+			return true
+		}
 		if strings.Contains(string(item.Content), needle) {
 			return true
 		}
@@ -112,9 +117,28 @@ func inputContainsText(input []any, needle string) bool {
 		return false
 	}
 	for _, item := range input {
-		b, err := json.Marshal(item)
-		if err == nil && strings.Contains(string(b), needle) {
+		if jsonValueContainsText(item, needle) {
 			return true
+		}
+	}
+	return false
+}
+
+func jsonValueContainsText(value any, needle string) bool {
+	switch typed := value.(type) {
+	case string:
+		return strings.Contains(typed, needle)
+	case []any:
+		for _, item := range typed {
+			if jsonValueContainsText(item, needle) {
+				return true
+			}
+		}
+	case map[string]any:
+		for _, item := range typed {
+			if jsonValueContainsText(item, needle) {
+				return true
+			}
 		}
 	}
 	return false

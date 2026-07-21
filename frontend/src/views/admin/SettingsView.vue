@@ -6643,24 +6643,17 @@
         </div>
 
         <div v-show="activeTab === 'email'" class="space-y-6">
-          <!-- Email disabled hint - show when email_verify_enabled is off -->
-          <div v-if="!form.email_verify_enabled" class="card">
-            <div class="p-6">
-              <div class="flex items-start gap-3">
-                <Icon
-                  name="mail"
-                  size="md"
-                  class="mt-0.5 flex-shrink-0 text-gray-400 dark:text-gray-500"
-                />
-                <div>
-                  <h3 class="font-medium text-gray-900 dark:text-white">
-                    {{ t("admin.settings.emailTabDisabledTitle") }}
-                  </h3>
-                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.emailTabDisabledHint") }}
-                  </p>
-                </div>
+          <div class="card">
+            <div class="flex items-center justify-between gap-4 p-6">
+              <div class="min-w-0">
+                <h3 class="font-medium text-gray-900 dark:text-white">
+                  {{ t("admin.settings.registration.emailVerification") }}
+                </h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.registration.emailVerificationHint") }}
+                </p>
               </div>
+              <Toggle v-model="form.email_verify_enabled" />
             </div>
           </div>
 
@@ -7496,7 +7489,7 @@ const form = reactive<SettingsForm>({
   user_private_group_commission_rate: 0,
   user_private_group_rpm_limit: 0,
   site_name: "ikik-api",
-  site_logo: "",
+  site_logo: "/ik-logo.svg",
   site_subtitle: "Subscription to API Conversion Platform",
   api_base_url: "",
   contact_info: "",
@@ -8559,6 +8552,7 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    form.site_logo = settings.site_logo || "/ik-logo.svg";
     form.custom_menu_items = form.custom_menu_items.map((item, index) => ({
       ...item,
       sort_order: Number.isInteger(item.sort_order) ? item.sort_order : index,
@@ -8968,6 +8962,10 @@ async function saveSettings() {
       user_private_group_rpm_limit: Math.max(
         0,
         Math.floor(Number(form.user_private_group_rpm_limit) || 0),
+      ),
+      user_private_group_commission_rate: Math.min(
+        1,
+        positiveNumberOrZero(form.user_private_group_commission_rate),
       ),
       site_name: form.site_name,
       site_logo: form.site_logo,

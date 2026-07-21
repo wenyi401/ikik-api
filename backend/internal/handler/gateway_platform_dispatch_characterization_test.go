@@ -206,7 +206,7 @@ type p3CharAccountRepo struct {
 	service.AccountRepository
 }
 
-func (r *p3CharAccountRepo) SetModelRateLimit(context.Context, int64, string, time.Time) error {
+func (r *p3CharAccountRepo) SetModelRateLimit(context.Context, int64, string, time.Time, ...string) error {
 	return nil
 }
 
@@ -222,7 +222,10 @@ func p3CharGroup(groupID int64, platform string) *service.Group {
 
 // p3CharAntigravityAccount 构造 antigravity 账号夹具。
 func p3CharAntigravityAccount(id, groupID int64, accountType string, creds, extra map[string]any) *service.Account {
-	credentials := map[string]any{"access_token": fmt.Sprintf("ag-token-%d", id)}
+	credentials := map[string]any{
+		"access_token": fmt.Sprintf("ag-token-%d", id),
+		"project_id":   fmt.Sprintf("ag-project-%d", id),
+	}
 	for k, v := range creds {
 		credentials[k] = v
 	}
@@ -267,7 +270,6 @@ func p3CharNewHandler(t *testing.T, group *service.Group, accounts []*service.Ac
 
 	gwSvc := service.NewGatewayService(
 		nil, // accountRepo
-		nil, // accountSharePolicyRepo
 		&fakeGroupRepo{group: group},
 		nil, nil, nil, nil, nil, // usageLogRepo / usageBillingRepo / userRepo / userSubRepo / userGroupRateRepo
 		stickyCache,
@@ -282,7 +284,7 @@ func p3CharNewHandler(t *testing.T, group *service.Group, accounts []*service.Ac
 		&service.DeferredService{},
 		nil, nil, nil, nil, // claudeTokenProvider / sessionLimitCache / rpmCache / digestStore
 		settingSvc,
-		nil, nil, nil, nil, // tlsFPProfileService / channelService / resolver / balanceNotifyService
+		nil, nil, nil, nil, nil, // tlsFPProfileService / channelService / resolver / balanceNotifyService / userPlatformQuotaRepo
 	)
 
 	agSvc := service.NewAntigravityGatewayService(
@@ -296,21 +298,20 @@ func p3CharNewHandler(t *testing.T, group *service.Group, accounts []*service.Ac
 		nil, // internal500Cache
 	)
 
-	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, nil,
-		&config.Config{RunMode: config.RunModeSimple})
+	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil,
+		&config.Config{RunMode: config.RunModeSimple}, nil)
 
 	h := NewGatewayHandler(
 		gwSvc,
+		nil, // openAIGatewayService
 		nil, // geminiCompatService（:444 非 antigravity 分支误入会 panic → 用例显式失败）
 		agSvc,
-		ProvideGatewayPlatformRegistry(gwSvc, agSvc), // 与生产 Wire 装配同构的平台分发注册表
 		nil, // userService
 		concurrencySvc,
 		billingCacheSvc,
 		nil, nil, nil, nil, nil, nil, // usageService / apiKeyService / workerPool / errorPassthrough / preFlightHooks / userMsgQueue
 		nil, // cfg
 		nil, // settingService（handler 级版本检查等不在锁定面）
-		nil, // carpoolService
 	)
 	return &p3CharHandlerEnv{
 		handler:     h,

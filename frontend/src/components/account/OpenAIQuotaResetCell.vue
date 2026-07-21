@@ -56,13 +56,14 @@
       <div class="flex flex-wrap items-center gap-1">
         <span
           class="inline-flex max-w-full items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] leading-4 text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300"
-          :title="formatResetCreditExpiry(primaryResetCreditExpiry, 'full')"
+          :title="t('admin.accounts.openaiQuotaReset.expiresAtFull', { time: formatResetCreditExpiry(primaryResetCreditExpiry, 'full') })"
         >
-          {{ formatResetCreditExpiry(primaryResetCreditExpiry, 'short') }}
+          {{ t('admin.accounts.openaiQuotaReset.expiresAt', { time: formatResetCreditExpiry(primaryResetCreditExpiry, 'short') }) }}
         </span>
         <button
           v-if="hiddenResetCreditCount > 0"
           type="button"
+          data-testid="reset-credit-expiry-toggle"
           class="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium leading-4 text-gray-600 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
           :aria-expanded="showResetCreditDetails"
           :title="resetCreditDetailsTitle"
@@ -74,6 +75,7 @@
 
       <div
         v-if="showResetCreditDetails && resetCreditExpirations.length > 1"
+        data-testid="reset-credit-expiry-details"
         class="inline-grid max-w-full gap-0.5 rounded border border-gray-200 bg-white px-1.5 py-1 text-[10px] leading-4 text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
       >
         <span
@@ -130,6 +132,8 @@ const data = ref<OpenAIQuotaUsage | null>(null)
 const resetMessage = ref<string | null>(null)
 const showResetCreditDetails = ref(false)
 
+const isShadow = computed(() => props.account.parent_account_id != null)
+
 const availableResetCount = computed(() => data.value?.rate_limit_reset_credits?.available_count ?? 0)
 const resetCreditExpirations = computed(() =>
   (data.value?.rate_limit_reset_credits?.credits ?? [])
@@ -139,7 +143,7 @@ const resetCreditExpirations = computed(() =>
 )
 const primaryResetCreditExpiry = computed(() => resetCreditExpirations.value[0] ?? '')
 const hiddenResetCreditCount = computed(() => Math.max(resetCreditExpirations.value.length - 1, 0))
-const canReset = computed(() => availableResetCount.value > 0)
+const canReset = computed(() => availableResetCount.value > 0 && !isShadow.value)
 
 const resetCreditDetailsTitle = computed(() =>
   resetCreditExpirations.value
@@ -148,6 +152,7 @@ const resetCreditDetailsTitle = computed(() =>
 )
 
 const resetButtonTitle = computed(() => {
+  if (isShadow.value) return t('admin.accounts.openaiQuotaReset.resetTooltipShadow')
   if (!data.value) return t('admin.accounts.openaiQuotaReset.resetTooltipNeedQuery')
   if (!canReset.value) return t('admin.accounts.openaiQuotaReset.resetTooltipNoCredits')
   return t('admin.accounts.openaiQuotaReset.resetTooltipReady')
