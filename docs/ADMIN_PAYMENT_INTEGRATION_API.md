@@ -1,4 +1,4 @@
-# ADMIN_PAYMENT_INTEGRATION_API
+﻿# ADMIN_PAYMENT_INTEGRATION_API
 
 > 单文件中英双语文档 / Single-file bilingual documentation (Chinese + English)
 
