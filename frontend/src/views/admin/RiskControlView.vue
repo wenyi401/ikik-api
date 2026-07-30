@@ -991,6 +991,114 @@
             </div>
           </div>
 
+          <div v-else-if="activeSettingsTab === 'penalty'" class="space-y-6">
+            <div class="flex flex-col gap-4 border-b border-gray-100 pb-5 dark:border-dark-700 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.groupPenalty.title') }}</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.groupPenalty.hint') }}</p>
+              </div>
+              <Toggle v-model="configForm.group_penalty.enabled" />
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div>
+                <label class="input-label">{{ t('admin.riskControl.groupPenalty.firstBlockHours') }}</label>
+                <input v-model.number="configForm.group_penalty.first_block_hours" type="number" min="1" max="8760" class="input" />
+              </div>
+              <div>
+                <label class="input-label">{{ t('admin.riskControl.groupPenalty.secondBlockHours') }}</label>
+                <input v-model.number="configForm.group_penalty.second_block_hours" type="number" min="1" max="8760" class="input" />
+              </div>
+              <div>
+                <label class="input-label">{{ t('admin.riskControl.groupPenalty.thirdBlock') }}</label>
+                <div class="flex h-10 items-center rounded-lg border border-red-200 bg-red-50 px-3 text-sm font-semibold text-red-700 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300">
+                  {{ t('admin.riskControl.groupPenalty.permanent') }}
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <div>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.groupPenalty.targetGroups') }}</h3>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.groupPenalty.targetGroupsHint') }}</p>
+              </div>
+              <div class="relative">
+                <Icon name="search" size="sm" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input v-model.trim="penaltyGroupSearch" type="search" class="input pl-9" :placeholder="t('admin.riskControl.groupPenalty.searchGroups')" />
+              </div>
+              <div class="grid max-h-64 grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
+                <button
+                  v-for="group in filteredPenaltyGroups"
+                  :key="group.id"
+                  type="button"
+                  class="flex min-h-16 items-center justify-between rounded-lg border p-3 text-left transition-colors"
+                  :class="isPenaltyGroupSelected(group.id) ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/20' : 'border-gray-100 hover:bg-gray-50 dark:border-dark-700 dark:hover:bg-dark-700/60'"
+                  @click="togglePenaltyGroup(group.id)"
+                >
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-semibold text-gray-900 dark:text-white">{{ group.name }}</span>
+                    <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">{{ group.platform }} · #{{ group.id }}</span>
+                  </span>
+                  <span
+                    class="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border"
+                    :class="isPenaltyGroupSelected(group.id) ? 'border-red-600 bg-red-600 text-white' : 'border-gray-300 text-transparent dark:border-dark-500'"
+                  >
+                    <Icon name="check" size="xs" :stroke-width="2" />
+                  </span>
+                </button>
+                <p v-if="filteredPenaltyGroups.length === 0" class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.noGroups') }}</p>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <div>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.groupPenalty.categories') }}</h3>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.groupPenalty.categoriesHint') }}</p>
+              </div>
+              <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <div
+                  v-for="option in groupPenaltyCategoryOptions"
+                  :key="option.category"
+                  class="rounded-lg border p-4"
+                  :class="isPenaltyCategorySelected(option.category) ? 'border-red-200 bg-red-50/60 dark:border-red-900/60 dark:bg-red-950/10' : 'border-gray-100 dark:border-dark-700'"
+                >
+                  <div class="flex items-start gap-3">
+                    <input
+                      :id="`penalty-category-${option.category}`"
+                      type="checkbox"
+                      class="mt-1 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                      :checked="isPenaltyCategorySelected(option.category)"
+                      @change="togglePenaltyCategory(option.category)"
+                    />
+                    <label class="min-w-0 flex-1" :for="`penalty-category-${option.category}`">
+                      <span class="block text-sm font-semibold text-gray-900 dark:text-white">{{ option.label_zh }}</span>
+                      <span class="mt-0.5 block text-sm text-gray-600 dark:text-gray-300">{{ option.label_en }}</span>
+                      <span class="mt-1 block break-all font-mono text-xs text-gray-400">{{ option.category }}</span>
+                    </label>
+                    <div class="w-28 flex-shrink-0">
+                      <label class="sr-only" :for="`penalty-threshold-${option.category}`">{{ t('admin.riskControl.groupPenalty.hitThreshold') }}</label>
+                      <div class="relative">
+                        <input
+                          :id="`penalty-threshold-${option.category}`"
+                          v-model.number="configForm.group_penalty.category_thresholds[option.category]"
+                          :data-test="`penalty-threshold-${option.category}`"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          class="input pr-8 font-mono"
+                          :disabled="!isPenaltyCategorySelected(option.category)"
+                        />
+                        <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">%</span>
+                      </div>
+                      <span class="mt-1 block text-right text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.groupPenalty.hitThreshold') }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div v-else-if="activeSettingsTab === 'scope'" class="space-y-5">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -1436,6 +1544,8 @@ import type {
   ContentModerationClassifierTrace,
   ContentModerationEnforcementMode,
   ContentModerationConfig,
+  ContentModerationGroupPenaltyCategoryOption,
+  ContentModerationGroupPenaltyPolicy,
   ContentModerationLog,
   ContentModerationModelFilter,
   ContentModerationModelFilterType,
@@ -1451,7 +1561,7 @@ import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime as formatDateTimeValue } from '@/utils/format'
 
-type SettingsTab = 'basic' | 'adaptive' | 'scope' | 'runtime' | 'response' | 'riskThresholds' | 'retention' | 'keywords'
+type SettingsTab = 'basic' | 'adaptive' | 'penalty' | 'scope' | 'runtime' | 'response' | 'riskThresholds' | 'retention' | 'keywords'
 type WorkerSlotState = 'active' | 'idle' | 'disabled'
 type APIKeysWriteMode = 'append' | 'replace'
 type OverviewIcon = 'shield' | 'key' | 'users' | 'document'
@@ -1477,12 +1587,26 @@ type RiskThresholdRow = {
   value: number
   defaultValue: number
 }
+type GroupPenaltyForm = Omit<ContentModerationGroupPenaltyPolicy, 'category_thresholds'> & {
+  category_thresholds: Record<string, number>
+}
 
 const maxModerationTestImages = 1
 const maxModerationTestImageSize = 8 * 1024 * 1024
 const maxVisibleApiKeyRows: number = 3
 const maxClassifierModels = 20
 const blockedKeywordMax = 10000
+const defaultGroupPenaltyCategoryOptions: ContentModerationGroupPenaltyCategoryOption[] = [
+  { category: 'gateway_abuse/safety_bypass', label_zh: '安全绕过', label_en: 'Safety bypass' },
+  { category: 'gateway_abuse/credential_theft', label_zh: '凭据窃取', label_en: 'Credential theft' },
+  { category: 'gateway_abuse/account_automation', label_zh: '账号自动化或第三方脚本', label_en: 'Account automation or third-party scripting' },
+  { category: 'gateway_abuse/auth_reverse_engineering', label_zh: '认证机制逆向', label_en: 'Authentication reverse engineering' },
+  { category: 'gateway_abuse/exploit_reverse_engineering', label_zh: '漏洞利用逆向', label_en: 'Exploit reverse engineering' },
+  { category: 'gateway_abuse/cheat_automation', label_zh: '外挂或作弊自动化', label_en: 'Cheat or game automation' },
+  { category: 'policy/violence_terrorism_or_hate', label_zh: '暴力、恐怖主义或仇恨内容', label_en: 'Violence, terrorism or hate content' },
+  { category: 'policy/weapons', label_zh: '武器相关内容', label_en: 'Weapons-related content' },
+  { category: 'policy/cyber_abuse', label_zh: '网络攻击或暴力破解', label_en: 'Cyber abuse or brute-force attacks' },
+]
 const riskThresholdDefaults: Record<string, number> = {
   'gateway_abuse/safety_bypass': 80,
   'gateway_abuse/credential_theft': 80,
@@ -1541,6 +1665,8 @@ const unbanningUserID = ref<number | null>(null)
 const settingsOpen = ref(false)
 const activeSettingsTab = ref<SettingsTab>('basic')
 const groupSearch = ref('')
+const penaltyGroupSearch = ref('')
+const groupPenaltyCategoryOptions = ref<ContentModerationGroupPenaltyCategoryOption[]>([...defaultGroupPenaltyCategoryOptions])
 const flaggedHashInput = ref('')
 const groups = ref<AdminGroup[]>([])
 const logs = ref<ContentModerationLog[]>([])
@@ -1603,6 +1729,7 @@ const configForm = reactive({
   model_filter_type: 'all' as ContentModerationModelFilterType,
   model_filter_models: [] as string[],
   adaptive_policy: defaultAdaptivePolicy(),
+  group_penalty: defaultGroupPenaltyForm(),
 })
 
 const pagination = reactive({
@@ -1624,6 +1751,7 @@ const filters = reactive({
 const settingsTabs = computed<Array<{ id: SettingsTab; label: string }>>(() => [
   { id: 'basic', label: t('admin.riskControl.tabs.basic') },
   { id: 'adaptive', label: t('admin.riskControl.tabs.adaptive') },
+  { id: 'penalty', label: t('admin.riskControl.tabs.penalty') },
   { id: 'scope', label: t('admin.riskControl.tabs.scope') },
   { id: 'runtime', label: t('admin.riskControl.tabs.runtime') },
   { id: 'response', label: t('admin.riskControl.tabs.response') },
@@ -1812,6 +1940,16 @@ const filteredGroups = computed(() => {
   if (!keyword) return groups.value
   return groups.value.filter((group) => {
     return group.name.toLowerCase().includes(keyword) || String(group.platform).toLowerCase().includes(keyword)
+  })
+})
+
+const filteredPenaltyGroups = computed(() => {
+  const keyword = penaltyGroupSearch.value.trim().toLowerCase()
+  if (!keyword) return groups.value
+  return groups.value.filter((group) => {
+    return group.name.toLowerCase().includes(keyword)
+      || String(group.platform).toLowerCase().includes(keyword)
+      || String(group.id).includes(keyword)
   })
 })
 
@@ -2147,6 +2285,8 @@ function applyConfig(config: ContentModerationConfig) {
   configForm.model_filter_type = modelFilter.type
   configForm.model_filter_models = modelFilter.models
   configForm.adaptive_policy = normalizeAdaptivePolicy(config.adaptive_policy)
+  groupPenaltyCategoryOptions.value = normalizeGroupPenaltyCategoryOptions(config.group_penalty_category_options)
+  configForm.group_penalty = normalizeGroupPenaltyForm(config.group_penalty)
 }
 
 async function loadAll() {
@@ -2221,6 +2361,31 @@ async function saveConfig() {
       appStore.showError(t('admin.riskControl.classifierModelsRequired'))
       return
     }
+    if (configForm.group_penalty.enabled) {
+      if (configForm.group_penalty.target_group_ids.length === 0) {
+        appStore.showError(t('admin.riskControl.groupPenalty.targetGroupsRequired'))
+        return
+      }
+      if (configForm.group_penalty.categories.length === 0) {
+        appStore.showError(t('admin.riskControl.groupPenalty.categoriesRequired'))
+        return
+      }
+      const firstHours = Number(configForm.group_penalty.first_block_hours)
+      const secondHours = Number(configForm.group_penalty.second_block_hours)
+      if (!Number.isInteger(firstHours) || firstHours < 1 || firstHours > 8760
+        || !Number.isInteger(secondHours) || secondHours < firstHours || secondHours > 8760) {
+        appStore.showError(t('admin.riskControl.groupPenalty.invalidDurations'))
+        return
+      }
+      const hasInvalidThreshold = configForm.group_penalty.categories.some((category) => {
+        const threshold = Number(configForm.group_penalty.category_thresholds[category])
+        return !Number.isFinite(threshold) || threshold < 0 || threshold > 100
+      })
+      if (hasInvalidThreshold) {
+        appStore.showError(t('admin.riskControl.groupPenalty.invalidThresholds'))
+        return
+      }
+    }
     const payload: UpdateContentModerationConfig = {
       enabled: configForm.enabled,
       mode: configForm.mode,
@@ -2258,6 +2423,7 @@ async function saveConfig() {
       keyword_blocking_mode: configForm.keyword_blocking_mode,
       model_filter: modelFilterPayload,
       adaptive_policy: { ...configForm.adaptive_policy },
+      group_penalty: buildGroupPenaltyPayload(),
     }
     if (configForm.moderation_provider !== 'model_classifier') {
       const keys = parseApiKeys(configForm.api_keys_text)
@@ -2654,6 +2820,32 @@ function isGroupSelected(groupID: number): boolean {
   return configForm.group_ids.includes(groupID)
 }
 
+function togglePenaltyGroup(groupID: number) {
+  const index = configForm.group_penalty.target_group_ids.indexOf(groupID)
+  if (index >= 0) {
+    configForm.group_penalty.target_group_ids.splice(index, 1)
+  } else {
+    configForm.group_penalty.target_group_ids.push(groupID)
+  }
+}
+
+function isPenaltyGroupSelected(groupID: number): boolean {
+  return configForm.group_penalty.target_group_ids.includes(groupID)
+}
+
+function togglePenaltyCategory(category: string) {
+  const index = configForm.group_penalty.categories.indexOf(category)
+  if (index >= 0) {
+    configForm.group_penalty.categories.splice(index, 1)
+  } else {
+    configForm.group_penalty.categories.push(category)
+  }
+}
+
+function isPenaltyCategorySelected(category: string): boolean {
+  return configForm.group_penalty.categories.includes(category)
+}
+
 function modeLabel(mode: ModerationMode): string {
   const found = modeOptions.value.find((option) => option.value === mode)
   return found?.label ?? mode
@@ -2819,6 +3011,78 @@ function normalizeAdaptivePolicy(value: ContentModerationAdaptivePolicy | null |
     high_risk_threshold: Number(value.high_risk_threshold) || defaults.high_risk_threshold,
     critical_threshold: Number(value.critical_threshold) || defaults.critical_threshold,
     notification_cooldown_hours: Number(value.notification_cooldown_hours) || defaults.notification_cooldown_hours,
+  }
+}
+
+function defaultGroupPenaltyForm(): GroupPenaltyForm {
+  const categoryThresholds: Record<string, number> = {}
+  for (const option of defaultGroupPenaltyCategoryOptions) {
+    categoryThresholds[option.category] = riskThresholdDefaults[option.category] ?? 80
+  }
+  return {
+    enabled: false,
+    target_group_ids: [],
+    categories: defaultGroupPenaltyCategoryOptions.map((option) => option.category),
+    category_thresholds: categoryThresholds,
+    first_block_hours: 24,
+    second_block_hours: 36,
+  }
+}
+
+function normalizeGroupPenaltyCategoryOptions(value: unknown): ContentModerationGroupPenaltyCategoryOption[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    return [...defaultGroupPenaltyCategoryOptions]
+  }
+  const options = value.filter((item): item is ContentModerationGroupPenaltyCategoryOption => {
+    if (!item || typeof item !== 'object') return false
+    const option = item as Partial<ContentModerationGroupPenaltyCategoryOption>
+    return typeof option.category === 'string' && option.category.trim() !== ''
+      && typeof option.label_zh === 'string' && option.label_zh.trim() !== ''
+      && typeof option.label_en === 'string' && option.label_en.trim() !== ''
+  })
+  return options.length > 0 ? options : [...defaultGroupPenaltyCategoryOptions]
+}
+
+function normalizeGroupPenaltyForm(value: ContentModerationGroupPenaltyPolicy | null | undefined): GroupPenaltyForm {
+  const defaults = defaultGroupPenaltyForm()
+  if (!value) return defaults
+
+  const supported = new Set(groupPenaltyCategoryOptions.value.map((option) => option.category))
+  const categories = Array.isArray(value.categories)
+    ? value.categories.filter((category) => supported.has(category))
+    : defaults.categories
+  const categoryThresholds: Record<string, number> = {}
+  for (const option of groupPenaltyCategoryOptions.value) {
+    const configured = value.category_thresholds?.[option.category]
+    const fallback = riskThresholdDefaults[option.category] ?? 80
+    categoryThresholds[option.category] = Number.isFinite(configured)
+      ? clampPercent(Number(configured) * 100)
+      : fallback
+  }
+  return {
+    enabled: value.enabled === true,
+    target_group_ids: Array.isArray(value.target_group_ids)
+      ? [...new Set(value.target_group_ids.map(Number).filter((id) => Number.isInteger(id) && id > 0))]
+      : [],
+    categories,
+    category_thresholds: categoryThresholds,
+    first_block_hours: Number(value.first_block_hours) || defaults.first_block_hours,
+    second_block_hours: Number(value.second_block_hours) || defaults.second_block_hours,
+  }
+}
+
+function buildGroupPenaltyPayload(): ContentModerationGroupPenaltyPolicy {
+  const thresholds: Record<string, number> = {}
+  for (const option of groupPenaltyCategoryOptions.value) {
+    thresholds[option.category] = Number((clampPercent(configForm.group_penalty.category_thresholds[option.category]) / 100).toFixed(4))
+  }
+  return {
+    enabled: configForm.group_penalty.enabled,
+    target_group_ids: [...configForm.group_penalty.target_group_ids],
+    categories: [...configForm.group_penalty.categories],
+    category_thresholds: thresholds,
+    first_block_hours: Number(configForm.group_penalty.first_block_hours),
+    second_block_hours: Number(configForm.group_penalty.second_block_hours),
   }
 }
 

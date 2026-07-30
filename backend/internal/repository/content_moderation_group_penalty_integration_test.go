@@ -46,7 +46,7 @@ func TestContentModerationGroupPenaltyProgressionIntegration(t *testing.T) {
 			Category:  service.ContentModerationRiskCategoryCheatAutomation,
 			Score:     0.96,
 			CreatedAt: at,
-		})
+		}, 24, 36)
 		require.NoError(t, applyErr)
 		return penalty, applied
 	}
@@ -86,7 +86,7 @@ func TestContentModerationGroupPenaltyProgressionIntegration(t *testing.T) {
 		Category:  service.ContentModerationRiskCategoryCheatAutomation,
 		Score:     0.99,
 		CreatedAt: base,
-	})
+	}, 24, 36)
 	require.NoError(t, err)
 	require.False(t, adminApplied)
 	require.Nil(t, adminPenalty)

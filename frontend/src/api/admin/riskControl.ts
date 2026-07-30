@@ -27,6 +27,21 @@ export interface ContentModerationAdaptivePolicy {
   notification_cooldown_hours: number
 }
 
+export interface ContentModerationGroupPenaltyPolicy {
+  enabled: boolean
+  target_group_ids: number[]
+  categories: string[]
+  category_thresholds: Record<string, number>
+  first_block_hours: number
+  second_block_hours: number
+}
+
+export interface ContentModerationGroupPenaltyCategoryOption {
+  category: string
+  label_zh: string
+  label_en: string
+}
+
 export interface ContentModerationModelFilter {
   type: ContentModerationModelFilterType
   models: string[]
@@ -72,6 +87,8 @@ export interface ContentModerationConfig {
   keyword_blocking_mode: KeywordBlockingMode
   model_filter: ContentModerationModelFilter
   adaptive_policy: ContentModerationAdaptivePolicy
+  group_penalty?: ContentModerationGroupPenaltyPolicy
+  group_penalty_category_options?: ContentModerationGroupPenaltyCategoryOption[]
 }
 
 export type ContentModerationAPIKeyStatusValue = 'unknown' | 'ok' | 'error' | 'frozen'
@@ -179,6 +196,7 @@ export interface UpdateContentModerationConfig {
   keyword_blocking_mode?: KeywordBlockingMode
   model_filter?: ContentModerationModelFilter
   adaptive_policy?: ContentModerationAdaptivePolicy
+  group_penalty?: ContentModerationGroupPenaltyPolicy
 }
 
 export interface ContentModerationRuntimeStatus {

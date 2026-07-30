@@ -572,7 +572,7 @@ WHERE id = $1 AND user_id = $2 AND status <> $3
 	return rows > 0, nil
 }
 
-func (r *contentModerationRepository) ApplyUserGroupPenaltyForRisk(ctx context.Context, event service.ContentModerationRiskEvent) (*service.ContentModerationGroupPenalty, bool, error) {
+func (r *contentModerationRepository) ApplyUserGroupPenaltyForRisk(ctx context.Context, event service.ContentModerationRiskEvent, firstBlockHours int, secondBlockHours int) (*service.ContentModerationGroupPenalty, bool, error) {
 	if event.UserID <= 0 || event.GroupID <= 0 || strings.TrimSpace(event.RequestID) == "" {
 		return nil, false, nil
 	}
@@ -602,14 +602,14 @@ WITH eligible AS (
         user_id, group_id, strike_count, blocked_until, permanent,
         last_category, last_request_id, last_score, created_at, updated_at
     )
-    SELECT user_id, group_id, 1, $7 + INTERVAL '24 hours', FALSE,
+    SELECT user_id, group_id, 1, $7 + make_interval(hours => $8::int), FALSE,
            $5, $4, $6, $7, $7
     FROM new_event
     ON CONFLICT (user_id, group_id) DO UPDATE
     SET strike_count = LEAST(penalty.strike_count + 1, 3),
         blocked_until = CASE
             WHEN penalty.permanent OR penalty.strike_count >= 2 THEN NULL
-            ELSE $7 + INTERVAL '36 hours'
+            ELSE $7 + make_interval(hours => $9::int)
         END,
         permanent = penalty.permanent OR penalty.strike_count >= 2,
         last_category = $5,
@@ -631,7 +631,7 @@ JOIN eligible USING (user_id, group_id)
 WHERE NOT EXISTS (SELECT 1 FROM applied_penalty)
 LIMIT 1
 `, event.UserID, event.GroupID, service.RoleAdmin, strings.TrimSpace(event.RequestID),
-		strings.TrimSpace(event.Category), event.Score, appliedAt)
+		strings.TrimSpace(event.Category), event.Score, appliedAt, firstBlockHours, secondBlockHours)
 
 	var penalty service.ContentModerationGroupPenalty
 	var blockedUntil sql.NullTime

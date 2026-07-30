@@ -291,6 +291,69 @@ describe('admin RiskControlView', () => {
     expect(showError).not.toHaveBeenCalled()
   })
 
+  it('shows bilingual penalty categories and saves each category threshold', async () => {
+    const category = 'gateway_abuse/cheat_automation'
+    getConfig.mockResolvedValue({
+      ...baseConfig(),
+      group_penalty: {
+        enabled: true,
+        target_group_ids: [16],
+        categories: [category],
+        category_thresholds: { [category]: 0.82 },
+        first_block_hours: 24,
+        second_block_hours: 36,
+      },
+      group_penalty_category_options: [{
+        category,
+        label_zh: '外挂或作弊自动化',
+        label_en: 'Cheat or game automation',
+      }],
+    })
+    getGroups.mockResolvedValue([{
+      id: 16,
+      name: 'restricted models',
+      platform: 'openai',
+      status: 'active',
+    }])
+
+    const wrapper = mount(RiskControlView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          BaseDialog: BaseDialogStub,
+          Icon: true,
+          Select: true,
+          Toggle: true,
+          Pagination: true,
+          ModelWhitelistSelector: ModelWhitelistSelectorStub,
+        },
+      },
+    })
+
+    await flushPromises()
+    await findButtonByText(wrapper, 'admin.riskControl.openSettings').trigger('click')
+    await findButtonByText(wrapper, 'admin.riskControl.tabs.penalty').trigger('click')
+
+    expect(wrapper.text()).toContain('外挂或作弊自动化')
+    expect(wrapper.text()).toContain('Cheat or game automation')
+    expect(wrapper.text()).toContain(category)
+    await wrapper.get(`[data-test="penalty-threshold-${category}"]`).setValue('91')
+    await findButtonByText(wrapper, 'admin.riskControl.saveConfig').trigger('click')
+    await flushPromises()
+
+    expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({
+      group_penalty: {
+        enabled: true,
+        target_group_ids: [16],
+        categories: [category],
+        category_thresholds: { [category]: 0.91 },
+        first_block_hours: 24,
+        second_block_hours: 36,
+      },
+    }))
+    expect(showError).not.toHaveBeenCalled()
+  })
+
   it('keeps full classifier model names and shows detailed routing test attempts', async () => {
     const model = 'gpt-5.4-mini-classifier-with-a-long-model-id'
     getConfig.mockResolvedValue({

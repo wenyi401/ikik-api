@@ -61,8 +61,162 @@ const (
 	ContentModerationPolicyCategoryNationalSecurity        = "policy/national_security_or_intelligence"
 	ContentModerationPolicyCategoryIPInfringement          = "policy/ip_infringement"
 
-	contentModerationRiskOverviewCacheTTL = 30 * time.Second
+	defaultContentModerationGroupPenaltyFirstBlockHours  = 24
+	defaultContentModerationGroupPenaltySecondBlockHours = 36
+	maxContentModerationGroupPenaltyBlockHours           = 8760
+	contentModerationRiskOverviewCacheTTL                = 30 * time.Second
 )
+
+type ContentModerationGroupPenaltyPolicy struct {
+	Enabled            bool               `json:"enabled"`
+	TargetGroupIDs     []int64            `json:"target_group_ids"`
+	Categories         []string           `json:"categories"`
+	CategoryThresholds map[string]float64 `json:"category_thresholds"`
+	FirstBlockHours    int                `json:"first_block_hours"`
+	SecondBlockHours   int                `json:"second_block_hours"`
+}
+
+type ContentModerationGroupPenaltyCategoryOption struct {
+	Category string `json:"category"`
+	LabelZH  string `json:"label_zh"`
+	LabelEN  string `json:"label_en"`
+}
+
+var contentModerationGroupPenaltyCategoryOptions = []ContentModerationGroupPenaltyCategoryOption{
+	{Category: ContentModerationRiskCategorySafetyBypass, LabelZH: "安全绕过", LabelEN: "Safety bypass"},
+	{Category: ContentModerationRiskCategoryCredentialTheft, LabelZH: "凭据窃取", LabelEN: "Credential theft"},
+	{Category: ContentModerationRiskCategoryAccountAutomation, LabelZH: "账号自动化或第三方脚本", LabelEN: "Account automation or third-party scripting"},
+	{Category: ContentModerationRiskCategoryAuthReverseEngineering, LabelZH: "认证机制逆向", LabelEN: "Authentication reverse engineering"},
+	{Category: ContentModerationRiskCategoryExploitReverseEngineering, LabelZH: "漏洞利用逆向", LabelEN: "Exploit reverse engineering"},
+	{Category: ContentModerationRiskCategoryCheatAutomation, LabelZH: "外挂或作弊自动化", LabelEN: "Cheat or game automation"},
+	{Category: ContentModerationPolicyCategoryViolence, LabelZH: "暴力、恐怖主义或仇恨内容", LabelEN: "Violence, terrorism or hate content"},
+	{Category: ContentModerationPolicyCategoryWeapons, LabelZH: "武器相关内容", LabelEN: "Weapons-related content"},
+	{Category: ContentModerationPolicyCategoryCyberAbuse, LabelZH: "网络攻击或暴力破解", LabelEN: "Cyber abuse or brute-force attacks"},
+}
+
+func DefaultContentModerationGroupPenaltyPolicy() ContentModerationGroupPenaltyPolicy {
+	categories := make([]string, 0, len(contentModerationGroupPenaltyCategoryOptions))
+	thresholds := make(map[string]float64, len(contentModerationGroupPenaltyCategoryOptions))
+	defaultThresholds := ContentModerationDefaultThresholds()
+	for _, option := range contentModerationGroupPenaltyCategoryOptions {
+		categories = append(categories, option.Category)
+		threshold := defaultThresholds[option.Category]
+		if threshold <= 0 {
+			threshold = 0.8
+		}
+		thresholds[option.Category] = threshold
+	}
+	return ContentModerationGroupPenaltyPolicy{
+		Enabled:            false,
+		TargetGroupIDs:     []int64{},
+		Categories:         categories,
+		CategoryThresholds: thresholds,
+		FirstBlockHours:    defaultContentModerationGroupPenaltyFirstBlockHours,
+		SecondBlockHours:   defaultContentModerationGroupPenaltySecondBlockHours,
+	}
+}
+
+func ContentModerationGroupPenaltyCategoryOptions() []ContentModerationGroupPenaltyCategoryOption {
+	return append([]ContentModerationGroupPenaltyCategoryOption(nil), contentModerationGroupPenaltyCategoryOptions...)
+}
+
+func (p *ContentModerationGroupPenaltyPolicy) normalize() {
+	if p == nil {
+		return
+	}
+	p.TargetGroupIDs = normalizeInt64IDs(p.TargetGroupIDs)
+	p.Categories = normalizeContentModerationGroupPenaltyCategories(p.Categories)
+	p.CategoryThresholds = normalizeContentModerationGroupPenaltyThresholds(p.CategoryThresholds)
+	if p.FirstBlockHours <= 0 {
+		p.FirstBlockHours = defaultContentModerationGroupPenaltyFirstBlockHours
+	}
+	if p.SecondBlockHours <= 0 {
+		p.SecondBlockHours = defaultContentModerationGroupPenaltySecondBlockHours
+	}
+}
+
+func (p ContentModerationGroupPenaltyPolicy) includesCategory(category string) bool {
+	category = strings.ToLower(strings.TrimSpace(category))
+	for _, configured := range p.Categories {
+		if configured == category {
+			return true
+		}
+	}
+	return false
+}
+
+func (p ContentModerationGroupPenaltyPolicy) matchingCategory(category string, score float64, categoryScores map[string]float64) (string, float64, bool) {
+	if len(categoryScores) > 0 {
+		matchedCategory := ""
+		matchedScore := float64(0)
+		for _, configured := range p.Categories {
+			configured = strings.ToLower(strings.TrimSpace(configured))
+			configuredScore, ok := categoryScores[configured]
+			if !ok || configuredScore < p.categoryThreshold(configured) {
+				continue
+			}
+			if matchedCategory == "" || configuredScore > matchedScore {
+				matchedCategory = configured
+				matchedScore = configuredScore
+			}
+		}
+		return matchedCategory, matchedScore, matchedCategory != ""
+	}
+
+	category = strings.ToLower(strings.TrimSpace(category))
+	if !p.includesCategory(category) {
+		return "", 0, false
+	}
+	return category, score, score >= p.categoryThreshold(category)
+}
+
+func (p ContentModerationGroupPenaltyPolicy) categoryThreshold(category string) float64 {
+	category = strings.ToLower(strings.TrimSpace(category))
+	if threshold, ok := p.CategoryThresholds[category]; ok {
+		return threshold
+	}
+	return DefaultContentModerationGroupPenaltyPolicy().CategoryThresholds[category]
+}
+
+func normalizeContentModerationGroupPenaltyCategories(categories []string) []string {
+	seen := make(map[string]struct{}, len(categories))
+	normalized := make([]string, 0, len(categories))
+	for _, category := range categories {
+		category = strings.ToLower(strings.TrimSpace(category))
+		if category == "" {
+			continue
+		}
+		if _, exists := seen[category]; exists {
+			continue
+		}
+		seen[category] = struct{}{}
+		normalized = append(normalized, category)
+	}
+	return normalized
+}
+
+func normalizeContentModerationGroupPenaltyThresholds(thresholds map[string]float64) map[string]float64 {
+	defaults := DefaultContentModerationGroupPenaltyPolicy().CategoryThresholds
+	normalized := make(map[string]float64, len(contentModerationGroupPenaltyCategoryOptions))
+	for _, option := range contentModerationGroupPenaltyCategoryOptions {
+		threshold, ok := thresholds[option.Category]
+		if !ok {
+			threshold = defaults[option.Category]
+		}
+		normalized[option.Category] = threshold
+	}
+	return normalized
+}
+
+func isSupportedContentModerationGroupPenaltyCategory(category string) bool {
+	category = strings.ToLower(strings.TrimSpace(category))
+	for _, option := range contentModerationGroupPenaltyCategoryOptions {
+		if option.Category == category {
+			return true
+		}
+	}
+	return false
+}
 
 type ContentModerationAdaptivePolicy struct {
 	EnforcementMode           string  `json:"enforcement_mode"`
@@ -222,21 +376,22 @@ type ContentModerationRiskProfilesPage struct {
 }
 
 type ContentModerationRiskEvent struct {
-	RequestID  string
-	UserID     int64
-	UserEmail  string
-	APIKeyID   int64
-	APIKeyName string
-	GroupID    int64
-	GroupName  string
-	Audited    bool
-	Flagged    bool
-	Severity   string
-	Category   string
-	Score      float64
-	ScoreDelta float64
-	SampleRate int
-	CreatedAt  time.Time
+	RequestID      string
+	UserID         int64
+	UserEmail      string
+	APIKeyID       int64
+	APIKeyName     string
+	GroupID        int64
+	GroupName      string
+	Audited        bool
+	Flagged        bool
+	Severity       string
+	Category       string
+	Score          float64
+	CategoryScores map[string]float64
+	ScoreDelta     float64
+	SampleRate     int
+	CreatedAt      time.Time
 }
 
 type UpdateContentModerationRiskProfileInput struct {
@@ -268,7 +423,7 @@ type ContentModerationGroupPenalty struct {
 }
 
 type ContentModerationGroupPenaltyRepository interface {
-	ApplyUserGroupPenaltyForRisk(ctx context.Context, event ContentModerationRiskEvent) (*ContentModerationGroupPenalty, bool, error)
+	ApplyUserGroupPenaltyForRisk(ctx context.Context, event ContentModerationRiskEvent, firstBlockHours int, secondBlockHours int) (*ContentModerationGroupPenalty, bool, error)
 }
 
 func (p ContentModerationAdaptivePolicy) SampleRate(profile *ContentModerationRiskProfile) int {
@@ -464,23 +619,6 @@ func isContentModerationAccountRiskCategory(category string) bool {
 	}
 }
 
-func shouldApplyContentModerationGroupPenalty(category string) bool {
-	switch strings.ToLower(strings.TrimSpace(category)) {
-	case ContentModerationRiskCategorySafetyBypass,
-		ContentModerationRiskCategoryCredentialTheft,
-		ContentModerationRiskCategoryAccountAutomation,
-		ContentModerationRiskCategoryAuthReverseEngineering,
-		ContentModerationRiskCategoryExploitReverseEngineering,
-		ContentModerationRiskCategoryCheatAutomation,
-		ContentModerationPolicyCategoryViolence,
-		ContentModerationPolicyCategoryWeapons,
-		ContentModerationPolicyCategoryCyberAbuse:
-		return true
-	default:
-		return false
-	}
-}
-
 func adaptiveRiskScoreDelta(policy ContentModerationAdaptivePolicy, severity string) float64 {
 	policy.normalize()
 	switch severity {
@@ -503,6 +641,7 @@ func applyAdaptiveDecisionToRiskEvent(event *ContentModerationRiskEvent, decisio
 	event.Flagged = decision.Flagged
 	event.Category = decision.HighestCategory
 	event.Score = decision.HighestScore
+	event.CategoryScores = cloneFloatMap(decision.CategoryScores)
 	event.Severity = ContentModerationSeverityNone
 	event.ScoreDelta = 0
 	if !decision.Flagged {
@@ -529,11 +668,20 @@ func (s *ContentModerationService) recordAdaptiveRiskEvent(ctx context.Context, 
 		return
 	}
 	s.cacheAdaptiveRiskProfile(profile)
-	if !applied || !event.Flagged || profile == nil || cfg.AdaptivePolicy.EnforcementMode == ContentModerationEnforcementShadow {
+	if !applied || !event.Flagged || profile == nil {
 		return
 	}
-	if cfg.AdaptivePolicy.EnforcementMode == ContentModerationEnforcementEnforce && shouldApplyContentModerationGroupPenalty(event.Category) {
-		s.applyUserGroupPenaltyForRisk(ctx, event)
+	if cfg.GroupPenalty.Enabled {
+		category, score, matched := cfg.GroupPenalty.matchingCategory(event.Category, event.Score, event.CategoryScores)
+		if matched {
+			penaltyEvent := *event
+			penaltyEvent.Category = category
+			penaltyEvent.Score = score
+			s.applyUserGroupPenaltyForRisk(ctx, &penaltyEvent, cfg.GroupPenalty)
+		}
+	}
+	if cfg.AdaptivePolicy.EnforcementMode == ContentModerationEnforcementShadow {
+		return
 	}
 	if cfg.EmailOnHit && s.emailService != nil && strings.TrimSpace(event.UserEmail) != "" {
 		reserved, reserveErr := repo.ReserveRiskNotification(ctx, event.UserID, time.Duration(cfg.AdaptivePolicy.NotificationCooldownHours)*time.Hour)
@@ -572,8 +720,8 @@ func (s *ContentModerationService) recordAdaptiveRiskEvent(ctx context.Context, 
 	}
 }
 
-func (s *ContentModerationService) applyUserGroupPenaltyForRisk(ctx context.Context, event *ContentModerationRiskEvent) {
-	if s == nil || event == nil || event.UserID <= 0 || event.GroupID <= 0 || strings.TrimSpace(event.RequestID) == "" {
+func (s *ContentModerationService) applyUserGroupPenaltyForRisk(ctx context.Context, event *ContentModerationRiskEvent, policy ContentModerationGroupPenaltyPolicy) {
+	if s == nil || event == nil || event.UserID <= 0 || strings.TrimSpace(event.RequestID) == "" || len(policy.TargetGroupIDs) == 0 {
 		return
 	}
 	repo, ok := s.repo.(ContentModerationGroupPenaltyRepository)
@@ -583,30 +731,36 @@ func (s *ContentModerationService) applyUserGroupPenaltyForRisk(ctx context.Cont
 	if s.userRepo != nil {
 		user, err := s.userRepo.GetByID(ctx, event.UserID)
 		if err == nil && user != nil && user.IsAdmin() {
-			slog.Warn("content_moderation.adaptive_group_penalty_skipped_admin", "user_id", event.UserID, "group_id", event.GroupID, "category", event.Category)
+			slog.Warn("content_moderation.adaptive_group_penalty_skipped_admin", "user_id", event.UserID, "category", event.Category)
 			return
 		}
 	}
-	penalty, applied, err := repo.ApplyUserGroupPenaltyForRisk(ctx, *event)
-	if err != nil {
-		slog.Warn("content_moderation.adaptive_group_penalty_failed", "user_id", event.UserID, "group_id", event.GroupID, "category", event.Category, "request_id", event.RequestID, "error", err)
-		return
+	appliedAny := false
+	for _, groupID := range policy.TargetGroupIDs {
+		targetEvent := *event
+		targetEvent.GroupID = groupID
+		penalty, applied, err := repo.ApplyUserGroupPenaltyForRisk(ctx, targetEvent, policy.FirstBlockHours, policy.SecondBlockHours)
+		if err != nil {
+			slog.Warn("content_moderation.adaptive_group_penalty_failed", "user_id", event.UserID, "group_id", groupID, "category", event.Category, "request_id", event.RequestID, "error", err)
+			continue
+		}
+		if !applied || penalty == nil {
+			continue
+		}
+		appliedAny = true
+		slog.Warn("content_moderation.adaptive_group_penalty_applied",
+			"user_id", event.UserID,
+			"group_id", groupID,
+			"category", event.Category,
+			"request_id", event.RequestID,
+			"strike_count", penalty.StrikeCount,
+			"blocked_until", penalty.BlockedUntil,
+			"permanent", penalty.Permanent,
+		)
 	}
-	if !applied || penalty == nil {
-		return
-	}
-	if s.authCacheInvalidator != nil {
+	if appliedAny && s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, event.UserID)
 	}
-	slog.Warn("content_moderation.adaptive_group_penalty_applied",
-		"user_id", event.UserID,
-		"group_id", event.GroupID,
-		"category", event.Category,
-		"request_id", event.RequestID,
-		"strike_count", penalty.StrikeCount,
-		"blocked_until", penalty.BlockedUntil,
-		"permanent", penalty.Permanent,
-	)
 }
 
 func (s *ContentModerationService) ListRiskProfiles(ctx context.Context, filter ContentModerationRiskProfileFilter) (*ContentModerationRiskProfilesPage, error) {

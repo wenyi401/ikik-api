@@ -198,83 +198,86 @@ func ContentModerationCategories() []string {
 }
 
 type ContentModerationConfig struct {
-	Enabled              bool                            `json:"enabled"`
-	Mode                 string                          `json:"mode"`
-	ModerationProvider   string                          `json:"moderation_provider"`
-	BaseURL              string                          `json:"base_url"`
-	Model                string                          `json:"model"`
-	ClassifierGroupID    int64                           `json:"classifier_group_id,omitempty"`
-	ClassifierModels     []string                        `json:"classifier_models,omitempty"`
-	ClassifierPrompt     string                          `json:"classifier_prompt,omitempty"`
-	AliyunRegionID       string                          `json:"aliyun_region_id"`
-	AliyunEndpoint       string                          `json:"aliyun_endpoint"`
-	AliyunService        string                          `json:"aliyun_service"`
-	APIKey               string                          `json:"api_key,omitempty"`
-	APIKeys              []string                        `json:"api_keys,omitempty"`
-	TimeoutMS            int                             `json:"timeout_ms"`
-	SampleRate           int                             `json:"sample_rate"`
-	AllGroups            bool                            `json:"all_groups"`
-	GroupIDs             []int64                         `json:"group_ids"`
-	RecordNonHits        bool                            `json:"record_non_hits"`
-	Thresholds           map[string]float64              `json:"thresholds"`
-	WorkerCount          int                             `json:"worker_count"`
-	QueueSize            int                             `json:"queue_size"`
-	BlockStatus          int                             `json:"block_status"`
-	BlockMessage         string                          `json:"block_message"`
-	EmailOnHit           bool                            `json:"email_on_hit"`
-	AutoBanEnabled       bool                            `json:"auto_ban_enabled"`
-	BanThreshold         int                             `json:"ban_threshold"`
-	ViolationWindowHours int                             `json:"violation_window_hours"`
-	RetryCount           int                             `json:"retry_count"`
-	HitRetentionDays     int                             `json:"hit_retention_days"`
-	NonHitRetentionDays  int                             `json:"non_hit_retention_days"`
-	PreHashCheckEnabled  bool                            `json:"pre_hash_check_enabled"`
-	BlockedKeywords      []string                        `json:"blocked_keywords"`
-	KeywordBlockingMode  string                          `json:"keyword_blocking_mode"`
-	ModelFilter          ContentModerationModelFilter    `json:"model_filter"`
-	AdaptivePolicy       ContentModerationAdaptivePolicy `json:"adaptive_policy"`
+	Enabled              bool                                `json:"enabled"`
+	Mode                 string                              `json:"mode"`
+	ModerationProvider   string                              `json:"moderation_provider"`
+	BaseURL              string                              `json:"base_url"`
+	Model                string                              `json:"model"`
+	ClassifierGroupID    int64                               `json:"classifier_group_id,omitempty"`
+	ClassifierModels     []string                            `json:"classifier_models,omitempty"`
+	ClassifierPrompt     string                              `json:"classifier_prompt,omitempty"`
+	AliyunRegionID       string                              `json:"aliyun_region_id"`
+	AliyunEndpoint       string                              `json:"aliyun_endpoint"`
+	AliyunService        string                              `json:"aliyun_service"`
+	APIKey               string                              `json:"api_key,omitempty"`
+	APIKeys              []string                            `json:"api_keys,omitempty"`
+	TimeoutMS            int                                 `json:"timeout_ms"`
+	SampleRate           int                                 `json:"sample_rate"`
+	AllGroups            bool                                `json:"all_groups"`
+	GroupIDs             []int64                             `json:"group_ids"`
+	RecordNonHits        bool                                `json:"record_non_hits"`
+	Thresholds           map[string]float64                  `json:"thresholds"`
+	WorkerCount          int                                 `json:"worker_count"`
+	QueueSize            int                                 `json:"queue_size"`
+	BlockStatus          int                                 `json:"block_status"`
+	BlockMessage         string                              `json:"block_message"`
+	EmailOnHit           bool                                `json:"email_on_hit"`
+	AutoBanEnabled       bool                                `json:"auto_ban_enabled"`
+	BanThreshold         int                                 `json:"ban_threshold"`
+	ViolationWindowHours int                                 `json:"violation_window_hours"`
+	RetryCount           int                                 `json:"retry_count"`
+	HitRetentionDays     int                                 `json:"hit_retention_days"`
+	NonHitRetentionDays  int                                 `json:"non_hit_retention_days"`
+	PreHashCheckEnabled  bool                                `json:"pre_hash_check_enabled"`
+	BlockedKeywords      []string                            `json:"blocked_keywords"`
+	KeywordBlockingMode  string                              `json:"keyword_blocking_mode"`
+	ModelFilter          ContentModerationModelFilter        `json:"model_filter"`
+	AdaptivePolicy       ContentModerationAdaptivePolicy     `json:"adaptive_policy"`
+	GroupPenalty         ContentModerationGroupPenaltyPolicy `json:"group_penalty"`
 }
 
 type ContentModerationConfigView struct {
-	Enabled                 bool                            `json:"enabled"`
-	Mode                    string                          `json:"mode"`
-	ModerationProvider      string                          `json:"moderation_provider"`
-	BaseURL                 string                          `json:"base_url"`
-	Model                   string                          `json:"model"`
-	ClassifierGroupID       int64                           `json:"classifier_group_id"`
-	ClassifierModels        []string                        `json:"classifier_models"`
-	ClassifierPrompt        string                          `json:"classifier_prompt"`
-	ClassifierPromptDefault string                          `json:"classifier_prompt_default"`
-	AliyunRegionID          string                          `json:"aliyun_region_id"`
-	AliyunEndpoint          string                          `json:"aliyun_endpoint"`
-	AliyunService           string                          `json:"aliyun_service"`
-	APIKeyConfigured        bool                            `json:"api_key_configured"`
-	APIKeyMasked            string                          `json:"api_key_masked"`
-	APIKeyCount             int                             `json:"api_key_count"`
-	APIKeyMasks             []string                        `json:"api_key_masks"`
-	APIKeyStatuses          []ContentModerationAPIKeyStatus `json:"api_key_statuses"`
-	TimeoutMS               int                             `json:"timeout_ms"`
-	SampleRate              int                             `json:"sample_rate"`
-	AllGroups               bool                            `json:"all_groups"`
-	GroupIDs                []int64                         `json:"group_ids"`
-	RecordNonHits           bool                            `json:"record_non_hits"`
-	Thresholds              map[string]float64              `json:"thresholds"`
-	WorkerCount             int                             `json:"worker_count"`
-	QueueSize               int                             `json:"queue_size"`
-	BlockStatus             int                             `json:"block_status"`
-	BlockMessage            string                          `json:"block_message"`
-	EmailOnHit              bool                            `json:"email_on_hit"`
-	AutoBanEnabled          bool                            `json:"auto_ban_enabled"`
-	BanThreshold            int                             `json:"ban_threshold"`
-	ViolationWindowHours    int                             `json:"violation_window_hours"`
-	RetryCount              int                             `json:"retry_count"`
-	HitRetentionDays        int                             `json:"hit_retention_days"`
-	NonHitRetentionDays     int                             `json:"non_hit_retention_days"`
-	PreHashCheckEnabled     bool                            `json:"pre_hash_check_enabled"`
-	BlockedKeywords         []string                        `json:"blocked_keywords"`
-	KeywordBlockingMode     string                          `json:"keyword_blocking_mode"`
-	ModelFilter             ContentModerationModelFilter    `json:"model_filter"`
-	AdaptivePolicy          ContentModerationAdaptivePolicy `json:"adaptive_policy"`
+	Enabled                     bool                                          `json:"enabled"`
+	Mode                        string                                        `json:"mode"`
+	ModerationProvider          string                                        `json:"moderation_provider"`
+	BaseURL                     string                                        `json:"base_url"`
+	Model                       string                                        `json:"model"`
+	ClassifierGroupID           int64                                         `json:"classifier_group_id"`
+	ClassifierModels            []string                                      `json:"classifier_models"`
+	ClassifierPrompt            string                                        `json:"classifier_prompt"`
+	ClassifierPromptDefault     string                                        `json:"classifier_prompt_default"`
+	AliyunRegionID              string                                        `json:"aliyun_region_id"`
+	AliyunEndpoint              string                                        `json:"aliyun_endpoint"`
+	AliyunService               string                                        `json:"aliyun_service"`
+	APIKeyConfigured            bool                                          `json:"api_key_configured"`
+	APIKeyMasked                string                                        `json:"api_key_masked"`
+	APIKeyCount                 int                                           `json:"api_key_count"`
+	APIKeyMasks                 []string                                      `json:"api_key_masks"`
+	APIKeyStatuses              []ContentModerationAPIKeyStatus               `json:"api_key_statuses"`
+	TimeoutMS                   int                                           `json:"timeout_ms"`
+	SampleRate                  int                                           `json:"sample_rate"`
+	AllGroups                   bool                                          `json:"all_groups"`
+	GroupIDs                    []int64                                       `json:"group_ids"`
+	RecordNonHits               bool                                          `json:"record_non_hits"`
+	Thresholds                  map[string]float64                            `json:"thresholds"`
+	WorkerCount                 int                                           `json:"worker_count"`
+	QueueSize                   int                                           `json:"queue_size"`
+	BlockStatus                 int                                           `json:"block_status"`
+	BlockMessage                string                                        `json:"block_message"`
+	EmailOnHit                  bool                                          `json:"email_on_hit"`
+	AutoBanEnabled              bool                                          `json:"auto_ban_enabled"`
+	BanThreshold                int                                           `json:"ban_threshold"`
+	ViolationWindowHours        int                                           `json:"violation_window_hours"`
+	RetryCount                  int                                           `json:"retry_count"`
+	HitRetentionDays            int                                           `json:"hit_retention_days"`
+	NonHitRetentionDays         int                                           `json:"non_hit_retention_days"`
+	PreHashCheckEnabled         bool                                          `json:"pre_hash_check_enabled"`
+	BlockedKeywords             []string                                      `json:"blocked_keywords"`
+	KeywordBlockingMode         string                                        `json:"keyword_blocking_mode"`
+	ModelFilter                 ContentModerationModelFilter                  `json:"model_filter"`
+	AdaptivePolicy              ContentModerationAdaptivePolicy               `json:"adaptive_policy"`
+	GroupPenalty                ContentModerationGroupPenaltyPolicy           `json:"group_penalty"`
+	GroupPenaltyCategoryOptions []ContentModerationGroupPenaltyCategoryOption `json:"group_penalty_category_options"`
 }
 
 type ContentModerationAPIKeyStatus struct {
@@ -341,44 +344,45 @@ type ContentModerationTestAuditResult struct {
 }
 
 type UpdateContentModerationConfigInput struct {
-	Enabled              *bool                            `json:"enabled"`
-	Mode                 *string                          `json:"mode"`
-	ModerationProvider   *string                          `json:"moderation_provider"`
-	BaseURL              *string                          `json:"base_url"`
-	Model                *string                          `json:"model"`
-	ClassifierGroupID    *int64                           `json:"classifier_group_id"`
-	ClassifierModels     *[]string                        `json:"classifier_models"`
-	ClassifierPrompt     *string                          `json:"classifier_prompt"`
-	AliyunRegionID       *string                          `json:"aliyun_region_id"`
-	AliyunEndpoint       *string                          `json:"aliyun_endpoint"`
-	AliyunService        *string                          `json:"aliyun_service"`
-	APIKey               *string                          `json:"api_key"`
-	APIKeys              *[]string                        `json:"api_keys"`
-	APIKeysMode          string                           `json:"api_keys_mode"`
-	DeleteAPIKeyHashes   *[]string                        `json:"delete_api_key_hashes"`
-	ClearAPIKey          bool                             `json:"clear_api_key"`
-	TimeoutMS            *int                             `json:"timeout_ms"`
-	SampleRate           *int                             `json:"sample_rate"`
-	AllGroups            *bool                            `json:"all_groups"`
-	GroupIDs             *[]int64                         `json:"group_ids"`
-	RecordNonHits        *bool                            `json:"record_non_hits"`
-	Thresholds           *map[string]float64              `json:"thresholds"`
-	WorkerCount          *int                             `json:"worker_count"`
-	QueueSize            *int                             `json:"queue_size"`
-	BlockStatus          *int                             `json:"block_status"`
-	BlockMessage         *string                          `json:"block_message"`
-	EmailOnHit           *bool                            `json:"email_on_hit"`
-	AutoBanEnabled       *bool                            `json:"auto_ban_enabled"`
-	BanThreshold         *int                             `json:"ban_threshold"`
-	ViolationWindowHours *int                             `json:"violation_window_hours"`
-	RetryCount           *int                             `json:"retry_count"`
-	HitRetentionDays     *int                             `json:"hit_retention_days"`
-	NonHitRetentionDays  *int                             `json:"non_hit_retention_days"`
-	PreHashCheckEnabled  *bool                            `json:"pre_hash_check_enabled"`
-	BlockedKeywords      *[]string                        `json:"blocked_keywords"`
-	KeywordBlockingMode  *string                          `json:"keyword_blocking_mode"`
-	ModelFilter          *ContentModerationModelFilter    `json:"model_filter"`
-	AdaptivePolicy       *ContentModerationAdaptivePolicy `json:"adaptive_policy"`
+	Enabled              *bool                                `json:"enabled"`
+	Mode                 *string                              `json:"mode"`
+	ModerationProvider   *string                              `json:"moderation_provider"`
+	BaseURL              *string                              `json:"base_url"`
+	Model                *string                              `json:"model"`
+	ClassifierGroupID    *int64                               `json:"classifier_group_id"`
+	ClassifierModels     *[]string                            `json:"classifier_models"`
+	ClassifierPrompt     *string                              `json:"classifier_prompt"`
+	AliyunRegionID       *string                              `json:"aliyun_region_id"`
+	AliyunEndpoint       *string                              `json:"aliyun_endpoint"`
+	AliyunService        *string                              `json:"aliyun_service"`
+	APIKey               *string                              `json:"api_key"`
+	APIKeys              *[]string                            `json:"api_keys"`
+	APIKeysMode          string                               `json:"api_keys_mode"`
+	DeleteAPIKeyHashes   *[]string                            `json:"delete_api_key_hashes"`
+	ClearAPIKey          bool                                 `json:"clear_api_key"`
+	TimeoutMS            *int                                 `json:"timeout_ms"`
+	SampleRate           *int                                 `json:"sample_rate"`
+	AllGroups            *bool                                `json:"all_groups"`
+	GroupIDs             *[]int64                             `json:"group_ids"`
+	RecordNonHits        *bool                                `json:"record_non_hits"`
+	Thresholds           *map[string]float64                  `json:"thresholds"`
+	WorkerCount          *int                                 `json:"worker_count"`
+	QueueSize            *int                                 `json:"queue_size"`
+	BlockStatus          *int                                 `json:"block_status"`
+	BlockMessage         *string                              `json:"block_message"`
+	EmailOnHit           *bool                                `json:"email_on_hit"`
+	AutoBanEnabled       *bool                                `json:"auto_ban_enabled"`
+	BanThreshold         *int                                 `json:"ban_threshold"`
+	ViolationWindowHours *int                                 `json:"violation_window_hours"`
+	RetryCount           *int                                 `json:"retry_count"`
+	HitRetentionDays     *int                                 `json:"hit_retention_days"`
+	NonHitRetentionDays  *int                                 `json:"non_hit_retention_days"`
+	PreHashCheckEnabled  *bool                                `json:"pre_hash_check_enabled"`
+	BlockedKeywords      *[]string                            `json:"blocked_keywords"`
+	KeywordBlockingMode  *string                              `json:"keyword_blocking_mode"`
+	ModelFilter          *ContentModerationModelFilter        `json:"model_filter"`
+	AdaptivePolicy       *ContentModerationAdaptivePolicy     `json:"adaptive_policy"`
+	GroupPenalty         *ContentModerationGroupPenaltyPolicy `json:"group_penalty"`
 }
 
 type ContentModerationModelFilter struct {
@@ -806,6 +810,9 @@ func (s *ContentModerationService) UpdateConfig(ctx context.Context, input Updat
 	}
 	if input.AdaptivePolicy != nil {
 		cfg.AdaptivePolicy = *input.AdaptivePolicy
+	}
+	if input.GroupPenalty != nil {
+		cfg.GroupPenalty = *input.GroupPenalty
 	}
 	if input.AllGroups != nil {
 		cfg.AllGroups = *input.AllGroups
@@ -1806,6 +1813,40 @@ func (s *ContentModerationService) validateConfig(ctx context.Context, cfg *Cont
 	if cfg.AdaptivePolicy.WatchThreshold >= cfg.AdaptivePolicy.HighRiskThreshold || cfg.AdaptivePolicy.HighRiskThreshold >= cfg.AdaptivePolicy.CriticalThreshold {
 		return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_ADAPTIVE_THRESHOLDS", "adaptive risk thresholds must be strictly increasing")
 	}
+	if cfg.GroupPenalty.Enabled {
+		if len(cfg.GroupPenalty.TargetGroupIDs) == 0 {
+			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_GROUP_PENALTY_GROUPS", "at least one penalty target group is required")
+		}
+		if len(cfg.GroupPenalty.Categories) == 0 {
+			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_GROUP_PENALTY_CATEGORIES", "at least one penalty category is required")
+		}
+		if cfg.GroupPenalty.FirstBlockHours > maxContentModerationGroupPenaltyBlockHours || cfg.GroupPenalty.SecondBlockHours > maxContentModerationGroupPenaltyBlockHours {
+			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_GROUP_PENALTY_DURATION", "group penalty duration must not exceed 8760 hours")
+		}
+		if cfg.GroupPenalty.SecondBlockHours < cfg.GroupPenalty.FirstBlockHours {
+			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_GROUP_PENALTY_DURATION", "second group penalty duration must not be shorter than the first")
+		}
+		for _, category := range cfg.GroupPenalty.Categories {
+			if !isSupportedContentModerationGroupPenaltyCategory(category) {
+				return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_GROUP_PENALTY_CATEGORY", fmt.Sprintf("unsupported group penalty category: %s", category))
+			}
+		}
+		for _, option := range contentModerationGroupPenaltyCategoryOptions {
+			threshold := cfg.GroupPenalty.CategoryThresholds[option.Category]
+			if threshold != threshold || threshold < 0 || threshold > 1 {
+				return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_GROUP_PENALTY_THRESHOLD", fmt.Sprintf("group penalty category threshold must be between 0 and 1: %s", option.Category))
+			}
+		}
+		if s.groupRepo == nil {
+			return infraerrors.ServiceUnavailable("CONTENT_MODERATION_GROUP_REPOSITORY_UNAVAILABLE", "penalty target group validation is unavailable")
+		}
+		for _, groupID := range cfg.GroupPenalty.TargetGroupIDs {
+			group, err := s.groupRepo.GetByIDLite(ctx, groupID)
+			if err != nil || group == nil {
+				return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_GROUP_PENALTY_GROUP", fmt.Sprintf("penalty target group does not exist: %d", groupID))
+			}
+		}
+	}
 	if !cfg.AllGroups && len(cfg.GroupIDs) > 0 && s.groupRepo != nil {
 		for _, groupID := range cfg.GroupIDs {
 			if _, err := s.groupRepo.GetByIDLite(ctx, groupID); err != nil {
@@ -2157,6 +2198,7 @@ func defaultContentModerationConfig() *ContentModerationConfig {
 			Models: []string{},
 		},
 		AdaptivePolicy: DefaultContentModerationAdaptivePolicy(),
+		GroupPenalty:   DefaultContentModerationGroupPenaltyPolicy(),
 	}
 }
 
@@ -2175,6 +2217,10 @@ func cloneContentModerationConfig(cfg *ContentModerationConfig) *ContentModerati
 		Models: append([]string(nil), cfg.ModelFilter.Models...),
 	}
 	clone.AdaptivePolicy = cfg.AdaptivePolicy
+	clone.GroupPenalty = cfg.GroupPenalty
+	clone.GroupPenalty.TargetGroupIDs = append([]int64(nil), cfg.GroupPenalty.TargetGroupIDs...)
+	clone.GroupPenalty.Categories = append([]string(nil), cfg.GroupPenalty.Categories...)
+	clone.GroupPenalty.CategoryThresholds = cloneFloatMap(cfg.GroupPenalty.CategoryThresholds)
 	return &clone
 }
 
@@ -2280,6 +2326,7 @@ func (cfg *ContentModerationConfig) normalize() {
 	cfg.KeywordBlockingMode = normalizeKeywordBlockingMode(cfg.KeywordBlockingMode)
 	cfg.ModelFilter = normalizeContentModerationModelFilter(cfg.ModelFilter)
 	cfg.AdaptivePolicy.normalize()
+	cfg.GroupPenalty.normalize()
 }
 
 func (cfg *ContentModerationConfig) usesInternalClassifierGateway() bool {
@@ -2496,46 +2543,55 @@ func (s *ContentModerationService) configView(cfg *ContentModerationConfig) *Con
 		apiKeyMasked = masks[0]
 	}
 	return &ContentModerationConfigView{
-		Enabled:                 cfg.Enabled,
-		Mode:                    cfg.Mode,
-		ModerationProvider:      cfg.ModerationProvider,
-		BaseURL:                 cfg.BaseURL,
-		Model:                   cfg.Model,
-		ClassifierGroupID:       cfg.ClassifierGroupID,
-		ClassifierModels:        append([]string(nil), cfg.ClassifierModels...),
-		ClassifierPrompt:        cfg.ClassifierPrompt,
-		ClassifierPromptDefault: contentModerationClassifierDefaultPolicyPrompt,
-		AliyunRegionID:          cfg.AliyunRegionID,
-		AliyunEndpoint:          cfg.AliyunEndpoint,
-		AliyunService:           cfg.AliyunService,
-		APIKeyConfigured:        len(keys) > 0,
-		APIKeyMasked:            apiKeyMasked,
-		APIKeyCount:             len(keys),
-		APIKeyMasks:             masks,
-		APIKeyStatuses:          s.apiKeyStatuses(keys),
-		TimeoutMS:               cfg.TimeoutMS,
-		SampleRate:              cfg.SampleRate,
-		AllGroups:               cfg.AllGroups,
-		GroupIDs:                append([]int64(nil), cfg.GroupIDs...),
-		RecordNonHits:           cfg.RecordNonHits,
-		Thresholds:              cloneFloatMap(cfg.Thresholds),
-		WorkerCount:             cfg.WorkerCount,
-		QueueSize:               cfg.QueueSize,
-		BlockStatus:             cfg.BlockStatus,
-		BlockMessage:            cfg.BlockMessage,
-		EmailOnHit:              cfg.EmailOnHit,
-		AutoBanEnabled:          cfg.AutoBanEnabled,
-		BanThreshold:            cfg.BanThreshold,
-		ViolationWindowHours:    cfg.ViolationWindowHours,
-		RetryCount:              cfg.RetryCount,
-		HitRetentionDays:        cfg.HitRetentionDays,
-		NonHitRetentionDays:     cfg.NonHitRetentionDays,
-		PreHashCheckEnabled:     cfg.PreHashCheckEnabled,
-		BlockedKeywords:         append([]string(nil), cfg.BlockedKeywords...),
-		KeywordBlockingMode:     cfg.KeywordBlockingMode,
-		ModelFilter:             cloneContentModerationModelFilter(cfg.ModelFilter),
-		AdaptivePolicy:          cfg.AdaptivePolicy,
+		Enabled:                     cfg.Enabled,
+		Mode:                        cfg.Mode,
+		ModerationProvider:          cfg.ModerationProvider,
+		BaseURL:                     cfg.BaseURL,
+		Model:                       cfg.Model,
+		ClassifierGroupID:           cfg.ClassifierGroupID,
+		ClassifierModels:            append([]string(nil), cfg.ClassifierModels...),
+		ClassifierPrompt:            cfg.ClassifierPrompt,
+		ClassifierPromptDefault:     contentModerationClassifierDefaultPolicyPrompt,
+		AliyunRegionID:              cfg.AliyunRegionID,
+		AliyunEndpoint:              cfg.AliyunEndpoint,
+		AliyunService:               cfg.AliyunService,
+		APIKeyConfigured:            len(keys) > 0,
+		APIKeyMasked:                apiKeyMasked,
+		APIKeyCount:                 len(keys),
+		APIKeyMasks:                 masks,
+		APIKeyStatuses:              s.apiKeyStatuses(keys),
+		TimeoutMS:                   cfg.TimeoutMS,
+		SampleRate:                  cfg.SampleRate,
+		AllGroups:                   cfg.AllGroups,
+		GroupIDs:                    append([]int64(nil), cfg.GroupIDs...),
+		RecordNonHits:               cfg.RecordNonHits,
+		Thresholds:                  cloneFloatMap(cfg.Thresholds),
+		WorkerCount:                 cfg.WorkerCount,
+		QueueSize:                   cfg.QueueSize,
+		BlockStatus:                 cfg.BlockStatus,
+		BlockMessage:                cfg.BlockMessage,
+		EmailOnHit:                  cfg.EmailOnHit,
+		AutoBanEnabled:              cfg.AutoBanEnabled,
+		BanThreshold:                cfg.BanThreshold,
+		ViolationWindowHours:        cfg.ViolationWindowHours,
+		RetryCount:                  cfg.RetryCount,
+		HitRetentionDays:            cfg.HitRetentionDays,
+		NonHitRetentionDays:         cfg.NonHitRetentionDays,
+		PreHashCheckEnabled:         cfg.PreHashCheckEnabled,
+		BlockedKeywords:             append([]string(nil), cfg.BlockedKeywords...),
+		KeywordBlockingMode:         cfg.KeywordBlockingMode,
+		ModelFilter:                 cloneContentModerationModelFilter(cfg.ModelFilter),
+		AdaptivePolicy:              cfg.AdaptivePolicy,
+		GroupPenalty:                cloneContentModerationGroupPenaltyPolicy(cfg.GroupPenalty),
+		GroupPenaltyCategoryOptions: ContentModerationGroupPenaltyCategoryOptions(),
 	}
+}
+
+func cloneContentModerationGroupPenaltyPolicy(policy ContentModerationGroupPenaltyPolicy) ContentModerationGroupPenaltyPolicy {
+	policy.TargetGroupIDs = append([]int64(nil), policy.TargetGroupIDs...)
+	policy.Categories = append([]string(nil), policy.Categories...)
+	policy.CategoryThresholds = cloneFloatMap(policy.CategoryThresholds)
+	return policy
 }
 
 func (s *ContentModerationService) apiKeyStatuses(keys []string) []ContentModerationAPIKeyStatus {

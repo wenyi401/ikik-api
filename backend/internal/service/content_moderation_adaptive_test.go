@@ -14,16 +14,22 @@ import (
 
 type contentModerationGroupPenaltyRepoStub struct {
 	*contentModerationTestRepo
-	penalty    *ContentModerationGroupPenalty
-	applied    bool
-	applyErr   error
-	event      ContentModerationRiskEvent
-	applyCalls int
+	penalty     *ContentModerationGroupPenalty
+	applied     bool
+	applyErr    error
+	event       ContentModerationRiskEvent
+	events      []ContentModerationRiskEvent
+	firstHours  int
+	secondHours int
+	applyCalls  int
 }
 
-func (r *contentModerationGroupPenaltyRepoStub) ApplyUserGroupPenaltyForRisk(_ context.Context, event ContentModerationRiskEvent) (*ContentModerationGroupPenalty, bool, error) {
+func (r *contentModerationGroupPenaltyRepoStub) ApplyUserGroupPenaltyForRisk(_ context.Context, event ContentModerationRiskEvent, firstBlockHours int, secondBlockHours int) (*ContentModerationGroupPenalty, bool, error) {
 	r.applyCalls++
 	r.event = event
+	r.events = append(r.events, event)
+	r.firstHours = firstBlockHours
+	r.secondHours = secondBlockHours
 	return r.penalty, r.applied, r.applyErr
 }
 
@@ -34,7 +40,10 @@ type contentModerationAdaptiveRiskPenaltyRepoStub struct {
 	recordedEvent ContentModerationRiskEvent
 	profile       *ContentModerationRiskProfile
 	penalty       *ContentModerationGroupPenalty
+	penaltyEvent  ContentModerationRiskEvent
 	calls         []string
+	firstHours    int
+	secondHours   int
 }
 
 func (r *contentModerationAdaptiveRiskPenaltyRepoStub) RecordRiskEvent(_ context.Context, event ContentModerationRiskEvent, _ ContentModerationAdaptivePolicy) (*ContentModerationRiskProfile, bool, error) {
@@ -43,8 +52,11 @@ func (r *contentModerationAdaptiveRiskPenaltyRepoStub) RecordRiskEvent(_ context
 	return r.profile, r.recordApplied, nil
 }
 
-func (r *contentModerationAdaptiveRiskPenaltyRepoStub) ApplyUserGroupPenaltyForRisk(_ context.Context, _ ContentModerationRiskEvent) (*ContentModerationGroupPenalty, bool, error) {
+func (r *contentModerationAdaptiveRiskPenaltyRepoStub) ApplyUserGroupPenaltyForRisk(_ context.Context, event ContentModerationRiskEvent, firstBlockHours int, secondBlockHours int) (*ContentModerationGroupPenalty, bool, error) {
 	r.calls = append(r.calls, "penalty")
+	r.penaltyEvent = event
+	r.firstHours = firstBlockHours
+	r.secondHours = secondBlockHours
 	return r.penalty, true, nil
 }
 
@@ -91,6 +103,11 @@ func TestContentModerationAdaptivePolicyRiskLevels(t *testing.T) {
 }
 
 func TestContentModerationGroupPenaltyCategories(t *testing.T) {
+	policy := DefaultContentModerationGroupPenaltyPolicy()
+	require.False(t, policy.Enabled)
+	require.Equal(t, 24, policy.FirstBlockHours)
+	require.Equal(t, 36, policy.SecondBlockHours)
+
 	blocked := []string{
 		ContentModerationRiskCategorySafetyBypass,
 		ContentModerationRiskCategoryCredentialTheft,
@@ -103,10 +120,22 @@ func TestContentModerationGroupPenaltyCategories(t *testing.T) {
 		ContentModerationPolicyCategoryCyberAbuse,
 	}
 	for _, category := range blocked {
-		require.True(t, shouldApplyContentModerationGroupPenalty(category), category)
+		require.True(t, policy.includesCategory(category), category)
 	}
-	require.False(t, shouldApplyContentModerationGroupPenalty(ContentModerationRiskCategoryOther))
-	require.False(t, shouldApplyContentModerationGroupPenalty(ContentModerationPolicyCategoryPrivacy))
+	require.False(t, policy.includesCategory(ContentModerationRiskCategoryOther))
+	require.False(t, policy.includesCategory(ContentModerationPolicyCategoryPrivacy))
+	require.InDelta(t, 0.82, policy.CategoryThresholds[ContentModerationRiskCategoryCheatAutomation], 0.0001)
+	_, _, matched := policy.matchingCategory(ContentModerationRiskCategoryCheatAutomation, 0.8199, nil)
+	require.False(t, matched)
+	category, score, matched := policy.matchingCategory(ContentModerationRiskCategoryCheatAutomation, 0.82, nil)
+	require.True(t, matched)
+	require.Equal(t, ContentModerationRiskCategoryCheatAutomation, category)
+	require.InDelta(t, 0.82, score, 0.0001)
+	for _, option := range ContentModerationGroupPenaltyCategoryOptions() {
+		require.NotEmpty(t, option.Category)
+		require.NotEmpty(t, option.LabelZH)
+		require.NotEmpty(t, option.LabelEN)
+	}
 }
 
 func TestAdaptiveSampleDecisionCapturesCurrentGroup(t *testing.T) {
@@ -148,11 +177,17 @@ func TestApplyUserGroupPenaltyForRiskInvalidatesAuthCache(t *testing.T) {
 		UserID:    7,
 		GroupID:   16,
 		Category:  ContentModerationRiskCategoryCheatAutomation,
+	}, ContentModerationGroupPenaltyPolicy{
+		TargetGroupIDs:   []int64{16, 17},
+		FirstBlockHours:  12,
+		SecondBlockHours: 48,
 	})
 
-	require.Equal(t, 1, repo.applyCalls)
+	require.Equal(t, 2, repo.applyCalls)
 	require.Equal(t, int64(7), repo.event.UserID)
-	require.Equal(t, int64(16), repo.event.GroupID)
+	require.Equal(t, []int64{16, 17}, []int64{repo.events[0].GroupID, repo.events[1].GroupID})
+	require.Equal(t, 12, repo.firstHours)
+	require.Equal(t, 48, repo.secondHours)
 	require.Equal(t, []int64{7}, invalidator.userIDs)
 }
 
@@ -172,6 +207,10 @@ func TestApplyUserGroupPenaltyForRiskSkipsAdmin(t *testing.T) {
 		UserID:    1,
 		GroupID:   16,
 		Category:  ContentModerationRiskCategoryCheatAutomation,
+	}, ContentModerationGroupPenaltyPolicy{
+		TargetGroupIDs:   []int64{16},
+		FirstBlockHours:  24,
+		SecondBlockHours: 36,
 	})
 
 	require.Zero(t, repo.applyCalls)
@@ -193,6 +232,8 @@ func TestAdaptiveRiskEventRecordsScoreBeforeApplyingGroupPenalty(t *testing.T) {
 	svc := &ContentModerationService{repo: repo}
 	cfg := defaultContentModerationConfig()
 	cfg.AdaptivePolicy.EnforcementMode = ContentModerationEnforcementEnforce
+	cfg.GroupPenalty.Enabled = true
+	cfg.GroupPenalty.TargetGroupIDs = []int64{16}
 	event := &ContentModerationRiskEvent{RequestID: "req-score", UserID: 7, GroupID: 16}
 	applyAdaptiveDecisionToRiskEvent(event, &ContentModerationDecision{
 		Audited:         true,
@@ -206,11 +247,102 @@ func TestAdaptiveRiskEventRecordsScoreBeforeApplyingGroupPenalty(t *testing.T) {
 
 	require.Equal(t, []string{"record", "penalty"}, repo.calls)
 	require.Greater(t, repo.recordedEvent.ScoreDelta, float64(0))
+	require.Equal(t, 24, repo.firstHours)
+	require.Equal(t, 36, repo.secondHours)
 
 	repo.calls = nil
 	repo.recordApplied = false
 	svc.recordAdaptiveRiskEvent(context.Background(), cfg, event)
 	require.Equal(t, []string{"record"}, repo.calls, "a duplicate risk event must not add another strike")
+}
+
+func TestAdaptiveRiskEventOnlyPenalizesConfiguredCategories(t *testing.T) {
+	repo := &contentModerationAdaptiveRiskPenaltyRepoStub{
+		contentModerationTestRepo: &contentModerationTestRepo{},
+		recordApplied:             true,
+		profile:                   &ContentModerationRiskProfile{UserID: 7},
+		penalty:                   &ContentModerationGroupPenalty{UserID: 7, GroupID: 16},
+	}
+	svc := &ContentModerationService{repo: repo}
+	cfg := defaultContentModerationConfig()
+	cfg.AdaptivePolicy.EnforcementMode = ContentModerationEnforcementEnforce
+	cfg.GroupPenalty.Enabled = true
+	cfg.GroupPenalty.TargetGroupIDs = []int64{16}
+	cfg.GroupPenalty.Categories = []string{ContentModerationRiskCategorySafetyBypass}
+	event := &ContentModerationRiskEvent{
+		RequestID: "req-filtered",
+		UserID:    7,
+		Flagged:   true,
+		Category:  ContentModerationRiskCategoryCheatAutomation,
+	}
+
+	svc.recordAdaptiveRiskEvent(context.Background(), cfg, event)
+
+	require.Equal(t, []string{"record"}, repo.calls)
+}
+
+func TestAdaptiveRiskEventOnlyPenalizesAtConfiguredCategoryThreshold(t *testing.T) {
+	repo := &contentModerationAdaptiveRiskPenaltyRepoStub{
+		contentModerationTestRepo: &contentModerationTestRepo{},
+		recordApplied:             true,
+		profile:                   &ContentModerationRiskProfile{UserID: 7},
+		penalty:                   &ContentModerationGroupPenalty{UserID: 7, GroupID: 16},
+	}
+	svc := &ContentModerationService{repo: repo}
+	cfg := defaultContentModerationConfig()
+	cfg.AdaptivePolicy.EnforcementMode = ContentModerationEnforcementShadow
+	cfg.GroupPenalty.Enabled = true
+	cfg.GroupPenalty.TargetGroupIDs = []int64{16}
+	cfg.GroupPenalty.Categories = []string{ContentModerationRiskCategoryCheatAutomation}
+	cfg.GroupPenalty.CategoryThresholds[ContentModerationRiskCategoryCheatAutomation] = 0.9
+	event := &ContentModerationRiskEvent{
+		RequestID: "req-threshold",
+		UserID:    7,
+		Flagged:   true,
+		Category:  ContentModerationRiskCategoryCheatAutomation,
+		Score:     0.89,
+	}
+
+	svc.recordAdaptiveRiskEvent(context.Background(), cfg, event)
+	require.Equal(t, []string{"record"}, repo.calls)
+
+	repo.calls = nil
+	event.RequestID = "req-threshold-hit"
+	event.Score = 0.9
+	svc.recordAdaptiveRiskEvent(context.Background(), cfg, event)
+	require.Equal(t, []string{"record", "penalty"}, repo.calls)
+}
+
+func TestAdaptiveRiskEventEvaluatesEachCategoryIndependently(t *testing.T) {
+	repo := &contentModerationAdaptiveRiskPenaltyRepoStub{
+		contentModerationTestRepo: &contentModerationTestRepo{},
+		recordApplied:             true,
+		profile:                   &ContentModerationRiskProfile{UserID: 7},
+		penalty:                   &ContentModerationGroupPenalty{UserID: 7, GroupID: 16},
+	}
+	svc := &ContentModerationService{repo: repo}
+	cfg := defaultContentModerationConfig()
+	cfg.GroupPenalty.Enabled = true
+	cfg.GroupPenalty.TargetGroupIDs = []int64{16}
+	cfg.GroupPenalty.Categories = []string{ContentModerationRiskCategoryCheatAutomation}
+	cfg.GroupPenalty.CategoryThresholds[ContentModerationRiskCategoryCheatAutomation] = 0.9
+	event := &ContentModerationRiskEvent{
+		RequestID: "req-independent-threshold",
+		UserID:    7,
+		Flagged:   true,
+		Category:  ContentModerationRiskCategorySafetyBypass,
+		Score:     0.97,
+		CategoryScores: map[string]float64{
+			ContentModerationRiskCategorySafetyBypass:    0.97,
+			ContentModerationRiskCategoryCheatAutomation: 0.91,
+		},
+	}
+
+	svc.recordAdaptiveRiskEvent(context.Background(), cfg, event)
+
+	require.Equal(t, []string{"record", "penalty"}, repo.calls)
+	require.Equal(t, ContentModerationRiskCategoryCheatAutomation, repo.penaltyEvent.Category)
+	require.InDelta(t, 0.91, repo.penaltyEvent.Score, 0.0001)
 }
 
 func TestDecayContentModerationRiskScore(t *testing.T) {

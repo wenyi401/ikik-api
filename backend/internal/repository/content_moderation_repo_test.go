@@ -135,7 +135,7 @@ func TestContentModerationRepositoryApplyUserGroupPenaltyForRisk(t *testing.T) {
 
 			mock.ExpectQuery("WITH eligible AS").
 				WithArgs(int64(7), int64(16), service.RoleAdmin, test.requestID,
-					service.ContentModerationRiskCategoryCheatAutomation, 0.96, appliedAt).
+					service.ContentModerationRiskCategoryCheatAutomation, 0.96, appliedAt, 24, 36).
 				WillReturnRows(sqlmock.NewRows(columns).AddRow(
 					int64(7), int64(16), test.strikeCount, test.blockedUntil, test.permanent,
 					service.ContentModerationRiskCategoryCheatAutomation, test.requestID, 0.96,
@@ -150,7 +150,7 @@ func TestContentModerationRepositoryApplyUserGroupPenaltyForRisk(t *testing.T) {
 				Category:  service.ContentModerationRiskCategoryCheatAutomation,
 				Score:     0.96,
 				CreatedAt: appliedAt,
-			})
+			}, 24, 36)
 
 			require.NoError(t, err)
 			require.Equal(t, test.applied, applied)
