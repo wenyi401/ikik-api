@@ -902,6 +902,22 @@ func (s *AccountService) ensureOwnedAccountNotDuplicate(ctx context.Context, own
 		page++
 	}
 }
+func findDisallowedOwnedAccountCredentialField(platform string, values map[string]any) (string, bool) {
+	if strings.EqualFold(strings.TrimSpace(platform), PlatformGrok) {
+		if baseURL, ok := values["base_url"].(string); ok &&
+			strings.TrimRight(strings.TrimSpace(baseURL), "/") == xai.DefaultCLIBaseURL {
+			filtered := make(map[string]any, len(values)-1)
+			for key, value := range values {
+				if key != "base_url" {
+					filtered[key] = value
+				}
+			}
+			values = filtered
+		}
+	}
+	return findDisallowedOwnedAccountField(values)
+}
+
 func findDisallowedOwnedAccountField(values map[string]any) (string, bool) {
 	return findDisallowedCredentialContent(values, credentialSafetyOptions{
 		AllowOAuthTokenValues:  true,
@@ -1262,7 +1278,7 @@ func validateOwnedAccountSourceForPlatform(platform, accountType string, credent
 				"field": "access_token",
 			})
 		}
-		if field, ok := findDisallowedOwnedAccountField(credentials); ok {
+		if field, ok := findDisallowedOwnedAccountCredentialField(platform, credentials); ok {
 			return ErrOwnedAccountCredentialsNotAllowed.WithMetadata(map[string]string{
 				"section": "credentials",
 				"field":   field,

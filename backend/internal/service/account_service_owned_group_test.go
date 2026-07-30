@@ -5,8 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/pagination"
+	"ikik-api/internal/pkg/xai"
+
+	"github.com/stretchr/testify/require"
 )
 
 type ownedAccountGroupRepoStub struct {
@@ -985,6 +987,29 @@ func TestValidateOwnedAccountSourceAllowsAPIKeyAccountAndRejectsOAuthBaseURL(t *
 		"base_url":     "https://third-party.example.com",
 	}, nil)
 
+	require.ErrorIs(t, err, ErrOwnedAccountCredentialsNotAllowed)
+}
+
+func TestValidateOwnedAccountSourceAllowsOnlyGeneratedGrokOAuthBaseURL(t *testing.T) {
+	credentials := map[string]any{
+		"access_token": "oauth-access-token",
+		"base_url":     xai.DefaultCLIBaseURL,
+	}
+
+	require.NoError(t, validateOwnedAccountSourceForPlatform(PlatformGrok, AccountTypeOAuth, credentials, nil))
+	err := validateOwnedAccountSourceForPlatform(PlatformGrok, AccountTypeOAuth, map[string]any{
+		"access_token": "oauth-access-token",
+	}, map[string]any{
+		"base_url": xai.DefaultCLIBaseURL,
+	})
+	require.ErrorIs(t, err, ErrOwnedAccountCredentialsNotAllowed)
+
+	credentials["base_url"] = "https://relay.example.com/v1"
+	err = validateOwnedAccountSourceForPlatform(PlatformGrok, AccountTypeOAuth, credentials, nil)
+	require.ErrorIs(t, err, ErrOwnedAccountCredentialsNotAllowed)
+
+	credentials["base_url"] = xai.DefaultCLIBaseURL
+	err = validateOwnedAccountSourceForPlatform(PlatformOpenAI, AccountTypeOAuth, credentials, nil)
 	require.ErrorIs(t, err, ErrOwnedAccountCredentialsNotAllowed)
 }
 
