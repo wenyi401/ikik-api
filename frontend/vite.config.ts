@@ -145,10 +145,72 @@ let mockProxyID = 100
 let mockBatchTaskID = 1
 let mockApiKeyID = 2000
 let mockUsageLogID = 3000
+let mockPromptSubmissionID = 3
+let mockPromptTranslationConfig = {
+  enabled: true,
+  group_id: 1,
+  model: 'gpt-5.5',
+  target_locale: 'zh-CN',
+  translated_count: 0
+}
 const mockAccounts: Array<Record<string, unknown>> = []
 const mockProxies: Array<Record<string, unknown>> = []
 const mockApiKeys: Array<Record<string, unknown>> = []
 const mockUsageLogs: Array<Record<string, unknown>> = []
+const mockPromptSubmissions: Array<Record<string, unknown>> = [
+  {
+    id: 1,
+    user_id: 12,
+    username: 'Lin',
+    user_email: 'lin@example.com',
+    title: 'Repository architecture review',
+    description: 'Review a repository and return prioritized engineering findings.',
+    content: 'Review this repository as a senior engineer. Identify correctness risks, security issues, and missing tests. Order findings by severity and cite the affected files.',
+    type: 'TEXT',
+    category: 'coding',
+    media_url: '',
+    status: 'pending',
+    review_note: '',
+    created_at: '2026-07-29T00:32:00Z',
+    updated_at: '2026-07-29T00:32:00Z'
+  },
+  {
+    id: 2,
+    user_id: 19,
+    username: 'Nora',
+    user_email: 'nora@example.com',
+    title: 'Product launch brief',
+    description: 'Turn rough product notes into a concise launch brief.',
+    content: 'Create a product launch brief from the notes below. Include audience, positioning, proof points, launch channels, risks, and a one-week execution checklist.',
+    type: 'STRUCTURED',
+    category: 'business',
+    media_url: '',
+    status: 'approved',
+    review_note: '',
+    reviewed_by: 1,
+    reviewed_at: '2026-07-28T15:20:00Z',
+    created_at: '2026-07-28T13:06:00Z',
+    updated_at: '2026-07-28T15:20:00Z'
+  },
+  {
+    id: 3,
+    user_id: 24,
+    username: 'Alex',
+    user_email: 'alex@example.com',
+    title: 'Storyboard prompt',
+    description: 'Build a shot-by-shot storyboard for a short video.',
+    content: 'Create a six-shot storyboard for the concept below. For each shot include framing, subject action, camera movement, lighting, and transition.',
+    type: 'VIDEO',
+    category: 'creative',
+    media_url: '',
+    status: 'rejected',
+    review_note: 'Add a usable preview before resubmitting.',
+    reviewed_by: 1,
+    reviewed_at: '2026-07-28T10:10:00Z',
+    created_at: '2026-07-28T09:42:00Z',
+    updated_at: '2026-07-28T10:10:00Z'
+  }
+]
 let mockRiskConfig: Record<string, unknown> = {
   enabled: true,
   mode: 'adaptive',
@@ -264,6 +326,25 @@ function parseJsonBody<T extends Record<string, unknown>>(body: string): T {
   } catch {
     return {} as T
   }
+}
+
+function mockPromptCategory(prompt: Record<string, unknown>): string {
+  const type = String(prompt.type || '').toUpperCase()
+  if (type === 'IMAGE') return 'image'
+  if (type === 'VIDEO') return 'video'
+
+  const category = prompt.category && typeof prompt.category === 'object'
+    ? prompt.category as Record<string, unknown>
+    : {}
+  const source = String(category.slug || category.name || '').toLowerCase()
+  if (/program|cod|develop|software/.test(source)) return 'coding'
+  if (/writ|copy|content/.test(source)) return 'writing'
+  if (/business|market|sales|finance|management/.test(source)) return 'business'
+  if (/education|learn|teach|research/.test(source)) return 'education'
+  if (/workflow|automation|agent|operation/.test(source)) return 'workflow'
+  if (/productiv|planning|organization/.test(source)) return 'productivity'
+  if (/creative|design|roleplay|idea/.test(source)) return 'creative'
+  return 'productivity'
 }
 
 function paginateItems<T>(items: T[], url: URL): Record<string, unknown> {
@@ -815,6 +896,47 @@ function localMockApiPlugin(enabled: boolean): Plugin {
         const url = req.url ? new URL(req.url, 'http://local.test') : null
         const path = url?.pathname || ''
 
+        if (path === '/v1/models' && req.method === 'GET') {
+          sendJson(res, 200, {
+            object: 'list',
+            data: [
+              { id: 'gpt-5.5', object: 'model', owned_by: 'openai' },
+              { id: 'gpt-5.4-mini', object: 'model', owned_by: 'openai' },
+              { id: 'ik-auto-pro', object: 'model', owned_by: 'ikik' }
+            ]
+          })
+          return
+        }
+
+        if (path === '/v1/chat/completions' && req.method === 'POST') {
+          const body = parseJsonBody<{ messages?: Array<{ role?: string; content?: string }> }>(await readBody(req))
+          const system = String(body.messages?.find(message => message.role === 'system')?.content || '')
+          const user = String(body.messages?.find(message => message.role === 'user')?.content || '')
+          let content = '{"keywords":["software","coding","assistant"]}'
+          if (system.includes('Rank prompt-library candidates')) {
+            let candidates: Array<{ id?: string; title?: string }> = []
+            try {
+              const parsed = JSON.parse(user) as { candidates?: Array<{ id?: string; title?: string }> }
+              candidates = parsed.candidates || []
+            } catch {
+              candidates = []
+            }
+            content = JSON.stringify({
+              results: candidates.slice(0, 12).map((candidate, index) => ({
+                id: candidate.id,
+                title: candidate.title,
+                score: Math.max(60, 96 - index * 3)
+              }))
+            })
+          }
+          sendJson(res, 200, {
+            id: 'chatcmpl-local-search',
+            object: 'chat.completion',
+            choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }]
+          })
+          return
+        }
+
 
         if (path === '/setup/status') {
           sendJson(res, 200, success({ needs_setup: false, step: 'done' }))
@@ -839,6 +961,20 @@ function localMockApiPlugin(enabled: boolean): Plugin {
             expires_in: 2592000,
             token_type: 'Bearer',
             user: mockUser
+          }))
+          return
+        }
+
+        if (path === '/api/v1/admin/compliance' && req.method === 'GET') {
+          sendJson(res, 200, success({
+            required: false,
+            version: 'local',
+            document_path_zh: '',
+            document_path_en: '',
+            document_url_zh: '',
+            document_url_en: '',
+            ack_phrase_zh: '',
+            ack_phrase_en: ''
           }))
           return
         }
@@ -928,6 +1064,14 @@ function localMockApiPlugin(enabled: boolean): Plugin {
 
         if (path === '/api/v1/admin/groups/all' && req.method === 'GET') {
           sendJson(res, 200, success(mockGroups))
+          return
+        }
+
+        const groupModelCandidatesMatch = path.match(/^\/api\/v1\/admin\/groups\/(\d+)\/models-list-candidates$/)
+        if (groupModelCandidatesMatch && req.method === 'GET') {
+          const group = mockGroups.find(item => item.id === Number(groupModelCandidatesMatch[1]))
+          const models = group?.models_list_config?.models || []
+          sendJson(res, 200, success({ models }))
           return
         }
 
@@ -1592,6 +1736,121 @@ function localMockApiPlugin(enabled: boolean): Plugin {
 
         if (path === '/api/v1/groups/rates') {
           sendJson(res, 200, success({}))
+          return
+        }
+
+        if (path === '/api/v1/prompt-library' && req.method === 'GET') {
+          try {
+            const upstream = new URL('https://prompts.chat/api/prompts')
+            upstream.searchParams.set('page', url?.searchParams.get('page') || '1')
+            upstream.searchParams.set('perPage', url?.searchParams.get('per_page') || '12')
+            const query = url?.searchParams.get('q') || ''
+            const sort = url?.searchParams.get('sort') || 'upvotes'
+            const promptType = url?.searchParams.get('type') || ''
+            if (query) upstream.searchParams.set('q', query)
+            if (sort && sort !== 'newest') upstream.searchParams.set('sort', sort)
+            if (promptType) upstream.searchParams.set('type', promptType)
+            const response = await fetch(upstream, { headers: { Accept: 'application/json' } })
+            if (!response.ok) throw new Error(`prompt upstream ${response.status}`)
+            const payload = await response.json() as { prompts?: Array<Record<string, unknown>> }
+            payload.prompts = (payload.prompts || []).map(prompt => ({
+              ...prompt,
+              ikikCategory: mockPromptCategory(prompt)
+            }))
+            sendJson(res, 200, success(payload))
+          } catch {
+            sendJson(res, 503, { code: 503, message: 'Prompt library is temporarily unavailable' })
+          }
+          return
+        }
+
+        if (path === '/api/v1/prompt-submissions/approved' && req.method === 'GET') {
+          const approved = mockPromptSubmissions.filter(item => item.status === 'approved')
+          sendJson(res, 200, success(paginateItems(approved.map(item => ({
+            id: item.id,
+            username: item.username,
+            title: item.title,
+            description: item.description,
+            content: item.content,
+            type: item.type,
+            category: item.category,
+            media_url: item.media_url,
+            created_at: item.created_at
+          })), url)))
+          return
+        }
+
+        if (path === '/api/v1/prompt-submissions' && req.method === 'POST') {
+          const payload = parseJsonBody(await readBody(req))
+          const timestamp = nowISO()
+          const item = {
+            id: ++mockPromptSubmissionID,
+            user_id: mockUser.id,
+            username: mockUser.username,
+            user_email: mockUser.email,
+            title: String(payload.title || ''),
+            description: String(payload.description || ''),
+            content: String(payload.content || ''),
+            type: String(payload.type || 'TEXT'),
+            category: String(payload.category || 'other'),
+            media_url: String(payload.media_url || ''),
+            status: 'pending',
+            review_note: '',
+            created_at: timestamp,
+            updated_at: timestamp
+          }
+          mockPromptSubmissions.unshift(item)
+          sendJson(res, 201, success(item))
+          return
+        }
+
+        if (path === '/api/v1/admin/prompt-submissions' && req.method === 'GET') {
+          const status = url.searchParams.get('status') || ''
+          const search = (url.searchParams.get('search') || '').trim().toLowerCase()
+          const filtered = mockPromptSubmissions.filter(item => {
+            if (status && item.status !== status) return false
+            if (!search) return true
+            return [item.title, item.description, item.content, item.user_email, item.username]
+              .some(value => String(value || '').toLowerCase().includes(search))
+          })
+          sendJson(res, 200, success(paginateItems(filtered, url)))
+          return
+        }
+
+        if (path === '/api/v1/admin/prompt-submissions/translation-config') {
+          if (req.method === 'PUT') {
+            const payload = parseJsonBody<{
+              enabled?: boolean
+              group_id?: number
+              model?: string
+            }>(await readBody(req))
+            mockPromptTranslationConfig = {
+              ...mockPromptTranslationConfig,
+              enabled: Boolean(payload.enabled),
+              group_id: Number(payload.group_id || 0),
+              model: String(payload.model || '')
+            }
+          }
+          sendJson(res, 200, success(mockPromptTranslationConfig))
+          return
+        }
+
+        const promptReviewMatch = path.match(/^\/api\/v1\/admin\/prompt-submissions\/(\d+)\/review$/)
+        if (promptReviewMatch && req.method === 'POST') {
+          const item = mockPromptSubmissions.find(candidate => Number(candidate.id) === Number(promptReviewMatch[1]))
+          if (!item) {
+            sendJson(res, 404, { code: 404, message: 'prompt submission not found' })
+            return
+          }
+          const payload = parseJsonBody(await readBody(req))
+          Object.assign(item, {
+            status: String(payload.status || 'rejected'),
+            review_note: String(payload.note || ''),
+            reviewed_by: mockUser.id,
+            reviewed_at: nowISO(),
+            updated_at: nowISO()
+          })
+          sendJson(res, 200, success(item))
           return
         }
 

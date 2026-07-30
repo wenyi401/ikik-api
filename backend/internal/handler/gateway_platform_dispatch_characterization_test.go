@@ -284,7 +284,7 @@ func p3CharNewHandler(t *testing.T, group *service.Group, accounts []*service.Ac
 		&service.DeferredService{},
 		nil, nil, nil, nil, // claudeTokenProvider / sessionLimitCache / rpmCache / digestStore
 		settingSvc,
-		nil, nil, nil, nil, nil, // tlsFPProfileService / channelService / resolver / balanceNotifyService / userPlatformQuotaRepo
+		nil, nil, nil, nil, nil, nil, // tlsFPProfileService / channelService / resolver / compositeResolver / balanceNotifyService / userPlatformQuotaRepo
 	)
 
 	agSvc := service.NewAntigravityGatewayService(

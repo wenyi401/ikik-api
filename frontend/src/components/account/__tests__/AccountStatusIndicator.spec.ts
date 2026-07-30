@@ -15,6 +15,15 @@ vi.mock('vue-i18n', async () => {
   }
 })
 
+vi.mock('@/utils/format', async () => {
+  const actual = await vi.importActual<typeof import('@/utils/format')>('@/utils/format')
+  return {
+    ...actual,
+    formatCountdown: () => '10m',
+    formatCountdownWithSuffix: () => '10m'
+  }
+})
+
 function makeAccount(overrides: Partial<Account>): Account {
   return {
     id: 1,
@@ -183,5 +192,44 @@ describe('AccountStatusIndicator', () => {
     expect(wrapper.text()).not.toContain('⚡')
     // AICredits 积分耗尽状态应显示
     expect(wrapper.text()).toContain('admin.accounts.status.creditsExhausted')
+  })
+
+  it('到达最近重置时间后自动移除账号和模型限流状态', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-03-17T00:00:00Z'))
+    const wrapper = mount(AccountStatusIndicator, {
+      props: {
+        account: makeAccount({
+          rate_limit_reset_at: '2026-03-17T00:00:10Z',
+          extra: {
+            model_rate_limits: {
+              'claude-sonnet-4-5': {
+                rate_limited_at: '2026-03-16T23:59:00Z',
+                rate_limit_reset_at: '2026-03-17T00:00:10Z'
+              }
+            }
+          }
+        })
+      },
+      global: {
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    try {
+      expect(wrapper.text()).toContain('admin.accounts.status.rateLimited')
+      expect(wrapper.text()).toContain('CSon45')
+
+      await vi.advanceTimersByTimeAsync(10_001)
+
+      expect(wrapper.text()).not.toContain('admin.accounts.status.rateLimited')
+      expect(wrapper.text()).not.toContain('CSon45')
+      expect(wrapper.text()).toContain('admin.accounts.status.active')
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+    }
   })
 })

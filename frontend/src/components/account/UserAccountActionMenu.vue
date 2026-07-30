@@ -30,6 +30,11 @@
             <Icon name="shield" size="sm" />
             {{ t('admin.accounts.setPrivacy') }}
           </button>
+          <div v-if="hasRecoverableState" class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
+          <button v-if="hasRecoverableState" class="menu-item text-emerald-600" @click="emitAction('recover-state')">
+            <Icon name="sync" size="sm" />
+            {{ t('admin.accounts.recoverState') }}
+          </button>
         </div>
       </div>
     </div>
@@ -55,6 +60,7 @@ const emit = defineEmits<{
   (e: 'reauth', account: Account): void
   (e: 'refresh-token', account: Account): void
   (e: 'set-privacy', account: Account): void
+  (e: 'recover-state', account: Account): void
 }>()
 
 const { t } = useI18n()
@@ -66,7 +72,37 @@ const supportsPrivacy = computed(() => {
   )
 })
 
-function emitAction(event: 'test' | 'stats' | 'reauth' | 'refresh-token' | 'set-privacy'): void {
+const isRateLimited = computed(() => {
+  if (props.account?.rate_limit_reset_at && new Date(props.account.rate_limit_reset_at) > new Date()) {
+    return true
+  }
+  const modelLimits = (props.account?.extra as Record<string, unknown> | undefined)?.model_rate_limits as
+    | Record<string, { rate_limit_reset_at: string }>
+    | undefined
+  if (!modelLimits) return false
+  const now = new Date()
+  return Object.values(modelLimits).some((info) => new Date(info.rate_limit_reset_at) > now)
+})
+
+const isOverloaded = computed(() =>
+  Boolean(props.account?.overload_until && new Date(props.account.overload_until) > new Date())
+)
+
+const isTempUnschedulable = computed(() =>
+  Boolean(
+    props.account?.temp_unschedulable_until &&
+      new Date(props.account.temp_unschedulable_until) > new Date()
+  )
+)
+
+const hasRecoverableState = computed(() =>
+  props.account?.status === 'error' ||
+  isRateLimited.value ||
+  isOverloaded.value ||
+  isTempUnschedulable.value
+)
+
+function emitAction(event: 'test' | 'stats' | 'reauth' | 'refresh-token' | 'set-privacy' | 'recover-state'): void {
   if (!props.account) return
   switch (event) {
     case 'test':
@@ -83,6 +119,9 @@ function emitAction(event: 'test' | 'stats' | 'reauth' | 'refresh-token' | 'set-
       break
     case 'set-privacy':
       emit('set-privacy', props.account)
+      break
+    case 'recover-state':
+      emit('recover-state', props.account)
       break
   }
   emit('close')

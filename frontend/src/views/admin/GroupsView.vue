@@ -139,6 +139,12 @@
               >
                 {{ t("admin.groups.scope.private") }}
               </span>
+              <span
+                v-if="row.is_shared_pool"
+                class="shrink-0 rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+              >
+                {{ t("admin.groups.sharedPool.badge") }}
+              </span>
             </div>
           </template>
 
@@ -343,6 +349,14 @@
 
           <template #cell-actions="{ row }">
             <div class="flex items-center gap-1">
+              <button
+                v-if="row.platform === 'composite'"
+                @click="compositeRoutesGroup = row"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-950 dark:hover:bg-dark-700 dark:hover:text-white"
+              >
+                <Icon name="arrowsUpDown" size="sm" />
+                <span class="text-xs">{{ t('admin.groups.compositeRoutes.action') }}</span>
+              </button>
               <button
                 @click="handleEdit(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
@@ -661,6 +675,33 @@
               }}
             </span>
           </div>
+        </div>
+
+        <div v-if="canCreateSharedPool" class="flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t("admin.groups.sharedPool.label") }}
+            </label>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {{ t("admin.groups.sharedPool.hint") }}
+            </p>
+          </div>
+          <button
+            type="button"
+            :aria-label="t('admin.groups.sharedPool.label')"
+            @click="createForm.is_shared_pool = !createForm.is_shared_pool"
+            :class="[
+              'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+              createForm.is_shared_pool ? 'bg-primary-500' : 'bg-gray-300 dark:bg-dark-600',
+            ]"
+          >
+            <span
+              :class="[
+                'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                createForm.is_shared_pool ? 'translate-x-6' : 'translate-x-1',
+              ]"
+            />
+          </button>
         </div>
 
         <!-- Subscription Configuration -->
@@ -1789,6 +1830,32 @@
             class="input"
             data-tour="edit-group-form-name"
           />
+        </div>
+        <div v-if="canEditSharedPool" class="flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t("admin.groups.sharedPool.label") }}
+            </label>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {{ t("admin.groups.sharedPool.hint") }}
+            </p>
+          </div>
+          <button
+            type="button"
+            :aria-label="t('admin.groups.sharedPool.label')"
+            @click="editForm.is_shared_pool = !editForm.is_shared_pool"
+            :class="[
+              'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+              editForm.is_shared_pool ? 'bg-primary-500' : 'bg-gray-300 dark:bg-dark-600',
+            ]"
+          >
+            <span
+              :class="[
+                'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                editForm.is_shared_pool ? 'translate-x-6' : 'translate-x-1',
+              ]"
+            />
+          </button>
         </div>
         <div>
           <label class="input-label">{{
@@ -3238,6 +3305,11 @@
       @close="showRPMOverridesModal = false"
       @success="loadGroups"
     />
+    <CompositeRoutesDialog
+      :show="Boolean(compositeRoutesGroup)"
+      :group="compositeRoutesGroup"
+      @close="compositeRoutesGroup = null"
+    />
   </AppLayout>
 </template>
 
@@ -3263,6 +3335,7 @@ import { UiIconButton } from "@/ui";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
 import GroupRateScheduleModal from "@/components/admin/group/GroupRateScheduleModal.vue";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
+import CompositeRoutesDialog from "@/components/admin/group/CompositeRoutesDialog.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
@@ -3466,6 +3539,7 @@ const platformOptions = computed(() => [
   { value: "grok", label: "Grok" },
   { value: "kiro", label: "Kiro" },
   { value: "custom", label: "Custom" },
+  { value: "composite", label: "Composite" },
 ]);
 
 const platformFilterOptions = computed(() => [
@@ -3477,6 +3551,7 @@ const platformFilterOptions = computed(() => [
   { value: "grok", label: "Grok" },
   { value: "kiro", label: "Kiro" },
   { value: "custom", label: "Custom" },
+  { value: "composite", label: "Composite" },
 ]);
 
 const editStatusOptions = computed(() => [
@@ -3583,9 +3658,15 @@ const invalidRequestFallbackOptionsForEdit = computed(() => {
 });
 
 // 复制账号的源分组选项（创建时）- 仅包含相同平台且有账号的分组
+const isCompositeSourcePlatform = (platform: GroupPlatform) =>
+  ["anthropic", "openai", "gemini", "antigravity", "grok"].includes(platform);
+
+const isCompatibleCopySource = (source: GroupPlatform, target: GroupPlatform) =>
+  target === "composite" ? isCompositeSourcePlatform(source) : source === target;
+
 const copyAccountsGroupOptions = computed(() => {
   const eligibleGroups = groups.value.filter(
-    (g) => g.platform === createForm.platform && (g.account_count || 0) > 0,
+    (g) => isCompatibleCopySource(g.platform, createForm.platform) && (g.account_count || 0) > 0,
   );
   return eligibleGroups.map((g) => ({
     value: g.id,
@@ -3598,7 +3679,7 @@ const copyAccountsGroupOptionsForEdit = computed(() => {
   const currentId = editingGroup.value?.id;
   const eligibleGroups = groups.value.filter(
     (g) =>
-      g.platform === editForm.platform &&
+      isCompatibleCopySource(g.platform, editForm.platform) &&
       (g.account_count || 0) > 0 &&
       g.id !== currentId,
   );
@@ -3661,6 +3742,7 @@ const rateMultipliersGroup = ref<AdminGroup | null>(null);
 const showRateSchedulesModal = ref(false);
 const rateSchedulesGroup = ref<AdminGroup | null>(null);
 const showRPMOverridesModal = ref(false);
+const compositeRoutesGroup = ref<AdminGroup | null>(null);
 const rpmOverridesGroup = ref<AdminGroup | null>(null);
 const sortableGroups = ref<AdminGroup[]>([]);
 const createMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
@@ -3677,6 +3759,14 @@ const editModelsListSelectedCount = computed(
   () => editModelsListState.items.filter((item) => item.selected).length,
 );
 
+const sharedPoolPlatforms = new Set<GroupPlatform>([
+  "anthropic",
+  "gemini",
+  "antigravity",
+  "grok",
+  "kiro",
+]);
+
 const createForm = reactive({
   name: "",
   description: "",
@@ -3684,6 +3774,7 @@ const createForm = reactive({
   required_account_level: "" as Exclude<AccountLevel, "unknown"> | "",
   rate_multiplier: 1.0,
   is_exclusive: false,
+  is_shared_pool: false,
   subscription_type: "standard" as SubscriptionType,
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
@@ -4018,6 +4109,7 @@ const editForm = reactive({
   required_account_level: "" as Exclude<AccountLevel, "unknown"> | "",
   rate_multiplier: 1.0,
   is_exclusive: false,
+  is_shared_pool: false,
   status: "active" as "active" | "inactive",
   subscription_type: "standard" as SubscriptionType,
   daily_limit_usd: null as number | null,
@@ -4057,6 +4149,13 @@ const editForm = reactive({
   kiro_cache_emulation_ratio: 1,
   kiro_endpoint_mode: "q" as "q" | "krs" | string,
 });
+
+const canCreateSharedPool = computed(() =>
+  sharedPoolPlatforms.has(createForm.platform),
+);
+const canEditSharedPool = computed(() =>
+  sharedPoolPlatforms.has(editForm.platform),
+);
 
 // 根据分组类型返回不同的删除确认消息
 const deleteConfirmMessage = computed(() => {
@@ -4234,6 +4333,7 @@ const closeCreateModal = () => {
   createForm.required_account_level = "";
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
+  createForm.is_shared_pool = false;
   createForm.subscription_type = "standard";
   createForm.daily_limit_usd = null;
   createForm.weekly_limit_usd = null;
@@ -4344,6 +4444,7 @@ const handleEdit = async (group: AdminGroup) => {
     group.platform === "openai" ? group.required_account_level || "" : "";
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.is_exclusive = group.is_exclusive;
+  editForm.is_shared_pool = group.is_shared_pool ?? false;
   editForm.status = group.status;
   editForm.subscription_type = group.subscription_type || "standard";
   editForm.daily_limit_usd = group.daily_limit_usd;
@@ -4563,6 +4664,9 @@ watch(
 watch(
   () => createForm.platform,
   (newVal) => {
+	if (!sharedPoolPlatforms.has(newVal)) {
+		createForm.is_shared_pool = false;
+	}
     if (!["anthropic", "antigravity"].includes(newVal)) {
       createForm.fallback_group_id_on_invalid_request = null;
     }
@@ -4584,6 +4688,9 @@ watch(
 watch(
   () => editForm.platform,
   (newVal) => {
+	if (!sharedPoolPlatforms.has(newVal)) {
+		editForm.is_shared_pool = false;
+	}
     if (!["anthropic", "antigravity"].includes(newVal)) {
       editForm.fallback_group_id_on_invalid_request = null;
     }

@@ -10,23 +10,25 @@ import (
 	"strings"
 	"testing"
 
-	infraerrors "ikik-api/internal/pkg/errors"
-	servermiddleware "ikik-api/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	infraerrors "ikik-api/internal/pkg/errors"
+	servermiddleware "ikik-api/internal/server/middleware"
 )
 
 type fakePromptAdminService struct {
-	config       PublicConfig
-	save         func(context.Context, UpdateConfigRequest, int64) (PublicConfig, error)
-	probe        func(context.Context, ProbeRequest) ProbeResult
-	runtime      RuntimeSnapshot
-	list         func(context.Context, EventFilter, int, int) (*EventPage, error)
-	get          func(context.Context, int64) (*Event, error)
-	deleteOne    func(context.Context, int64) (*DeleteResult, error)
-	deleteIDs    func(context.Context, []int64) (*DeleteResult, error)
-	preview      func(context.Context, EventFilter, int64) (*DeletePreview, error)
-	deleteFilter func(context.Context, DeleteByFilterRequest, int64) (*DeleteResult, error)
+	config         PublicConfig
+	save           func(context.Context, UpdateConfigRequest, int64) (PublicConfig, error)
+	probe          func(context.Context, ProbeRequest) ProbeResult
+	runtime        RuntimeSnapshot
+	list           func(context.Context, EventFilter, int, int) (*EventPage, error)
+	get            func(context.Context, int64) (*Event, error)
+	deleteOne      func(context.Context, int64) (*DeleteResult, error)
+	deleteIDs      func(context.Context, []int64) (*DeleteResult, error)
+	preview        func(context.Context, EventFilter, int64) (*DeletePreview, error)
+	deleteFilter   func(context.Context, DeleteByFilterRequest, int64) (*DeleteResult, error)
+	listProfiles   func(context.Context, int, int, bool, string) (*PromptAuditUserProfilePage, error)
+	unblockProfile func(context.Context, int64) (*PromptAuditUserProfile, error)
 }
 
 func (s *fakePromptAdminService) GetConfig() PublicConfig { return s.config }
@@ -79,6 +81,18 @@ func (s *fakePromptAdminService) DeleteByFilter(ctx context.Context, req DeleteB
 	}
 	return s.deleteFilter(ctx, req, actorID)
 }
+func (s *fakePromptAdminService) ListPromptAuditUserProfiles(ctx context.Context, page, pageSize int, blockedOnly bool, keyword string) (*PromptAuditUserProfilePage, error) {
+	if s.listProfiles == nil {
+		return &PromptAuditUserProfilePage{}, nil
+	}
+	return s.listProfiles(ctx, page, pageSize, blockedOnly, keyword)
+}
+func (s *fakePromptAdminService) UnblockPromptAuditUser(ctx context.Context, userID int64) (*PromptAuditUserProfile, error) {
+	if s.unblockProfile == nil {
+		return nil, ErrPromptAuditProfileNotFound
+	}
+	return s.unblockProfile(ctx, userID)
+}
 
 func promptAdminRouter(service PromptAdminService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -95,6 +109,8 @@ func promptAdminRouter(service PromptAdminService) *gin.Engine {
 	group.POST("/endpoints/probe", handler.ProbeEndpoint)
 	group.GET("/runtime", handler.GetRuntime)
 	group.GET("/events", handler.ListEvents)
+	group.GET("/profiles", handler.ListProfiles)
+	group.POST("/profiles/:user_id/unblock", handler.UnblockProfile)
 	group.GET("/events/:id", handler.GetEvent)
 	group.DELETE("/events/:id", handler.DeleteEvent)
 	group.POST("/events/batch-delete", handler.BatchDelete)
@@ -118,6 +134,31 @@ func promptAdminRequest(t *testing.T, router http.Handler, method, path string, 
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
 	return recorder
+}
+
+func TestPromptAdminProfilesListAndUnblock(t *testing.T) {
+	t.Run("list forwards filters", func(t *testing.T) {
+		service := &fakePromptAdminService{listProfiles: func(_ context.Context, page, pageSize int, blockedOnly bool, keyword string) (*PromptAuditUserProfilePage, error) {
+			require.Equal(t, 2, page)
+			require.Equal(t, 10, pageSize)
+			require.True(t, blockedOnly)
+			require.Equal(t, "user@example.com", keyword)
+			return &PromptAuditUserProfilePage{Items: []PromptAuditUserProfile{{UserID: 7, Blocked: true}}, Total: 1, Page: 2, PageSize: 10, Pages: 1}, nil
+		}}
+		response := promptAdminRequest(t, promptAdminRouter(service), http.MethodGet, "/admin/prompt-audit/profiles?page=2&page_size=10&blocked_only=true&keyword=user%40example.com", nil)
+		require.Equal(t, http.StatusOK, response.Code)
+		require.Contains(t, response.Body.String(), `"user_id":7`)
+	})
+
+	t.Run("unblock validates and returns profile", func(t *testing.T) {
+		service := &fakePromptAdminService{unblockProfile: func(_ context.Context, userID int64) (*PromptAuditUserProfile, error) {
+			require.Equal(t, int64(7), userID)
+			return &PromptAuditUserProfile{UserID: userID, Blocked: false}, nil
+		}}
+		response := promptAdminRequest(t, promptAdminRouter(service), http.MethodPost, "/admin/prompt-audit/profiles/7/unblock", nil)
+		require.Equal(t, http.StatusOK, response.Code)
+		require.Contains(t, response.Body.String(), `"blocked":false`)
+	})
 }
 
 func TestPromptAdminConfigRequiresVersionMapsConflictAndNeverEchoesToken(t *testing.T) {

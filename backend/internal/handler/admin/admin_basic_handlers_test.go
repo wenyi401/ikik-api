@@ -9,6 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 func setupAdminRouter() (*gin.Engine, *stubAdminService) {
@@ -34,6 +36,11 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
 	router.GET("/api/v1/admin/groups", groupHandler.List)
 	router.GET("/api/v1/admin/groups/all", groupHandler.GetAll)
 	router.GET("/api/v1/admin/groups/:id/models-list-candidates", groupHandler.GetModelsListCandidates)
+	router.GET("/api/v1/admin/groups/:id/composite-routes", groupHandler.ListCompositeRoutes)
+	router.POST("/api/v1/admin/groups/:id/composite-routes", groupHandler.CreateCompositeRoute)
+	router.POST("/api/v1/admin/groups/:id/composite-routes/preview", groupHandler.PreviewCompositeRoute)
+	router.PUT("/api/v1/admin/groups/:id/composite-routes/:route_id", groupHandler.UpdateCompositeRoute)
+	router.DELETE("/api/v1/admin/groups/:id/composite-routes/:route_id", groupHandler.DeleteCompositeRoute)
 	router.GET("/api/v1/admin/groups/:id", groupHandler.GetByID)
 	router.POST("/api/v1/admin/groups", groupHandler.Create)
 	router.PUT("/api/v1/admin/groups/:id", groupHandler.Update)
@@ -184,7 +191,54 @@ func TestGroupHandlerEndpoints(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), "gpt-5.5")
 
-	body, _ := json.Marshal(map[string]any{"name": "new", "platform": "anthropic", "subscription_type": "standard"})
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/groups/2/composite-routes", nil)
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), "openrouter/gpt-5")
+
+	body, _ := json.Marshal(map[string]any{
+		"public_model":    "openrouter/gpt-5",
+		"match_type":      "exact",
+		"target_platform": "openai",
+		"upstream_model":  "gpt-5",
+		"endpoint":        "chat_completions",
+		"enabled":         true,
+	})
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/groups/2/composite-routes", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusCreated, rec.Code)
+	require.Contains(t, rec.Body.String(), "gpt-5")
+
+	body, _ = json.Marshal(map[string]any{
+		"public_model":    "openrouter/gpt-5",
+		"target_platform": "openai",
+		"upstream_model":  "gpt-5",
+		"endpoint":        "responses",
+		"enabled":         true,
+	})
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/groups/2/composite-routes/1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	body, _ = json.Marshal(map[string]any{"model": "gpt-5", "endpoint": "responses"})
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/groups/2/composite-routes/preview", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"source":"detector"`)
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/admin/groups/2/composite-routes/1", nil)
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	body, _ = json.Marshal(map[string]any{"name": "new", "platform": "anthropic", "subscription_type": "standard"})
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/groups", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -212,6 +266,43 @@ func TestGroupHandlerEndpoints(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/admin/groups/2/api-keys", nil)
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestGroupHandlerMapsTeamRequiredAccountLevel(t *testing.T) {
+	router, adminSvc := setupAdminRouter()
+
+	body, err := json.Marshal(map[string]any{
+		"name":                   "team-shared-pool",
+		"platform":               "openai",
+		"required_account_level": "team",
+		"rate_multiplier":        1,
+	})
+	require.NoError(t, err)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/groups", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Len(t, adminSvc.createdGroups, 1)
+	require.Equal(t, service.AccountLevelTeam, adminSvc.createdGroups[0].RequiredAccountLevel)
+	require.Contains(t, rec.Body.String(), `"required_account_level":"team"`)
+
+	body, err = json.Marshal(map[string]any{
+		"platform":               "openai",
+		"required_account_level": "team",
+	})
+	require.NoError(t, err)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/groups/2", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Len(t, adminSvc.updatedGroups, 1)
+	require.NotNil(t, adminSvc.updatedGroups[0].RequiredAccountLevel)
+	require.Equal(t, service.AccountLevelTeam, *adminSvc.updatedGroups[0].RequiredAccountLevel)
+	require.Contains(t, rec.Body.String(), `"required_account_level":"team"`)
 }
 
 func TestProxyHandlerEndpoints(t *testing.T) {

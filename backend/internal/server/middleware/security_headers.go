@@ -47,6 +47,8 @@ var requiredCSPDirectiveValues = []struct {
 	{"style-src", AirwallexDemoStaticDomain},
 	{"style-src", AirwallexDemoCheckoutDomain},
 	{"frame-src", AirwallexDemoCheckoutDomain},
+	{"media-src", "https:"},
+	{"media-src", "blob:"},
 }
 
 // GenerateNonce generates a cryptographically secure random nonce.

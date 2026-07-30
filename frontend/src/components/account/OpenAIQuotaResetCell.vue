@@ -98,6 +98,13 @@
       {{ truncatedError }}
     </div>
     <div
+      v-else-if="resetWarning"
+      class="text-[10px] text-amber-600 dark:text-amber-400"
+      :title="resetWarningDetail || resetWarning"
+    >
+      {{ resetWarning }}
+    </div>
+    <div
       v-else-if="resetMessage"
       class="text-[10px] text-emerald-600 dark:text-emerald-400"
     >
@@ -111,14 +118,28 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Account } from '@/types'
 import {
-  queryOpenAIQuota,
-  resetOpenAIQuota,
+  queryOpenAIQuota as queryAdminOpenAIQuota,
+  resetOpenAIQuota as resetAdminOpenAIQuota,
   type OpenAIQuotaResetResult,
   type OpenAIQuotaUsage
 } from '@/api/admin/accounts'
+import {
+  queryOpenAIQuota as queryUserOpenAIQuota,
+  resetOpenAIQuota as resetUserOpenAIQuota
+} from '@/api/accounts'
 
-const props = defineProps<{
-  account: Account
+const props = withDefaults(
+  defineProps<{
+    account: Account
+    accountScope?: 'admin' | 'user'
+  }>(),
+  {
+    accountScope: 'admin'
+  }
+)
+
+const emit = defineEmits<{
+  (e: 'reset', accountId: number, result: OpenAIQuotaResetResult): void
 }>()
 
 const { t } = useI18n()
@@ -130,6 +151,8 @@ const resetting = ref(false)
 const error = ref<string | null>(null)
 const data = ref<OpenAIQuotaUsage | null>(null)
 const resetMessage = ref<string | null>(null)
+const resetWarning = ref<string | null>(null)
+const resetWarningDetail = ref<string | null>(null)
 const showResetCreditDetails = ref(false)
 
 const isShadow = computed(() => props.account.parent_account_id != null)
@@ -220,9 +243,13 @@ const handleQuery = async () => {
   loading.value = true
   error.value = null
   resetMessage.value = null
+  resetWarning.value = null
+  resetWarningDetail.value = null
   showResetCreditDetails.value = false
   try {
-    data.value = await queryOpenAIQuota(props.account.id)
+    data.value = await (props.accountScope === 'user'
+      ? queryUserOpenAIQuota(props.account.id)
+      : queryAdminOpenAIQuota(props.account.id))
   } catch (e) {
     error.value = extractErrorMessage(e)
   } finally {
@@ -239,12 +266,23 @@ const handleReset = async () => {
   resetting.value = true
   error.value = null
   resetMessage.value = null
+  resetWarning.value = null
+  resetWarningDetail.value = null
   try {
-    const result: OpenAIQuotaResetResult = await resetOpenAIQuota(props.account.id)
+    const result: OpenAIQuotaResetResult = await (props.accountScope === 'user'
+      ? resetUserOpenAIQuota(props.account.id)
+      : resetAdminOpenAIQuota(props.account.id))
     await handleQuery()
-    resetMessage.value = t('admin.accounts.openaiQuotaReset.resetSuccess', {
-      windows: result.windows_reset
-    })
+    if (result.runtime_state_warning || result.runtime_state_cleared === false) {
+      error.value = null
+      resetWarning.value = t('admin.accounts.openaiQuotaReset.runtimeStateWarning')
+      resetWarningDetail.value = result.runtime_state_warning || null
+    } else {
+      resetMessage.value = t('admin.accounts.openaiQuotaReset.resetSuccess', {
+        windows: result.windows_reset
+      })
+    }
+    emit('reset', props.account.id, result)
   } catch (e) {
     error.value = extractErrorMessage(e)
   } finally {
@@ -258,6 +296,8 @@ watch(
     data.value = null
     error.value = null
     resetMessage.value = null
+    resetWarning.value = null
+    resetWarningDetail.value = null
     loading.value = false
     resetting.value = false
     showResetCreditDetails.value = false

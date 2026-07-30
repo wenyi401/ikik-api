@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
+	"golang.org/x/sync/errgroup"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/timezone"
 	"ikik-api/internal/pkg/usagestats"
 	"ikik-api/internal/service"
-	"github.com/lib/pq"
-	"golang.org/x/sync/errgroup"
 )
 
 // GetUserStatsAggregated returns aggregated usage statistics for a user using database-level aggregation
@@ -630,7 +630,9 @@ func (r *usageLogRepository) GetGlobalStats(ctx context.Context, startTime, endT
 			COALESCE(SUM(cache_creation_tokens + cache_read_tokens), 0) as total_cache_tokens,
 			COALESCE(SUM(total_cost), 0) as total_cost,
 			COALESCE(SUM(actual_cost), 0) as total_actual_cost,
-			COALESCE(AVG(duration_ms), 0) as avg_duration_ms
+			COALESCE(AVG(duration_ms), 0) as avg_duration_ms,
+			COALESCE(AVG(first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL), 0) as avg_first_token_ms,
+			COUNT(first_token_ms) as requests_with_first_token
 		FROM usage_logs
 		WHERE created_at >= $1 AND created_at < $2
 	`
@@ -648,6 +650,8 @@ func (r *usageLogRepository) GetGlobalStats(ctx context.Context, startTime, endT
 		&stats.TotalCost,
 		&stats.TotalActualCost,
 		&stats.AverageDurationMs,
+		&stats.AverageFirstTokenMs,
+		&stats.RequestsWithFirstToken,
 	); err != nil {
 		return nil, err
 	}
@@ -703,7 +707,9 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 			COALESCE(SUM(total_cost), 0) as total_cost,
 			COALESCE(SUM(actual_cost), 0) as total_actual_cost,
 			COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as total_account_cost,
-			COALESCE(AVG(duration_ms), 0) as avg_duration_ms
+			COALESCE(AVG(duration_ms), 0) as avg_duration_ms,
+			COALESCE(AVG(first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL), 0) as avg_first_token_ms,
+			COUNT(first_token_ms) as requests_with_first_token
 		FROM usage_logs
 		%s
 	`, buildWhere(conditions))
@@ -736,6 +742,8 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 			&stats.TotalActualCost,
 			&totalAccountCost,
 			&stats.AverageDurationMs,
+			&stats.AverageFirstTokenMs,
+			&stats.RequestsWithFirstToken,
 		)
 	}
 	// endpoint 明细:best-effort(失败 log + 返空),不致命。

@@ -136,7 +136,11 @@
           :show-now-when-idle="true"
           color="emerald"
         />
-        <OpenAIQuotaResetCell :account="account">
+        <OpenAIQuotaResetCell
+          :account="account"
+          :account-scope="accountScope"
+          @reset="handleOpenAIQuotaReset"
+        >
           <template #pre-actions>
             <button
               type="button"
@@ -177,7 +181,12 @@
       </div>
       <div v-else>
         <div class="text-xs text-gray-400">-</div>
-        <OpenAIQuotaResetCell :account="account" class="mt-1" />
+        <OpenAIQuotaResetCell
+          :account="account"
+          :account-scope="accountScope"
+          class="mt-1"
+          @reset="handleOpenAIQuotaReset"
+        />
       </div>
     </template>
 
@@ -553,6 +562,10 @@
     <AccountQuotaInfo v-if="account.platform === 'gemini'" :account="account" />
     <!-- Key/Bedrock accounts: show today stats + optional quota bars -->
     <div v-else class="space-y-1">
+      <OllamaCloudUsageCell
+        v-if="account.ollama_cloud_usage?.eligible"
+        :account="account"
+      />
       <!-- Today stats row (requests, tokens, cost, user_cost) -->
       <div
         v-if="todayStats"
@@ -610,7 +623,10 @@
       />
 
       <!-- No data at all -->
-      <div v-if="!todayStats && !todayStatsLoading && !hasApiKeyQuota" class="text-xs text-gray-400">-</div>
+      <div
+        v-if="!todayStats && !todayStatsLoading && !hasApiKeyQuota && !account.ollama_cloud_usage?.eligible"
+        class="text-xs text-gray-400"
+      >-</div>
     </div>
   </div>
 </template>
@@ -628,6 +644,7 @@ import UsageProgressBar from './UsageProgressBar.vue'
 import AccountQuotaInfo from './AccountQuotaInfo.vue'
 import OpenAIQuotaResetCell from './OpenAIQuotaResetCell.vue'
 import GrokQuotaProbeCell from './GrokQuotaProbeCell.vue'
+import OllamaCloudUsageCell from './OllamaCloudUsageCell.vue'
 
 type UsageLoader = (id: number, source?: 'passive' | 'active') => Promise<AccountUsageInfo>
 
@@ -643,16 +660,27 @@ const props = withDefaults(
     manualRefreshToken?: number
     usageLoader?: UsageLoader
     usageCacheScope?: string
+    accountScope?: 'admin' | 'user'
   }>(),
   {
     todayStats: null,
     todayStatsLoading: false,
     manualRefreshToken: 0,
-    usageCacheScope: 'admin'
+    usageCacheScope: 'admin',
+    accountScope: 'admin'
   }
 )
 
+const emit = defineEmits<{
+  (e: 'quota-reset', accountId: number): void
+}>()
+
 const { t } = useI18n()
+
+const handleOpenAIQuotaReset = (accountId: number) => {
+  _usageCache.delete(`${props.usageCacheScope}:${accountId}`)
+  emit('quota-reset', accountId)
+}
 const desktopViewportQuery = '(min-width: 768px)'
 
 const unmounted = ref(false)

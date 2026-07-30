@@ -507,6 +507,42 @@ func TestAccountServiceResolveOwnedPublicShareGroup(t *testing.T) {
 	require.Equal(t, int64(11), group.ID)
 }
 
+func TestAccountServiceResolveOwnedPublicShareGroupRequiresExplicitMarkerForNonOpenAI(t *testing.T) {
+	platforms := []string{PlatformAnthropic, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformKiro}
+	for _, platform := range platforms {
+		t.Run(platform, func(t *testing.T) {
+			svc := &AccountService{
+				groupRepo: &ownedPublicShareGroupRepoStub{
+					groups: []Group{
+						{ID: 20, Name: "regular public group", Platform: platform, Status: StatusActive, Scope: GroupScopePublic},
+						{ID: 21, Name: "shared pool", Platform: platform, Status: StatusActive, Scope: GroupScopePublic, IsSharedPool: true},
+					},
+				},
+			}
+
+			group, err := svc.resolveOwnedPublicShareGroup(context.Background(), &Account{Platform: platform})
+
+			require.NoError(t, err)
+			require.Equal(t, int64(21), group.ID)
+		})
+	}
+}
+
+func TestAccountServiceResolveOwnedPublicShareGroupRejectsUnsupportedCustomPool(t *testing.T) {
+	svc := &AccountService{
+		groupRepo: &ownedPublicShareGroupRepoStub{
+			groups: []Group{
+				{ID: 30, Name: "custom public group", Platform: PlatformCustom, Status: StatusActive, Scope: GroupScopePublic, IsSharedPool: true},
+			},
+		},
+	}
+
+	group, err := svc.resolveOwnedPublicShareGroup(context.Background(), &Account{Platform: PlatformCustom})
+
+	require.ErrorIs(t, err, ErrOwnedAccountPublicPoolUnavailable)
+	require.Nil(t, group)
+}
+
 func TestAccountServiceResolveOwnedPublicShareGroupAllowsHigherLevelFallbackToLowerPool(t *testing.T) {
 	svc := &AccountService{
 		groupRepo: &ownedPublicShareGroupRepoStub{

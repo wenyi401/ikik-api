@@ -5,6 +5,10 @@
     :hint="t('userAccounts.importHint')"
     :warning="t('userAccounts.importWarning')"
     form-id="user-import-accounts-form"
+    allow-claude-web-import
+    allow-proxy
+    :proxies="proxies"
+    proxy-scope="user"
     :importer="importPersonalCredentials"
     @close="$emit('close')"
     @imported="$emit('imported', $event)"
@@ -21,9 +25,11 @@ import {
   PERSONAL_ACCOUNT_DEFAULT_PRIORITY
 } from '@/components/account/personalAccountTemplate'
 import type { ImportCredentialContentsResponse } from '@/api/accounts'
+import type { Proxy } from '@/types'
 
 interface Props {
   show: boolean
+  proxies: Proxy[]
 }
 
 interface Emits {
@@ -38,12 +44,20 @@ const { t } = useI18n()
 
 function importPersonalCredentials(
   contents: string[],
-  options?: { kiroConfigImport?: boolean }
+  options?: {
+    kiroConfigImport?: boolean
+    claudeWebImport?: boolean
+    claudeWebAuthMode?: 'session_key' | 'full_cookie'
+    proxyId?: number | null
+  }
 ): Promise<ImportCredentialContentsResponse> {
   return accountsAPI.importCredentialContents({
     contents,
     kiro_config_import: options?.kiroConfigImport,
+    claude_web_import: options?.claudeWebImport,
+    claude_web_auth_mode: options?.claudeWebAuthMode,
     share_mode: 'private',
+    proxy_id: options?.proxyId,
     concurrency: PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY,
     priority: PERSONAL_ACCOUNT_DEFAULT_PRIORITY,
     group_ids: [],

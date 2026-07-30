@@ -15,6 +15,8 @@ var IkikProviderSet = wire.NewSet(
 	ProvideEmailBroadcastService,
 	ProvideGroupRateScheduleService,
 	NewKiroOAuthService,
+	NewPromptLibraryTranslationService,
+	NewPromptSubmissionService,
 	ProvideKiroCooldownStore,
 	ProvideKiroTokenProvider,
 	NewUserPrivateGroupService,

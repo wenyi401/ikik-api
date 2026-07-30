@@ -14,7 +14,9 @@ const {
   listWithEtag,
   getBatchTodayStats,
   getAllProxies,
+  listProxies,
   getAllGroups,
+  getAccountById,
   duplicateAccount,
   createSparkShadow,
   showSuccess,
@@ -24,7 +26,9 @@ const {
   listWithEtag: vi.fn(),
   getBatchTodayStats: vi.fn(),
   getAllProxies: vi.fn(),
+  listProxies: vi.fn(),
   getAllGroups: vi.fn(),
+  getAccountById: vi.fn(),
   duplicateAccount: vi.fn(),
   createSparkShadow: vi.fn(),
   showSuccess: vi.fn(),
@@ -37,6 +41,7 @@ vi.mock('@/api/admin', () => ({
       list: listAccounts,
       listWithEtag,
       getBatchTodayStats,
+      getById: getAccountById,
       duplicate: duplicateAccount,
       getUpstreamBillingProbeSettings: vi.fn().mockResolvedValue({ enabled: true, interval_minutes: 30 }),
       createSparkShadow,
@@ -45,7 +50,7 @@ vi.mock('@/api/admin', () => ({
       batchRefresh: vi.fn(),
       toggleSchedulable: vi.fn()
     },
-    proxies: { getAll: getAllProxies },
+    proxies: { getAll: getAllProxies, list: listProxies },
     groups: { getAll: getAllGroups }
   }
 }))
@@ -107,13 +112,14 @@ const mountView = () =>
 describe('admin AccountsView — 外审 F2:spark 影子创建接线', () => {
   beforeEach(() => {
     localStorage.clear()
-    for (const fn of [listAccounts, listWithEtag, getBatchTodayStats, getAllProxies, getAllGroups, duplicateAccount, createSparkShadow, showSuccess, showError]) {
+    for (const fn of [listAccounts, listWithEtag, getBatchTodayStats, getAllProxies, listProxies, getAllGroups, getAccountById, duplicateAccount, createSparkShadow, showSuccess, showError]) {
       fn.mockReset()
     }
     listAccounts.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
     listWithEtag.mockResolvedValue({ notModified: true, etag: null, data: null })
     getBatchTodayStats.mockResolvedValue({ stats: {} })
     getAllProxies.mockResolvedValue([])
+    listProxies.mockResolvedValue({ items: [], total: 0 })
     getAllGroups.mockResolvedValue([])
     duplicateAccount.mockResolvedValue({ id: 998, name: 'parent-acc (Copy)' })
     createSparkShadow.mockResolvedValue({ id: 999, name: 'parent-acc (Spark)' })
@@ -224,6 +230,8 @@ const mountViewWithRow = () =>
             <div v-for="(row, idx) in (data || [])" :key="idx">
               <slot name="cell-name" :row="row" :value="row.name" />
               <slot name="cell-platform_type" :row="row" />
+              <slot name="cell-usage" :row="row" />
+              <span data-test="row-rate-limit">{{ row.rate_limit_reset_at || 'clear' }}</span>
             </div>
           </div>`
         },
@@ -250,7 +258,11 @@ const mountViewWithRow = () =>
         AccountStatusIndicator: true,
         AccountTodayStatsCell: true,
         AccountGroupsCell: true,
-        AccountUsageCell: true,
+        AccountUsageCell: {
+          props: ['account'],
+          emits: ['quota-reset'],
+          template: '<button data-test="quota-reset" @click="$emit(\'quota-reset\', account.id)">reset</button>'
+        },
         Icon: true
       }
     }
@@ -259,12 +271,13 @@ const mountViewWithRow = () =>
 describe('admin AccountsView — 账号行展示', () => {
   beforeEach(() => {
     localStorage.clear()
-    for (const fn of [listAccounts, listWithEtag, getBatchTodayStats, getAllProxies, getAllGroups, duplicateAccount, createSparkShadow, showSuccess, showError]) {
+    for (const fn of [listAccounts, listWithEtag, getBatchTodayStats, getAllProxies, listProxies, getAllGroups, getAccountById, duplicateAccount, createSparkShadow, showSuccess, showError]) {
       fn.mockReset()
     }
     listWithEtag.mockResolvedValue({ notModified: true, etag: null, data: null })
     getBatchTodayStats.mockResolvedValue({ stats: {} })
     getAllProxies.mockResolvedValue([])
+    listProxies.mockResolvedValue({ items: [], total: 0 })
     getAllGroups.mockResolvedValue([])
     vi.stubGlobal('confirm', vi.fn(() => true))
   })
@@ -302,6 +315,30 @@ describe('admin AccountsView — 账号行展示', () => {
     expect(badge.props('privacyMode')).toBe('false')
     expect(badge.props('subscriptionExpiresAt')).toBe('2027-01-01T00:00:00Z')
 
+    wrapper.unmount()
+  })
+
+  it('reloads and patches the account row after an inline OpenAI quota reset', async () => {
+    const account = {
+      id: 301,
+      name: 'quota-account',
+      platform: 'openai',
+      type: 'oauth',
+      status: 'active',
+      rate_limit_reset_at: '2026-07-23T00:00:00Z'
+    }
+    listAccounts.mockResolvedValue({ items: [account], total: 1, page: 1, page_size: 20, pages: 1 })
+    getAccountById.mockResolvedValue({ ...account, rate_limit_reset_at: null })
+
+    const wrapper = mountViewWithRow()
+    await flushPromises()
+    expect(wrapper.get('[data-test="row-rate-limit"]').text()).toContain('2026-07-23')
+
+    await wrapper.get('[data-test="quota-reset"]').trigger('click')
+    await flushPromises()
+
+    expect(getAccountById).toHaveBeenCalledWith(301)
+    expect(wrapper.get('[data-test="row-rate-limit"]').text()).toBe('clear')
     wrapper.unmount()
   })
 

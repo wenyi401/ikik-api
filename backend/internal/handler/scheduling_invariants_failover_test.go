@@ -345,7 +345,7 @@ func schedInvNewHandler(t *testing.T, group *service.Group, accounts []*service.
 		nil,                // deferredService
 		nil, nil, nil, nil, // claudeTokenProvider / sessionLimitCache / rpmCache / digestStore
 		nil,                     // settingService
-		nil, nil, nil, nil, nil, // tlsFPProfileService / channelService / resolver / balanceNotifyService / userPlatformQuotaRepo
+		nil, nil, nil, nil, nil, nil, // tlsFPProfileService / channelService / resolver / compositeResolver / balanceNotifyService / userPlatformQuotaRepo
 	)
 
 	// RunModeSimple 跳过计费检查，避免引入 repo/cache 依赖。

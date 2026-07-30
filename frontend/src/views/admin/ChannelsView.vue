@@ -388,9 +388,20 @@
             <div>
               <div class="mb-1 flex items-center justify-between">
                 <label class="input-label text-xs mb-0">{{ t('admin.channels.form.modelPricing', 'Model Pricing') }}</label>
-                <button type="button" @click="addPricingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
-                  + {{ t('common.add', 'Add') }}
-                </button>
+                <div class="flex items-center gap-2">
+                  <button
+                    v-if="canSyncPricingModels(section.platform)"
+                    type="button"
+                    @click="syncLatestModels(sIdx)"
+                    :disabled="syncingPlatform === section.platform"
+                    class="text-xs text-gray-500 hover:text-primary-600 disabled:opacity-50"
+                  >
+                    {{ syncingPlatform === section.platform ? t('admin.channels.form.syncingModels') : t('admin.channels.form.syncLatestModels') }}
+                  </button>
+                  <button type="button" @click="addPricingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
+                    + {{ t('common.add', 'Add') }}
+                  </button>
+                </div>
               </div>
               <div
                 v-if="section.model_pricing.length === 0"
@@ -753,7 +764,7 @@ function togglePlatform(platform: GroupPlatform) {
 }
 
 function getGroupsForPlatform(platform: GroupPlatform): AdminGroup[] {
-  return allGroups.value.filter(g => g.platform === platform)
+  return allGroups.value.filter(g => g.platform === platform || g.platform === 'composite')
 }
 
 // ── Group helpers ──
@@ -814,6 +825,48 @@ function addPricingEntry(sectionIdx: number) {
     per_request_price: null,
     intervals: []
   })
+}
+
+const syncingPlatform = ref<GroupPlatform | null>(null)
+const pricingSyncPlatforms = new Set<GroupPlatform>(['anthropic', 'openai', 'gemini', 'antigravity', 'grok'])
+
+function canSyncPricingModels(platform: GroupPlatform): boolean {
+  return pricingSyncPlatforms.has(platform)
+}
+
+async function syncLatestModels(sectionIdx: number) {
+  const section = form.platforms[sectionIdx]
+  if (!section || syncingPlatform.value || !canSyncPricingModels(section.platform)) return
+
+  syncingPlatform.value = section.platform
+  try {
+    const result = await adminAPI.channels.syncPricingModels(section.platform)
+    const existingModels = new Set(section.model_pricing.flatMap(entry => entry.models))
+    const newModels = result.models.filter(model => !existingModels.has(model))
+
+    if (newModels.length === 0) {
+      appStore.showSuccess(t('admin.channels.form.syncModelsAlreadyUpToDate'))
+      return
+    }
+
+    section.model_pricing.push({
+      models: newModels,
+      billing_mode: 'token',
+      input_price: null,
+      output_price: null,
+      cache_write_price: null,
+      cache_read_price: null,
+      image_input_price: null,
+      image_output_price: null,
+      per_request_price: null,
+      intervals: []
+    })
+    appStore.showSuccess(t('admin.channels.form.syncModelsSuccess', { count: newModels.length }))
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.channels.form.syncModelsError')))
+  } finally {
+    syncingPlatform.value = null
+  }
 }
 
 function updatePricingEntry(sectionIdx: number, idx: number, updated: PricingFormEntry) {
@@ -984,6 +1037,7 @@ function accountStatsRulesToAPI(): AccountStatsPricingRule[] {
             output_price: mTokToPerToken(p.output_price),
             cache_write_price: mTokToPerToken(p.cache_write_price),
             cache_read_price: mTokToPerToken(p.cache_read_price),
+            image_input_price: mTokToPerToken(p.image_input_price),
             image_output_price: mTokToPerToken(p.image_output_price),
             per_request_price: p.per_request_price != null && p.per_request_price !== '' ? Number(p.per_request_price) : null,
             intervals: formIntervalsToAPI(p.intervals || [])
@@ -1024,12 +1078,14 @@ function formToAPI(): { group_ids: number[], model_pricing: ChannelModelPricing[
         output_price: mTokToPerToken(entry.output_price),
         cache_write_price: mTokToPerToken(entry.cache_write_price),
         cache_read_price: mTokToPerToken(entry.cache_read_price),
+        image_input_price: mTokToPerToken(entry.image_input_price),
         image_output_price: mTokToPerToken(entry.image_output_price),
         per_request_price: entry.per_request_price != null && entry.per_request_price !== '' ? Number(entry.per_request_price) : null,
         intervals: formIntervalsToAPI(entry.intervals || [])
       })
     }
   }
+  const uniqueGroupIds = Array.from(new Set(group_ids))
 
   // Collect web_search_emulation (only anthropic platform supports it)
   // Always write the key so that disabling in the UI correctly sets platform to false,
@@ -1047,7 +1103,7 @@ function formToAPI(): { group_ids: number[], model_pricing: ChannelModelPricing[
     delete featuresConfig.web_search_emulation
   }
 
-  return { group_ids, model_pricing, model_mapping, features_config: featuresConfig }
+  return { group_ids: uniqueGroupIds, model_pricing, model_mapping, features_config: featuresConfig }
 }
 
 function apiToForm(channel: Channel): PlatformSection[] {
@@ -1061,7 +1117,11 @@ function apiToForm(channel: Channel): PlatformSection[] {
   const activePlatforms = new Set<GroupPlatform>()
   for (const gid of channel.group_ids || []) {
     const p = groupPlatformMap.get(gid)
-    if (p) activePlatforms.add(p)
+    if (p === 'composite') {
+      platformOrder.forEach(platform => activePlatforms.add(platform))
+    } else if (p) {
+      activePlatforms.add(p)
+    }
   }
   for (const p of channel.model_pricing || []) {
     if (p.platform) activePlatforms.add(p.platform as GroupPlatform)
@@ -1075,7 +1135,10 @@ function apiToForm(channel: Channel): PlatformSection[] {
   for (const platform of platformOrder) {
     if (!activePlatforms.has(platform)) continue
 
-    const groupIds = (channel.group_ids || []).filter(gid => groupPlatformMap.get(gid) === platform)
+    const groupIds = (channel.group_ids || []).filter(gid => {
+      const groupPlatform = groupPlatformMap.get(gid)
+      return groupPlatform === platform || groupPlatform === 'composite'
+    })
     const mapping = (channel.model_mapping || {})[platform] || {}
     const pricing = (channel.model_pricing || [])
       .filter(p => (p.platform || 'anthropic') === platform)
@@ -1086,6 +1149,7 @@ function apiToForm(channel: Channel): PlatformSection[] {
         output_price: perTokenToMTok(p.output_price),
         cache_write_price: perTokenToMTok(p.cache_write_price),
         cache_read_price: perTokenToMTok(p.cache_read_price),
+        image_input_price: perTokenToMTok(p.image_input_price),
         image_output_price: perTokenToMTok(p.image_output_price),
         per_request_price: p.per_request_price,
         intervals: apiIntervalsToForm(p.intervals || [])
@@ -1245,7 +1309,7 @@ function distributeRulesToPlatforms(apiRules: AccountStatsPricingRule[]) {
     const platforms = new Set<GroupPlatform>()
     for (const gid of apiRule.group_ids || []) {
       const p = groupPlatformMap.get(gid)
-      if (p) platforms.add(p)
+      if (p && p !== 'composite') platforms.add(p)
     }
     // If pricing has a platform field, use that as fallback
     if (platforms.size === 0 && apiRule.pricing?.length > 0) {
@@ -1269,6 +1333,7 @@ function distributeRulesToPlatforms(apiRules: AccountStatsPricingRule[]) {
         output_price: perTokenToMTok(p.output_price),
         cache_write_price: perTokenToMTok(p.cache_write_price),
         cache_read_price: perTokenToMTok(p.cache_read_price),
+        image_input_price: perTokenToMTok(p.image_input_price),
         image_output_price: perTokenToMTok(p.image_output_price),
         per_request_price: p.per_request_price,
         intervals: apiIntervalsToForm(p.intervals || [])

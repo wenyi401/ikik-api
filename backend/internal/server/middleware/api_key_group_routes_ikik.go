@@ -22,6 +22,9 @@ func resolveAPIKeyGroupRouteForRequest(c *gin.Context, apiKey *service.APIKey) *
 		if !route.Enabled || route.Group == nil || !route.Group.IsActive() {
 			continue
 		}
+		if apiKey.User != nil && apiKey.User.IsGroupBlocked(route.GroupID) {
+			continue
+		}
 		if _, ok := compatible[route.Group.Platform]; ok {
 			routes = append(routes, route)
 		}
@@ -48,6 +51,7 @@ func filterGroupRoutesForHandlerFamily(c *gin.Context, routes []service.APIKeyGr
 	}
 	path := strings.ToLower(strings.TrimSpace(c.Request.URL.Path))
 	selectedPlatform := routes[0].Group.Platform
+	filterImageCapability := false
 
 	var keep func(string) bool
 	switch {
@@ -63,6 +67,7 @@ func filterGroupRoutesForHandlerFamily(c *gin.Context, routes []service.APIKeyGr
 		}
 	case strings.Contains(path, "/images/"):
 		keep = func(platform string) bool { return platform == selectedPlatform }
+		filterImageCapability = isImageSubmissionPath(path)
 	default:
 		return routes
 	}
@@ -73,7 +78,22 @@ func filterGroupRoutesForHandlerFamily(c *gin.Context, routes []service.APIKeyGr
 			filtered = append(filtered, route)
 		}
 	}
+	if filterImageCapability {
+		enabled := make([]service.APIKeyGroupRoute, 0, len(filtered))
+		for _, route := range filtered {
+			if service.GroupAllowsImageGeneration(route.Group) {
+				enabled = append(enabled, route)
+			}
+		}
+		if len(enabled) > 0 {
+			return enabled
+		}
+	}
 	return filtered
+}
+
+func isImageSubmissionPath(path string) bool {
+	return strings.Contains(path, "/images/generations") || strings.Contains(path, "/images/edits")
 }
 
 func compatibleGroupPlatformsForRequest(c *gin.Context) map[string]struct{} {

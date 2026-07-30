@@ -165,7 +165,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			h.handleStreamingAwareError(c, status, code, message, streamStarted)
 			return
 		}
-		requestPlatform := openAICompatibleRequestPlatform(currentAPIKey)
+		requestPlatform := openAICompatibleRequestPlatform(c.Request.Context(), currentAPIKey)
 		reqLog.Debug("openai_chat_completions.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)), zap.Int64p("group_id", currentAPIKey.GroupID))
 		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
 			routeCtx,

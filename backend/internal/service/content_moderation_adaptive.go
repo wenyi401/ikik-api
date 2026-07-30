@@ -227,6 +227,7 @@ type ContentModerationRiskEvent struct {
 	UserEmail  string
 	APIKeyID   int64
 	APIKeyName string
+	GroupID    int64
 	GroupName  string
 	Audited    bool
 	Flagged    bool
@@ -251,6 +252,23 @@ type ContentModerationRiskRepository interface {
 	UpdateRiskProfile(ctx context.Context, userID int64, input UpdateContentModerationRiskProfileInput, policy ContentModerationAdaptivePolicy) (*ContentModerationRiskProfile, error)
 	ReserveRiskNotification(ctx context.Context, userID int64, cooldown time.Duration) (bool, error)
 	DisableAPIKeyForRisk(ctx context.Context, apiKeyID int64, userID int64) (bool, error)
+}
+
+type ContentModerationGroupPenalty struct {
+	UserID        int64
+	GroupID       int64
+	StrikeCount   int
+	BlockedUntil  *time.Time
+	Permanent     bool
+	LastCategory  string
+	LastRequestID string
+	LastScore     float64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type ContentModerationGroupPenaltyRepository interface {
+	ApplyUserGroupPenaltyForRisk(ctx context.Context, event ContentModerationRiskEvent) (*ContentModerationGroupPenalty, bool, error)
 }
 
 func (p ContentModerationAdaptivePolicy) SampleRate(profile *ContentModerationRiskProfile) int {
@@ -364,6 +382,7 @@ func (s *ContentModerationService) adaptiveSampleDecision(input ContentModeratio
 		UserEmail:  input.UserEmail,
 		APIKeyID:   input.APIKeyID,
 		APIKeyName: input.APIKeyName,
+		GroupID:    contentModerationLogGroupID(input.GroupID),
 		GroupName:  input.GroupName,
 		SampleRate: rate,
 		CreatedAt:  time.Now(),
@@ -445,6 +464,23 @@ func isContentModerationAccountRiskCategory(category string) bool {
 	}
 }
 
+func shouldApplyContentModerationGroupPenalty(category string) bool {
+	switch strings.ToLower(strings.TrimSpace(category)) {
+	case ContentModerationRiskCategorySafetyBypass,
+		ContentModerationRiskCategoryCredentialTheft,
+		ContentModerationRiskCategoryAccountAutomation,
+		ContentModerationRiskCategoryAuthReverseEngineering,
+		ContentModerationRiskCategoryExploitReverseEngineering,
+		ContentModerationRiskCategoryCheatAutomation,
+		ContentModerationPolicyCategoryViolence,
+		ContentModerationPolicyCategoryWeapons,
+		ContentModerationPolicyCategoryCyberAbuse:
+		return true
+	default:
+		return false
+	}
+}
+
 func adaptiveRiskScoreDelta(policy ContentModerationAdaptivePolicy, severity string) float64 {
 	policy.normalize()
 	switch severity {
@@ -496,6 +532,9 @@ func (s *ContentModerationService) recordAdaptiveRiskEvent(ctx context.Context, 
 	if !applied || !event.Flagged || profile == nil || cfg.AdaptivePolicy.EnforcementMode == ContentModerationEnforcementShadow {
 		return
 	}
+	if cfg.AdaptivePolicy.EnforcementMode == ContentModerationEnforcementEnforce && shouldApplyContentModerationGroupPenalty(event.Category) {
+		s.applyUserGroupPenaltyForRisk(ctx, event)
+	}
 	if cfg.EmailOnHit && s.emailService != nil && strings.TrimSpace(event.UserEmail) != "" {
 		reserved, reserveErr := repo.ReserveRiskNotification(ctx, event.UserID, time.Duration(cfg.AdaptivePolicy.NotificationCooldownHours)*time.Hour)
 		if reserveErr != nil {
@@ -531,6 +570,43 @@ func (s *ContentModerationService) recordAdaptiveRiskEvent(ctx context.Context, 
 	if disableErr == nil && disabled && s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, event.UserID)
 	}
+}
+
+func (s *ContentModerationService) applyUserGroupPenaltyForRisk(ctx context.Context, event *ContentModerationRiskEvent) {
+	if s == nil || event == nil || event.UserID <= 0 || event.GroupID <= 0 || strings.TrimSpace(event.RequestID) == "" {
+		return
+	}
+	repo, ok := s.repo.(ContentModerationGroupPenaltyRepository)
+	if !ok {
+		return
+	}
+	if s.userRepo != nil {
+		user, err := s.userRepo.GetByID(ctx, event.UserID)
+		if err == nil && user != nil && user.IsAdmin() {
+			slog.Warn("content_moderation.adaptive_group_penalty_skipped_admin", "user_id", event.UserID, "group_id", event.GroupID, "category", event.Category)
+			return
+		}
+	}
+	penalty, applied, err := repo.ApplyUserGroupPenaltyForRisk(ctx, *event)
+	if err != nil {
+		slog.Warn("content_moderation.adaptive_group_penalty_failed", "user_id", event.UserID, "group_id", event.GroupID, "category", event.Category, "request_id", event.RequestID, "error", err)
+		return
+	}
+	if !applied || penalty == nil {
+		return
+	}
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, event.UserID)
+	}
+	slog.Warn("content_moderation.adaptive_group_penalty_applied",
+		"user_id", event.UserID,
+		"group_id", event.GroupID,
+		"category", event.Category,
+		"request_id", event.RequestID,
+		"strike_count", penalty.StrikeCount,
+		"blocked_until", penalty.BlockedUntil,
+		"permanent", penalty.Permanent,
+	)
 }
 
 func (s *ContentModerationService) ListRiskProfiles(ctx context.Context, filter ContentModerationRiskProfileFilter) (*ContentModerationRiskProfilesPage, error) {

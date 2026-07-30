@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
+import { accountsAPI } from '@/api/accounts'
 
 export type AddMethod = 'oauth' | 'setup-token'
 export type AuthInputMethod =
@@ -65,16 +66,16 @@ export function useAccountOAuth(scope: AccountApiScope = 'admin') {
 
     try {
       const proxyConfig = proxyId ? { proxy_id: proxyId } : {}
-      const endpoint =
-        scope === 'user'
-          ? addMethod === 'oauth'
-            ? '/account-oauth/anthropic/auth-url'
-            : '/account-oauth/anthropic/setup-token/auth-url'
-          : addMethod === 'oauth'
-            ? '/admin/accounts/generate-auth-url'
-            : '/admin/accounts/generate-setup-token-url'
-
-      const response = await adminAPI.accounts.generateAuthUrl(endpoint, proxyConfig)
+      const response = scope === 'user'
+        ? addMethod === 'oauth'
+          ? await accountsAPI.generateAnthropicOAuthUrl(proxyConfig)
+          : await accountsAPI.generateAnthropicSetupTokenUrl(proxyConfig)
+        : await adminAPI.accounts.generateAuthUrl(
+            addMethod === 'oauth'
+              ? '/admin/accounts/generate-auth-url'
+              : '/admin/accounts/generate-setup-token-url',
+            proxyConfig
+          )
       authUrl.value = response.auth_url
       sessionId.value = response.session_id
       return true
@@ -102,20 +103,21 @@ export function useAccountOAuth(scope: AccountApiScope = 'admin') {
 
     try {
       const proxyConfig = proxyId ? { proxy_id: proxyId } : {}
-      const endpoint =
-        scope === 'user'
-          ? addMethod === 'oauth'
-            ? '/account-oauth/anthropic/exchange-code'
-            : '/account-oauth/anthropic/setup-token/exchange-code'
-          : addMethod === 'oauth'
-            ? '/admin/accounts/exchange-code'
-            : '/admin/accounts/exchange-setup-token-code'
-
-      const tokenInfo = await adminAPI.accounts.exchangeCode(endpoint, {
+      const payload = {
         session_id: sessionId.value,
         code: authCode.value.trim(),
         ...proxyConfig
-      })
+      }
+      const tokenInfo = scope === 'user'
+        ? addMethod === 'oauth'
+          ? await accountsAPI.exchangeAnthropicOAuthCode(payload)
+          : await accountsAPI.exchangeAnthropicSetupTokenCode(payload)
+        : await adminAPI.accounts.exchangeCode(
+            addMethod === 'oauth'
+              ? '/admin/accounts/exchange-code'
+              : '/admin/accounts/exchange-setup-token-code',
+            payload
+          )
 
       return tokenInfo as TokenInfo
     } catch (err: any) {
@@ -143,20 +145,20 @@ export function useAccountOAuth(scope: AccountApiScope = 'admin') {
 
     try {
       const proxyConfig = proxyId ? { proxy_id: proxyId } : {}
-      const endpoint =
-        scope === 'user'
-          ? addMethod === 'oauth'
-            ? '/account-oauth/anthropic/cookie-auth'
-            : '/account-oauth/anthropic/setup-token-cookie-auth'
-          : addMethod === 'oauth'
-            ? '/admin/accounts/cookie-auth'
-            : '/admin/accounts/setup-token-cookie-auth'
-
-      const tokenInfo = await adminAPI.accounts.exchangeCode(endpoint, {
-        session_id: '',
-        code: sessionKeyValue.trim(),
-        ...proxyConfig
-      })
+      const tokenInfo = scope === 'user'
+        ? addMethod === 'oauth'
+          ? await accountsAPI.anthropicCookieAuth({ code: sessionKeyValue.trim(), ...proxyConfig })
+          : await accountsAPI.anthropicSetupTokenCookieAuth({ code: sessionKeyValue.trim(), ...proxyConfig })
+        : await adminAPI.accounts.exchangeCode(
+            addMethod === 'oauth'
+              ? '/admin/accounts/cookie-auth'
+              : '/admin/accounts/setup-token-cookie-auth',
+            {
+              session_id: '',
+              code: sessionKeyValue.trim(),
+              ...proxyConfig
+            }
+          )
 
       return tokenInfo as TokenInfo
     } catch (err: any) {

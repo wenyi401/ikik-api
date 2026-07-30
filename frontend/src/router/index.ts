@@ -195,6 +195,29 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/prompts',
+    name: 'PromptLibrary',
+    component: () => import('@/views/user/PromptLibraryView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Prompt Library',
+      titleKey: 'promptLibrary.title'
+    }
+  },
+  {
+    path: '/service-status',
+    name: 'ServiceStatus',
+    component: () => import('@/views/user/ServiceStatusView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Service Status',
+      titleKey: 'serviceStatus.title',
+      descriptionKey: 'serviceStatus.description'
+    }
+  },
+  {
     path: '/accounts',
     name: 'UserAccounts',
     component: () => import('@/views/user/AccountsView.vue'),
@@ -564,6 +587,17 @@ const routes: RouteRecordRaw[] = [
       title: 'Announcements',
       titleKey: 'admin.announcements.title',
       descriptionKey: 'admin.announcements.description'
+    }
+  },
+  {
+    path: '/admin/prompt-submissions',
+    name: 'AdminPromptSubmissions',
+    component: () => import('@/views/admin/PromptSubmissionsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Prompt Submissions',
+      titleKey: 'admin.promptSubmissions.title'
     }
   },
   {

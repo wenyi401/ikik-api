@@ -14,6 +14,7 @@ type AdminHandlers struct {
 	AccountSharePolicy     *admin.AccountSharePolicyHandler
 	Carpool                *admin.CarpoolHandler
 	Announcement           *admin.AnnouncementHandler
+	PromptSubmission       *admin.PromptSubmissionHandler
 	EmailBroadcast         *admin.EmailBroadcastHandler
 	DataManagement         *admin.DataManagementHandler
 	Backup                 *admin.BackupHandler
@@ -61,7 +62,9 @@ type Handlers struct {
 	Redeem           *RedeemHandler
 	Subscription     *SubscriptionHandler
 	Announcement     *AnnouncementHandler
+	PromptSubmission *PromptSubmissionHandler
 	ChannelMonitor   *ChannelMonitorUserHandler
+	ServiceStatus    *ServiceStatusHandler
 	Admin            *AdminHandlers
 	Gateway          *GatewayHandler
 	OpenAIGateway    *OpenAIGatewayHandler

@@ -2,7 +2,9 @@ package securityaudit
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -77,6 +79,18 @@ type JobRepository interface {
 	RecordBlocking(ctx context.Context, snapshot PromptSnapshot, configVersion int64, result *NormalizedResult, storePassEvents bool) (*Event, error)
 }
 
+type PromptAuditAdmissionDecision struct {
+	RunRemote      bool
+	KnownMalicious bool
+	UserBlocked    bool
+}
+
+type PromptAuditAdmissionRepository interface {
+	PreparePromptAudit(ctx context.Context, userID int64, requestID, promptHash string, forceRemote bool) (PromptAuditAdmissionDecision, error)
+	IsKnownMaliciousPromptHash(ctx context.Context, promptHash string) (bool, error)
+	IsPromptAuditUserBlocked(ctx context.Context, userID int64) (bool, error)
+}
+
 type PostgreSQLRepository struct {
 	db    *sql.DB
 	clock Clock
@@ -84,6 +98,105 @@ type PostgreSQLRepository struct {
 
 func NewPostgreSQLRepository(db *sql.DB) *PostgreSQLRepository {
 	return &PostgreSQLRepository{db: db, clock: realClock{}}
+}
+
+func (r *PostgreSQLRepository) PreparePromptAudit(ctx context.Context, userID int64, requestID, promptHash string, forceRemote bool) (PromptAuditAdmissionDecision, error) {
+	if r == nil || r.db == nil || userID <= 0 {
+		return PromptAuditAdmissionDecision{RunRemote: true}, nil
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return PromptAuditAdmissionDecision{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var totalRequests, remoteAudits int64
+	var sampleRate int
+	var blocked bool
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO prompt_audit_user_profiles (user_id, total_requests)
+		VALUES ($1, 1)
+		ON CONFLICT (user_id) DO UPDATE SET
+			total_requests = prompt_audit_user_profiles.total_requests + 1,
+			updated_at = NOW()
+		RETURNING total_requests, remote_audits, current_sample_rate, blocked`, userID).
+		Scan(&totalRequests, &remoteAudits, &sampleRate, &blocked)
+	if err != nil {
+		return PromptAuditAdmissionDecision{}, err
+	}
+	decision := PromptAuditAdmissionDecision{UserBlocked: blocked}
+	if !blocked && validPromptHash(promptHash) {
+		err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM prompt_audit_fingerprints WHERE prompt_hash=$1)`, promptHash).
+			Scan(&decision.KnownMalicious)
+		if err != nil {
+			return PromptAuditAdmissionDecision{}, err
+		}
+		if decision.KnownMalicious {
+			_, err = tx.ExecContext(ctx, `
+				UPDATE prompt_audit_fingerprints
+				SET hit_count=hit_count+1, last_hit_at=NOW(), updated_at=NOW()
+				WHERE prompt_hash=$1`, promptHash)
+			if err != nil {
+				return PromptAuditAdmissionDecision{}, err
+			}
+		}
+	}
+	if !blocked && !decision.KnownMalicious {
+		decision.RunRemote = shouldRunRemotePromptAudit(forceRemote, remoteAudits, userID, requestID, totalRequests, sampleRate)
+	}
+	if err := tx.Commit(); err != nil {
+		return PromptAuditAdmissionDecision{}, err
+	}
+	return decision, nil
+}
+
+func shouldRunRemotePromptAudit(forceRemote bool, remoteAudits, userID int64, requestID string, totalRequests int64, sampleRate int) bool {
+	return forceRemote || remoteAudits < 100 || sampledPromptAudit(userID, requestID, totalRequests, sampleRate)
+}
+
+func sampledPromptAudit(userID int64, requestID string, totalRequests int64, rate int) bool {
+	if rate <= 0 {
+		return false
+	}
+	if rate >= 100 {
+		return true
+	}
+	digest := sha256.Sum256([]byte(fmt.Sprintf("%d:%s:%d", userID, requestID, totalRequests)))
+	bucket := binary.BigEndian.Uint64(digest[:8]) % 100
+	return int(bucket) < rate
+}
+
+func validPromptHash(value string) bool {
+	if len(value) != 64 {
+		return false
+	}
+	for _, char := range value {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *PostgreSQLRepository) IsKnownMaliciousPromptHash(ctx context.Context, promptHash string) (bool, error) {
+	if r == nil || r.db == nil || !validPromptHash(promptHash) {
+		return false, nil
+	}
+	var known bool
+	err := r.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM prompt_audit_fingerprints WHERE prompt_hash=$1)`, promptHash).Scan(&known)
+	return known, err
+}
+
+func (r *PostgreSQLRepository) IsPromptAuditUserBlocked(ctx context.Context, userID int64) (bool, error) {
+	if r == nil || r.db == nil || userID <= 0 {
+		return false, nil
+	}
+	var blocked bool
+	err := r.db.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM prompt_audit_user_profiles
+			WHERE user_id=$1 AND blocked=TRUE
+		)`, userID).Scan(&blocked)
+	return blocked, err
 }
 
 func (r *PostgreSQLRepository) CreateStagingWithCapacity(ctx context.Context, snapshot PromptSnapshot, configVersion int64, maxAttempts, capacity int) (*Job, error) {
@@ -192,10 +305,113 @@ func (r *PostgreSQLRepository) Complete(ctx context.Context, job *Job, result *N
 			return nil, err
 		}
 	}
+	if err := applyPromptAuditCompletion(ctx, tx, job.Snapshot, result, event); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return event, nil
+}
+
+func applyPromptAuditCompletion(ctx context.Context, tx *sql.Tx, snapshot PromptSnapshot, result *NormalizedResult, event *Event) error {
+	if snapshot.UserID <= 0 {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO prompt_audit_user_profiles (user_id)
+		VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, snapshot.UserID); err != nil {
+		return err
+	}
+	remoteAudit := result.ScannerBackend != "local-known-fingerprint"
+	remoteIncrement := 0
+	if remoteAudit {
+		remoteIncrement = 1
+	}
+	if isJailbreakBlock(result) {
+		_, err := tx.ExecContext(ctx, `
+			UPDATE prompt_audit_user_profiles SET
+				remote_audits=remote_audits+$2,
+				flagged_requests=flagged_requests+1,
+				risk_score=100, risk_level='critical', blocked=TRUE,
+				current_sample_rate=100, last_category='jailbreak',
+				last_hit_at=NOW(), last_audited_at=CASE WHEN $2=1 THEN NOW() ELSE last_audited_at END,
+				blocked_at=COALESCE(blocked_at, NOW()), updated_at=NOW()
+			WHERE user_id=$1`, snapshot.UserID, remoteIncrement)
+		if err != nil {
+			return err
+		}
+		if snapshot.APIKeyID > 0 {
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE api_keys SET status='disabled', updated_at=NOW()
+				WHERE id=$1 AND user_id=$2 AND status <> 'disabled'`, snapshot.APIKeyID, snapshot.UserID); err != nil {
+				return err
+			}
+		}
+		if remoteAudit && validPromptHash(snapshot.PromptHash) {
+			var eventID any
+			if event != nil {
+				eventID = event.ID
+			}
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO prompt_audit_fingerprints
+					(prompt_hash, category, confidence, source_event_id, hit_count, last_hit_at)
+				VALUES ($1, 'jailbreak', 1, $2, 1, NOW())
+				ON CONFLICT (prompt_hash) DO UPDATE SET
+					hit_count=prompt_audit_fingerprints.hit_count+1,
+					last_hit_at=NOW(), updated_at=NOW()`, snapshot.PromptHash, eventID)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if result.Decision == EventPass {
+		_, err := tx.ExecContext(ctx, `
+			UPDATE prompt_audit_user_profiles SET
+				remote_audits=remote_audits+$2,
+				risk_score=CASE WHEN blocked THEN risk_score ELSE GREATEST(0, risk_score-0.25) END,
+				risk_level=CASE
+					WHEN blocked THEN risk_level
+					WHEN GREATEST(0, risk_score-0.25) >= 60 THEN 'high'
+					WHEN GREATEST(0, risk_score-0.25) >= 20 THEN 'watch'
+					WHEN remote_audits+$2 >= 100 AND GREATEST(0, risk_score-0.25) < 5 THEN 'trusted'
+					WHEN remote_audits+$2 >= 100 THEN 'normal'
+					ELSE 'new' END,
+				current_sample_rate=CASE
+					WHEN blocked THEN 100
+					WHEN GREATEST(0, risk_score-0.25) >= 20 THEN 100
+					WHEN remote_audits+$2 >= 100 AND GREATEST(0, risk_score-0.25) < 5 THEN 10
+					WHEN remote_audits+$2 >= 100 THEN 50
+					ELSE 100 END,
+				last_audited_at=CASE WHEN $2=1 THEN NOW() ELSE last_audited_at END,
+				updated_at=NOW()
+			WHERE user_id=$1`, snapshot.UserID, remoteIncrement)
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `
+		UPDATE prompt_audit_user_profiles SET
+			remote_audits=remote_audits+$2,
+			flagged_requests=flagged_requests+1,
+			risk_score=LEAST(100, risk_score+25),
+			risk_level=CASE WHEN blocked THEN risk_level ELSE 'watch' END,
+			current_sample_rate=100,
+			last_category=COALESCE(NULLIF($3, ''), 'prompt_risk'),
+			last_hit_at=NOW(), last_audited_at=CASE WHEN $2=1 THEN NOW() ELSE last_audited_at END,
+			updated_at=NOW()
+		WHERE user_id=$1`, snapshot.UserID, remoteIncrement, firstCategory(result.Categories))
+	return err
+}
+
+func isJailbreakBlock(result *NormalizedResult) bool {
+	return result != nil && result.Action == ActionBlock && containsString(result.Categories, "jailbreak")
+}
+
+func firstCategory(categories []string) string {
+	if len(categories) == 0 {
+		return ""
+	}
+	return categories[0]
 }
 
 func (r *PostgreSQLRepository) Retry(ctx context.Context, jobID, claimVersion int64, next time.Time, code, _ string) error {
@@ -297,6 +513,19 @@ func (r *PostgreSQLRepository) RecordBlocking(ctx context.Context, snapshot Prom
 		if err != nil {
 			return nil, err
 		}
+	}
+	if snapshot.UserID > 0 {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO prompt_audit_user_profiles (user_id, total_requests)
+			VALUES ($1, 1)
+			ON CONFLICT (user_id) DO UPDATE SET
+				total_requests=prompt_audit_user_profiles.total_requests+1,
+				updated_at=NOW()`, snapshot.UserID); err != nil {
+			return nil, err
+		}
+	}
+	if err := applyPromptAuditCompletion(ctx, tx, snapshot, result, event); err != nil {
+		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err

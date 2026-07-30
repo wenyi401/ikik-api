@@ -12,6 +12,7 @@ import (
 var ownedAccountIdentityUniqueIndexSet = map[string]struct{}{
 	"idx_accounts_owned_openai_chatgpt_account_id_uniq": {},
 	"idx_accounts_owned_openai_chatgpt_user_id_uniq":    {},
+	"idx_accounts_owned_openai_agent_identity_uniq":     {},
 	"idx_accounts_owned_anthropic_org_account_uniq":     {},
 	"idx_accounts_owned_gemini_project_uniq":            {},
 	"idx_accounts_owned_antigravity_project_uniq":       {},

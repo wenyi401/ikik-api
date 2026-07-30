@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -52,23 +53,100 @@ func (r *contentModerationRepository) CreateLog(ctx context.Context, log *servic
 INSERT INTO content_moderation_logs (
     request_id, user_id, user_email, api_key_id, api_key_name, group_id, group_name,
     endpoint, provider, model, mode, action, flagged, highest_category, highest_score,
-    category_scores, threshold_snapshot, input_excerpt, upstream_latency_ms, error,
+    category_scores, threshold_snapshot, input_excerpt, input_content, upstream_latency_ms, error,
     violation_count, auto_banned, email_sent, queue_delay_ms, matched_keyword
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7,
     $8, $9, $10, $11, $12, $13, $14, $15,
-    $16::jsonb, $17::jsonb, $18, $19, $20,
-    $21, $22, $23, $24, $25
+    $16::jsonb, $17::jsonb, $18, $19, $20, $21,
+    $22, $23, $24, $25, $26
 ) RETURNING id, created_at`,
 		log.RequestID, userID, log.UserEmail, apiKeyID, log.APIKeyName, groupID, log.GroupName,
 		log.Endpoint, log.Provider, log.Model, log.Mode, log.Action, log.Flagged, log.HighestCategory, log.HighestScore,
-		string(categoryScores), string(thresholdSnapshot), log.InputExcerpt, latency, log.Error,
+		string(categoryScores), string(thresholdSnapshot), log.InputExcerpt, log.InputContent, latency, log.Error,
 		log.ViolationCount, log.AutoBanned, log.EmailSent, nullableIntPtr(log.QueueDelayMS), log.MatchedKeyword,
 	).Scan(&log.ID, &log.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("insert content moderation log: %w", err)
 	}
 	return nil
+}
+
+func (r *contentModerationRepository) GetLogByID(ctx context.Context, logID int64) (*service.ContentModerationLog, error) {
+	row := r.db.QueryRowContext(ctx, `
+SELECT
+    l.id, l.request_id, l.user_id, l.user_email, l.api_key_id, l.api_key_name, l.group_id, l.group_name,
+    l.endpoint, l.provider, l.model, l.mode, l.action, l.flagged, l.highest_category, l.highest_score,
+    l.category_scores, l.threshold_snapshot, l.input_excerpt, l.input_content, l.upstream_latency_ms, l.error,
+    l.violation_count, l.auto_banned, l.email_sent, COALESCE(u.status, ''), l.queue_delay_ms, l.matched_keyword, l.created_at
+FROM content_moderation_logs l
+LEFT JOIN users u ON u.id = l.user_id
+WHERE l.id = $1`, logID)
+
+	var item service.ContentModerationLog
+	var userID, apiKeyID, groupID, latency, queueDelay sql.NullInt64
+	var scoresRaw, thresholdsRaw []byte
+	if err := row.Scan(
+		&item.ID,
+		&item.RequestID,
+		&userID,
+		&item.UserEmail,
+		&apiKeyID,
+		&item.APIKeyName,
+		&groupID,
+		&item.GroupName,
+		&item.Endpoint,
+		&item.Provider,
+		&item.Model,
+		&item.Mode,
+		&item.Action,
+		&item.Flagged,
+		&item.HighestCategory,
+		&item.HighestScore,
+		&scoresRaw,
+		&thresholdsRaw,
+		&item.InputExcerpt,
+		&item.InputContent,
+		&latency,
+		&item.Error,
+		&item.ViolationCount,
+		&item.AutoBanned,
+		&item.EmailSent,
+		&item.UserStatus,
+		&queueDelay,
+		&item.MatchedKeyword,
+		&item.CreatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get content moderation log: %w", err)
+	}
+	if userID.Valid {
+		value := userID.Int64
+		item.UserID = &value
+	}
+	if apiKeyID.Valid {
+		value := apiKeyID.Int64
+		item.APIKeyID = &value
+	}
+	if groupID.Valid {
+		value := groupID.Int64
+		item.GroupID = &value
+	}
+	if latency.Valid {
+		value := int(latency.Int64)
+		item.UpstreamLatencyMS = &value
+	}
+	if queueDelay.Valid {
+		value := int(queueDelay.Int64)
+		item.QueueDelayMS = &value
+	}
+	item.CategoryScores = map[string]float64{}
+	_ = json.Unmarshal(scoresRaw, &item.CategoryScores)
+	item.ThresholdSnapshot = map[string]float64{}
+	_ = json.Unmarshal(thresholdsRaw, &item.ThresholdSnapshot)
+	return &item, nil
 }
 
 func (r *contentModerationRepository) ListLogs(ctx context.Context, filter service.ContentModerationLogFilter) ([]service.ContentModerationLog, *pagination.PaginationResult, error) {
@@ -492,6 +570,94 @@ WHERE id = $1 AND user_id = $2 AND status <> $3
 	}
 	rows, _ := result.RowsAffected()
 	return rows > 0, nil
+}
+
+func (r *contentModerationRepository) ApplyUserGroupPenaltyForRisk(ctx context.Context, event service.ContentModerationRiskEvent) (*service.ContentModerationGroupPenalty, bool, error) {
+	if event.UserID <= 0 || event.GroupID <= 0 || strings.TrimSpace(event.RequestID) == "" {
+		return nil, false, nil
+	}
+	appliedAt := event.CreatedAt
+	if appliedAt.IsZero() {
+		appliedAt = time.Now()
+	}
+	row := r.db.QueryRowContext(ctx, `
+WITH eligible AS (
+    SELECT u.id AS user_id, g.id AS group_id
+    FROM users AS u
+    JOIN groups AS g ON g.id = $2
+    WHERE u.id = $1
+      AND u.deleted_at IS NULL
+      AND g.deleted_at IS NULL
+      AND u.role <> $3
+), new_event AS (
+    INSERT INTO content_moderation_user_group_penalty_events (
+        user_id, group_id, request_id, category, score, created_at
+    )
+    SELECT user_id, group_id, $4, $5, $6, $7
+    FROM eligible
+    ON CONFLICT (user_id, group_id, request_id) DO NOTHING
+    RETURNING user_id, group_id
+), applied_penalty AS (
+    INSERT INTO content_moderation_user_group_penalties AS penalty (
+        user_id, group_id, strike_count, blocked_until, permanent,
+        last_category, last_request_id, last_score, created_at, updated_at
+    )
+    SELECT user_id, group_id, 1, $7 + INTERVAL '24 hours', FALSE,
+           $5, $4, $6, $7, $7
+    FROM new_event
+    ON CONFLICT (user_id, group_id) DO UPDATE
+    SET strike_count = LEAST(penalty.strike_count + 1, 3),
+        blocked_until = CASE
+            WHEN penalty.permanent OR penalty.strike_count >= 2 THEN NULL
+            ELSE $7 + INTERVAL '36 hours'
+        END,
+        permanent = penalty.permanent OR penalty.strike_count >= 2,
+        last_category = $5,
+        last_request_id = $4,
+        last_score = $6,
+        updated_at = $7
+    RETURNING user_id, group_id, strike_count, blocked_until, permanent,
+              last_category, last_request_id, last_score, created_at, updated_at
+)
+SELECT user_id, group_id, strike_count, blocked_until, permanent,
+       last_category, last_request_id, last_score, created_at, updated_at, TRUE
+FROM applied_penalty
+UNION ALL
+SELECT penalty.user_id, penalty.group_id, penalty.strike_count, penalty.blocked_until,
+       penalty.permanent, penalty.last_category, penalty.last_request_id,
+       penalty.last_score, penalty.created_at, penalty.updated_at, FALSE
+FROM content_moderation_user_group_penalties AS penalty
+JOIN eligible USING (user_id, group_id)
+WHERE NOT EXISTS (SELECT 1 FROM applied_penalty)
+LIMIT 1
+`, event.UserID, event.GroupID, service.RoleAdmin, strings.TrimSpace(event.RequestID),
+		strings.TrimSpace(event.Category), event.Score, appliedAt)
+
+	var penalty service.ContentModerationGroupPenalty
+	var blockedUntil sql.NullTime
+	var applied bool
+	if err := row.Scan(
+		&penalty.UserID,
+		&penalty.GroupID,
+		&penalty.StrikeCount,
+		&blockedUntil,
+		&penalty.Permanent,
+		&penalty.LastCategory,
+		&penalty.LastRequestID,
+		&penalty.LastScore,
+		&penalty.CreatedAt,
+		&penalty.UpdatedAt,
+		&applied,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("apply content moderation user group penalty: %w", err)
+	}
+	if blockedUntil.Valid {
+		penalty.BlockedUntil = timePtr(blockedUntil.Time)
+	}
+	return &penalty, applied, nil
 }
 
 type riskProfileScanner interface {

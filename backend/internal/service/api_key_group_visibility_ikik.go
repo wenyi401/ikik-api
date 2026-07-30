@@ -3,7 +3,7 @@ package service
 import "strings"
 
 func canUserBindStandardGroup(user *User, group *Group) bool {
-	if user == nil || group == nil || group.IsSubscriptionType() {
+	if user == nil || group == nil || group.IsSubscriptionType() || user.IsGroupBlocked(group.ID) {
 		return false
 	}
 	if strings.EqualFold(strings.TrimSpace(group.Scope), GroupScopePublic) {

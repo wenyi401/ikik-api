@@ -32,7 +32,7 @@ func AggregateResults(results []*NormalizedResult, latency time.Duration) (*Norm
 	}
 	aggregated := &NormalizedResult{
 		Decision: EventPass, RiskLevel: RiskLow, Action: ActionAllow,
-		ScannerBackend: "qwen3guard-openai", Categories: []string{}, MatchedScanners: []string{},
+		Categories: []string{}, MatchedScanners: []string{},
 		ScannerScores: map[string]float64{}, ScannerEvidence: map[string]string{}, ChunkTotal: len(results),
 		LatencyMS: int(latency.Milliseconds()),
 	}
@@ -52,6 +52,10 @@ func AggregateResults(results []*NormalizedResult, latency time.Duration) (*Norm
 			aggregated.ScannerVersion = result.ScannerVersion
 			aggregated.PolicyID = result.PolicyID
 			aggregated.PolicyVersion = result.PolicyVersion
+			aggregated.ScannerBackend = result.ScannerBackend
+		}
+		if aggregated.ScannerBackend == "" {
+			aggregated.ScannerBackend = result.ScannerBackend
 		}
 		if aggregated.GuardEndpointID == "" {
 			aggregated.GuardEndpointID = result.GuardEndpointID

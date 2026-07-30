@@ -307,3 +307,62 @@ func TestRateLimitService_RecoverAccountState_InvalidatesOAuthTokenOnErrorRecove
 	require.Len(t, invalidator.accounts, 1)
 	require.Equal(t, int64(21), invalidator.accounts[0].ID)
 }
+
+func TestRateLimitService_RecoverOwnedAccountState_RequiresMatchingOwner(t *testing.T) {
+	ownerID := int64(101)
+	otherOwnerID := int64(202)
+	now := time.Now()
+
+	for _, tt := range []struct {
+		name         string
+		accountOwner *int64
+	}{
+		{name: "different owner", accountOwner: &otherOwnerID},
+		{name: "public account", accountOwner: nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &rateLimitClearRepoStub{
+				getByIDAccount: &Account{
+					ID:               55,
+					OwnerUserID:      tt.accountOwner,
+					Status:           StatusError,
+					RateLimitResetAt: &now,
+				},
+			}
+			svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+
+			result, err := svc.RecoverOwnedAccountState(context.Background(), ownerID, 55, AccountRecoveryOptions{InvalidateToken: true})
+
+			require.ErrorIs(t, err, ErrAccountNotFound)
+			require.Nil(t, result)
+			require.Equal(t, 1, repo.getByIDCalls)
+			require.Zero(t, repo.clearErrorCalls)
+			require.Zero(t, repo.clearRateLimitCalls)
+			require.Zero(t, repo.clearAntigravityCalls)
+			require.Zero(t, repo.clearModelRateLimitCalls)
+			require.Zero(t, repo.clearTempUnschedCalls)
+		})
+	}
+}
+
+func TestRateLimitService_RecoverOwnedAccountState_MatchingOwnerUsesUnifiedRecovery(t *testing.T) {
+	ownerID := int64(101)
+	now := time.Now()
+	repo := &rateLimitClearRepoStub{
+		getByIDAccount: &Account{
+			ID:               56,
+			OwnerUserID:      &ownerID,
+			Status:           StatusError,
+			RateLimitResetAt: &now,
+		},
+	}
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+
+	result, err := svc.RecoverOwnedAccountState(context.Background(), ownerID, 56, AccountRecoveryOptions{})
+
+	require.NoError(t, err)
+	require.True(t, result.ClearedError)
+	require.True(t, result.ClearedRateLimit)
+	require.Equal(t, 1, repo.clearErrorCalls)
+	require.Equal(t, 1, repo.clearRateLimitCalls)
+}

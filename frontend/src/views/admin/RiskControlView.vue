@@ -48,7 +48,8 @@
         <div
           v-if="showPreBlockRuntimeCard"
           data-test="pre-block-runtime-cards"
-          class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]"
+          class="grid grid-cols-1 gap-6"
+          :class="configForm.moderation_provider === 'model_classifier' ? '' : 'xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]'"
         >
           <div data-test="pre-block-sync-card" class="risk-section">
             <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-center lg:justify-between">
@@ -76,7 +77,7 @@
             </div>
           </div>
 
-          <div data-test="pre-block-api-key-load-card" class="risk-section">
+          <div v-if="configForm.moderation_provider !== 'model_classifier'" data-test="pre-block-api-key-load-card" class="risk-section">
             <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.preBlockAPIKeyLoad') }}</h2>
@@ -398,15 +399,69 @@
                 <label class="input-label">{{ t('admin.riskControl.provider') }}</label>
                 <Select v-model="configForm.moderation_provider" :options="providerOptions" />
               </div>
-              <div v-if="configForm.moderation_provider !== 'aliyun_guardrails'">
+              <div v-if="configForm.moderation_provider === 'openai'">
                 <label class="input-label">{{ t('admin.riskControl.baseUrl') }}</label>
                 <input v-model.trim="configForm.base_url" type="url" class="input" placeholder="https://api.openai.com" />
               </div>
-              <div v-if="configForm.moderation_provider !== 'aliyun_guardrails'">
+              <div v-if="configForm.moderation_provider === 'openai'">
                 <label class="input-label">{{ t('admin.riskControl.model') }}</label>
                 <input v-model.trim="configForm.model" type="text" class="input" placeholder="omni-moderation-latest" />
               </div>
               <div v-if="configForm.moderation_provider === 'model_classifier'" class="space-y-3 lg:col-span-2">
+                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div>
+                    <label class="input-label">{{ t('admin.riskControl.classifierGroup') }}</label>
+                    <Select
+                      v-model="configForm.classifier_group_id"
+                      :options="classifierGroupOptions"
+                      :placeholder="t('admin.riskControl.classifierGroupPlaceholder')"
+                      searchable
+                    />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('admin.riskControl.classifierModels') }}</label>
+                    <div class="flex gap-2">
+                      <input
+                        v-model="classifierModelInput"
+                        type="text"
+                        class="input min-w-0 flex-1"
+                        :placeholder="t('admin.riskControl.classifierModelPlaceholder')"
+                        @keydown.enter.prevent="addClassifierModels"
+                      />
+                      <button type="button" class="btn btn-secondary shrink-0" @click="addClassifierModels">
+                        <Icon name="plus" size="sm" />
+                        <span class="sr-only">{{ t('admin.riskControl.classifierAddModel') }}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="overflow-hidden rounded-lg border border-gray-100 dark:border-dark-700">
+                  <div
+                    v-for="(model, index) in configForm.classifier_models"
+                    :key="model"
+                    class="flex min-w-0 items-center gap-3 border-b border-gray-100 px-3 py-2.5 last:border-b-0 dark:border-dark-700"
+                  >
+                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gray-100 text-xs font-semibold text-gray-600 dark:bg-dark-700 dark:text-gray-300">{{ index + 1 }}</span>
+                    <span class="min-w-0 flex-1 break-all font-mono text-sm leading-5 text-gray-800 dark:text-gray-100">{{ model }}</span>
+                    <span class="shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                      {{ index === 0 ? t('admin.riskControl.classifierPrimary') : t('admin.riskControl.classifierFallback') }}
+                    </span>
+                    <div class="flex shrink-0 items-center gap-1">
+                      <UiIconButton :label="t('admin.riskControl.classifierMoveUp')" :disabled="index === 0" @click="moveClassifierModel(index, -1)">
+                        <Icon name="chevronUp" size="xs" />
+                      </UiIconButton>
+                      <UiIconButton :label="t('admin.riskControl.classifierMoveDown')" :disabled="index === configForm.classifier_models.length - 1" @click="moveClassifierModel(index, 1)">
+                        <Icon name="chevronDown" size="xs" />
+                      </UiIconButton>
+                      <UiIconButton :label="t('admin.riskControl.classifierRemoveModel')" @click="removeClassifierModel(index)">
+                        <Icon name="trash" size="xs" />
+                      </UiIconButton>
+                    </div>
+                  </div>
+                  <p v-if="configForm.classifier_models.length === 0" class="px-3 py-5 text-center text-sm text-gray-500 dark:text-gray-400">
+                    {{ t('admin.riskControl.classifierModelsEmpty') }}
+                  </p>
+                </div>
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <label class="input-label">{{ t('admin.riskControl.classifierPrompt') }}</label>
@@ -486,16 +541,18 @@
               <div class="flex flex-col gap-4 border-b border-gray-100 bg-gray-50 px-4 py-4 dark:border-dark-700 dark:bg-dark-800/60 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex items-start gap-3">
                   <span class="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
-                    <Icon name="key" size="md" />
+                    <Icon :name="configForm.moderation_provider === 'model_classifier' ? 'shield' : 'key'" size="md" />
                   </span>
                   <div>
-                    <label class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.apiKeys') }}</label>
+                    <label class="text-sm font-semibold text-gray-900 dark:text-white">
+                      {{ configForm.moderation_provider === 'model_classifier' ? t('admin.riskControl.classifierRoute') : t('admin.riskControl.apiKeys') }}
+                    </label>
                     <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500 dark:text-gray-400">
-                      {{ t('admin.riskControl.apiKeysHint', { count: configForm.api_key_count }) }}
+                      {{ configForm.moderation_provider === 'model_classifier' ? t('admin.riskControl.classifierRouteHint') : t('admin.riskControl.apiKeysHint', { count: configForm.api_key_count }) }}
                     </p>
                   </div>
                 </div>
-                <div class="flex flex-wrap items-center gap-2">
+                <div v-if="configForm.moderation_provider !== 'model_classifier'" class="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     class="btn btn-secondary inline-flex items-center gap-2"
@@ -524,11 +581,25 @@
                     {{ configForm.clear_api_key ? t('admin.riskControl.keepApiKey') : t('admin.riskControl.clearApiKey') }}
                   </button>
                 </div>
+                <button
+                  v-else
+                  type="button"
+                  class="btn btn-secondary inline-flex items-center gap-2"
+                  :disabled="apiKeyTesting || configForm.classifier_group_id <= 0 || configForm.classifier_models.length === 0"
+                  @click="testApiKeys(false)"
+                >
+                  <Icon name="beaker" size="sm" :class="apiKeyTesting ? 'animate-pulse' : ''" />
+                  {{ apiKeyTesting ? t('admin.riskControl.classifierTesting') : t('admin.riskControl.classifierTest') }}
+                </button>
               </div>
 
-              <div class="grid grid-cols-1 gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,440px)]">
+              <div
+                class="grid grid-cols-1 gap-4 p-4"
+                :class="configForm.moderation_provider !== 'model_classifier' || moderationTestResult || classifierTestTrace ? 'xl:grid-cols-[minmax(0,1fr)_minmax(360px,440px)]' : ''"
+              >
                 <div class="space-y-3">
-                  <div class="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 p-2 dark:border-dark-700 dark:bg-dark-900/30 sm:flex-row sm:items-center sm:justify-between">
+                  <template v-if="configForm.moderation_provider !== 'model_classifier'">
+                    <div class="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 p-2 dark:border-dark-700 dark:bg-dark-900/30 sm:flex-row sm:items-center sm:justify-between">
                     <div class="text-xs leading-5 text-gray-500 dark:text-gray-400">
                       <span class="font-medium text-gray-700 dark:text-gray-200">{{ t('admin.riskControl.apiKeysWriteMode') }}</span>
                       <span class="ml-2">{{ apiKeysModeHint }}</span>
@@ -553,15 +624,15 @@
                         {{ t('admin.riskControl.apiKeysModeReplace') }}
                       </button>
                     </div>
-                  </div>
-                  <textarea
+                    </div>
+                    <textarea
                     v-model="configForm.api_keys_text"
                     class="input min-h-44 resize-y font-mono text-sm"
                     :placeholder="apiKeysPlaceholder"
                     autocomplete="new-password"
                     :disabled="configForm.clear_api_key"
-                  ></textarea>
-                  <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    ></textarea>
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                     <span class="inline-flex rounded-md bg-gray-100 px-2 py-1 dark:bg-dark-700">
                       {{ t('admin.riskControl.inputApiKeyCount', { count: inputApiKeyCount }) }}
                     </span>
@@ -577,7 +648,8 @@
                     <span v-if="configForm.api_keys_mode === 'replace'" class="inline-flex rounded-md bg-amber-50 px-2 py-1 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
                       {{ t('admin.riskControl.apiKeysReplaceWarning') }}
                     </span>
-                  </div>
+                    </div>
+                  </template>
 
                   <div class="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-dark-700 dark:bg-dark-900/30" @paste="handleModerationImagePaste">
                     <div class="mb-3 flex items-center justify-between gap-3">
@@ -586,7 +658,7 @@
                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.auditTestInputHint') }}</p>
                       </div>
                       <button
-                        v-if="moderationTestPrompt || moderationTestImages.length > 0 || moderationTestResult"
+                        v-if="moderationTestPrompt || moderationTestImages.length > 0 || moderationTestResult || classifierTestTrace"
                         type="button"
                         class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-gray-500 hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-dark-800 dark:hover:text-white"
                         @click="clearModerationTestInput"
@@ -639,8 +711,12 @@
                   </div>
                 </div>
 
-                <div class="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-dark-700 dark:bg-dark-900/30">
-                  <div class="mb-3 flex items-start justify-between gap-3">
+                <div
+                  v-if="configForm.moderation_provider !== 'model_classifier' || moderationTestResult || classifierTestTrace"
+                  class="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-dark-700 dark:bg-dark-900/30"
+                >
+                  <template v-if="configForm.moderation_provider !== 'model_classifier'">
+                    <div class="mb-3 flex items-start justify-between gap-3">
                     <div class="min-w-0">
                       <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.apiKeyHealth') }}</p>
                       <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.apiKeyFreezeRule') }}</p>
@@ -648,14 +724,14 @@
                     <span class="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-white px-2 py-0.5 text-[11px] font-medium leading-5 text-gray-600 shadow-sm dark:bg-dark-800 dark:text-gray-300">
                       {{ t('admin.riskControl.apiKeyRows', { count: apiKeyRows.length }) }}
                     </span>
-                  </div>
+                    </div>
 
-                  <div v-if="apiKeyRows.length === 0" class="flex min-h-32 flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-white px-4 py-6 text-center dark:border-dark-700 dark:bg-dark-800">
+                    <div v-if="apiKeyRows.length === 0" class="flex min-h-32 flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-white px-4 py-6 text-center dark:border-dark-700 dark:bg-dark-800">
                     <Icon name="infoCircle" size="lg" class="text-gray-300 dark:text-dark-500" />
                     <p class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-200">{{ t('admin.riskControl.apiKeyHealthEmpty') }}</p>
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.apiKeyHealthEmptyHint') }}</p>
-                  </div>
-                  <div v-else class="space-y-2">
+                    </div>
+                    <div v-else class="space-y-2">
                     <div class="space-y-2" :class="apiKeyRowsExpanded ? 'max-h-72 overflow-y-auto pr-1' : ''">
                       <div
                         v-for="(row, index) in visibleApiKeyRows"
@@ -711,6 +787,58 @@
                         {{ apiKeyRowsExpanded ? t('admin.riskControl.collapseApiKeyRows') : t('admin.riskControl.expandApiKeyRows') }}
                       </button>
                     </div>
+                    </div>
+                  </template>
+
+                  <div v-if="classifierTestTrace" data-test="classifier-test-trace" class="rounded-lg border border-gray-100 bg-white p-3 dark:border-dark-700 dark:bg-dark-800">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.classifierTestDetails') }}</p>
+                        <p class="mt-1 break-words text-xs leading-5 text-gray-500 dark:text-gray-400">
+                          {{ t('admin.riskControl.classifierTestGroup', {
+                            group: classifierTestTrace.group_name || `#${classifierTestTrace.group_id}`,
+                            count: classifierTestTrace.attempts.length,
+                          }) }}
+                        </p>
+                      </div>
+                      <span
+                        class="inline-flex shrink-0 rounded-full px-2 py-1 text-xs font-medium"
+                        :class="classifierTestSucceeded ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'"
+                      >
+                        {{ classifierTestSucceeded ? t('admin.riskControl.classifierTestSucceeded') : t('admin.riskControl.classifierTestFailed') }}
+                      </span>
+                    </div>
+                    <div class="mt-3 space-y-2">
+                      <div
+                        v-for="(attempt, index) in classifierTestTrace.attempts"
+                        :key="`${attempt.model}-${index}`"
+                        class="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5 dark:border-dark-700 dark:bg-dark-900/30"
+                      >
+                        <div class="flex items-start justify-between gap-3">
+                          <div class="min-w-0">
+                            <p class="break-all font-mono text-xs font-semibold leading-5 text-gray-900 dark:text-white">{{ attempt.model }}</p>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {{ t('admin.riskControl.classifierTestAttemptMeta', {
+                                status: attempt.status_code || '-',
+                                latency: attempt.latency_ms,
+                              }) }}
+                            </p>
+                          </div>
+                          <span class="shrink-0 text-xs font-medium" :class="attempt.success ? 'text-emerald-600 dark:text-emerald-300' : 'text-red-600 dark:text-red-300'">
+                            {{ attempt.success ? t('admin.riskControl.classifierTestAttemptSuccess') : t('admin.riskControl.classifierTestAttemptFailed') }}
+                          </span>
+                        </div>
+                        <p v-if="attempt.error" class="mt-2 break-words rounded-md bg-red-50 px-2 py-1.5 text-xs leading-5 text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                          {{ attempt.error }}
+                        </p>
+                      </div>
+                      <p v-if="classifierTestTrace.attempts.length === 0" class="rounded-lg border border-dashed border-gray-200 px-3 py-4 text-center text-xs text-gray-500 dark:border-dark-700 dark:text-gray-400">
+                        {{ t('admin.riskControl.classifierTestNoAttempts') }}
+                      </p>
+                    </div>
+                    <p v-if="classifierTestTrace.error" class="mt-3 break-words rounded-lg bg-red-50 px-3 py-2 text-xs leading-5 text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                      {{ classifierTestTrace.error }}
+                    </p>
                   </div>
 
                   <div v-if="moderationTestResult" class="mt-4 rounded-lg border border-gray-100 bg-white p-3 dark:border-dark-700 dark:bg-dark-800">
@@ -719,6 +847,9 @@
                         <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.auditTestResult') }}</p>
                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           {{ t('admin.riskControl.auditTestHighest', { category: moderationTestResult.highest_category || '-', score: percent(moderationTestResult.highest_score) }) }}
+                        </p>
+                        <p v-if="moderationTestResult.classifier_model" class="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">
+                          {{ t('admin.riskControl.classifierTestModel', { model: moderationTestResult.classifier_model }) }}
                         </p>
                       </div>
                       <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium" :class="moderationTestResult.flagged ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'">
@@ -1257,7 +1388,21 @@
                 {{ inputDetailRow.group_name }}
               </span>
             </div>
-            <pre class="mt-4 max-h-[420px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-gray-950 p-4 text-sm leading-6 text-gray-100 shadow-inner dark:bg-black/50">{{ inputDetailText }}</pre>
+            <div v-if="inputDetailLoading" class="mt-4 flex min-h-40 items-center justify-center rounded-lg bg-gray-950 text-sm text-gray-300 dark:bg-black/50">
+              <Icon name="refresh" size="sm" class="mr-2 animate-spin" />
+              {{ t('admin.riskControl.inputDetailLoading') }}
+            </div>
+            <template v-else>
+              <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+                <p v-if="inputDetailHasFullContent" class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.riskControl.inputDetailStoredChars', { count: inputDetailCharacterCount }) }}
+                </p>
+                <p v-else class="text-xs text-amber-600 dark:text-amber-300">
+                  {{ t('admin.riskControl.inputDetailLegacyNotice') }}
+                </p>
+              </div>
+              <pre class="mt-2 max-h-[60vh] min-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-gray-950 p-4 text-sm leading-6 text-gray-100 shadow-inner dark:bg-black/50">{{ inputDetailText }}</pre>
+            </template>
           </div>
         </div>
 
@@ -1288,6 +1433,7 @@ import type {
   ContentModerationAPIKeyLoad,
   ContentModerationAPIKeyStatus,
   ContentModerationAdaptivePolicy,
+  ContentModerationClassifierTrace,
   ContentModerationEnforcementMode,
   ContentModerationConfig,
   ContentModerationLog,
@@ -1335,6 +1481,7 @@ type RiskThresholdRow = {
 const maxModerationTestImages = 1
 const maxModerationTestImageSize = 8 * 1024 * 1024
 const maxVisibleApiKeyRows: number = 3
+const maxClassifierModels = 20
 const blockedKeywordMax = 10000
 const riskThresholdDefaults: Record<string, number> = {
   'gateway_abuse/safety_bypass': 80,
@@ -1404,7 +1551,11 @@ const apiKeyRowsExpanded = ref<boolean>(false)
 const moderationTestPrompt = ref('')
 const moderationTestImages = ref<string[]>([])
 const moderationTestResult = ref<ContentModerationTestAuditResult | null>(null)
+const classifierTestTrace = ref<ContentModerationClassifierTrace | null>(null)
+const classifierModelInput = ref('')
 const inputDetailRow = ref<ContentModerationLog | null>(null)
+const inputDetailLoading = ref(false)
+let inputDetailRequestID = 0
 let statusTimer: number | null = null
 
 const configForm = reactive({
@@ -1413,6 +1564,8 @@ const configForm = reactive({
   moderation_provider: 'openai' as ContentModerationProvider,
   base_url: 'https://api.openai.com',
   model: 'omni-moderation-latest',
+  classifier_group_id: 0,
+  classifier_models: [] as string[],
   classifier_prompt_mode: 'default' as 'default' | 'custom',
   classifier_prompt: '',
   classifier_prompt_default: '',
@@ -1614,6 +1767,28 @@ const groupFilterOptions = computed<SelectOption[]>(() => [
   })),
 ])
 
+const classifierGroupOptions = computed<SelectOption[]>(() => groups.value
+  .filter((group) => {
+    const isSelected = group.id === configForm.classifier_group_id
+    const isSystemGroup = group.scope === 'public' || ((group.owner_user_id == null || group.owner_user_id === 0) && group.scope !== 'user_private' && group.scope !== 'user_carpool')
+    const isCompatible = ['openai', 'grok', 'kiro'].includes(String(group.platform).toLowerCase())
+    return isCompatible && (isSelected || (group.status === 'active' && isSystemGroup))
+  })
+  .map((group) => ({
+    value: group.id,
+    label: group.status === 'active'
+      ? `${group.name} (${group.platform})`
+      : `${group.name} (${group.platform}, ${t('admin.riskControl.classifierGroupDisabled')})`,
+  })))
+
+const selectedClassifierGroup = computed(() => (
+  groups.value.find((group) => group.id === configForm.classifier_group_id) ?? null
+))
+
+const classifierTestSucceeded = computed(() => (
+  classifierTestTrace.value?.attempts.some((attempt) => attempt.success) ?? false
+))
+
 const selectedGroupCount = computed(() => String(configForm.group_ids.length))
 
 const modelFilterModelCount = computed(() => configForm.model_filter_models.length)
@@ -1740,10 +1915,20 @@ const overviewItems = computed<OverviewItem[]>(() => [
   },
   {
     key: 'api-key',
-    label: t('admin.riskControl.overview.apiKey'),
-    value: configForm.api_key_configured ? t('admin.riskControl.apiKeyCount', { count: configForm.api_key_count }) : t('admin.riskControl.notConfigured'),
-    meta: configForm.api_key_configured ? apiKeyHealthSummary.value || configForm.model || '-' : configForm.model || '-',
-    icon: 'key',
+    label: configForm.moderation_provider === 'model_classifier'
+      ? t('admin.riskControl.classifierRoute')
+      : t('admin.riskControl.overview.apiKey'),
+    value: configForm.moderation_provider === 'model_classifier'
+      ? selectedClassifierGroup.value?.name || t('admin.riskControl.notConfigured')
+      : configForm.api_key_configured
+        ? t('admin.riskControl.apiKeyCount', { count: configForm.api_key_count })
+        : t('admin.riskControl.notConfigured'),
+    meta: configForm.moderation_provider === 'model_classifier'
+      ? t('admin.riskControl.classifierModelCount', { count: configForm.classifier_models.length })
+      : configForm.api_key_configured
+        ? apiKeyHealthSummary.value || configForm.model || '-'
+        : configForm.model || '-',
+    icon: configForm.moderation_provider === 'model_classifier' ? 'shield' : 'key',
     iconClass: 'bg-sky-50 text-sky-600 dark:bg-sky-900/20 dark:text-sky-300',
   },
   {
@@ -1792,8 +1977,11 @@ const riskThresholdRows = computed<RiskThresholdRow[]>(() => (
 
 const inputDetailText = computed(() => {
   if (!inputDetailRow.value) return '-'
-  return inputDetailRow.value.input_excerpt || inputDetailRow.value.error || '-'
+  return inputDetailRow.value.input_content || inputDetailRow.value.input_excerpt || inputDetailRow.value.error || '-'
 })
+
+const inputDetailHasFullContent = computed(() => Boolean(inputDetailRow.value?.input_content))
+const inputDetailCharacterCount = computed(() => Array.from(inputDetailRow.value?.input_content || '').length)
 
 const queueUsagePercent = computed(() => `${Math.min(100, Math.max(0, status.value?.queue_usage_percent ?? 0)).toFixed(1)}%`)
 
@@ -1910,6 +2098,14 @@ function applyConfig(config: ContentModerationConfig) {
   configForm.moderation_provider = normalizeModerationProvider(config.moderation_provider)
   configForm.base_url = config.base_url || 'https://api.openai.com'
   configForm.model = config.model || 'omni-moderation-latest'
+  configForm.classifier_group_id = Number(config.classifier_group_id) || 0
+  configForm.classifier_models = Array.isArray(config.classifier_models)
+    ? normalizeClassifierModels(config.classifier_models)
+    : []
+  if (configForm.moderation_provider === 'model_classifier' && configForm.classifier_models.length === 0 && configForm.model) {
+    configForm.classifier_models = [configForm.model]
+  }
+  classifierModelInput.value = ''
   configForm.classifier_prompt = config.classifier_prompt || ''
   configForm.classifier_prompt_default = config.classifier_prompt_default || ''
   configForm.classifier_prompt_mode = configForm.classifier_prompt.trim() ? 'custom' : 'default'
@@ -2017,12 +2213,24 @@ async function saveConfig() {
       appStore.showError(t('admin.riskControl.classifierPromptRequired'))
       return
     }
+    if (configForm.moderation_provider === 'model_classifier' && configForm.classifier_group_id <= 0) {
+      appStore.showError(t('admin.riskControl.classifierGroupRequired'))
+      return
+    }
+    if (configForm.moderation_provider === 'model_classifier' && configForm.classifier_models.length === 0) {
+      appStore.showError(t('admin.riskControl.classifierModelsRequired'))
+      return
+    }
     const payload: UpdateContentModerationConfig = {
       enabled: configForm.enabled,
       mode: configForm.mode,
       moderation_provider: configForm.moderation_provider,
       base_url: configForm.base_url,
-      model: configForm.model,
+      model: configForm.moderation_provider === 'model_classifier'
+        ? configForm.classifier_models[0] || configForm.model
+        : configForm.model,
+      classifier_group_id: configForm.classifier_group_id,
+      classifier_models: [...configForm.classifier_models],
       classifier_prompt: configForm.classifier_prompt_mode === 'custom' ? configForm.classifier_prompt.trim() : '',
       aliyun_region_id: configForm.aliyun_region_id,
       aliyun_endpoint: configForm.aliyun_endpoint,
@@ -2033,7 +2241,7 @@ async function saveConfig() {
       all_groups: configForm.all_groups,
       group_ids: configForm.all_groups ? [] : [...configForm.group_ids],
       record_non_hits: configForm.record_non_hits,
-      clear_api_key: configForm.clear_api_key,
+      clear_api_key: configForm.moderation_provider === 'model_classifier' ? false : configForm.clear_api_key,
       worker_count: Number(configForm.worker_count) || 4,
       queue_size: Number(configForm.queue_size) || 32768,
       block_status: Number(configForm.block_status) || 403,
@@ -2051,18 +2259,20 @@ async function saveConfig() {
       model_filter: modelFilterPayload,
       adaptive_policy: { ...configForm.adaptive_policy },
     }
-    const keys = parseApiKeys(configForm.api_keys_text)
-    if (!payload.clear_api_key && configForm.api_keys_mode === 'replace' && keys.length === 0) {
-      appStore.showError(t('admin.riskControl.apiKeysReplaceNoInput'))
-      return
-    }
-    if (keys.length > 0) {
-      payload.api_keys = keys
-      payload.api_keys_mode = configForm.api_keys_mode
-      payload.clear_api_key = false
-    }
-    if (!payload.clear_api_key && configForm.api_keys_mode !== 'replace' && pendingDeleteApiKeyHashes.value.length > 0) {
-      payload.delete_api_key_hashes = [...pendingDeleteApiKeyHashes.value]
+    if (configForm.moderation_provider !== 'model_classifier') {
+      const keys = parseApiKeys(configForm.api_keys_text)
+      if (!payload.clear_api_key && configForm.api_keys_mode === 'replace' && keys.length === 0) {
+        appStore.showError(t('admin.riskControl.apiKeysReplaceNoInput'))
+        return
+      }
+      if (keys.length > 0) {
+        payload.api_keys = keys
+        payload.api_keys_mode = configForm.api_keys_mode
+        payload.clear_api_key = false
+      }
+      if (!payload.clear_api_key && configForm.api_keys_mode !== 'replace' && pendingDeleteApiKeyHashes.value.length > 0) {
+        payload.delete_api_key_hashes = [...pendingDeleteApiKeyHashes.value]
+      }
     }
 
     const updated = await adminAPI.riskControl.updateConfig(payload)
@@ -2111,11 +2321,29 @@ function inputSummaryText(row: ContentModerationLog): string {
   return row.input_excerpt || row.error || '-'
 }
 
-function openInputDetail(row: ContentModerationLog) {
+async function openInputDetail(row: ContentModerationLog) {
+  const requestID = ++inputDetailRequestID
   inputDetailRow.value = row
+  inputDetailLoading.value = true
+  try {
+    const detail = await adminAPI.riskControl.getLog(row.id)
+    if (requestID === inputDetailRequestID) {
+      inputDetailRow.value = detail
+    }
+  } catch (err: unknown) {
+    if (requestID === inputDetailRequestID) {
+      appStore.showError(extractApiErrorMessage(err, t('admin.riskControl.inputDetailLoadFailed')))
+    }
+  } finally {
+    if (requestID === inputDetailRequestID) {
+      inputDetailLoading.value = false
+    }
+  }
 }
 
 function closeInputDetail() {
+  inputDetailRequestID++
+  inputDetailLoading.value = false
   inputDetailRow.value = null
 }
 
@@ -2219,7 +2447,65 @@ function setClassifierPromptMode(mode: 'default' | 'custom') {
   }
 }
 
+function normalizeClassifierModels(models: string[]): string[] {
+  const result: string[] = []
+  const seen = new Set<string>()
+  for (const raw of models) {
+    for (const item of String(raw || '').split(/[\s,]+/)) {
+      const model = item.trim()
+      const key = model.toLowerCase()
+      if (!model || seen.has(key)) continue
+      seen.add(key)
+      result.push(model)
+      if (result.length >= maxClassifierModels) return result
+    }
+  }
+  return result
+}
+
+function syncClassifierPrimaryModel() {
+  if (configForm.classifier_models.length > 0) {
+    configForm.model = configForm.classifier_models[0]
+  }
+}
+
+function addClassifierModels() {
+  const input = classifierModelInput.value.trim()
+  if (!input) return
+  configForm.classifier_models = normalizeClassifierModels([
+    ...configForm.classifier_models,
+    input,
+  ])
+  classifierModelInput.value = ''
+  syncClassifierPrimaryModel()
+}
+
+function moveClassifierModel(index: number, offset: number) {
+  const target = index + offset
+  if (index < 0 || target < 0 || target >= configForm.classifier_models.length) return
+  const models = [...configForm.classifier_models]
+  const [model] = models.splice(index, 1)
+  if (!model) return
+  models.splice(target, 0, model)
+  configForm.classifier_models = models
+  syncClassifierPrimaryModel()
+}
+
+function removeClassifierModel(index: number) {
+  configForm.classifier_models = configForm.classifier_models.filter((_, itemIndex) => itemIndex !== index)
+  syncClassifierPrimaryModel()
+}
+
 async function testApiKeys(useInputKeys: boolean) {
+  const classifierMode = configForm.moderation_provider === 'model_classifier'
+  if (classifierMode && configForm.classifier_group_id <= 0) {
+    appStore.showError(t('admin.riskControl.classifierGroupRequired'))
+    return
+  }
+  if (classifierMode && configForm.classifier_models.length === 0) {
+    appStore.showError(t('admin.riskControl.classifierModelsRequired'))
+    return
+  }
   const keys = useInputKeys ? parseApiKeys(configForm.api_keys_text) : []
   if (useInputKeys && keys.length === 0) {
     appStore.showError(t('admin.riskControl.apiKeyTestNoInput'))
@@ -2231,7 +2517,9 @@ async function testApiKeys(useInputKeys: boolean) {
       api_keys: keys,
       moderation_provider: configForm.moderation_provider,
       base_url: configForm.base_url,
-      model: configForm.model,
+      model: classifierMode ? configForm.classifier_models[0] || configForm.model : configForm.model,
+      classifier_group_id: configForm.classifier_group_id,
+      classifier_models: [...configForm.classifier_models],
       classifier_prompt: configForm.classifier_prompt_mode === 'custom' ? configForm.classifier_prompt : '',
       aliyun_region_id: configForm.aliyun_region_id,
       aliyun_endpoint: configForm.aliyun_endpoint,
@@ -2241,14 +2529,26 @@ async function testApiKeys(useInputKeys: boolean) {
       images: moderationTestImages.value,
     })
     moderationTestResult.value = result.audit_result ?? null
-    if (useInputKeys) {
+    classifierTestTrace.value = classifierMode ? result.classifier_trace ?? null : null
+    if (classifierMode) {
+      testedApiKeyStatuses.value = []
+      if (classifierTestSucceeded.value) {
+        appStore.showSuccess(t('admin.riskControl.classifierTestDone', {
+          model: result.audit_result?.classifier_model || configForm.classifier_models[0] || '-',
+        }))
+      } else {
+        appStore.showError(result.classifier_trace?.error || t('admin.riskControl.classifierTestFailed'))
+      }
+    } else if (useInputKeys) {
       testedApiKeyStatuses.value = result.items.map((item) => ({ ...item, configured: false }))
     } else {
       mergeConfiguredAPIKeyStatuses(result.items)
       testedApiKeyStatuses.value = []
       await loadStatus(true)
     }
-    appStore.showSuccess(t('admin.riskControl.apiKeyTestDone', { count: result.items.length }))
+    if (!classifierMode) {
+      appStore.showSuccess(t('admin.riskControl.apiKeyTestDone', { count: result.items.length }))
+    }
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('admin.riskControl.apiKeyTestFailed')))
   } finally {
@@ -2288,6 +2588,7 @@ function clearModerationTestInput() {
   moderationTestPrompt.value = ''
   moderationTestImages.value = []
   moderationTestResult.value = null
+  classifierTestTrace.value = null
 }
 
 function removeModerationTestImage(index: number) {

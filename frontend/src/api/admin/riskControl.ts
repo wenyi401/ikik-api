@@ -38,6 +38,8 @@ export interface ContentModerationConfig {
   moderation_provider: ContentModerationProvider
   base_url: string
   model: string
+  classifier_group_id: number
+  classifier_models: string[]
   classifier_prompt: string
   classifier_prompt_default: string
   aliyun_region_id: string
@@ -95,6 +97,8 @@ export interface TestContentModerationAPIKeysPayload {
   moderation_provider?: ContentModerationProvider
   base_url?: string
   model?: string
+  classifier_group_id?: number
+  classifier_models?: string[]
   classifier_prompt?: string
   aliyun_region_id?: string
   aliyun_endpoint?: string
@@ -107,7 +111,23 @@ export interface TestContentModerationAPIKeysPayload {
 export interface TestContentModerationAPIKeysResponse {
   items: ContentModerationAPIKeyStatus[]
   audit_result?: ContentModerationTestAuditResult
+  classifier_trace?: ContentModerationClassifierTrace
   image_count: number
+}
+
+export interface ContentModerationClassifierAttempt {
+  model: string
+  status_code: number
+  latency_ms: number
+  success: boolean
+  error?: string
+}
+
+export interface ContentModerationClassifierTrace {
+  group_id: number
+  group_name?: string
+  attempts: ContentModerationClassifierAttempt[]
+  error?: string
 }
 
 export interface ContentModerationTestAuditResult {
@@ -117,6 +137,7 @@ export interface ContentModerationTestAuditResult {
   composite_score: number
   category_scores: Record<string, number>
   thresholds: Record<string, number>
+  classifier_model?: string
 }
 
 export interface UpdateContentModerationConfig {
@@ -125,6 +146,8 @@ export interface UpdateContentModerationConfig {
   moderation_provider?: ContentModerationProvider
   base_url?: string
   model?: string
+  classifier_group_id?: number
+  classifier_models?: string[]
   classifier_prompt?: string
   aliyun_region_id?: string
   aliyun_endpoint?: string
@@ -225,6 +248,7 @@ export interface ContentModerationLog {
   category_scores: Record<string, number>
   threshold_snapshot: Record<string, number>
   input_excerpt: string
+  input_content?: string
   upstream_latency_ms: number | null
   error: string
   violation_count: number
@@ -355,6 +379,11 @@ export async function listLogs(
   return data
 }
 
+export async function getLog(logID: number): Promise<ContentModerationLog> {
+  const { data } = await apiClient.get<ContentModerationLog>(`/admin/risk-control/logs/${logID}`)
+  return data
+}
+
 export async function unbanUser(userID: number): Promise<ContentModerationUnbanUserResponse> {
   const { data } = await apiClient.post<ContentModerationUnbanUserResponse>(
     `/admin/risk-control/users/${userID}/unban`
@@ -400,6 +429,7 @@ export const riskControlAPI = {
   getStatus,
   testAPIKeys,
   listLogs,
+  getLog,
   listRiskProfiles,
   updateRiskProfile,
   unbanUser,

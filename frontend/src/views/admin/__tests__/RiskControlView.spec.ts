@@ -11,7 +11,9 @@ const {
   updateConfig,
   getStatus,
   listLogs,
+  getLog,
   getGroups,
+  testAPIKeys,
   showError,
   showSuccess,
 } = vi.hoisted(() => ({
@@ -19,7 +21,9 @@ const {
   updateConfig: vi.fn(),
   getStatus: vi.fn(),
   listLogs: vi.fn(),
+  getLog: vi.fn(),
   getGroups: vi.fn(),
+  testAPIKeys: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
 }))
@@ -31,7 +35,8 @@ vi.mock('@/api/admin', () => ({
       updateConfig,
       getStatus,
       listLogs,
-      testAPIKeys: vi.fn(),
+      getLog,
+      testAPIKeys,
       deleteFlaggedHash: vi.fn(),
       clearFlaggedHashes: vi.fn(),
       unbanUser: vi.fn(),
@@ -61,6 +66,12 @@ vi.mock('vue-i18n', async () => {
       t: (key: string, params?: Record<string, string | number>) => {
         if (key === 'admin.riskControl.preBlockAPIKeyLoadSummary') {
           return `同步并发 ${params?.active} / 可用 Key ${params?.available}，累计 ${params?.total} 次，worker：${params?.workerActive} / ${params?.workerTotal}`
+        }
+        if (key === 'admin.riskControl.classifierTestGroup') {
+          return `group ${params?.group}, attempts ${params?.count}`
+        }
+        if (key === 'admin.riskControl.classifierTestAttemptMeta') {
+          return `HTTP ${params?.status} ${params?.latency} ms`
         }
         return key.replace(/\{(\w+)\}/g, (_, token) => String(params?.[token] ?? `{${token}}`))
       },
@@ -190,14 +201,18 @@ describe('admin RiskControlView', () => {
     updateConfig.mockReset()
     getStatus.mockReset()
     listLogs.mockReset()
+    getLog.mockReset()
     getGroups.mockReset()
+    testAPIKeys.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
 
     getConfig.mockResolvedValue(baseConfig())
     getStatus.mockResolvedValue(runtimeStatus())
     listLogs.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
+    getLog.mockResolvedValue(null)
     getGroups.mockResolvedValue([])
+    testAPIKeys.mockResolvedValue({ items: [], image_count: 0 })
     updateConfig.mockImplementation(async (payload: UpdateContentModerationConfig) => ({
       ...baseConfig(),
       ...payload,
@@ -274,6 +289,81 @@ describe('admin RiskControlView', () => {
       }),
     }))
     expect(showError).not.toHaveBeenCalled()
+  })
+
+  it('keeps full classifier model names and shows detailed routing test attempts', async () => {
+    const model = 'gpt-5.4-mini-classifier-with-a-long-model-id'
+    getConfig.mockResolvedValue({
+      ...baseConfig(),
+      moderation_provider: 'model_classifier',
+      classifier_group_id: 16,
+      classifier_models: [model],
+      classifier_prompt: '',
+      classifier_prompt_default: 'default prompt',
+    })
+    getGroups.mockResolvedValue([{
+      id: 16,
+      name: 'gpt pro shared pool',
+      platform: 'openai',
+      status: 'active',
+      owner_user_id: 0,
+      scope: 'public',
+    }])
+    testAPIKeys.mockResolvedValue({
+      items: [],
+      image_count: 0,
+      audit_result: {
+        flagged: false,
+        highest_category: 'gateway_abuse/other',
+        highest_score: 0.1,
+        composite_score: 0.1,
+        category_scores: { 'gateway_abuse/other': 0.1 },
+        thresholds: { 'gateway_abuse/other': 0.85 },
+        classifier_model: model,
+      },
+      classifier_trace: {
+        group_id: 16,
+        group_name: 'gpt pro shared pool',
+        attempts: [{
+          model,
+          status_code: 200,
+          latency_ms: 187,
+          success: true,
+        }],
+      },
+    })
+
+    const wrapper = mount(RiskControlView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          BaseDialog: BaseDialogStub,
+          Icon: true,
+          Select: true,
+          Toggle: true,
+          Pagination: true,
+          ModelWhitelistSelector: ModelWhitelistSelectorStub,
+        },
+      },
+    })
+
+    await flushPromises()
+    await findButtonByText(wrapper, 'admin.riskControl.openSettings').trigger('click')
+    await findButtonByText(wrapper, 'admin.riskControl.classifierTest').trigger('click')
+    await flushPromises()
+
+    expect(testAPIKeys).toHaveBeenCalledWith(expect.objectContaining({
+      classifier_group_id: 16,
+      classifier_models: [model],
+    }))
+    const modelLabel = wrapper.findAll('span').find((item) => item.text() === model)
+    expect(modelLabel?.classes()).toContain('break-all')
+    expect(modelLabel?.classes()).not.toContain('truncate')
+    const trace = wrapper.get('[data-test="classifier-test-trace"]')
+    expect(trace.text()).toContain('gpt pro shared pool')
+    expect(trace.text()).toContain(model)
+    expect(trace.text()).toContain('200')
+    expect(trace.text()).toContain('187')
   })
 
   it('describes worker runtime as async audit and pre-block record processing', async () => {
@@ -403,5 +493,61 @@ describe('admin RiskControlView', () => {
       'max-h-[280px]',
       'overflow-y-auto',
     ]))
+  })
+
+  it('loads the complete audited input only when the detail dialog opens', async () => {
+    const row = {
+      id: 42,
+      request_id: 'req-42',
+      user_id: 7,
+      user_email: 'user@example.com',
+      api_key_id: 9,
+      api_key_name: 'key',
+      group_id: 16,
+      group_name: 'shared',
+      endpoint: '/v1/responses',
+      provider: 'openai',
+      model: 'gpt-5.5',
+      mode: 'adaptive',
+      action: 'allow',
+      flagged: true,
+      highest_category: 'gateway_abuse/other',
+      highest_score: 0.9,
+      matched_keyword: '',
+      category_scores: {},
+      threshold_snapshot: {},
+      input_excerpt: 'summary only',
+      upstream_latency_ms: 100,
+      error: '',
+      violation_count: 0,
+      auto_banned: false,
+      email_sent: false,
+      user_status: 'active',
+      queue_delay_ms: 0,
+      created_at: '2026-07-24T08:00:00+08:00',
+    }
+    listLogs.mockResolvedValue({ items: [row], total: 1, page: 1, page_size: 20, pages: 1 })
+    getLog.mockResolvedValue({ ...row, input_content: 'complete audited input' })
+    const wrapper = mount(RiskControlView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          BaseDialog: BaseDialogStub,
+          Icon: true,
+          Select: true,
+          Toggle: true,
+          Pagination: true,
+          ModelWhitelistSelector: ModelWhitelistSelectorStub,
+        },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.get('tbody button').trigger('click')
+    await flushPromises()
+
+    expect(getLog).toHaveBeenCalledWith(42)
+    expect(wrapper.text()).toContain('complete audited input')
+    expect(wrapper.text()).toContain('admin.riskControl.inputDetailStoredChars')
   })
 })

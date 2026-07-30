@@ -14,7 +14,7 @@ import (
 	"ikik-api/internal/config"
 )
 
-const apiKeyAuthSnapshotVersion = 16 // v16: include API key group routes
+const apiKeyAuthSnapshotVersion = 18 // v18: include expiring content-moderation group penalties
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -357,6 +357,8 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			Balance:                    apiKey.User.Balance,
 			Concurrency:                apiKey.User.Concurrency,
 			AllowedGroups:              apiKey.User.AllowedGroups,
+			BlockedGroups:              apiKey.User.BlockedGroups,
+			RiskGroupBlocks:            apiKey.User.RiskGroupBlocks,
 			Email:                      apiKey.User.Email,
 			Username:                   apiKey.User.Username,
 			BalanceNotifyEnabled:       apiKey.User.BalanceNotifyEnabled,
@@ -449,6 +451,8 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			Balance:                    snapshot.User.Balance,
 			Concurrency:                snapshot.User.Concurrency,
 			AllowedGroups:              snapshot.User.AllowedGroups,
+			BlockedGroups:              snapshot.User.BlockedGroups,
+			RiskGroupBlocks:            snapshot.User.RiskGroupBlocks,
 			Email:                      snapshot.User.Email,
 			Username:                   snapshot.User.Username,
 			BalanceNotifyEnabled:       snapshot.User.BalanceNotifyEnabled,

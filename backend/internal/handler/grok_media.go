@@ -113,15 +113,27 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	reqLog = reqLog.With(zap.String("model", requestModel))
 	setOpsRequestContext(c, requestModel, false)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeSync))
+	imageRouteRequest := isGrokImageRouteRequest(endpoint)
+	currentAPIKey := apiKey
+	var routeCursor *apiKeyGroupRouteCursor
+	if imageRouteRequest {
+		routeCursor = newAPIKeyGroupRouteCursor(apiKey)
+		routeCandidate, permissionDenied, routeOK := currentGrokImageRoute(routeCursor, reqLog)
+		if !routeOK {
+			h.grokImageRouteUnavailable(c, permissionDenied)
+			return
+		}
+		currentAPIKey = routeCandidate.APIKey
+	}
 
 	if endpoint.IsGenerationRequest() {
-		if !service.GroupAllowsImageGeneration(apiKey.Group) {
+		if !imageRouteRequest && !service.GroupAllowsImageGeneration(apiKey.Group) {
 			h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
 			return
 		}
 		if moderationBody := requestInfo.ModerationBody(); len(moderationBody) > 0 {
-			preFlightDecision := h.runPreFlightHooks(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIImages, requestModel, moderationBody)
-			auditDecision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIImages, requestModel, moderationBody)
+			preFlightDecision := h.runPreFlightHooks(c, reqLog, currentAPIKey, subject, service.ContentModerationProtocolOpenAIImages, requestModel, moderationBody)
+			auditDecision := h.checkSecurityAudit(c, reqLog, currentAPIKey, subject, service.ContentModerationProtocolOpenAIImages, requestModel, moderationBody)
 			if preFlightDecision != nil && preFlightDecision.Blocked {
 				h.errorResponse(c, preFlightStatus(preFlightDecision), preFlightErrorCode(preFlightDecision), preFlightDecision.Message)
 				return
@@ -155,14 +167,16 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		defer userReleaseFunc()
 	}
 
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		reqLog.Info("grok_media.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
+	if !imageRouteRequest {
+		if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
+			reqLog.Info("grok_media.billing_eligibility_check_failed", zap.Error(err))
+			status, code, message, retryAfter := billingErrorDetails(err)
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+			}
+			h.errorResponse(c, status, code, message)
+			return
 		}
-		h.errorResponse(c, status, code, message)
-		return
 	}
 
 	sessionSeed := body
@@ -182,7 +196,11 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 			return
 		}
 	}
-	requestCtx := c.Request.Context()
+	baseRequestCtx := c.Request.Context()
+	requestCtx := baseRequestCtx
+	currentSubscription := subscription
+	activeRouteGroupID := int64(0)
+	userRPMCounted := false
 	failedAccountIDs := make(map[int64]struct{})
 	sameAccountRetryCount := make(map[int64]int)
 	var lastFailoverErr *service.UpstreamFailoverError
@@ -195,14 +213,68 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	}
 	routingStart := time.Now()
 	requiredCapability := grokMediaRequiredCapability(endpoint)
+	resetRouteState := func() {
+		failedAccountIDs = make(map[int64]struct{})
+		sameAccountRetryCount = make(map[int64]int)
+		lastFailoverErr = nil
+		oauth429FailoverState = service.OpenAIOAuth429FailoverState{}
+		mediaEligibilityRejected = false
+		switchCount = 0
+		activeRouteGroupID = 0
+	}
+	switchImageRoute := func(reason string, fields ...zap.Field) bool {
+		if !imageRouteRequest || routeCursor == nil || !routeCursor.switchToNext(apiKey.ID, reason, reqLog, fields...) {
+			return false
+		}
+		resetRouteState()
+		return true
+	}
 
 	for {
 		if failoverClientGone(c) {
 			return
 		}
+		if imageRouteRequest {
+			routeCandidate, permissionDenied, routeOK := currentGrokImageRoute(routeCursor, reqLog)
+			if !routeOK {
+				h.grokImageRouteUnavailable(c, permissionDenied)
+				return
+			}
+			currentAPIKey = routeCandidate.APIKey
+			if currentAPIKey.GroupID == nil || *currentAPIKey.GroupID <= 0 {
+				h.grokImageRouteUnavailable(c, false)
+				return
+			}
+			if activeRouteGroupID != *currentAPIKey.GroupID {
+				requestCtx = gatewayRouteContext(baseRequestCtx, currentAPIKey, subject.UserID)
+				if userRPMCounted {
+					requestCtx = service.WithUserRPMAlreadyCounted(requestCtx)
+				}
+				currentSubscription, err = h.gatewayService.ResolveRouteSubscription(requestCtx, currentAPIKey, subscription)
+				if err != nil {
+					status, code, message, retryAfter := billingErrorDetails(err)
+					if retryAfter > 0 {
+						c.Header("Retry-After", strconv.Itoa(retryAfter))
+					}
+					h.errorResponse(c, status, code, message)
+					return
+				}
+				if err := h.billingCacheService.CheckBillingEligibility(requestCtx, currentAPIKey.User, currentAPIKey, currentAPIKey.Group, currentSubscription, service.QuotaPlatform(requestCtx, currentAPIKey)); err != nil {
+					reqLog.Info("grok_media.billing_eligibility_check_failed", zap.Error(err), zap.Int64p("group_id", currentAPIKey.GroupID))
+					status, code, message, retryAfter := billingErrorDetails(err)
+					if retryAfter > 0 {
+						c.Header("Retry-After", strconv.Itoa(retryAfter))
+					}
+					h.errorResponse(c, status, code, message)
+					return
+				}
+				userRPMCounted = true
+				activeRouteGroupID = *currentAPIKey.GroupID
+			}
+		}
 		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
 			requestCtx,
-			apiKey.GroupID,
+			currentAPIKey.GroupID,
 			"",
 			sessionHash,
 			routingModel,
@@ -222,15 +294,22 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 			reqLog.Warn("grok_media.account_select_failed",
 				zap.Error(err),
 				zap.Int("excluded_account_count", len(failedAccountIDs)),
+				zap.Int64p("group_id", currentAPIKey.GroupID),
 			)
+			if len(failedAccountIDs) == 0 && switchImageRoute("account_select_failed", zap.Error(err)) {
+				continue
+			}
 			if endpoint.IsGenerationRequest() && errors.Is(err, service.ErrNoAvailableAccounts) &&
 				(len(failedAccountIDs) == 0 || (mediaEligibilityRejected && lastFailoverErr == nil)) {
+				if switchImageRoute("media_eligibility_exhausted", zap.Error(err)) {
+					continue
+				}
 				markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 				h.errorResponse(c, http.StatusServiceUnavailable, "grok_media_no_eligible_account", "No eligible Grok media accounts")
 				return
 			}
 			if len(failedAccountIDs) == 0 {
-				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, requestModel, routingModel, service.PlatformGrok)
+				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, currentAPIKey, requestModel, routingModel, service.PlatformGrok)
 				if !cls.ModelNotFound {
 					markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 				}
@@ -238,6 +317,9 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 				return
 			}
 			if lastFailoverErr != nil {
+				if shouldSwitchAPIKeyGroupRoute(lastFailoverErr) && switchImageRoute("account_selection_exhausted", zap.Int("upstream_status", lastFailoverErr.StatusCode)) {
+					continue
+				}
 				h.handleFailoverExhausted(c, lastFailoverErr, false)
 			} else {
 				h.errorResponse(c, http.StatusBadGateway, "api_error", "Upstream request failed")
@@ -245,12 +327,15 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 			return
 		}
 		if selection == nil || selection.Account == nil {
+			if switchImageRoute("account_selection_empty") {
+				continue
+			}
 			if endpoint.IsGenerationRequest() {
 				markOpsRoutingCapacityLimited(c)
 				h.errorResponse(c, http.StatusServiceUnavailable, "grok_media_no_eligible_account", "No eligible Grok media accounts")
 				return
 			}
-			cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, requestModel, routingModel, service.PlatformGrok)
+			cls := classifyNoAccountErrorFromGin(c, h.gatewayService, currentAPIKey, requestModel, routingModel, service.PlatformGrok)
 			if !cls.ModelNotFound {
 				markOpsRoutingCapacityLimited(c)
 			}
@@ -287,6 +372,9 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 					zap.Bool("probe_failed", eligibilityErr != nil),
 				)
 				if switchCount >= maxAccountSwitches {
+					if switchImageRoute("media_eligibility_switch_limit") {
+						continue
+					}
 					markOpsRoutingCapacityLimited(c)
 					h.errorResponse(c, http.StatusServiceUnavailable, "grok_media_no_eligible_account", "No eligible Grok media accounts")
 					return
@@ -298,7 +386,7 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		sessionHash = ensureOpenAIPoolModeSessionHash(sessionHash, account)
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
-		accountReleaseFunc, accountAcquired := h.acquireResponsesAccountSlot(c, apiKey.GroupID, sessionHash, selection, false, &streamStarted, reqLog)
+		accountReleaseFunc, accountAcquired := h.acquireResponsesAccountSlot(c, currentAPIKey.GroupID, sessionHash, selection, false, &streamStarted, reqLog)
 		if !accountAcquired {
 			return
 		}
@@ -341,6 +429,10 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 					return
 				}
 				if !failoverErr.ShouldRetryNextAccount() {
+					if canSwitchAPIKeyGroupRouteAfterForward(c, routeCursor, failoverErr, streamStarted, writerSizeBeforeForward) &&
+						switchImageRoute("upstream_route_retry", zap.Int("upstream_status", failoverErr.StatusCode)) {
+						continue
+					}
 					h.handleFailoverExhausted(c, failoverErr, false)
 					return
 				}
@@ -370,11 +462,19 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 				failedAccountIDs[account.ID] = struct{}{}
 				lastFailoverErr = failoverErr
 				if switchCount >= maxAccountSwitches {
+					if canSwitchAPIKeyGroupRouteAfterForward(c, routeCursor, failoverErr, streamStarted, writerSizeBeforeForward) &&
+						switchImageRoute("upstream_failover_exhausted", zap.Int("upstream_status", failoverErr.StatusCode)) {
+						continue
+					}
 					h.handleFailoverExhausted(c, failoverErr, false)
 					return
 				}
 				switchCount++
 				if h.gatewayService.ShouldStopOpenAIOAuth429Failover(account, failoverErr.StatusCode, switchCount, &oauth429FailoverState) {
+					if canSwitchAPIKeyGroupRouteAfterForward(c, routeCursor, failoverErr, streamStarted, writerSizeBeforeForward) &&
+						switchImageRoute("oauth_429_failover_exhausted", zap.Int("upstream_status", failoverErr.StatusCode)) {
+						continue
+					}
 					h.handleFailoverExhausted(c, failoverErr, false)
 					return
 				}
@@ -398,9 +498,12 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		}
 
 		h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, grokMediaScheduleModel(account, routingModel, result), true, nil)
+		if imageRouteRequest {
+			routeCursor.recordSuccess(apiKey.ID)
+		}
 		if endpoint.IsGenerationRequest() && strings.TrimSpace(result.ResponseID) != "" {
 			if err := h.gatewayService.BindGrokMediaVideoRequestAccount(
-				requestCtx, apiKey.GroupID, result.ResponseID, subject.UserID, apiKey.ID, account.ID,
+				requestCtx, currentAPIKey.GroupID, result.ResponseID, subject.UserID, apiKey.ID, account.ID,
 			); err != nil {
 				reqLog.Warn("grok_media.bind_video_request_account_failed",
 					zap.Int64("account_id", account.ID),
@@ -410,7 +513,7 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 			}
 		}
 		if shouldRecordGrokMediaUsage(endpoint, requestModel) {
-			recordGrokMediaUsage(c, h, reqLog, apiKey, subject, subscription, account, result, requestModel, body, requestID)
+			recordGrokMediaUsage(requestCtx, c, h, reqLog, currentAPIKey, subject, currentSubscription, account, result, requestModel, body, requestID)
 		}
 		reqLog.Debug("grok_media.request_completed",
 			zap.Int64("account_id", account.ID),
@@ -418,6 +521,42 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		)
 		return
 	}
+}
+
+func isGrokImageRouteRequest(endpoint service.GrokMediaEndpoint) bool {
+	return endpoint == service.GrokMediaEndpointImagesGenerations || endpoint == service.GrokMediaEndpointImagesEdits
+}
+
+func currentGrokImageRoute(cursor *apiKeyGroupRouteCursor, reqLog *zap.Logger) (apiKeyGroupRouteCandidate, bool, bool) {
+	permissionDenied := false
+	for {
+		candidate, ok := cursor.current()
+		if !ok {
+			return apiKeyGroupRouteCandidate{}, permissionDenied, false
+		}
+		if service.PlatformFromAPIKey(candidate.APIKey) != service.PlatformGrok {
+			if cursor.skipToNext("grok_image_platform_mismatch", reqLog, zap.Int64("group_id", candidate.Route.GroupID)) {
+				continue
+			}
+			return apiKeyGroupRouteCandidate{}, permissionDenied, false
+		}
+		if !service.GroupAllowsImageGeneration(candidate.APIKey.Group) {
+			permissionDenied = true
+			if cursor.skipToNext("image_generation_not_allowed", reqLog, zap.Int64("group_id", candidate.Route.GroupID)) {
+				continue
+			}
+			return apiKeyGroupRouteCandidate{}, true, false
+		}
+		return candidate, permissionDenied, true
+	}
+}
+
+func (h *OpenAIGatewayHandler) grokImageRouteUnavailable(c *gin.Context, permissionDenied bool) {
+	if permissionDenied {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
+		return
+	}
+	h.errorResponse(c, http.StatusServiceUnavailable, "grok_media_no_eligible_route", "No eligible Grok image routes")
 }
 
 func (h *OpenAIGatewayHandler) ensureGrokMediaAccountEligibility(ctx context.Context, account *service.Account) (bool, string, error) {
@@ -456,6 +595,7 @@ func shouldRecordGrokMediaUsage(endpoint service.GrokMediaEndpoint, requestModel
 }
 
 func recordGrokMediaUsage(
+	requestCtx context.Context,
 	c *gin.Context,
 	h *OpenAIGatewayHandler,
 	reqLog *zap.Logger,
@@ -476,12 +616,12 @@ func recordGrokMediaUsage(
 	}
 	inboundEndpoint := GetInboundEndpoint(c)
 	upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
-	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+	quotaPlatform := service.QuotaPlatform(requestCtx, apiKey)
 	channelUsageFields := service.ChannelUsageFields{
-		OriginalModel:      requestModel,
+		OriginalModel:      clientRequestedModel(c, requestModel),
 		ChannelMappedModel: requestModel,
 	}
-	h.submitOpenAIUsageRecordTask(c.Request.Context(), result, func(ctx context.Context) {
+	h.submitOpenAIUsageRecordTask(requestCtx, result, func(ctx context.Context) {
 		if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 			Result:             result,
 			APIKey:             apiKey,

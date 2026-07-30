@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/apikey"
 	"ikik-api/ent/authidentity"
@@ -19,10 +20,10 @@ import (
 	"ikik-api/ent/schema/mixins"
 	dbuser "ikik-api/ent/user"
 	"ikik-api/ent/userallowedgroup"
+	"ikik-api/ent/userblockedgroup"
 	"ikik-api/ent/usersubscription"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/service"
-	"github.com/lib/pq"
 
 	entsql "entgo.io/ent/dialect/sql"
 )
@@ -105,6 +106,9 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 	if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, created.ID, userIn.AllowedGroups); err != nil {
 		return err
 	}
+	if err := r.syncUserBlockedGroupsWithClient(txCtx, txClient, created.ID, userIn.BlockedGroups); err != nil {
+		return err
+	}
 	if err := ensureEmailAuthIdentityWithClient(txCtx, txClient, created.ID, created.Email, "user_repo_create"); err != nil {
 		return err
 	}
@@ -133,6 +137,16 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*service.User, 
 	if v, ok := groups[id]; ok {
 		out.AllowedGroups = v
 	}
+	blockedGroups, err := r.loadBlockedGroups(ctx, []int64{id})
+	if err != nil {
+		return nil, err
+	}
+	if v, ok := blockedGroups[id]; ok {
+		out.BlockedGroups = v
+	}
+	if err := attachActiveRiskGroupBlocks(ctx, r.sql, out); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 
@@ -149,6 +163,13 @@ func (r *userRepository) GetByIDIncludeDeleted(ctx context.Context, id int64) (*
 	}
 	if v, ok := groups[id]; ok {
 		out.AllowedGroups = v
+	}
+	blockedGroups, err := r.loadBlockedGroups(ctx, []int64{id})
+	if err != nil {
+		return nil, err
+	}
+	if v, ok := blockedGroups[id]; ok {
+		out.BlockedGroups = v
 	}
 	return out, nil
 }
@@ -176,6 +197,13 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*service
 	}
 	if v, ok := groups[m.ID]; ok {
 		out.AllowedGroups = v
+	}
+	blockedGroups, err := r.loadBlockedGroups(ctx, []int64{m.ID})
+	if err != nil {
+		return nil, err
+	}
+	if v, ok := blockedGroups[m.ID]; ok {
+		out.BlockedGroups = v
 	}
 	return out, nil
 }
@@ -260,6 +288,9 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 	}
 
 	if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, updated.ID, userIn.AllowedGroups); err != nil {
+		return err
+	}
+	if err := r.syncUserBlockedGroupsWithClient(txCtx, txClient, updated.ID, userIn.BlockedGroups); err != nil {
 		return err
 	}
 	if err := replaceEmailAuthIdentityWithClient(txCtx, txClient, updated.ID, oldEmail, updated.Email, "user_repo_update"); err != nil {
@@ -549,6 +580,15 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 	for id, u := range userMap {
 		if groups, ok := allowedGroupsByUser[id]; ok {
 			u.AllowedGroups = groups
+		}
+	}
+	blockedGroupsByUser, err := r.loadBlockedGroups(ctx, userIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	for id, u := range userMap {
+		if groups, ok := blockedGroupsByUser[id]; ok {
+			u.BlockedGroups = groups
 		}
 	}
 
@@ -1005,6 +1045,13 @@ func (r *userRepository) GetFirstAdmin(ctx context.Context) (*service.User, erro
 	if v, ok := groups[m.ID]; ok {
 		out.AllowedGroups = v
 	}
+	blockedGroups, err := r.loadBlockedGroups(ctx, []int64{m.ID})
+	if err != nil {
+		return nil, err
+	}
+	if v, ok := blockedGroups[m.ID]; ok {
+		out.BlockedGroups = v
+	}
 	return out, nil
 }
 
@@ -1029,6 +1076,28 @@ func (r *userRepository) loadAllowedGroups(ctx context.Context, userIDs []int64)
 		sort.Slice(out[userID], func(i, j int) bool { return out[userID][i] < out[userID][j] })
 	}
 
+	return out, nil
+}
+
+func (r *userRepository) loadBlockedGroups(ctx context.Context, userIDs []int64) (map[int64][]int64, error) {
+	out := make(map[int64][]int64, len(userIDs))
+	if len(userIDs) == 0 {
+		return out, nil
+	}
+
+	rows, err := r.client.UserBlockedGroup.Query().
+		Where(userblockedgroup.UserIDIn(userIDs...)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range rows {
+		out[rows[i].UserID] = append(out[rows[i].UserID], rows[i].GroupID)
+	}
+	for userID := range out {
+		sort.Slice(out[userID], func(i, j int) bool { return out[userID][i] < out[userID][j] })
+	}
 	return out, nil
 }
 
@@ -1085,6 +1154,60 @@ func (r *userRepository) syncUserAllowedGroupsWithClient(ctx context.Context, cl
 			if isSQLNoRowsError(err) {
 				return nil
 			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *userRepository) syncUserBlockedGroupsWithClient(ctx context.Context, client *dbent.Client, userID int64, groupIDs []int64) error {
+	if client == nil {
+		return nil
+	}
+
+	existingRows, err := client.UserBlockedGroup.Query().
+		Where(userblockedgroup.UserIDEQ(userID)).
+		All(ctx)
+	if err != nil {
+		return err
+	}
+
+	desired := make(map[int64]struct{}, len(groupIDs))
+	for _, id := range groupIDs {
+		if id > 0 {
+			desired[id] = struct{}{}
+		}
+	}
+
+	existing := make(map[int64]struct{}, len(existingRows))
+	removed := make([]int64, 0)
+	for _, row := range existingRows {
+		existing[row.GroupID] = struct{}{}
+		if _, keep := desired[row.GroupID]; !keep {
+			removed = append(removed, row.GroupID)
+		}
+	}
+	if len(removed) > 0 {
+		if _, err := client.UserBlockedGroup.Delete().
+			Where(userblockedgroup.UserIDEQ(userID), userblockedgroup.GroupIDIn(removed...)).
+			Exec(ctx); err != nil {
+			return err
+		}
+	}
+
+	creates := make([]*dbent.UserBlockedGroupCreate, 0, len(desired))
+	for groupID := range desired {
+		if _, present := existing[groupID]; !present {
+			creates = append(creates, client.UserBlockedGroup.Create().SetUserID(userID).SetGroupID(groupID))
+		}
+	}
+	if len(creates) > 0 {
+		if err := client.UserBlockedGroup.
+			CreateBulk(creates...).
+			OnConflictColumns(userblockedgroup.FieldUserID, userblockedgroup.FieldGroupID).
+			DoNothing().
+			Exec(ctx); err != nil && !isSQLNoRowsError(err) {
 			return err
 		}
 	}

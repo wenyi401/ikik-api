@@ -4,8 +4,9 @@
  */
 
 import { apiClient } from '../client'
+import { createIdempotencyKey } from '../idempotency'
 import type { ImportCredentialContentsRequest, ImportCredentialContentsResponse } from '../accounts'
-import type { Account, CreateAccountRequest, UpdateAccountRequest, PaginatedResponse, AccountUsageInfo, WindowStats, ClaudeModel, AccountUsageStatsResponse, TempUnschedulableStatus, AdminDataPayload, AdminDataImportPayload, AdminDataImportResult, AccountQuotaDashboard, CodexSessionImportRequest, CodexSessionImportResult, OpenAICodexPATCreateRequest, CheckMixedChannelRequest, CheckMixedChannelResponse, UpstreamBillingProbeResult, UpstreamBillingProbeSettings } from '@/types'
+import type { Account, CreateAccountRequest, UpdateAccountRequest, PaginatedResponse, AccountUsageInfo, WindowStats, ClaudeModel, AccountUsageStatsResponse, TempUnschedulableStatus, AdminDataPayload, AdminDataImportPayload, AdminDataImportResult, AccountQuotaDashboard, CodexSessionImportRequest, CodexSessionImportResult, OpenAICodexPATCreateRequest, CheckMixedChannelRequest, CheckMixedChannelResponse, UpstreamBillingProbeResult, UpstreamBillingProbeSettings, OllamaCloudUsageSettings, OllamaCloudUsageState } from '@/types'
 
 /**
  * List all accounts with pagination
@@ -642,6 +643,7 @@ export async function importData(payload: {
     auto_pause_on_expired?: boolean
   }
 }): Promise<AdminDataImportResult> {
+  const idempotencyKey = createIdempotencyKey('admin-account-import-data')
   const { data } = await apiClient.post<AdminDataImportResult>('/admin/accounts/data', {
     data: payload.data,
     source_url: payload.source_url,
@@ -649,6 +651,8 @@ export async function importData(payload: {
     group_ids: payload.group_ids,
     compatibility_mode: payload.compatibility_mode,
     account_defaults: payload.account_defaults
+  }, {
+    headers: { 'Idempotency-Key': idempotencyKey }
   })
   return data
 }
@@ -678,7 +682,10 @@ export interface AdminImportCredentialContentsRequest extends ImportCredentialCo
 }
 
 export async function importCredentialContents(request: AdminImportCredentialContentsRequest): Promise<ImportCredentialContentsResponse> {
-  const { data } = await apiClient.post<ImportCredentialContentsResponse>('/admin/accounts/import-credentials', request)
+  const idempotencyKey = createIdempotencyKey('admin-account-import-credentials')
+  const { data } = await apiClient.post<ImportCredentialContentsResponse>('/admin/accounts/import-credentials', request, {
+    headers: { 'Idempotency-Key': idempotencyKey }
+  })
   return data
 }
 
@@ -806,6 +813,8 @@ export interface OpenAIQuotaResetResult {
   code: string
   credit?: OpenAIQuotaResetCredit | null
   windows_reset: number
+  runtime_state_cleared?: boolean
+  runtime_state_warning?: string
 }
 
 export async function queryOpenAIQuota(id: number): Promise<OpenAIQuotaUsage> {
@@ -848,6 +857,50 @@ export async function probeUpstreamBillingBatch(accountIds: number[]): Promise<U
     { account_ids: accountIds }
   )
   return data.results
+}
+
+export async function getOllamaCloudUsageSettings(): Promise<OllamaCloudUsageSettings> {
+  const { data } = await apiClient.get<OllamaCloudUsageSettings>('/admin/accounts/ollama-cloud-usage/settings')
+  return data
+}
+
+export async function updateOllamaCloudUsageSettings(
+  settings: OllamaCloudUsageSettings
+): Promise<OllamaCloudUsageSettings> {
+  const { data } = await apiClient.put<OllamaCloudUsageSettings>(
+    '/admin/accounts/ollama-cloud-usage/settings',
+    settings
+  )
+  return data
+}
+
+export async function getOllamaCloudUsage(id: number): Promise<OllamaCloudUsageState> {
+  const { data } = await apiClient.get<OllamaCloudUsageState>(`/admin/accounts/${id}/ollama-cloud-usage`)
+  return data
+}
+
+export async function saveOllamaCloudUsageSession(id: number, session: string): Promise<OllamaCloudUsageState> {
+  const { data } = await apiClient.put<OllamaCloudUsageState>(`/admin/accounts/${id}/ollama-cloud-usage/session`, {
+    session
+  })
+  return data
+}
+
+export async function deleteOllamaCloudUsageSession(id: number): Promise<OllamaCloudUsageState> {
+  const { data } = await apiClient.delete<OllamaCloudUsageState>(`/admin/accounts/${id}/ollama-cloud-usage/session`)
+  return data
+}
+
+export async function setOllamaCloudUsageAutoRefresh(id: number, enabled: boolean): Promise<OllamaCloudUsageState> {
+  const { data } = await apiClient.put<OllamaCloudUsageState>(`/admin/accounts/${id}/ollama-cloud-usage/auto-refresh`, {
+    enabled
+  })
+  return data
+}
+
+export async function refreshOllamaCloudUsage(id: number): Promise<OllamaCloudUsageState> {
+  const { data } = await apiClient.post<OllamaCloudUsageState>(`/admin/accounts/${id}/ollama-cloud-usage/refresh`)
+  return data
 }
 
 /**
@@ -962,7 +1015,14 @@ export const accountsAPI = {
   updateUpstreamBillingProbeSettings,
   setUpstreamBillingProbeEnabled,
   probeUpstreamBilling,
-  probeUpstreamBillingBatch
+  probeUpstreamBillingBatch,
+  getOllamaCloudUsageSettings,
+  updateOllamaCloudUsageSettings,
+  getOllamaCloudUsage,
+  saveOllamaCloudUsageSession,
+  deleteOllamaCloudUsageSession,
+  setOllamaCloudUsageAutoRefresh,
+  refreshOllamaCloudUsage
 }
 
 export default accountsAPI

@@ -107,6 +107,13 @@ func (s *PromptService) EffectiveMode() Mode {
 	return s.config.EffectiveMode()
 }
 
+func (s *PromptService) IsPromptAuditUserBlocked(ctx context.Context, userID int64) (bool, error) {
+	if s == nil || s.repo == nil {
+		return false, nil
+	}
+	return s.repo.IsPromptAuditUserBlocked(ctx, userID)
+}
+
 func (s *PromptService) Enqueue(_ context.Context, req Request) error {
 	if s == nil || s.enqueuer == nil || s.EffectiveMode() != ModeAsync {
 		return nil
@@ -163,6 +170,7 @@ func (s *PromptService) Evaluate(ctx context.Context, req Request) (*PromptDecis
 	if err != nil {
 		return nil, &GuardError{Code: ErrorCodeInvalidResponse, Cause: err}
 	}
+	snapshot.PromptHash = AssessLocalPrompt(snapshot.ScanText).NormalizedHash
 	return s.evaluator.Evaluate(ctx, cfg, snapshot)
 }
 
@@ -385,6 +393,20 @@ func (s *PromptService) probeSnapshot() map[string]ProbeResult {
 
 func (s *PromptService) ListEvents(ctx context.Context, filter EventFilter, page, pageSize int) (*EventPage, error) {
 	return s.repo.ListEvents(ctx, filter, page, pageSize)
+}
+
+func (s *PromptService) ListPromptAuditUserProfiles(ctx context.Context, page, pageSize int, blockedOnly bool, keyword string) (*PromptAuditUserProfilePage, error) {
+	if s == nil || s.repo == nil {
+		return nil, errors.New("prompt audit repository unavailable")
+	}
+	return s.repo.ListPromptAuditUserProfiles(ctx, page, pageSize, blockedOnly, keyword)
+}
+
+func (s *PromptService) UnblockPromptAuditUser(ctx context.Context, userID int64) (*PromptAuditUserProfile, error) {
+	if s == nil || s.repo == nil {
+		return nil, errors.New("prompt audit repository unavailable")
+	}
+	return s.repo.UnblockPromptAuditUser(ctx, userID)
 }
 func (s *PromptService) GetEvent(ctx context.Context, id int64) (*Event, error) {
 	return s.repo.GetEvent(ctx, id)

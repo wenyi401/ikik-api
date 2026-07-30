@@ -46,6 +46,25 @@ func TestShouldSwitchAPIKeyGroupRouteOnlyForTransientFailures(t *testing.T) {
 	require.False(t, shouldSwitchAPIKeyGroupRoute(&service.UpstreamFailoverError{StatusCode: http.StatusUnauthorized}))
 }
 
+func TestCloneAPIKeyWithGroupClearsOnlyForeignGroupRPMOverride(t *testing.T) {
+	primaryGroupID := int64(10)
+	override := 0
+	apiKey := &service.APIKey{
+		GroupID: &primaryGroupID,
+		Group:   &service.Group{ID: primaryGroupID},
+		User:    &service.User{ID: 42, UserGroupRPMOverride: &override},
+	}
+
+	primary := cloneAPIKeyWithGroup(apiKey, &service.Group{ID: primaryGroupID})
+	require.Same(t, apiKey.User, primary.User)
+	require.NotNil(t, primary.User.UserGroupRPMOverride)
+
+	fallback := cloneAPIKeyWithGroup(apiKey, &service.Group{ID: 20})
+	require.NotSame(t, apiKey.User, fallback.User)
+	require.Nil(t, fallback.User.UserGroupRPMOverride)
+	require.NotNil(t, apiKey.User.UserGroupRPMOverride, "cloning must not mutate the auth snapshot")
+}
+
 func routeCursorTestAPIKey() *service.APIKey {
 	group := func(id int64) *service.Group {
 		return &service.Group{ID: id, Platform: service.PlatformOpenAI, Status: service.StatusActive}

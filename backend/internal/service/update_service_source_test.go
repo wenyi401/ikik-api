@@ -66,10 +66,10 @@ func validIKIKRelease() *GitHubRelease {
 func TestFetchLatestReleaseRejectsDifferentRepository(t *testing.T) {
 	client := &updateSourceClientStub{release: &GitHubRelease{
 		TagName: "v0.1.146",
-		HTMLURL: "https://github.com/Wei-Shaw/sub2api/releases/tag/v0.1.146",
+		HTMLURL: "https://ikik-api/releases/tag/v0.1.146",
 		Assets: []GitHubAsset{{
 			Name:               "sub2api_0.1.146_linux_amd64.tar.gz",
-			BrowserDownloadURL: "https://github.com/Wei-Shaw/sub2api/releases/download/v0.1.146/sub2api_0.1.146_linux_amd64.tar.gz",
+			BrowserDownloadURL: "https://ikik-api/releases/download/v0.1.146/sub2api_0.1.146_linux_amd64.tar.gz",
 		}},
 	}}
 	svc := NewUpdateService(&updateSourceCacheStub{}, client, "1.0.3", "release")
@@ -87,10 +87,10 @@ func TestCheckUpdateIgnoresCachedReleaseFromDifferentRepository(t *testing.T) {
 	}{
 		Latest: "0.1.146",
 		ReleaseInfo: &ReleaseInfo{
-			HTMLURL: "https://github.com/Wei-Shaw/sub2api/releases/tag/v0.1.146",
+			HTMLURL: "https://ikik-api/releases/tag/v0.1.146",
 			Assets: []Asset{{
 				Name:        "sub2api_0.1.146_linux_amd64.tar.gz",
-				DownloadURL: "https://github.com/Wei-Shaw/sub2api/releases/download/v0.1.146/sub2api_0.1.146_linux_amd64.tar.gz",
+				DownloadURL: "https://ikik-api/releases/download/v0.1.146/sub2api_0.1.146_linux_amd64.tar.gz",
 			}},
 		},
 		Timestamp: time.Now().Unix(),
@@ -110,6 +110,6 @@ func TestCheckUpdateIgnoresCachedReleaseFromDifferentRepository(t *testing.T) {
 
 func TestValidateUpdateRepositoryURL(t *testing.T) {
 	require.NoError(t, validateUpdateRepositoryURL("https://github.com/wenyi401/ikik-api/releases/download/v1.0.4/ikik-api_linux_amd64.tar.gz"))
-	require.Error(t, validateUpdateRepositoryURL("https://github.com/Wei-Shaw/sub2api/releases/download/v0.1.146/sub2api_linux_amd64.tar.gz"))
+	require.Error(t, validateUpdateRepositoryURL("https://ikik-api/releases/download/v0.1.146/sub2api_linux_amd64.tar.gz"))
 	require.Error(t, validateUpdateRepositoryURL("https://example.com/wenyi401/ikik-api/releases/download/v1.0.4/file.tar.gz"))
 }

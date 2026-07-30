@@ -4,8 +4,10 @@
  */
 
 import { apiClient } from './client'
-import type { Account, AccountUsageInfo, AccountUsageStatsResponse, AdminDataPayload, CreateAccountRequest, CreateProxyRequest, PaginatedResponse, Proxy, ProxyQualityCheckResult, UpdateAccountRequest, UpdateProxyRequest, UserAccountQuotaPoolDashboard, WindowStats } from '@/types'
+import { createIdempotencyKey } from './idempotency'
+import type { Account, AccountUsageInfo, AccountUsageStatsResponse, AdminDataImportResult, AdminDataPayload, CodexSessionImportResult, CreateAccountRequest, CreateProxyRequest, OllamaCloudUsageState, PaginatedResponse, Proxy, ProxyQualityCheckResult, UpdateAccountRequest, UpdateProxyRequest, UserAccountQuotaPoolDashboard, WindowStats } from '@/types'
 import type { KiroIDCAuthUrlResponse, KiroTokenInfo } from '@/api/admin/kiro'
+import type { OpenAIQuotaResetResult, OpenAIQuotaUsage } from '@/api/admin/accounts'
 import {
   getGrokSSOImportTimeout,
   type GrokSSOToOAuthRequest,
@@ -70,7 +72,10 @@ export async function importAccount(accountData: CreateAccountRequest): Promise<
 export interface ImportCredentialContentsRequest {
   contents: string[]
   kiro_config_import?: boolean
+  claude_web_import?: boolean
+  claude_web_auth_mode?: 'session_key' | 'full_cookie'
   share_mode?: 'private' | 'public'
+  proxy_id?: number | null
   concurrency?: number
   load_factor?: number | null
   priority?: number
@@ -89,6 +94,7 @@ export interface ImportCredentialError {
 export interface ImportCredentialContentsResponse {
   total: number
   created: number
+  skipped?: number
   failed: number
   errors: ImportCredentialError[]
 }
@@ -96,9 +102,38 @@ export interface ImportCredentialContentsResponse {
 export async function importCredentialContents(
   request: ImportCredentialContentsRequest
 ): Promise<ImportCredentialContentsResponse> {
+  const idempotencyKey = createIdempotencyKey('user-account-import-credentials')
   const { data } = await apiClient.post<ImportCredentialContentsResponse>(
     '/accounts/import-credentials',
-    request
+    request,
+    { headers: { 'Idempotency-Key': idempotencyKey } }
+  )
+  return data
+}
+
+export interface UserAgentIdentityImportRequest {
+  content?: string
+  contents?: string[]
+  name?: string
+  notes?: string | null
+  share_mode?: 'private' | 'public'
+  proxy_id?: number | null
+  concurrency?: number
+  load_factor?: number | null
+  priority?: number
+}
+
+export async function importAgentIdentity(
+  request: UserAgentIdentityImportRequest
+): Promise<CodexSessionImportResult> {
+  const idempotencyKey = createIdempotencyKey('user-account-import-agent-identity')
+  const { data } = await apiClient.post<CodexSessionImportResult>(
+    '/accounts/import-agent-identity',
+    request,
+    {
+      headers: { 'Idempotency-Key': idempotencyKey },
+      timeout: 120000
+    }
   )
   return data
 }
@@ -121,6 +156,21 @@ export async function exportData(options?: {
     if (sort_order) params.sort_order = sort_order
   }
   const { data } = await apiClient.get<AdminDataPayload>('/accounts/data', { params })
+  return data
+}
+
+export async function importData(payload: {
+  data: AdminDataPayload
+  account_defaults?: {
+    concurrency?: number
+    priority?: number
+    auto_pause_on_expired?: boolean
+  }
+}): Promise<AdminDataImportResult> {
+  const idempotencyKey = createIdempotencyKey('user-account-import-data')
+  const { data } = await apiClient.post<AdminDataImportResult>('/accounts/data', payload, {
+    headers: { 'Idempotency-Key': idempotencyKey }
+  })
   return data
 }
 
@@ -211,6 +261,15 @@ export async function bulkDelete(accountIds: number[]): Promise<UserBulkAccountO
   return data
 }
 
+export async function bulkRecoverState(accountIds: number[]): Promise<UserBulkAccountOperationResponse> {
+  const { data } = await apiClient.post<UserBulkAccountOperationResponse>('/accounts/batch-recover-state', {
+    account_ids: accountIds
+  }, {
+    timeout: USER_ACCOUNT_BULK_OPERATION_TIMEOUT_MS
+  })
+  return data
+}
+
 export async function createBatchRefreshTask(accountIds: number[]): Promise<AccountBatchTask> {
   const { data } = await apiClient.post<AccountBatchTask>('/accounts/batch-refresh/async', {
     account_ids: accountIds
@@ -294,6 +353,21 @@ export async function refreshCredentials(id: number): Promise<RefreshCredentials
 export async function refreshCredentialsAccount(id: number): Promise<Account> {
   const data = await refreshCredentials(id)
   return data.account
+}
+
+export async function recoverState(id: number): Promise<Account> {
+  const { data } = await apiClient.post<Account>(`/accounts/${id}/recover-state`)
+  return data
+}
+
+export async function queryOpenAIQuota(id: number): Promise<OpenAIQuotaUsage> {
+  const { data } = await apiClient.get<OpenAIQuotaUsage>(`/accounts/${id}/quota`)
+  return data
+}
+
+export async function resetOpenAIQuota(id: number): Promise<OpenAIQuotaResetResult> {
+  const { data } = await apiClient.post<OpenAIQuotaResetResult>(`/accounts/${id}/reset-quota`)
+  return data
 }
 
 export async function setPrivacy(id: number): Promise<Account> {
@@ -669,20 +743,52 @@ export async function importKiroToken(payload: {
   return data
 }
 
+export async function getOllamaCloudUsage(id: number): Promise<OllamaCloudUsageState> {
+  const { data } = await apiClient.get<OllamaCloudUsageState>(`/accounts/${id}/ollama-cloud-usage`)
+  return data
+}
+
+export async function saveOllamaCloudUsageSession(id: number, session: string): Promise<OllamaCloudUsageState> {
+  const { data } = await apiClient.put<OllamaCloudUsageState>(`/accounts/${id}/ollama-cloud-usage/session`, {
+    session
+  })
+  return data
+}
+
+export async function deleteOllamaCloudUsageSession(id: number): Promise<OllamaCloudUsageState> {
+  const { data } = await apiClient.delete<OllamaCloudUsageState>(`/accounts/${id}/ollama-cloud-usage/session`)
+  return data
+}
+
+export async function setOllamaCloudUsageAutoRefresh(id: number, enabled: boolean): Promise<OllamaCloudUsageState> {
+  const { data } = await apiClient.put<OllamaCloudUsageState>(`/accounts/${id}/ollama-cloud-usage/auto-refresh`, {
+    enabled
+  })
+  return data
+}
+
+export async function refreshOllamaCloudUsage(id: number): Promise<OllamaCloudUsageState> {
+  const { data } = await apiClient.post<OllamaCloudUsageState>(`/accounts/${id}/ollama-cloud-usage/refresh`)
+  return data
+}
+
 export const accountsAPI = {
   list,
   getById,
   getQuotaDashboard,
   create,
   importAccount,
+  importAgentIdentity,
   importCredentialContents,
   exportData,
+  importData,
   update,
   revalidatePublicShare,
   delete: deleteAccount,
   toggleStatus,
   bulkUpdate,
   bulkDelete,
+  bulkRecoverState,
   createBatchRefreshTask,
   createBatchRevalidatePublicShareTask,
   getBatchTask,
@@ -698,6 +804,9 @@ export const accountsAPI = {
   checkProxyQuality,
   testAccount,
   refreshCredentials,
+  recoverState,
+  queryOpenAIQuota,
+  resetOpenAIQuota,
   setPrivacy,
   generateAnthropicOAuthUrl,
   exchangeAnthropicOAuthCode,
@@ -722,7 +831,12 @@ export const accountsAPI = {
   generateKiroIDCAuthUrl,
   exchangeKiroOAuthCode,
   refreshKiroToken,
-  importKiroToken
+  importKiroToken,
+  getOllamaCloudUsage,
+  saveOllamaCloudUsageSession,
+  deleteOllamaCloudUsageSession,
+  setOllamaCloudUsageAutoRefresh,
+  refreshOllamaCloudUsage
 }
 
 export default accountsAPI

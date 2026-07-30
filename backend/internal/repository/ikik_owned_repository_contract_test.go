@@ -66,6 +66,7 @@ func TestGroupEntityToServicePreservesOwnedPoolMetadata(t *testing.T) {
 		Scope:                       service.GroupScopeUserPrivate,
 		Platform:                    service.PlatformOpenAI,
 		RequiredAccountLevel:        service.AccountLevelPlus,
+		IsSharedPool:                true,
 		KiroCacheEmulationEnabled:   true,
 		KiroAutoStickyEnabled:       true,
 		KiroStickySessionTTLSeconds: 1800,
@@ -83,6 +84,9 @@ func TestGroupEntityToServicePreservesOwnedPoolMetadata(t *testing.T) {
 	}
 	if got.RequiredAccountLevel != service.AccountLevelPlus {
 		t.Fatalf("required account level was not preserved: %q", got.RequiredAccountLevel)
+	}
+	if !got.IsSharedPool {
+		t.Fatal("shared pool marker was not preserved")
 	}
 	if !got.KiroCacheEmulationEnabled || !got.KiroAutoStickyEnabled || got.KiroStickySessionTTLSeconds != 1800 || got.KiroCacheEmulationRatio != 0.75 || got.KiroEndpointMode != "auto" {
 		t.Fatalf("kiro group settings were not preserved: %#v", got)

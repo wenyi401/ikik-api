@@ -67,7 +67,7 @@ describe('UsageProgressBar', () => {
     expect(wrapper.text()).not.toContain('usage.resetNow')
   })
 
-  it('shows pending refresh when reset time already passed but utilization remains non-zero', () => {
+  it('treats stale utilization as reset when the usage window already passed', () => {
     const wrapper = mount(UsageProgressBar, {
       props: {
         label: '5h',
@@ -78,8 +78,47 @@ describe('UsageProgressBar', () => {
       }
     })
 
-    expect(wrapper.text()).toContain('usage.resetPending')
+    expect(wrapper.text()).toContain('usage.resetNow')
+    expect(wrapper.text()).toContain('0%')
+    expect(wrapper.text()).not.toContain('50%')
+  })
+
+  it('switches a stale 100% usage window to 0% when reset time arrives', async () => {
+    const wrapper = mount(UsageProgressBar, {
+      props: {
+        label: '5h',
+        utilization: 100,
+        resetsAt: '2026-03-17T00:00:10Z',
+        showNowWhenIdle: true,
+        color: 'indigo'
+      }
+    })
+
+    expect(wrapper.text()).toContain('100%')
     expect(wrapper.text()).not.toContain('usage.resetNow')
+
+    await vi.advanceTimersByTimeAsync(10_001)
+
+    expect(wrapper.text()).toContain('0%')
+    expect(wrapper.text()).toContain('usage.resetNow')
+    expect(wrapper.text()).not.toContain('100%')
+    wrapper.unmount()
+  })
+
+  it('does not zero an elapsed remaining-capacity value', () => {
+    const wrapper = mount(UsageProgressBar, {
+      props: {
+        label: 'quota',
+        utilization: 15,
+        resetsAt: '2026-03-16T23:59:00Z',
+        showNowWhenIdle: true,
+        remainingCapacity: true,
+        color: 'amber'
+      }
+    })
+
+    expect(wrapper.text()).toContain('15%')
+    expect(wrapper.text()).toContain('usage.resetPending')
   })
 
   it('shows quota details when backend returns zero window stats', () => {

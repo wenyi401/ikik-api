@@ -6,10 +6,11 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"testing"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/service"
 )
 
 func TestNormalizeCodexImportEntryAcceptsAgentIdentityAuthJSON(t *testing.T) {
@@ -45,6 +46,52 @@ func TestNormalizeCodexImportEntryAcceptsAgentIdentityAuthJSON(t *testing.T) {
 	require.NotContains(t, item.Credentials, "access_token")
 	require.NotContains(t, item.Credentials, "refresh_token")
 	require.NotEmpty(t, item.WarningTexts)
+}
+
+func TestParseCodexAgentIdentityImportReusesCodexNormalizer(t *testing.T) {
+	value := buildAgentIdentityImportValue(t, "runtime-user", "team-user", "user-id", "")
+	content, err := json.Marshal([]any{value})
+	require.NoError(t, err)
+
+	items, parseErrors, err := ParseCodexAgentIdentityImport([]string{string(content)})
+	require.NoError(t, err)
+	require.Empty(t, parseErrors)
+	require.Len(t, items, 1)
+	require.Equal(t, service.OpenAIAuthModeAgentIdentity, items[0].Credentials["auth_mode"])
+	require.Equal(t, "team-user", items[0].Credentials["chatgpt_account_id"])
+	require.NotEmpty(t, items[0].Warning)
+}
+
+func TestParseCodexAgentIdentityImportAcceptsSub2APIDataExport(t *testing.T) {
+	value := buildAgentIdentityImportValue(t, "runtime-export", "team-export", "user-export", "task-export")
+	agentIdentity := value["agent_identity"].(map[string]any)
+	credentials := map[string]any{"auth_mode": service.OpenAIAuthModeAgentIdentity}
+	for key, fieldValue := range agentIdentity {
+		credentials[key] = fieldValue
+	}
+	content, err := json.Marshal(map[string]any{
+		"type":    "sub2api-data",
+		"version": 1,
+		"accounts": []any{map[string]any{
+			"name":        "K12 exported account",
+			"platform":    service.PlatformOpenAI,
+			"type":        service.AccountTypeOAuth,
+			"credentials": credentials,
+			"extra": map[string]any{
+				"source": "agent_identity_import",
+			},
+		}},
+	})
+	require.NoError(t, err)
+
+	items, parseErrors, err := ParseCodexAgentIdentityImport([]string{string(content)})
+	require.NoError(t, err)
+	require.Empty(t, parseErrors)
+	require.Len(t, items, 1)
+	require.Equal(t, "K12 exported account", items[0].Name)
+	require.Equal(t, service.OpenAIAuthModeAgentIdentity, items[0].Credentials["auth_mode"])
+	require.Equal(t, "team-export", items[0].Credentials["chatgpt_account_id"])
+	require.Equal(t, "agent_identity_import", items[0].Extra["source"])
 }
 
 func TestBuildCodexAgentIdentityKeysUseChatGPTAccountOnly(t *testing.T) {

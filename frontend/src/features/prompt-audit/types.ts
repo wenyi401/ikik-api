@@ -236,9 +236,35 @@ export interface PromptAuditGroup {
   platform: string
 }
 
+export interface PromptAuditUserProfile {
+	user_id: number
+	user_email: string
+	total_requests: number
+	remote_audits: number
+	flagged_requests: number
+	risk_score: number
+	risk_level: 'new' | 'normal' | 'trusted' | 'watch' | 'high' | 'critical' | string
+	blocked: boolean
+	current_sample_rate: number
+	last_category: string
+	last_hit_at?: string
+	last_audited_at?: string
+	blocked_at?: string
+	updated_at: string
+}
+
+export interface PromptAuditUserProfilePage {
+	items: PromptAuditUserProfile[]
+	total: number
+	page: number
+	page_size: number
+	pages: number
+}
+
 export interface PromptLoadErrors {
   config: string
   runtime: string
   groups: string
   events: string
+	profiles: string
 }

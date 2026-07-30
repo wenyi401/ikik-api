@@ -75,6 +75,15 @@
         </span>
       </label>
 
+      <div v-if="allowProxy" class="space-y-2">
+        <label class="input-label">{{ t('admin.accounts.proxy') }}</label>
+        <ProxySelector
+          v-model="proxyId"
+          :proxies="proxies"
+          :scope="proxyScope"
+        />
+      </div>
+
       <div class="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-dark-800">
         <button
           type="button"
@@ -212,9 +221,11 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import ProxySelector from '@/components/common/ProxySelector.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores/app'
 import type { ImportCredentialContentsResponse } from '@/api/accounts'
+import type { Proxy } from '@/types'
 
 interface Props {
   show: boolean
@@ -223,6 +234,9 @@ interface Props {
   warning: string
   formId?: string
   allowClaudeWebImport?: boolean
+  allowProxy?: boolean
+  proxies?: Proxy[]
+  proxyScope?: 'admin' | 'user'
   importer: (contents: string[], options?: CredentialImportOptions) => Promise<ImportCredentialContentsResponse>
 }
 
@@ -248,13 +262,17 @@ interface CredentialImportOptions {
   kiroConfigImport?: boolean
   claudeWebImport?: boolean
   claudeWebAuthMode?: 'session_key' | 'full_cookie'
+  proxyId?: number | null
 }
 
 const CREDENTIAL_IMPORT_BATCH_SIZE = 3
 
 const props = withDefaults(defineProps<Props>(), {
   formId: 'credential-import-form',
-  allowClaudeWebImport: false
+  allowClaudeWebImport: false,
+  allowProxy: false,
+  proxies: () => [],
+  proxyScope: 'admin'
 })
 const emit = defineEmits<Emits>()
 
@@ -266,6 +284,7 @@ const importMode = ref<'text' | 'file'>('text')
 const kiroConfigImport = ref(false)
 const claudeWebImport = ref(false)
 const claudeWebFullCookie = ref(false)
+const proxyId = ref<number | null>(null)
 const textContent = ref('')
 const files = ref<File[]>([])
 const result = ref<CredentialImportResult | null>(null)
@@ -286,6 +305,7 @@ watch(
       kiroConfigImport.value = false
       claudeWebImport.value = false
       claudeWebFullCookie.value = false
+      proxyId.value = null
       textContent.value = ''
       files.value = []
       result.value = null
@@ -451,10 +471,12 @@ async function handleImport(): Promise<void> {
       const response = await props.importer([batch], {
         kiroConfigImport: kiroConfigImport.value,
         claudeWebImport: claudeWebImport.value,
-        claudeWebAuthMode: claudeWebFullCookie.value ? 'full_cookie' : 'session_key'
+        claudeWebAuthMode: claudeWebFullCookie.value ? 'full_cookie' : 'session_key',
+        proxyId: proxyId.value
       })
 
       nextResult.created += response.created
+      nextResult.skipped += response.skipped ?? 0
       nextResult.failed += response.failed
       nextResult.errors.push(
         ...(response.errors ?? []).map((item) => ({

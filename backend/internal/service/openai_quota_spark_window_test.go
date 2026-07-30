@@ -30,6 +30,37 @@ type stubQuotaAccountRepo struct {
 	accounts map[int64]*Account
 }
 
+type quotaResetRuntimeRepo struct {
+	*stubQuotaAccountRepo
+	clearRateLimitCalls      int
+	clearAntigravityCalls    int
+	clearModelRateLimitCalls int
+	clearTempUnschedCalls    int
+	clearRateLimitErr        error
+	clearRateLimitContextErr error
+}
+
+func (r *quotaResetRuntimeRepo) ClearRateLimit(ctx context.Context, _ int64) error {
+	r.clearRateLimitCalls++
+	r.clearRateLimitContextErr = ctx.Err()
+	return r.clearRateLimitErr
+}
+
+func (r *quotaResetRuntimeRepo) ClearAntigravityQuotaScopes(_ context.Context, _ int64) error {
+	r.clearAntigravityCalls++
+	return nil
+}
+
+func (r *quotaResetRuntimeRepo) ClearModelRateLimits(_ context.Context, _ int64) error {
+	r.clearModelRateLimitCalls++
+	return nil
+}
+
+func (r *quotaResetRuntimeRepo) ClearTempUnschedulable(_ context.Context, _ int64) error {
+	r.clearTempUnschedCalls++
+	return nil
+}
+
 func (r *stubQuotaAccountRepo) GetByID(_ context.Context, id int64) (*Account, error) {
 	acc, ok := r.accounts[id]
 	if !ok {
@@ -235,6 +266,108 @@ func TestResetCreditAgentIdentityUsesAssertionAndRecoversInvalidTaskOnce(t *test
 	require.NotEqual(t, assertions[0], assertions[1])
 	require.Equal(t, "task-reset-new", account.GetCredential("task_id"))
 	require.Equal(t, []int64{account.ID}, invalidator.accountIDs)
+}
+
+func TestResetCreditClearsLocalRuntimeStateAfterUpstreamSuccess(t *testing.T) {
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	der, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	require.NoError(t, err)
+	account := &Account{
+		ID:       211,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"auth_mode":          OpenAIAuthModeAgentIdentity,
+			"agent_runtime_id":   "runtime-reset-local-state",
+			"agent_private_key":  base64.StdEncoding.EncodeToString(der),
+			"task_id":            "task-reset-local-state",
+			"chatgpt_account_id": "account-reset-local-state",
+		},
+	}
+	repo := &quotaResetRuntimeRepo{stubQuotaAccountRepo: &stubQuotaAccountRepo{
+		accounts: map[int64]*Account{account.ID: account},
+	}}
+	resetCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resetCalls++
+		w.Header().Set("content-type", "application/json")
+		_, _ = w.Write([]byte(`{"code":"ok","windows_reset":2}`))
+	}))
+	defer srv.Close()
+
+	quotaSvc := NewOpenAIQuotaService(repo, nil, nil, newQuotaRedirectingFactory(srv))
+	quotaSvc.SetRateLimitService(NewRateLimitService(repo, nil, nil, nil, nil))
+
+	result, err := quotaSvc.ResetCredit(context.Background(), account.ID)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, resetCalls)
+	require.True(t, result.RuntimeStateCleared)
+	require.Empty(t, result.RuntimeStateWarning)
+	require.Equal(t, 1, repo.clearRateLimitCalls)
+	require.Equal(t, 1, repo.clearAntigravityCalls)
+	require.Equal(t, 1, repo.clearModelRateLimitCalls)
+	require.Equal(t, 1, repo.clearTempUnschedCalls)
+}
+
+func TestResetCreditLocalClearFailureDoesNotReportUpstreamFailure(t *testing.T) {
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	der, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	require.NoError(t, err)
+	account := &Account{
+		ID:       212,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"auth_mode":          OpenAIAuthModeAgentIdentity,
+			"agent_runtime_id":   "runtime-reset-local-state-failure",
+			"agent_private_key":  base64.StdEncoding.EncodeToString(der),
+			"task_id":            "task-reset-local-state-failure",
+			"chatgpt_account_id": "account-reset-local-state-failure",
+		},
+	}
+	repo := &quotaResetRuntimeRepo{
+		stubQuotaAccountRepo: &stubQuotaAccountRepo{accounts: map[int64]*Account{account.ID: account}},
+		clearRateLimitErr:    errors.New("database unavailable"),
+	}
+	resetCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resetCalls++
+		w.Header().Set("content-type", "application/json")
+		_, _ = w.Write([]byte(`{"code":"ok","windows_reset":1}`))
+	}))
+	defer srv.Close()
+
+	quotaSvc := NewOpenAIQuotaService(repo, nil, nil, newQuotaRedirectingFactory(srv))
+	quotaSvc.SetRateLimitService(NewRateLimitService(repo, nil, nil, nil, nil))
+
+	result, err := quotaSvc.ResetCredit(context.Background(), account.ID)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, resetCalls)
+	require.False(t, result.RuntimeStateCleared)
+	require.NotEmpty(t, result.RuntimeStateWarning)
+	require.Equal(t, 1, repo.clearRateLimitCalls)
+}
+
+func TestOpenAIQuotaLocalCleanupSurvivesCanceledRequestContext(t *testing.T) {
+	account := &Account{ID: 213}
+	repo := &quotaResetRuntimeRepo{stubQuotaAccountRepo: &stubQuotaAccountRepo{
+		accounts: map[int64]*Account{account.ID: account},
+	}}
+	quotaSvc := &OpenAIQuotaService{}
+	quotaSvc.SetRateLimitService(NewRateLimitService(repo, nil, nil, nil, nil))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	result := &OpenAIQuotaResetResult{Code: "ok", WindowsReset: 1}
+
+	quotaSvc.clearLocalRuntimeStateAfterReset(ctx, account.ID, result)
+
+	require.True(t, result.RuntimeStateCleared)
+	require.NoError(t, repo.clearRateLimitContextErr)
+	require.Equal(t, 1, repo.clearRateLimitCalls)
 }
 
 func TestResetCreditAgentIdentityReusesConcurrentlyRecoveredTask(t *testing.T) {

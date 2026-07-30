@@ -396,9 +396,24 @@
                   </div>
                 </div>
               </span>
+              <!-- 已封禁分组行 -->
+              <span
+                v-if="getUserGroups(row).blocked.length > 0"
+                class="group/blocked relative inline-flex cursor-default items-center gap-1 whitespace-nowrap text-xs"
+              >
+                <Icon name="ban" size="xs" class="h-3.5 w-3.5 text-red-500 dark:text-red-400" />
+                <span class="font-medium text-red-600 dark:text-red-400">{{ getUserGroups(row).blocked.length }}</span>
+                <span class="text-red-500/80 dark:text-red-400/80">{{ t('admin.users.blockedLabel') }}</span>
+                <div class="pointer-events-none absolute left-0 top-full z-50 mt-1.5 rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white opacity-0 shadow-lg transition-opacity duration-75 group-hover/blocked:opacity-100 dark:bg-dark-600">
+                  <div class="absolute left-4 bottom-full border-4 border-transparent border-b-gray-900 dark:border-b-dark-600"></div>
+                  <div class="flex flex-col gap-0.5 whitespace-nowrap">
+                    <span v-for="g in getUserGroups(row).blocked" :key="g.id">{{ g.name }}</span>
+                  </div>
+                </div>
+              </span>
               <!-- 都没有 -->
               <span
-                v-if="getUserGroups(row).exclusive.length === 0 && getUserGroups(row).publicGroups.length === 0"
+                v-if="getUserGroups(row).exclusive.length === 0 && getUserGroups(row).publicGroups.length === 0 && getUserGroups(row).blocked.length === 0"
                 class="text-xs text-gray-400 dark:text-dark-500"
               >-</span>
             </div>
@@ -924,8 +939,14 @@ const loadApiKeyGroupFilterGroups = async () => {
 const getUserGroups = (user: AdminUser) => {
   const exclusive: AdminGroup[] = []
   const publicGroups: AdminGroup[] = []
+  const blocked: AdminGroup[] = []
+  const blockedGroupIDs = new Set(user.blocked_groups || [])
   for (const g of allGroups.value) {
     if (g.status !== 'active' || g.subscription_type !== 'standard') continue
+    if (blockedGroupIDs.has(g.id)) {
+      blocked.push(g)
+      continue
+    }
     if (g.is_exclusive) {
       if (user.allowed_groups?.includes(g.id)) {
         exclusive.push(g)
@@ -934,7 +955,7 @@ const getUserGroups = (user: AdminUser) => {
       publicGroups.push(g)
     }
   }
-  return { exclusive, publicGroups }
+  return { exclusive, publicGroups, blocked }
 }
 
 // Group filter options: "All Groups" + active exclusive groups (value = group name for fuzzy match)

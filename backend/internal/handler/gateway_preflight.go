@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	"ikik-api/internal/gatewayhook"
 	"ikik-api/internal/pkg/ctxkey"
+	openaipkg "ikik-api/internal/pkg/openai"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
 )
@@ -198,13 +199,17 @@ func (h *contentModerationPreFlightHook) CheckPreFlight(ctx context.Context, req
 //     gin key 与 request context，两者在审核执行点恒一致）。
 func moderationInputFromHookRequest(ctx context.Context, req *gatewayhook.Request) service.ContentModerationCheckInput {
 	input := service.ContentModerationCheckInput{
-		RequestID:         contentModerationRequestID(ctx),
-		UserID:            req.Caller.UserID,
-		Endpoint:          req.Path,
-		Provider:          contentModerationProvider(req.APIKey),
-		Model:             strings.TrimSpace(req.Model),
-		Protocol:          req.Protocol,
-		Body:              req.Body,
+		RequestID: contentModerationRequestID(ctx),
+		UserID:    req.Caller.UserID,
+		Endpoint:  req.Path,
+		Provider:  contentModerationProvider(req.APIKey),
+		Model:     strings.TrimSpace(req.Model),
+		Protocol:  req.Protocol,
+		Body:      req.Body,
+		CodexOfficialClient: openaipkg.IsCodexOfficialClientByHeaders(
+			req.Headers.Get("User-Agent"),
+			req.Headers.Get("originator"),
+		),
 		InternalSignature: strings.TrimSpace(req.Headers.Get(service.ContentModerationInternalSignatureHeader)),
 	}
 	if forcedPlatform, ok := ctx.Value(ctxkey.ForcePlatform).(string); ok {

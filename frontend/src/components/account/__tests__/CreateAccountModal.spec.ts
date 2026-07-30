@@ -6,11 +6,13 @@ const {
   createAccountMock,
   probeUpstreamBillingMock,
   importCodexSessionMock,
+  importAgentIdentityMock,
   createOpenAICodexPATMock,
 } = vi.hoisted(() => ({
   createAccountMock: vi.fn(),
   probeUpstreamBillingMock: vi.fn(),
   importCodexSessionMock: vi.fn(),
+  importAgentIdentityMock: vi.fn(),
   createOpenAICodexPATMock: vi.fn(),
 }))
 
@@ -49,6 +51,14 @@ vi.mock('@/api/admin/accounts', () => ({
   getAntigravityDefaultModelMapping: vi.fn().mockResolvedValue([]),
 }))
 
+vi.mock('@/api/accounts', () => ({
+  accountsAPI: {
+    create: createAccountMock,
+    importAgentIdentity: importAgentIdentityMock,
+    importGrokSSO: vi.fn(),
+  },
+}))
+
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return {
@@ -68,7 +78,9 @@ const BaseDialogStub = defineComponent({
 const OAuthAuthorizationFlowStub = defineComponent({
   name: 'OAuthAuthorizationFlow',
   props: {
+    addMethod: String,
     showManualOption: Boolean,
+    showCookieOption: Boolean,
     showCodexSessionImportOption: Boolean,
     showAgentIdentityOption: Boolean,
     showCodexPatOption: Boolean,
@@ -84,9 +96,9 @@ const OAuthAuthorizationFlowStub = defineComponent({
   `,
 })
 
-function mountModal() {
+function mountModal(accountScope: 'admin' | 'user' = 'admin') {
   return mount(CreateAccountModal, {
-    props: { show: true, proxies: [], groups: [] },
+    props: { show: true, proxies: [], groups: [], accountScope },
     global: {
       stubs: {
         BaseDialog: BaseDialogStub,
@@ -134,8 +146,8 @@ async function submitApiKeyAccount(
   return wrapper
 }
 
-async function openCodexImportStep(toggleClicks = 0) {
-  const wrapper = mountModal()
+async function openCodexImportStep(toggleClicks = 0, accountScope: 'admin' | 'user' = 'admin') {
+  const wrapper = mountModal(accountScope)
   await selectButtonByText(wrapper, 'OpenAI')
   for (let click = 0; click < toggleClicks; click += 1) {
     await wrapper.get('[data-testid="openai-long-context-billing-toggle"]').trigger('click')
@@ -150,6 +162,14 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     createAccountMock.mockReset().mockResolvedValue({ id: 42, platform: 'openai', type: 'apikey' })
     probeUpstreamBillingMock.mockReset().mockResolvedValue({})
     importCodexSessionMock.mockReset().mockResolvedValue({
+      created: 1,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+      errors: [],
+      warnings: [],
+    })
+    importAgentIdentityMock.mockReset().mockResolvedValue({
       created: 1,
       updated: 0,
       skipped: 0,
@@ -211,6 +231,46 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(flow.props('showAgentIdentityOption')).toBe(true)
     expect(flow.props('showCodexPatOption')).toBe(true)
     expect(flow.props('initialInputMethod')).toBe('manual')
+  })
+
+  it('exposes only Agent Identity advanced import to user-owned accounts', async () => {
+    const wrapper = await openCodexImportStep(0, 'user')
+    const flow = wrapper.getComponent(OAuthAuthorizationFlowStub)
+
+    expect(flow.props('showCodexSessionImportOption')).toBe(false)
+    expect(flow.props('showAgentIdentityOption')).toBe(true)
+    expect(flow.props('showCodexPatOption')).toBe(false)
+  })
+
+  it('exposes Claude OAuth, Setup Token, and session-key auth to user-owned accounts', async () => {
+    const wrapper = mountModal('user')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('Claude account')
+    await wrapper.get('input[type="radio"][value="setup-token"]').setValue()
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    const flow = wrapper.getComponent(OAuthAuthorizationFlowStub)
+    expect(flow.props('addMethod')).toBe('setup-token')
+    expect(flow.props('showCookieOption')).toBe(true)
+    expect(flow.props('showManualOption')).toBe(true)
+  })
+
+  it('imports user Agent Identity through the user-owned endpoint', async () => {
+    const wrapper = await openCodexImportStep(0, 'user')
+    const flow = wrapper.getComponent(OAuthAuthorizationFlowStub)
+    flow.vm.inputMethod = 'agent_identity'
+
+    flow.vm.$emit('import-codex-session', JSON.stringify({
+      auth_mode: 'agentIdentity',
+      agent_identity: { agent_runtime_id: 'runtime' },
+    }))
+    await flushPromises()
+
+    expect(importAgentIdentityMock).toHaveBeenCalledTimes(1)
+    expect(importAgentIdentityMock.mock.calls[0]?.[0]).toMatchObject({
+      name: 'Codex import',
+      share_mode: 'private',
+    })
+    expect(importCodexSessionMock).not.toHaveBeenCalled()
   })
 
   it.each([

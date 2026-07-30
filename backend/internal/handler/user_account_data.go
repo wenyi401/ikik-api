@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -34,7 +35,37 @@ func (h *UserAccountHandler) ExportData(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, service.BuildAccountDataPayload(accounts, nil, buildUserAccountDataProxyKey))
+	proxies, err := h.resolveOwnedExportProxies(c.Request.Context(), subject.UserID, accounts)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, service.BuildAccountDataPayload(accounts, proxies, buildUserAccountDataProxyKey))
+}
+
+func (h *UserAccountHandler) resolveOwnedExportProxies(ctx context.Context, ownerUserID int64, accounts []service.Account) ([]service.Proxy, error) {
+	requested := make(map[int64]struct{})
+	for i := range accounts {
+		if accounts[i].ProxyID != nil && *accounts[i].ProxyID > 0 {
+			requested[*accounts[i].ProxyID] = struct{}{}
+		}
+	}
+	if len(requested) == 0 {
+		return []service.Proxy{}, nil
+	}
+
+	owned, err := h.accountService.ListOwnedProxies(ctx, ownerUserID)
+	if err != nil {
+		return nil, err
+	}
+	proxies := make([]service.Proxy, 0, len(requested))
+	for i := range owned {
+		if _, ok := requested[owned[i].ID]; ok {
+			proxies = append(proxies, owned[i].Proxy)
+		}
+	}
+	return proxies, nil
 }
 
 func (h *UserAccountHandler) resolveOwnedExportAccounts(c *gin.Context, ownerUserID int64, ids []int64) ([]service.Account, error) {
@@ -134,5 +165,5 @@ func parseUserAccountDataIDs(c *gin.Context) ([]int64, error) {
 }
 
 func buildUserAccountDataProxyKey(protocol, host string, port int, username, password string) string {
-	return fmt.Sprintf("%s|%s|%d|%s|%s", strings.TrimSpace(protocol), strings.TrimSpace(host), port, strings.TrimSpace(username), strings.TrimSpace(password))
+	return service.BuildAccountDataProxyKey(protocol, host, port, username, password)
 }

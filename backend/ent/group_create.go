@@ -120,6 +120,20 @@ func (_c *GroupCreate) SetNillableIsExclusive(v *bool) *GroupCreate {
 	return _c
 }
 
+// SetIsSharedPool sets the "is_shared_pool" field.
+func (_c *GroupCreate) SetIsSharedPool(v bool) *GroupCreate {
+	_c.mutation.SetIsSharedPool(v)
+	return _c
+}
+
+// SetNillableIsSharedPool sets the "is_shared_pool" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableIsSharedPool(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetIsSharedPool(*v)
+	}
+	return _c
+}
+
 // SetStatus sets the "status" field.
 func (_c *GroupCreate) SetStatus(v string) *GroupCreate {
 	_c.mutation.SetStatus(v)
@@ -909,6 +923,21 @@ func (_c *GroupCreate) AddAllowedUsers(v ...*User) *GroupCreate {
 	return _c.AddAllowedUserIDs(ids...)
 }
 
+// AddBlockedUserIDs adds the "blocked_users" edge to the User entity by IDs.
+func (_c *GroupCreate) AddBlockedUserIDs(ids ...int64) *GroupCreate {
+	_c.mutation.AddBlockedUserIDs(ids...)
+	return _c
+}
+
+// AddBlockedUsers adds the "blocked_users" edges to the User entity.
+func (_c *GroupCreate) AddBlockedUsers(v ...*User) *GroupCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddBlockedUserIDs(ids...)
+}
+
 // Mutation returns the GroupMutation object of the builder.
 func (_c *GroupCreate) Mutation() *GroupMutation {
 	return _c.mutation
@@ -967,6 +996,10 @@ func (_c *GroupCreate) defaults() error {
 	if _, ok := _c.mutation.IsExclusive(); !ok {
 		v := group.DefaultIsExclusive
 		_c.mutation.SetIsExclusive(v)
+	}
+	if _, ok := _c.mutation.IsSharedPool(); !ok {
+		v := group.DefaultIsSharedPool
+		_c.mutation.SetIsSharedPool(v)
 	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := group.DefaultStatus
@@ -1132,6 +1165,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.IsExclusive(); !ok {
 		return &ValidationError{Name: "is_exclusive", err: errors.New(`ent: missing required field "Group.is_exclusive"`)}
+	}
+	if _, ok := _c.mutation.IsSharedPool(); !ok {
+		return &ValidationError{Name: "is_shared_pool", err: errors.New(`ent: missing required field "Group.is_shared_pool"`)}
 	}
 	if _, ok := _c.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "Group.status"`)}
@@ -1342,6 +1378,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IsExclusive(); ok {
 		_spec.SetField(group.FieldIsExclusive, field.TypeBool, value)
 		_node.IsExclusive = value
+	}
+	if value, ok := _c.mutation.IsSharedPool(); ok {
+		_spec.SetField(group.FieldIsSharedPool, field.TypeBool, value)
+		_node.IsSharedPool = value
 	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(group.FieldStatus, field.TypeString, value)
@@ -1663,6 +1703,26 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		edge.Target.Fields = specE.Fields
 		_spec.Edges = append(_spec.Edges, edge)
 	}
+	if nodes := _c.mutation.BlockedUsersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   group.BlockedUsersTable,
+			Columns: group.BlockedUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &UserBlockedGroupCreate{config: _c.config, mutation: newUserBlockedGroupMutation(_c.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	return _node, _spec
 }
 
@@ -1802,6 +1862,18 @@ func (u *GroupUpsert) SetIsExclusive(v bool) *GroupUpsert {
 // UpdateIsExclusive sets the "is_exclusive" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateIsExclusive() *GroupUpsert {
 	u.SetExcluded(group.FieldIsExclusive)
+	return u
+}
+
+// SetIsSharedPool sets the "is_shared_pool" field.
+func (u *GroupUpsert) SetIsSharedPool(v bool) *GroupUpsert {
+	u.Set(group.FieldIsSharedPool, v)
+	return u
+}
+
+// UpdateIsSharedPool sets the "is_shared_pool" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateIsSharedPool() *GroupUpsert {
+	u.SetExcluded(group.FieldIsSharedPool)
 	return u
 }
 
@@ -2765,6 +2837,20 @@ func (u *GroupUpsertOne) SetIsExclusive(v bool) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateIsExclusive() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateIsExclusive()
+	})
+}
+
+// SetIsSharedPool sets the "is_shared_pool" field.
+func (u *GroupUpsertOne) SetIsSharedPool(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetIsSharedPool(v)
+	})
+}
+
+// UpdateIsSharedPool sets the "is_shared_pool" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateIsSharedPool() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateIsSharedPool()
 	})
 }
 
@@ -4029,6 +4115,20 @@ func (u *GroupUpsertBulk) SetIsExclusive(v bool) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateIsExclusive() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateIsExclusive()
+	})
+}
+
+// SetIsSharedPool sets the "is_shared_pool" field.
+func (u *GroupUpsertBulk) SetIsSharedPool(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetIsSharedPool(v)
+	})
+}
+
+// UpdateIsSharedPool sets the "is_shared_pool" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateIsSharedPool() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateIsSharedPool()
 	})
 }
 

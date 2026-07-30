@@ -33,6 +33,8 @@ type Group struct {
 	RateMultiplier float64 `json:"rate_multiplier,omitempty"`
 	// IsExclusive holds the value of the "is_exclusive" field.
 	IsExclusive bool `json:"is_exclusive,omitempty"`
+	// Whether this public system group accepts user-shared accounts
+	IsSharedPool bool `json:"is_shared_pool,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
 	// Internal idempotency recovery marker; not exposed through the API
@@ -155,13 +157,17 @@ type GroupEdges struct {
 	Accounts []*Account `json:"accounts,omitempty"`
 	// AllowedUsers holds the value of the allowed_users edge.
 	AllowedUsers []*User `json:"allowed_users,omitempty"`
+	// BlockedUsers holds the value of the blocked_users edge.
+	BlockedUsers []*User `json:"blocked_users,omitempty"`
 	// AccountGroups holds the value of the account_groups edge.
 	AccountGroups []*AccountGroup `json:"account_groups,omitempty"`
 	// UserAllowedGroups holds the value of the user_allowed_groups edge.
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
+	// UserBlockedGroups holds the value of the user_blocked_groups edge.
+	UserBlockedGroups []*UserBlockedGroup `json:"user_blocked_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [9]bool
+	loadedTypes [11]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -227,10 +233,19 @@ func (e GroupEdges) AllowedUsersOrErr() ([]*User, error) {
 	return nil, &NotLoadedError{edge: "allowed_users"}
 }
 
+// BlockedUsersOrErr returns the BlockedUsers value or an error if the edge
+// was not loaded in eager-loading.
+func (e GroupEdges) BlockedUsersOrErr() ([]*User, error) {
+	if e.loadedTypes[7] {
+		return e.BlockedUsers, nil
+	}
+	return nil, &NotLoadedError{edge: "blocked_users"}
+}
+
 // AccountGroupsOrErr returns the AccountGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
-	if e.loadedTypes[7] {
+	if e.loadedTypes[8] {
 		return e.AccountGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "account_groups"}
@@ -239,10 +254,19 @@ func (e GroupEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[8] {
+	if e.loadedTypes[9] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
+}
+
+// UserBlockedGroupsOrErr returns the UserBlockedGroups value or an error if the edge
+// was not loaded in eager-loading.
+func (e GroupEdges) UserBlockedGroupsOrErr() ([]*UserBlockedGroup, error) {
+	if e.loadedTypes[10] {
+		return e.UserBlockedGroups, nil
+	}
+	return nil, &NotLoadedError{edge: "user_blocked_groups"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -252,7 +276,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig:
 			values[i] = new([]byte)
-		case group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldImageRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldKiroCacheEmulationEnabled, group.FieldKiroAutoStickyEnabled, group.FieldPeakRateEnabled, group.FieldAllowBatchImageGeneration, group.FieldVideoRateIndependent:
+		case group.FieldIsExclusive, group.FieldIsSharedPool, group.FieldAllowImageGeneration, group.FieldImageRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldKiroCacheEmulationEnabled, group.FieldKiroAutoStickyEnabled, group.FieldPeakRateEnabled, group.FieldAllowBatchImageGeneration, group.FieldVideoRateIndependent:
 			values[i] = new(sql.NullBool)
 		case group.FieldRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldKiroCacheEmulationRatio, group.FieldPeakRateMultiplier, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p, group.FieldWebSearchPricePerCall:
 			values[i] = new(sql.NullFloat64)
@@ -326,6 +350,12 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field is_exclusive", values[i])
 			} else if value.Valid {
 				_m.IsExclusive = value.Bool
+			}
+		case group.FieldIsSharedPool:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field is_shared_pool", values[i])
+			} else if value.Valid {
+				_m.IsSharedPool = value.Bool
 			}
 		case group.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -697,6 +727,11 @@ func (_m *Group) QueryAllowedUsers() *UserQuery {
 	return NewGroupClient(_m.config).QueryAllowedUsers(_m)
 }
 
+// QueryBlockedUsers queries the "blocked_users" edge of the Group entity.
+func (_m *Group) QueryBlockedUsers() *UserQuery {
+	return NewGroupClient(_m.config).QueryBlockedUsers(_m)
+}
+
 // QueryAccountGroups queries the "account_groups" edge of the Group entity.
 func (_m *Group) QueryAccountGroups() *AccountGroupQuery {
 	return NewGroupClient(_m.config).QueryAccountGroups(_m)
@@ -705,6 +740,11 @@ func (_m *Group) QueryAccountGroups() *AccountGroupQuery {
 // QueryUserAllowedGroups queries the "user_allowed_groups" edge of the Group entity.
 func (_m *Group) QueryUserAllowedGroups() *UserAllowedGroupQuery {
 	return NewGroupClient(_m.config).QueryUserAllowedGroups(_m)
+}
+
+// QueryUserBlockedGroups queries the "user_blocked_groups" edge of the Group entity.
+func (_m *Group) QueryUserBlockedGroups() *UserBlockedGroupQuery {
+	return NewGroupClient(_m.config).QueryUserBlockedGroups(_m)
 }
 
 // Update returns a builder for updating this Group.
@@ -754,6 +794,9 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("is_exclusive=")
 	builder.WriteString(fmt.Sprintf("%v", _m.IsExclusive))
+	builder.WriteString(", ")
+	builder.WriteString("is_shared_pool=")
+	builder.WriteString(fmt.Sprintf("%v", _m.IsSharedPool))
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(_m.Status)

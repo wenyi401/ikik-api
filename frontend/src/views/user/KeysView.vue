@@ -374,6 +374,13 @@
                 <Icon name="terminal" size="sm" />
                 <span class="text-xs">{{ t('keys.useKey') }}</span>
               </button>
+              <button
+                @click="openImageGeneration(row)"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-[var(--app-muted)] transition-colors hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary-hover)]"
+              >
+                <Icon name="sparkles" size="sm" />
+                <span class="text-xs">{{ t('keys.imageGeneration') }}</span>
+              </button>
               <!-- Import to CC Switch Button -->
               <button
                 v-if="!publicSettings?.hide_ccs_import_button"
@@ -461,7 +468,21 @@
         </div>
 
         <div>
-          <label class="input-label">{{ t('keys.groupLabel') }}</label>
+          <div class="mb-1.5 flex min-w-0 items-center justify-between gap-3">
+            <label class="input-label mb-0">{{ t('keys.groupLabel') }}</label>
+            <button
+              v-if="privateRouterOption"
+              type="button"
+              class="shrink-0 text-xs font-medium text-[var(--app-muted-strong)] transition-colors hover:text-[var(--app-text)]"
+              @click="showSpecificPrivateGroups = !showSpecificPrivateGroups"
+            >
+              {{
+                showSpecificPrivateGroups
+                  ? t('keys.privateRouter.hideSpecific')
+                  : t('keys.privateRouter.showSpecific')
+              }}
+            </button>
+          </div>
           <Select
             v-model="formData.group_id"
             :options="groupOptions"
@@ -1202,6 +1223,21 @@
               @click.stop
             />
           </div>
+          <button
+            v-if="privateRouterOption"
+            type="button"
+            class="mt-1.5 flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-dark-700 dark:hover:text-white"
+            @click.stop="showSpecificPrivateGroups = !showSpecificPrivateGroups"
+          >
+            <span>
+              {{
+                showSpecificPrivateGroups
+                  ? t('keys.privateRouter.hideSpecific')
+                  : t('keys.privateRouter.showSpecific')
+              }}
+            </span>
+            <Icon :name="showSpecificPrivateGroups ? 'chevronUp' : 'chevronDown'" size="xs" />
+          </button>
         </div>
         <!-- Group list -->
         <div class="max-h-80 overflow-y-auto p-1.5">
@@ -1274,6 +1310,7 @@ import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
 import { buildCcSwitchImportDeeplink } from '@/utils/ccswitchImport'
+import { openImagePlayground } from '@/utils/imagePlaygroundImport'
 import { platformLabel } from '@/utils/platformColors'
 
 // Helper to format date for datetime-local input
@@ -1433,6 +1470,7 @@ const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
 const showCcsClientSelect = ref(false)
 const showColumnDropdown = ref(false)
+const showSpecificPrivateGroups = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
@@ -1589,11 +1627,21 @@ const realGroupOptions = computed<GroupOption[]>(() =>
   }))
 )
 
+const privateGroupOptions = computed<GroupOption[]>(() => {
+  const optionsByID = new Map(realGroupOptions.value.map((option) => [option.value, option]))
+  return privateGroups.value
+    .map((group) => optionsByID.get(group.id))
+    .filter((option): option is GroupOption => option !== undefined)
+})
+
 const groupOptions = computed<GroupOption[]>(() => {
   const options = [...realGroupOptions.value]
   if (!privateRouterOption.value) return options
   return [
     privateRouterOption.value,
+    ...(showSpecificPrivateGroups.value
+      ? privateGroupOptions.value
+      : []),
     ...options.filter((option) => option.scope !== 'user_private')
   ]
 })
@@ -1621,7 +1669,9 @@ const privateRouterRoutes = (): ApiKeyGroupRoute[] =>
 const isPrivateRouterRoutes = (routes: ApiKeyGroupRoute[] | ApiKeyGroupRouteForm[] | undefined): boolean => {
   if (!routes || routes.length === 0) return false
   const privateIDs = new Set(privateGroups.value.map((group) => group.id))
-  return routes.every((route) => privateIDs.has(route.group_id || 0))
+  if (privateIDs.size === 0) return false
+  const routeIDs = new Set(routes.map((route) => route.group_id || 0))
+  return routeIDs.size === privateIDs.size && [...routeIDs].every((groupID) => privateIDs.has(groupID))
 }
 
 const isPrivateRouterKey = (key: ApiKey): boolean => isPrivateRouterRoutes(key.group_routes)
@@ -1873,6 +1923,7 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
 }
 
 const openCreateModal = () => {
+  showSpecificPrivateGroups.value = false
   formData.value.group_id = defaultCreateGroupId()
   formData.value.enable_group_routes = false
   formData.value.group_routes = [defaultGroupRoute()]
@@ -1880,6 +1931,7 @@ const openCreateModal = () => {
 }
 
 const editKey = (key: ApiKey) => {
+  showSpecificPrivateGroups.value = false
   selectedKey.value = key
   const hasIPRestriction = (key.ip_whitelist?.length > 0) || (key.ip_blacklist?.length > 0)
   const hasExpiration = !!key.expires_at
@@ -1927,6 +1979,7 @@ const openGroupSelector = (key: ApiKey) => {
     groupSelectorKeyId.value = null
     dropdownPosition.value = null
   } else {
+    showSpecificPrivateGroups.value = false
     const buttonEl = groupButtonRefs.value.get(key.id)
     if (buttonEl) {
       const rect = buttonEl.getBoundingClientRect()
@@ -2243,6 +2296,18 @@ const importToCcswitch = (row: ApiKey) => {
 
   // For other platforms, execute directly
   executeCcsImport(row, platform === 'gemini' ? 'gemini' : 'claude')
+}
+
+const openImageGeneration = async (row: ApiKey) => {
+  try {
+    await openImagePlayground(row, {
+      publicSettings: publicSettings.value,
+      model: 'gpt-image-2'
+    })
+    appStore.showSuccess(t('keys.imageGenerationImported'))
+  } catch (error) {
+    appStore.showError(t('keys.imageGenerationFailed'))
+  }
 }
 
 const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {

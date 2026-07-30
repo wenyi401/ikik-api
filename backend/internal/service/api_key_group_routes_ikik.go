@@ -101,10 +101,13 @@ func (s *APIKeyService) validateAPIKeyGroupRoutes(ctx context.Context, user *Use
 }
 
 func (s *APIKeyService) canUserBindAPIKeyGroup(ctx context.Context, user *User, group *Group) bool {
+	if user == nil || group == nil || user.IsGroupBlocked(group.ID) {
+		return false
+	}
 	if canUserBindStandardGroup(user, group) {
 		return true
 	}
-	if user == nil || group == nil || !group.IsSubscriptionType() {
+	if !group.IsSubscriptionType() {
 		return false
 	}
 	if (group.IsUserPrivateScope() || group.IsUserCarpoolScope()) && !isGroupOwnedByUser(group, user.ID) {

@@ -94,7 +94,8 @@ export interface User {
   concurrency: number // Allowed concurrent requests
   rpm_limit?: number // User-level RPM cap (0 = unlimited); effective as fallback when group has no rpm_limit
   status: 'active' | 'disabled' // Account status
-  allowed_groups: number[] | null // Allowed group IDs (null = all non-exclusive groups)
+	allowed_groups: number[] | null // Allowed group IDs (null = all non-exclusive groups)
+  blocked_groups?: number[] | null // Explicitly denied group IDs; deny takes precedence
   balance_notify_enabled: boolean
   balance_notify_threshold: number | null
   balance_notify_extra_emails: NotifyEmailEntry[]
@@ -568,7 +569,7 @@ export interface PaginationConfig {
 
 // ==================== API Key & Group Types ====================
 
-export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'custom'
+export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'custom' | 'composite'
 
 export type SubscriptionType = 'standard' | 'subscription'
 export type GroupScope = 'public' | 'user_private' | 'user_carpool'
@@ -585,6 +586,62 @@ export interface ModelsListConfig {
   models: string[]
 }
 
+export type CompositeRouteMatchType = 'exact' | 'prefix'
+export type CompositeRouteEndpoint =
+  | 'any'
+  | 'messages'
+  | 'count_tokens'
+  | 'responses'
+  | 'chat_completions'
+  | 'embeddings'
+  | 'images'
+  | 'gemini'
+export type CompositeTargetPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
+export type CompositeRouteSource = 'route' | 'detector' | string
+
+export interface CompositeModelRoute {
+  id: number
+  group_id: number
+  public_model: string
+  match_type: CompositeRouteMatchType
+  target_platform: CompositeTargetPlatform
+  upstream_model: string
+  endpoint: CompositeRouteEndpoint
+  priority: number
+  enabled: boolean
+  notes: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CompositeModelRouteInput {
+  public_model: string
+  match_type: CompositeRouteMatchType
+  target_platform: CompositeTargetPlatform
+  upstream_model?: string
+  endpoint: CompositeRouteEndpoint
+  priority?: number
+  enabled?: boolean
+  notes?: string
+}
+
+export interface CompositeRoutePreviewRequest {
+  model: string
+  endpoint: CompositeRouteEndpoint
+}
+
+export interface CompositeRouteDecision {
+  matched: boolean
+  source: CompositeRouteSource
+  group_id: number
+  public_model: string
+  target_platform: CompositeTargetPlatform | ''
+  upstream_model: string
+  endpoint: CompositeRouteEndpoint
+  route?: CompositeModelRoute
+  reason?: string
+}
+
 export interface Group {
   id: number
   name: string
@@ -594,6 +651,7 @@ export interface Group {
   rate_multiplier: number
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
   is_exclusive: boolean
+  is_shared_pool: boolean
   status: 'active' | 'inactive'
   owner_user_id?: number | null
   scope?: GroupScope
@@ -745,6 +803,7 @@ export interface CreateGroupRequest {
   required_account_level?: Exclude<AccountLevel, 'unknown'> | ''
   rate_multiplier?: number
   is_exclusive?: boolean
+  is_shared_pool?: boolean
   subscription_type?: SubscriptionType
   daily_limit_usd?: number | null
   weekly_limit_usd?: number | null
@@ -782,6 +841,7 @@ export interface UpdateGroupRequest {
   required_account_level?: Exclude<AccountLevel, 'unknown'> | ''
   rate_multiplier?: number
   is_exclusive?: boolean
+  is_shared_pool?: boolean
   status?: 'active' | 'inactive'
   subscription_type?: SubscriptionType
   daily_limit_usd?: number | null
@@ -983,6 +1043,53 @@ export interface UpstreamBillingProbeResult {
   error?: string
 }
 
+export type OllamaCloudUsageStatus = 'ok' | 'unauthorized' | 'failed'
+
+export interface OllamaCloudUsageWindow {
+  used_percent: number
+  reset_at?: string
+  reset_text?: string
+}
+
+export interface OllamaCloudUsageModel {
+  model: string
+  window: 'five_hour' | 'seven_day'
+  requests: number
+}
+
+export interface OllamaCloudUsageData {
+  plan?: string
+  five_hour?: OllamaCloudUsageWindow
+  seven_day?: OllamaCloudUsageWindow
+  balance?: string
+  models?: OllamaCloudUsageModel[]
+}
+
+export interface OllamaCloudUsageSnapshot {
+  status: OllamaCloudUsageStatus
+  data?: OllamaCloudUsageData
+  fetched_at?: string
+  last_attempt_at: string
+  next_refresh_at: string
+  failure_count?: number
+  http_status?: number
+  last_error?: string
+}
+
+export interface OllamaCloudUsageState {
+  account_id: number
+  eligible: boolean
+  configured: boolean
+  auto_refresh_enabled: boolean
+  encryption_key_configured: boolean
+  snapshot?: OllamaCloudUsageSnapshot
+}
+
+export interface OllamaCloudUsageSettings {
+  enabled: boolean
+  interval_minutes: number
+}
+
 export interface Account {
   id: number
   name: string
@@ -992,6 +1099,7 @@ export interface Account {
   type: AccountType
   credentials?: Record<string, unknown>
   credentials_status?: Record<string, boolean>
+  ollama_cloud_usage?: OllamaCloudUsageState
   // Extra fields including Codex usage, OpenAI compact capability, and model-level rate limits.
   extra?: CodexUsageSnapshot &
     OpenAICompactState & {
@@ -2025,7 +2133,8 @@ export interface UpdateUserRequest {
   balance?: number
   concurrency?: number
   status?: 'active' | 'disabled'
-  allowed_groups?: number[] | null
+	allowed_groups?: number[] | null
+  blocked_groups?: number[] | null
   // 用户专属分组倍率配置 (group_id -> rate_multiplier | null)
   // null 表示删除该分组的专属倍率
   group_rates?: Record<number, number | null>

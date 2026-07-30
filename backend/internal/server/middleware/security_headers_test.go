@@ -288,6 +288,13 @@ func TestNonceTemplate(t *testing.T) {
 }
 
 func TestEnhanceCSPPolicy(t *testing.T) {
+	t.Run("allows remote prompt library media", func(t *testing.T) {
+		policy := "default-src 'self'; script-src 'self' __CSP_NONCE__"
+		enhanced := enhanceCSPPolicy(policy)
+
+		assert.Contains(t, enhanced, "media-src 'self' https: blob:")
+	})
+
 	t.Run("adds_nonce_placeholder_if_missing", func(t *testing.T) {
 		policy := "default-src 'self'; script-src 'self'"
 		enhanced := enhanceCSPPolicy(policy)

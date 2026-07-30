@@ -58,7 +58,13 @@ func (r *apiKeyRepository) GetByID(ctx context.Context, id int64) (*service.APIK
 		}
 		return nil, err
 	}
-	return apiKeyEntityToService(m), nil
+	out := apiKeyEntityToService(m)
+	if out != nil && out.User != nil {
+		if err := attachActiveRiskGroupBlocks(ctx, r.sql, out.User); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 // GetKeyAndOwnerID 根据 API Key ID 获取其 key 与所有者（用户）ID。
@@ -87,6 +93,9 @@ func (r *apiKeyRepository) GetByKey(ctx context.Context, key string) (*service.A
 			q.WithAllowedGroups(func(gq *dbent.GroupQuery) {
 				gq.Select(group.FieldID)
 			})
+			q.WithBlockedGroups(func(gq *dbent.GroupQuery) {
+				gq.Select(group.FieldID)
+			})
 		}).
 		WithGroup().
 		WithGroupRoutes(apiKeyGroupRouteQueryOptions).
@@ -97,7 +106,13 @@ func (r *apiKeyRepository) GetByKey(ctx context.Context, key string) (*service.A
 		}
 		return nil, err
 	}
-	return apiKeyEntityToService(m), nil
+	out := apiKeyEntityToService(m)
+	if out != nil && out.User != nil {
+		if err := attachActiveRiskGroupBlocks(ctx, r.sql, out.User); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*service.APIKey, error) {
@@ -138,6 +153,9 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				user.FieldRpmLimit,
 			)
 			q.WithAllowedGroups(func(gq *dbent.GroupQuery) {
+				gq.Select(group.FieldID)
+			})
+			q.WithBlockedGroups(func(gq *dbent.GroupQuery) {
 				gq.Select(group.FieldID)
 			})
 		}).
@@ -192,7 +210,13 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 		}
 		return nil, err
 	}
-	return apiKeyEntityToService(m), nil
+	out := apiKeyEntityToService(m)
+	if out != nil && out.User != nil {
+		if err := attachActiveRiskGroupBlocks(ctx, r.sql, out.User); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey) error {
@@ -768,6 +792,14 @@ func apiKeyEntityToService(m *dbent.APIKey) *service.APIKey {
 				}
 			}
 		}
+		if blocked := m.Edges.User.Edges.BlockedGroups; len(blocked) > 0 {
+			out.User.BlockedGroups = make([]int64, 0, len(blocked))
+			for _, g := range blocked {
+				if g != nil {
+					out.User.BlockedGroups = append(out.User.BlockedGroups, g.ID)
+				}
+			}
+		}
 	}
 	if m.Edges.Group != nil {
 		out.Group = groupEntityToService(m.Edges.Group)
@@ -834,6 +866,7 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		RequiredAccountLevel:            service.NormalizeRequiredAccountLevel(g.RequiredAccountLevel),
 		RateMultiplier:                  g.RateMultiplier,
 		IsExclusive:                     g.IsExclusive,
+		IsSharedPool:                    g.IsSharedPool,
 		Status:                          g.Status,
 		Hydrated:                        true,
 		DuplicateOperationID:            derefString(g.DuplicateOperationID),

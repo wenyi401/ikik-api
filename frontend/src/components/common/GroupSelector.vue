@@ -67,11 +67,13 @@ const filteredGroups = computed(() => {
   // antigravity 账户启用混合调度后，可选择 anthropic/gemini 分组
   if (props.platform === 'antigravity' && props.mixedScheduling) {
     return props.groups.filter(
-      (g) => g.platform === 'antigravity' || g.platform === 'anthropic' || g.platform === 'gemini'
+      (g) => g.platform === 'antigravity' || g.platform === 'anthropic' || g.platform === 'gemini' || g.platform === 'composite'
     )
   }
-  // 默认：只能选择同 platform 的分组
-  return props.groups.filter((g) => g.platform === props.platform)
+  const supportsComposite = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok'].includes(props.platform)
+  return props.groups.filter(
+    (g) => g.platform === props.platform || (supportsComposite && g.platform === 'composite')
+  )
 })
 
 const visibleSelectedCount = computed(() => {

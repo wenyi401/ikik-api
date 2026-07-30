@@ -274,6 +274,7 @@
               :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
               :today-stats-loading="todayStatsLoading"
               :manual-refresh-token="usageManualRefreshToken"
+              @quota-reset="handleOpenAIQuotaReset"
             />
           </template>
           <template #cell-proxy="{ row }">
@@ -1404,8 +1405,8 @@ const allColumns = computed(() => {
   if (!authStore.isSimpleMode) {
     c.push({ key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false })
   }
+  c.push({ key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false })
   c.push(
-    { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false },
     { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
     { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
     { key: 'scheduler_score', label: t('admin.accounts.columns.schedulerScore'), sortable: false },
@@ -1772,7 +1773,12 @@ const handleCredentialImported = (payload?: { close: boolean }) => {
   reload()
 }
 
-const handleDataImported = () => { showImportData.value = false; reload() }
+const handleDataImported = (payload?: { close: boolean }) => {
+  if (payload?.close !== false) {
+    showImportData.value = false
+  }
+  reload()
+}
 const ACCOUNT_UNGROUPED_GROUP_QUERY_VALUE = 'ungrouped'
 const ACCOUNT_PROXY_UNASSIGNED_FILTER = -1
 const ACCOUNT_PRIVACY_MODE_UNSET_QUERY_VALUE = '__unset__'
@@ -2010,6 +2016,17 @@ const handleRecoverState = async (a: Account) => {
   } catch (error: any) {
     console.error('Failed to recover account state:', error)
     appStore.showError(error?.message || t('admin.accounts.recoverStateFailed'))
+  }
+}
+const handleOpenAIQuotaReset = async (accountID: number) => {
+  try {
+    const updated = await adminAPI.accounts.getById(accountID)
+    patchAccountInList(updated)
+    usageManualRefreshToken.value += 1
+    enterAutoRefreshSilentWindow()
+  } catch (error) {
+    console.error('Failed to reload account after OpenAI quota reset:', error)
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.failedToLoad')))
   }
 }
 const handleResetQuota = (a: Account) => {

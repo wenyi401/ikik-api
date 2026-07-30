@@ -3,10 +3,11 @@ package repository
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T) {
@@ -66,10 +67,19 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 		Status:  service.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, key))
+	blockedUntil := time.Now().Add(24 * time.Hour)
+	_, err = repo.sql.ExecContext(ctx, `
+INSERT INTO content_moderation_user_group_penalties (user_id, group_id, blocked_until, permanent)
+VALUES ($1, $2, $3, FALSE)
+`, user.ID, group.ID, blockedUntil)
+	require.NoError(t, err)
 
 	got, err := repo.GetByKeyForAuth(ctx, key.Key)
 	require.NoError(t, err)
 	require.Equal(t, key.Name, got.Name)
 	require.NotNil(t, got.Group)
 	require.Equal(t, group.MessagesDispatchModelConfig, got.Group.MessagesDispatchModelConfig)
+	require.Len(t, got.User.RiskGroupBlocks, 1)
+	require.Equal(t, group.ID, got.User.RiskGroupBlocks[0].GroupID)
+	require.True(t, got.User.IsGroupBlocked(group.ID))
 }

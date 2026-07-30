@@ -9,11 +9,59 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+const ContentModerationSkipReasonCodexWrapper = "codex_system_wrapper"
+
+type ContentModerationExtractionOptions struct {
+	CodexOfficialClient bool
+}
+
+type codexWrapperSignature struct {
+	primary        string
+	supporting     []string
+	minimumMatches int
+}
+
+var codexWrapperSignatures = []codexWrapperSignature{
+	{
+		primary: "another language model started to solve this problem",
+		supporting: []string{
+			"produced a summary of its thinking process",
+			"state of the tools",
+			"continue from where it left off",
+		},
+		minimumMatches: 2,
+	},
+	{
+		primary: "the following is the codex agent history",
+		supporting: []string{
+			"request action you are assessing",
+			"tool call arguments",
+			"tool results",
+			"planned action",
+			"untrusted evidence",
+		},
+		minimumMatches: 3,
+	},
+	{
+		primary: "upholding safety and compliance standards for codex ambient suggestions",
+		supporting: []string{
+			"two categories of content",
+			"always",
+			"exclude if they are about the user",
+		},
+		minimumMatches: 2,
+	},
+}
+
 func ExtractContentModerationText(protocol string, body []byte) string {
 	return ExtractContentModerationInput(protocol, body).Text
 }
 
 func ExtractContentModerationInput(protocol string, body []byte) ContentModerationInput {
+	return ExtractContentModerationInputWithOptions(protocol, body, ContentModerationExtractionOptions{})
+}
+
+func ExtractContentModerationInputWithOptions(protocol string, body []byte, options ContentModerationExtractionOptions) ContentModerationInput {
 	if len(body) == 0 || !gjson.ValidBytes(body) {
 		return ContentModerationInput{}
 	}
@@ -25,14 +73,17 @@ func ExtractContentModerationInput(protocol string, body []byte) ContentModerati
 	case ContentModerationProtocolOpenAIChat:
 		collectLastRoleMessage(gjson.GetBytes(body, "messages"), "user", &parts, &images)
 	case ContentModerationProtocolOpenAIResponses:
-		collectLastResponsesInput(gjson.GetBytes(body, "input"), &parts, &images)
+		skippedCodexWrapper := collectLastResponsesInput(gjson.GetBytes(body, "input"), &parts, &images, options)
+		if skippedCodexWrapper && len(parts) == 0 && len(images) == 0 {
+			return ContentModerationInput{SkipReason: ContentModerationSkipReasonCodexWrapper}
+		}
 	case ContentModerationProtocolGemini:
 		collectLastGeminiContent(gjson.GetBytes(body, "contents"), &parts, &images)
 	case ContentModerationProtocolOpenAIImages:
 		addModerationText(&parts, gjson.GetBytes(body, "prompt").String())
 		collectContentValue(gjson.GetBytes(body, "images"), &parts, &images)
 	default:
-		collectLastResponsesInput(gjson.GetBytes(body, "input"), &parts, &images)
+		collectLastResponsesInput(gjson.GetBytes(body, "input"), &parts, &images, options)
 		collectLastRoleMessage(gjson.GetBytes(body, "messages"), "user", &parts, &images)
 		collectLastGeminiContent(gjson.GetBytes(body, "contents"), &parts, &images)
 	}
@@ -121,33 +172,87 @@ func isAnthropicSystemReminderText(text string) bool {
 	return strings.HasPrefix(strings.TrimSpace(text), "<system-reminder>")
 }
 
-func collectLastResponsesInput(input gjson.Result, parts *[]string, images *[]string) {
+func collectLastResponsesInput(input gjson.Result, parts *[]string, images *[]string, options ContentModerationExtractionOptions) bool {
 	switch {
 	case !input.Exists():
-		return
+		return false
 	case input.Type == gjson.String:
+		if isCodexGeneratedWrapper(input.String(), options) {
+			return true
+		}
 		addModerationText(parts, input.String())
 	case input.IsArray():
 		array := input.Array()
 		if len(array) == 0 {
-			return
+			return false
 		}
 		last := array[len(array)-1]
-		if !isResponsesUserTextItem(last) {
-			return
-		}
-		collectContentValue(last.Get("content"), parts, images)
-		if last.Get("type").String() == "input_text" || last.Get("text").Exists() {
-			collectContentValue(last, parts, images)
-		}
-	case input.IsObject():
-		if isResponsesUserTextItem(input) {
-			collectContentValue(input.Get("content"), parts, images)
-			if input.Get("type").String() == "input_text" || input.Get("text").Exists() {
-				collectContentValue(input, parts, images)
+		if isCodexGeneratedResponseItem(last, options) {
+			for i := len(array) - 2; i >= 0; i-- {
+				candidate := array[i]
+				if isCodexGeneratedResponseItem(candidate, options) {
+					continue
+				}
+				if strings.ToLower(strings.TrimSpace(candidate.Get("role").String())) != "user" || !responseItemHasModerationText(candidate) {
+					continue
+				}
+				collectResponsesItem(candidate, parts, images)
+				return true
 			}
+			return true
+		}
+		if !isResponsesUserTextItem(last) {
+			return false
+		}
+		collectResponsesItem(last, parts, images)
+	case input.IsObject():
+		if isCodexGeneratedResponseItem(input, options) {
+			return true
+		}
+		if isResponsesUserTextItem(input) {
+			collectResponsesItem(input, parts, images)
 		}
 	}
+	return false
+}
+
+func collectResponsesItem(item gjson.Result, parts *[]string, images *[]string) {
+	collectContentValue(item.Get("content"), parts, images)
+	if item.Get("type").String() == "input_text" || item.Get("text").Exists() {
+		collectContentValue(item, parts, images)
+	}
+}
+
+func isCodexGeneratedResponseItem(item gjson.Result, options ContentModerationExtractionOptions) bool {
+	var parts []string
+	var images []string
+	collectResponsesItem(item, &parts, &images)
+	return isCodexGeneratedWrapper(strings.Join(parts, "\n"), options)
+}
+
+func isCodexGeneratedWrapper(text string, options ContentModerationExtractionOptions) bool {
+	if !options.CodexOfficialClient {
+		return false
+	}
+	normalized := strings.ToLower(strings.Join(strings.Fields(text), " "))
+	if normalized == "" {
+		return false
+	}
+	for _, signature := range codexWrapperSignatures {
+		if !strings.Contains(normalized, signature.primary) {
+			continue
+		}
+		matches := 0
+		for _, marker := range signature.supporting {
+			if strings.Contains(normalized, marker) {
+				matches++
+			}
+		}
+		if matches >= signature.minimumMatches {
+			return true
+		}
+	}
+	return false
 }
 
 func isResponsesUserTextItem(item gjson.Result) bool {

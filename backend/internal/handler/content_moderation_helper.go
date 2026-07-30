@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"ikik-api/internal/pkg/ctxkey"
+	openaipkg "ikik-api/internal/pkg/openai"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
 )
@@ -26,6 +27,21 @@ func contentModerationStatus(decision *service.ContentModerationDecision) int {
 
 func contentModerationErrorCode(decision *service.ContentModerationDecision) string {
 	return "content_policy_violation"
+}
+
+func clientRequestedModel(c *gin.Context, fallback string) string {
+	fallback = strings.TrimSpace(fallback)
+	if c == nil || c.Request == nil {
+		return fallback
+	}
+	if model, ok := service.RequestedPublicModelFromContext(c.Request.Context()); ok {
+		return model
+	}
+	return fallback
+}
+
+func clientRequestedUsageFields(c *gin.Context, mapping service.ChannelMappingResult, fallbackModel, upstreamModel string) service.ChannelUsageFields {
+	return mapping.ToUsageFields(clientRequestedModel(c, fallbackModel), upstreamModel)
 }
 
 func runContentModeration(c *gin.Context, reqLog *zap.Logger, svc *service.ContentModerationService, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol string, model string, body []byte) *service.ContentModerationDecision {
@@ -72,14 +88,21 @@ func runContentModeration(c *gin.Context, reqLog *zap.Logger, svc *service.Conte
 
 func buildContentModerationInput(c *gin.Context, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol string, model string, body []byte) service.ContentModerationCheckInput {
 	input := service.ContentModerationCheckInput{
-		RequestID:         contentModerationRequestID(c.Request.Context()),
-		UserID:            subject.UserID,
-		Endpoint:          GetInboundEndpoint(c),
-		Provider:          contentModerationProvider(apiKey),
-		Model:             strings.TrimSpace(model),
-		Protocol:          protocol,
-		Body:              body,
+		RequestID: contentModerationRequestID(c.Request.Context()),
+		UserID:    subject.UserID,
+		Endpoint:  GetInboundEndpoint(c),
+		Provider:  contentModerationProvider(apiKey),
+		Model:     clientRequestedModel(c, model),
+		Protocol:  protocol,
+		Body:      body,
+		CodexOfficialClient: openaipkg.IsCodexOfficialClientByHeaders(
+			c.GetHeader("User-Agent"),
+			c.GetHeader("originator"),
+		),
 		InternalSignature: strings.TrimSpace(c.GetHeader(service.ContentModerationInternalSignatureHeader)),
+	}
+	if resolvedPlatform, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context()); ok {
+		input.Provider = resolvedPlatform
 	}
 	if forcedPlatform, ok := middleware2.GetForcePlatformFromContext(c); ok {
 		input.Provider = strings.TrimSpace(forcedPlatform)

@@ -144,33 +144,53 @@ func (r *Runner) processJob(ctx context.Context, workerID int, cfg ActiveConfig,
 	// event is reconstructed here from the transient scan payload.
 	job.Snapshot.FullPrompt = FullPromptFromScanText(scanText)
 	endpoints := cfg.EnabledEndpoints()
-	if len(endpoints) == 0 {
+	knownMalicious := false
+	if admission, ok := r.repo.(PromptAuditAdmissionRepository); ok {
+		knownMalicious, err = admission.IsKnownMaliciousPromptHash(ctx, job.Snapshot.PromptHash)
+		if err != nil {
+			knownMalicious = false
+		}
+	}
+	if !knownMalicious && len(endpoints) == 0 {
 		return r.finishFailure(ctx, job, &GuardError{Code: "no_enabled_endpoint", Retryable: true})
 	}
-	chunks := SplitRunes(scanText, minimumInputLimit(endpoints))
+	chunks := []string{scanText}
+	if !knownMalicious {
+		chunks = SplitRunes(scanText, minimumInputLimit(endpoints))
+	}
 	results := make([]*NormalizedResult, 0, len(chunks))
 	started := r.clock.Now()
-	for index, chunk := range chunks {
-		if err := r.repo.RefreshLease(ctx, job.ID, job.ClaimVersion, r.clock.Now()); err != nil {
-			return err
-		}
-		chunkStarted := r.clock.Now()
-		LogInfo(EventChunkStarted, mergeLogFields(baseFields, map[string]any{"worker_id": workerID, "chunk_index": index + 1, "chunk_total": len(chunks), "chunk_chars": len([]rune(chunk)), "input_chars": job.Snapshot.PromptLength, "input_limit": minimumInputLimit(endpoints), "status": "started"}))
-		result, scanErr := scanWithFailover(ctx, r.scanner, cfg.Scanners, endpoints, chunk, r.metrics)
-		if scanErr != nil {
-			LogWarn(EventChunkFailed, mergeLogFields(baseFields, map[string]any{
-				"worker_id": workerID, "chunk_index": index + 1, "chunk_total": len(chunks),
-				"chunk_chars": len([]rune(chunk)), "input_chars": job.Snapshot.PromptLength,
-				"input_limit": minimumInputLimit(endpoints), "latency_ms": r.clock.Now().Sub(chunkStarted).Milliseconds(),
-				"error_code": guardErrorCode(scanErr), "status": "failed",
-			}))
-			r.observeAsyncFailure(scanErr, r.clock.Now().Sub(started))
-			return r.finishFailure(ctx, job, scanErr)
-		}
+	if knownMalicious {
+		result := knownFingerprintResult(job.Snapshot.PromptHash)
 		results = append(results, result)
-		LogInfo(EventChunkCompleted, mergeLogFields(baseFields, map[string]any{"worker_id": workerID, "chunk_index": index + 1, "chunk_total": len(chunks), "guard_endpoint_id": result.GuardEndpointID, "action": result.Action, "latency_ms": r.clock.Now().Sub(chunkStarted).Milliseconds(), "status": "completed"}))
-		if result.Action == ActionBlock {
-			break
+		LogWarn(EventChunkCompleted, mergeLogFields(baseFields, map[string]any{
+			"worker_id": workerID, "decision": result.Decision, "risk_level": result.RiskLevel,
+			"action": result.Action, "status": "known_fingerprint_block", "prompt_hash": job.Snapshot.PromptHash,
+			"matched_scanners": result.MatchedScanners,
+		}))
+	} else {
+		for index, chunk := range chunks {
+			if err := r.repo.RefreshLease(ctx, job.ID, job.ClaimVersion, r.clock.Now()); err != nil {
+				return err
+			}
+			chunkStarted := r.clock.Now()
+			LogInfo(EventChunkStarted, mergeLogFields(baseFields, map[string]any{"worker_id": workerID, "chunk_index": index + 1, "chunk_total": len(chunks), "chunk_chars": len([]rune(chunk)), "input_chars": job.Snapshot.PromptLength, "input_limit": minimumInputLimit(endpoints), "status": "started"}))
+			result, scanErr := scanWithFailover(ctx, r.scanner, cfg.Scanners, endpoints, chunk, r.metrics)
+			if scanErr != nil {
+				LogWarn(EventChunkFailed, mergeLogFields(baseFields, map[string]any{
+					"worker_id": workerID, "chunk_index": index + 1, "chunk_total": len(chunks),
+					"chunk_chars": len([]rune(chunk)), "input_chars": job.Snapshot.PromptLength,
+					"input_limit": minimumInputLimit(endpoints), "latency_ms": r.clock.Now().Sub(chunkStarted).Milliseconds(),
+					"error_code": guardErrorCode(scanErr), "status": "failed",
+				}))
+				r.observeAsyncFailure(scanErr, r.clock.Now().Sub(started))
+				return r.finishFailure(ctx, job, scanErr)
+			}
+			results = append(results, result)
+			LogInfo(EventChunkCompleted, mergeLogFields(baseFields, map[string]any{"worker_id": workerID, "chunk_index": index + 1, "chunk_total": len(chunks), "guard_endpoint_id": result.GuardEndpointID, "action": result.Action, "latency_ms": r.clock.Now().Sub(chunkStarted).Milliseconds(), "status": "completed"}))
+			if result.Action == ActionBlock {
+				break
+			}
 		}
 	}
 	aggregated, err := AggregateResults(results, r.clock.Now().Sub(started))
@@ -201,6 +221,25 @@ func (r *Runner) processJob(ctx context.Context, workerID int, cfg ActiveConfig,
 		LogWarn(EventFindingRecorded, mergeLogFields(baseFields, map[string]any{"worker_id": workerID, "event_id": event.ID, "decision": aggregated.Decision, "risk_level": aggregated.RiskLevel, "action": aggregated.Action, "guard_endpoint_id": aggregated.GuardEndpointID, "status": "recorded"}))
 	}
 	return nil
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func knownFingerprintResult(promptHash string) *NormalizedResult {
+	return &NormalizedResult{
+		Decision: EventCritical, RiskLevel: RiskCritical, Action: ActionBlock,
+		Safety: "Unsafe", Categories: []string{"jailbreak"}, MatchedScanners: []string{"known_fingerprint"},
+		ScannerScores:   map[string]float64{"jailbreak": 1},
+		ScannerEvidence: map[string]string{"known_fingerprint": promptHash}, ScannerBackend: "local-known-fingerprint",
+		ScannerVersion: "v1", PolicyID: "jailbreak-fingerprint", PolicyVersion: 1,
+	}
 }
 
 func (r *Runner) observeAsyncFailure(err error, latency time.Duration) {

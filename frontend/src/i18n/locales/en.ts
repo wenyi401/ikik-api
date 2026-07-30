@@ -499,6 +499,9 @@ export default {
     dashboard: 'Dashboard',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
+    promptLibrary: 'Prompts',
+    promptSubmissions: 'Prompt Review',
+    serviceStatus: 'Service Status',
     usage: 'Usage',
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
@@ -559,6 +562,159 @@ export default {
     adminWorkspace: 'Admin',
     openMenu: 'Open menu',
     userMenu: 'User menu'
+  },
+
+  serviceStatus: {
+    title: 'Service Status',
+    description: 'ChatGPT, Codex, Claude, Grok, Gemini, and API endpoint availability',
+    status: {
+      operational: 'Operational',
+      degraded: 'Degraded',
+      partial_outage: 'Partial outage',
+      major_outage: 'Major outage',
+      unknown: 'Unavailable'
+    },
+    official: {
+      title: 'OpenAI Official',
+      updatedAt: 'Updated {time}',
+      stale: ' · cached result',
+      openSource: 'Open official status page',
+      loadFailed: 'Official status is temporarily unavailable',
+      activeCount: '{count} active incident | {count} active incidents',
+      noActive: 'No active incidents',
+      activeIncidents: 'Active incidents',
+      recentResolved: 'Resolved in the last 7 days ({count})'
+    },
+    providers: {
+      officialTitle: '{provider} Official',
+      loadFailed: 'Provider status is temporarily unavailable',
+      cached: 'Cached result',
+      activeIncidents: '{count} active incident | {count} active incidents',
+      noActive: 'No active incidents'
+    },
+    endpoints: {
+      title: 'API Endpoints',
+      subtitle: 'Measured from this device using three requests',
+      testAll: 'Test all',
+      test: 'Test',
+      defaultName: 'Default endpoint',
+      default: 'Default',
+      fastest: 'Fastest',
+      empty: 'No endpoint is available',
+      copy: 'Copy endpoint',
+      copied: 'Endpoint copied',
+      copyFailed: 'Could not copy endpoint',
+      status: {
+        idle: 'Not tested',
+        testing: 'Testing',
+        online: 'Available',
+        offline: 'Unavailable'
+      }
+    }
+  },
+
+  promptLibrary: {
+    title: 'Prompts',
+    search: {
+      label: 'Search prompts',
+      placeholder: 'Describe the prompt you need',
+      aiSearch: 'AI search',
+      searching: 'Searching'
+    },
+    categories: {
+      label: 'Prompt categories',
+      featured: 'Featured',
+      community: 'Community',
+      coding: 'Coding',
+      writing: 'Writing',
+      business: 'Business',
+      creative: 'Creative',
+      image: 'Images',
+      video: 'Video',
+      education: 'Education',
+      workflow: 'Workflows',
+      productivity: 'Productivity',
+      all: 'All'
+    },
+    settings: {
+      title: 'AI search settings',
+      apiKey: 'API key',
+      model: 'Model',
+      chooseModel: 'Choose model',
+      selectApiKey: 'Select an API key',
+      searchApiKey: 'Search keys',
+      selectApiKeyFirst: 'Select an API key first',
+      selectModel: 'Select a model',
+      searchModel: 'Search models',
+      loadingModels: 'Loading models',
+      noModels: 'No models available',
+      loadModelsFailed: 'Could not load models'
+    },
+    submit: {
+      action: 'Submit prompt',
+      title: 'Submit a prompt',
+      submit: 'Submit for review',
+      submitting: 'Submitting',
+      success: 'Submitted for review',
+      failed: 'Could not submit prompt',
+      fields: {
+        title: 'Title',
+        type: 'Type',
+        category: 'Category',
+        description: 'Description',
+        mediaUrl: 'Preview URL',
+        content: 'Prompt'
+      },
+      categories: {
+        coding: 'Coding',
+        writing: 'Writing',
+        business: 'Business',
+        creative: 'Creative',
+        education: 'Education',
+        workflow: 'Workflows',
+        productivity: 'Productivity',
+        other: 'Other'
+      }
+    },
+    actions: {
+      save: 'Save',
+      cancel: 'Cancel',
+      close: 'Close',
+      clear: 'Clear search',
+      copy: 'Copy prompt',
+      view: 'View',
+      refresh: 'Refresh',
+      retry: 'Retry'
+    },
+    results: {
+      total: '{count} prompts',
+      ai: '{count} results',
+      featured: 'Featured prompts',
+      category: '{name} · {count}'
+    },
+    pagination: {
+      label: 'Prompt pagination',
+      previous: 'Previous',
+      next: 'Next'
+    },
+    types: {
+      text: 'Text',
+      image: 'Image',
+      video: 'Video',
+      audio: 'Audio',
+      skill: 'Skill',
+      structured: 'Structured',
+      taste: 'Taste'
+    },
+    empty: 'No matching prompts',
+    errors: {
+      loadFailed: 'Could not load prompts',
+      searchFailed: 'AI search failed'
+    },
+    messages: {
+      copied: 'Prompt copied',
+      copyFailed: 'Could not copy prompt'
+    }
   },
 
   store: {
@@ -989,7 +1145,7 @@ export default {
     selectedGroups: '{count} groups selected',
     importTitle: 'Import Personal Accounts',
     importHint: 'Paste account credentials or import files. Personal import only creates official OAuth accounts.',
-    importWarning: 'Supported: ikik-api OAuth JSON, Codex-Manager ChatGPT token JSON, OpenAI Refresh Token, and Claude Session Key. API keys, URLs, upstream endpoints and cookies are rejected.',
+    importWarning: 'Supported: ikik-api OAuth JSON, Codex-Manager ChatGPT token JSON, OpenAI Refresh Token, and Claude Web Session Key/full cookie when the matching mode is selected. API keys, URLs, and upstream endpoints are rejected.',
     importKiroConfigMode: 'Parse as Kiro config',
     importKiroConfigModeHint: 'Use for Kiro JSON config files',
     importTextMode: 'Bulk Text',
@@ -1005,6 +1161,8 @@ export default {
     importChooseDirectory: 'Choose Folder',
     importSelectedFiles: '{count} files selected',
     importFileReadFailed: 'Failed to read file',
+    dataImportHint: 'Choose a local JSON/TXT/ZIP backup or credential file to restore personal accounts and private proxies in bulk.',
+    dataImportWarning: 'Import creates only accounts and private proxies owned by you. Accounts are bound to your platform-private group automatically, and admin-only fields are ignored.',
     importButton: 'Start Import',
     importing: 'Importing...',
     exportAccounts: 'Export Accounts',
@@ -1219,6 +1377,9 @@ export default {
     created: 'Created',
     copyToClipboard: 'Copy to clipboard',
     copied: 'Copied!',
+    imageGeneration: 'Create image',
+    imageGenerationImported: 'API key imported into Image Playground',
+    imageGenerationFailed: 'Unable to open Image Playground. Check popup permissions and try again.',
     importToCcSwitch: 'Import to CCS',
     enable: 'Enable',
     disable: 'Disable',
@@ -2353,6 +2514,35 @@ export default {
       providerAliyunGuardrails: 'Alibaba Cloud AI Guardrails',
       baseUrl: 'Content safety Base URL',
       model: 'Model',
+      classifierGroup: 'Routing group',
+      classifierGroupPlaceholder: 'Select a group',
+      classifierGroupRequired: 'Select a classifier routing group',
+      classifierGroupDisabled: 'disabled',
+      classifierModels: 'Candidate models',
+      classifierModelPlaceholder: 'Enter model ID',
+      classifierAddModel: 'Add model',
+      classifierModelsEmpty: 'Add at least one model',
+      classifierModelsRequired: 'Add classifier candidate models',
+      classifierPrimary: 'Primary',
+      classifierFallback: 'Fallback',
+      classifierMoveUp: 'Move up',
+      classifierMoveDown: 'Move down',
+      classifierRemoveModel: 'Remove model',
+      classifierModelCount: '{count} candidate models',
+      classifierRoute: 'Classifier route',
+      classifierRouteHint: 'Tries models in order and switches on rate limits or availability errors',
+      classifierTest: 'Test classifier',
+      classifierTesting: 'Testing',
+      classifierTestDone: 'Classifier test completed with {model}',
+      classifierTestModel: 'Model: {model}',
+      classifierTestDetails: 'Classifier test details',
+      classifierTestGroup: 'Group: {group}; attempted {count} model(s)',
+      classifierTestSucceeded: 'Succeeded',
+      classifierTestFailed: 'Failed',
+      classifierTestAttemptMeta: 'HTTP {status} · {latency} ms',
+      classifierTestAttemptSuccess: 'Available',
+      classifierTestAttemptFailed: 'Failed',
+      classifierTestNoAttempts: 'The request did not reach candidate model scheduling',
       classifierPrompt: 'Classifier policy prompt',
       classifierPromptHint: 'Adjust policy boundaries; the JSON output contract stays fixed',
       classifierPromptDefault: 'Built-in policy',
@@ -2473,6 +2663,10 @@ export default {
       unbanFailed: 'Failed to unban user',
       inputDetailTitle: 'Input Summary Detail',
       inputDetailContent: 'Full Content',
+      inputDetailLoading: 'Loading full content',
+      inputDetailLoadFailed: 'Failed to load full content',
+      inputDetailStoredChars: '{count} characters stored',
+      inputDetailLegacyNotice: 'This legacy record only contains a summary; the full content cannot be recovered',
       matchedKeyword: 'Matched Keyword',
       queueDelay: 'Queued {ms} ms',
       allGroups: 'All Groups',
@@ -3389,8 +3583,8 @@ export default {
       insufficientBalance: 'Insufficient balance',
       insufficientPoints: 'Insufficient points',
       deleteConfirm: "Are you sure you want to delete '{email}'? This action cannot be undone.",
-      setAllowedGroups: 'Set Allowed Groups',
-      allowedGroupsHint: 'Select which standard groups this user can use. Subscription groups are managed separately.',
+      setAllowedGroups: 'Set Group Access',
+      allowedGroupsHint: 'Configure which standard groups this user may or may not use. Subscription groups are managed separately.',
       noStandardGroups: 'No standard groups available',
       allowAllGroups: 'Allow All Groups',
       allowAllGroupsHint: 'User can use any non-exclusive group',
@@ -3399,9 +3593,12 @@ export default {
       failedToUpdateAllowedGroups: 'Failed to update allowed groups',
       // User Group Configuration
       groupConfig: 'User Group Configuration',
-      groupConfigHint: 'Configure custom rate multipliers for user {email} (overrides group defaults)',
+      groupConfigHint: 'Configure group access, blocks, and custom rates for {email}',
       exclusiveGroups: 'Exclusive Groups',
       publicGroups: 'Public Groups (Default Available)',
+      blockGroup: 'Block access',
+      blocked: 'Blocked',
+      blockedLabel: 'blocked',
       defaultRate: 'Default Rate',
       customRate: 'Custom Rate',
       useDefaultRate: 'Use Default',
@@ -3601,6 +3798,11 @@ export default {
       platformNotEditable: 'Platform cannot be changed after creation',
       rateMultiplierHint: 'Cost multiplier for this group (e.g., 1.5 = 150% of base cost)',
       exclusiveHint: 'Exclusive group, manually assign to specific users',
+      sharedPool: {
+        label: 'Shared account pool',
+        hint: 'Accept user-shared accounts',
+        badge: 'Shared pool'
+      },
       exclusiveTooltip: {
         title: 'What is an exclusive group?',
         description: 'When enabled, users cannot see this group when creating API Keys. Only after an admin manually assigns a user to this group can they use it.',
@@ -5841,6 +6043,45 @@ export default {
         used: 'Used',
         expired: 'Expired',
         disabled: 'Disabled'
+      }
+    },
+
+    promptSubmissions: {
+      title: 'Prompt Review',
+      statusFilter: 'Submission status',
+      search: 'Search title, content, or user',
+      empty: 'No prompt submissions',
+      review: 'Review',
+      reviewTitle: 'Review prompt',
+      reviewNote: 'Review note',
+      approve: 'Approve',
+      reject: 'Reject',
+      loadFailed: 'Could not load prompt submissions',
+      reviewFailed: 'Could not update review',
+      translation: {
+        action: 'Translation & categories',
+        title: 'Translation & categories',
+        enabled: 'Automatic translation and categorization',
+        group: 'Group',
+        model: 'Model',
+        selectGroup: 'Select a group',
+        selectModel: 'Select a model',
+        loadingModels: 'Loading models',
+        translatedCount: '{count} processed',
+        loadFailed: 'Could not load translation and category settings',
+        modelsFailed: 'Could not load models',
+        saveFailed: 'Could not save translation and category settings',
+        saved: 'Translation settings saved'
+      },
+      status: {
+        pending: 'Pending',
+        approved: 'Approved',
+        rejected: 'Rejected',
+        all: 'All'
+      },
+      messages: {
+        approved: 'Prompt approved',
+        rejected: 'Prompt rejected'
       }
     },
 

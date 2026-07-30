@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/enttest"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -31,6 +31,15 @@ func newAPIKeyRepoSQLite(t *testing.T) (*apiKeyRepository, *dbent.Client) {
 	drv := entsql.OpenDB(dialect.SQLite, db)
 	client := enttest.NewClient(t, enttest.WithOptions(dbent.Driver(drv)))
 	t.Cleanup(func() { _ = client.Close() })
+	_, err = db.Exec(`
+CREATE TABLE IF NOT EXISTS content_moderation_user_group_penalties (
+    user_id INTEGER NOT NULL,
+    group_id INTEGER NOT NULL,
+    blocked_until DATETIME,
+    permanent BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (user_id, group_id)
+)`)
+	require.NoError(t, err)
 
 	return &apiKeyRepository{client: client, sql: db}, client
 }

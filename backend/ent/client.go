@@ -26,6 +26,7 @@ import (
 	"ikik-api/ent/channelmonitordailyrollup"
 	"ikik-api/ent/channelmonitorhistory"
 	"ikik-api/ent/channelmonitorrequesttemplate"
+	"ikik-api/ent/compositemodelroute"
 	"ikik-api/ent/emailbroadcast"
 	"ikik-api/ent/errorpassthroughrule"
 	"ikik-api/ent/group"
@@ -55,6 +56,7 @@ import (
 	"ikik-api/ent/userallowedgroup"
 	"ikik-api/ent/userattributedefinition"
 	"ikik-api/ent/userattributevalue"
+	"ikik-api/ent/userblockedgroup"
 	"ikik-api/ent/userplatformquota"
 	"ikik-api/ent/usersubscription"
 
@@ -101,6 +103,8 @@ type Client struct {
 	ChannelMonitorHistory *ChannelMonitorHistoryClient
 	// ChannelMonitorRequestTemplate is the client for interacting with the ChannelMonitorRequestTemplate builders.
 	ChannelMonitorRequestTemplate *ChannelMonitorRequestTemplateClient
+	// CompositeModelRoute is the client for interacting with the CompositeModelRoute builders.
+	CompositeModelRoute *CompositeModelRouteClient
 	// EmailBroadcast is the client for interacting with the EmailBroadcast builders.
 	EmailBroadcast *EmailBroadcastClient
 	// ErrorPassthroughRule is the client for interacting with the ErrorPassthroughRule builders.
@@ -159,6 +163,8 @@ type Client struct {
 	UserAttributeDefinition *UserAttributeDefinitionClient
 	// UserAttributeValue is the client for interacting with the UserAttributeValue builders.
 	UserAttributeValue *UserAttributeValueClient
+	// UserBlockedGroup is the client for interacting with the UserBlockedGroup builders.
+	UserBlockedGroup *UserBlockedGroupClient
 	// UserPlatformQuota is the client for interacting with the UserPlatformQuota builders.
 	UserPlatformQuota *UserPlatformQuotaClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
@@ -189,6 +195,7 @@ func (c *Client) init() {
 	c.ChannelMonitorDailyRollup = NewChannelMonitorDailyRollupClient(c.config)
 	c.ChannelMonitorHistory = NewChannelMonitorHistoryClient(c.config)
 	c.ChannelMonitorRequestTemplate = NewChannelMonitorRequestTemplateClient(c.config)
+	c.CompositeModelRoute = NewCompositeModelRouteClient(c.config)
 	c.EmailBroadcast = NewEmailBroadcastClient(c.config)
 	c.ErrorPassthroughRule = NewErrorPassthroughRuleClient(c.config)
 	c.Group = NewGroupClient(c.config)
@@ -218,6 +225,7 @@ func (c *Client) init() {
 	c.UserAllowedGroup = NewUserAllowedGroupClient(c.config)
 	c.UserAttributeDefinition = NewUserAttributeDefinitionClient(c.config)
 	c.UserAttributeValue = NewUserAttributeValueClient(c.config)
+	c.UserBlockedGroup = NewUserBlockedGroupClient(c.config)
 	c.UserPlatformQuota = NewUserPlatformQuotaClient(c.config)
 	c.UserSubscription = NewUserSubscriptionClient(c.config)
 }
@@ -327,6 +335,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ChannelMonitorDailyRollup:     NewChannelMonitorDailyRollupClient(cfg),
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
+		CompositeModelRoute:           NewCompositeModelRouteClient(cfg),
 		EmailBroadcast:                NewEmailBroadcastClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
@@ -356,6 +365,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		UserAllowedGroup:              NewUserAllowedGroupClient(cfg),
 		UserAttributeDefinition:       NewUserAttributeDefinitionClient(cfg),
 		UserAttributeValue:            NewUserAttributeValueClient(cfg),
+		UserBlockedGroup:              NewUserBlockedGroupClient(cfg),
 		UserPlatformQuota:             NewUserPlatformQuotaClient(cfg),
 		UserSubscription:              NewUserSubscriptionClient(cfg),
 	}, nil
@@ -392,6 +402,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ChannelMonitorDailyRollup:     NewChannelMonitorDailyRollupClient(cfg),
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
+		CompositeModelRoute:           NewCompositeModelRouteClient(cfg),
 		EmailBroadcast:                NewEmailBroadcastClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
@@ -421,6 +432,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		UserAllowedGroup:              NewUserAllowedGroupClient(cfg),
 		UserAttributeDefinition:       NewUserAttributeDefinitionClient(cfg),
 		UserAttributeValue:            NewUserAttributeValueClient(cfg),
+		UserBlockedGroup:              NewUserBlockedGroupClient(cfg),
 		UserPlatformQuota:             NewUserPlatformQuotaClient(cfg),
 		UserSubscription:              NewUserSubscriptionClient(cfg),
 	}, nil
@@ -456,15 +468,15 @@ func (c *Client) Use(hooks ...Hook) {
 		c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent,
 		c.BatchImageItem, c.BatchImageJob, c.ChannelMonitor,
 		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
-		c.ChannelMonitorRequestTemplate, c.EmailBroadcast, c.ErrorPassthroughRule,
-		c.Group, c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
-		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
-		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting,
-		c.ShopBalanceLedger, c.ShopCardKey, c.ShopCategory, c.ShopDrawCycle,
-		c.ShopOrder, c.ShopProduct, c.SubscriptionPlan, c.TLSFingerprintProfile,
-		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
-		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
-		c.UserSubscription,
+		c.ChannelMonitorRequestTemplate, c.CompositeModelRoute, c.EmailBroadcast,
+		c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
+		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
+		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
+		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.ShopBalanceLedger,
+		c.ShopCardKey, c.ShopCategory, c.ShopDrawCycle, c.ShopOrder, c.ShopProduct,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.UserBlockedGroup, c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -478,15 +490,15 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent,
 		c.BatchImageItem, c.BatchImageJob, c.ChannelMonitor,
 		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
-		c.ChannelMonitorRequestTemplate, c.EmailBroadcast, c.ErrorPassthroughRule,
-		c.Group, c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
-		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
-		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting,
-		c.ShopBalanceLedger, c.ShopCardKey, c.ShopCategory, c.ShopDrawCycle,
-		c.ShopOrder, c.ShopProduct, c.SubscriptionPlan, c.TLSFingerprintProfile,
-		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
-		c.UserAttributeDefinition, c.UserAttributeValue, c.UserPlatformQuota,
-		c.UserSubscription,
+		c.ChannelMonitorRequestTemplate, c.CompositeModelRoute, c.EmailBroadcast,
+		c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
+		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
+		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
+		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.ShopBalanceLedger,
+		c.ShopCardKey, c.ShopCategory, c.ShopDrawCycle, c.ShopOrder, c.ShopProduct,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
+		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.UserBlockedGroup, c.UserPlatformQuota, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -525,6 +537,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ChannelMonitorHistory.mutate(ctx, m)
 	case *ChannelMonitorRequestTemplateMutation:
 		return c.ChannelMonitorRequestTemplate.mutate(ctx, m)
+	case *CompositeModelRouteMutation:
+		return c.CompositeModelRoute.mutate(ctx, m)
 	case *EmailBroadcastMutation:
 		return c.EmailBroadcast.mutate(ctx, m)
 	case *ErrorPassthroughRuleMutation:
@@ -583,6 +597,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.UserAttributeDefinition.mutate(ctx, m)
 	case *UserAttributeValueMutation:
 		return c.UserAttributeValue.mutate(ctx, m)
+	case *UserBlockedGroupMutation:
+		return c.UserBlockedGroup.mutate(ctx, m)
 	case *UserPlatformQuotaMutation:
 		return c.UserPlatformQuota.mutate(ctx, m)
 	case *UserSubscriptionMutation:
@@ -2990,6 +3006,157 @@ func (c *ChannelMonitorRequestTemplateClient) mutate(ctx context.Context, m *Cha
 	}
 }
 
+// CompositeModelRouteClient is a client for the CompositeModelRoute schema.
+type CompositeModelRouteClient struct {
+	config
+}
+
+// NewCompositeModelRouteClient returns a client for the CompositeModelRoute from the given config.
+func NewCompositeModelRouteClient(c config) *CompositeModelRouteClient {
+	return &CompositeModelRouteClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `compositemodelroute.Hooks(f(g(h())))`.
+func (c *CompositeModelRouteClient) Use(hooks ...Hook) {
+	c.hooks.CompositeModelRoute = append(c.hooks.CompositeModelRoute, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `compositemodelroute.Intercept(f(g(h())))`.
+func (c *CompositeModelRouteClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CompositeModelRoute = append(c.inters.CompositeModelRoute, interceptors...)
+}
+
+// Create returns a builder for creating a CompositeModelRoute entity.
+func (c *CompositeModelRouteClient) Create() *CompositeModelRouteCreate {
+	mutation := newCompositeModelRouteMutation(c.config, OpCreate)
+	return &CompositeModelRouteCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CompositeModelRoute entities.
+func (c *CompositeModelRouteClient) CreateBulk(builders ...*CompositeModelRouteCreate) *CompositeModelRouteCreateBulk {
+	return &CompositeModelRouteCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CompositeModelRouteClient) MapCreateBulk(slice any, setFunc func(*CompositeModelRouteCreate, int)) *CompositeModelRouteCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CompositeModelRouteCreateBulk{err: fmt.Errorf("calling to CompositeModelRouteClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CompositeModelRouteCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CompositeModelRouteCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CompositeModelRoute.
+func (c *CompositeModelRouteClient) Update() *CompositeModelRouteUpdate {
+	mutation := newCompositeModelRouteMutation(c.config, OpUpdate)
+	return &CompositeModelRouteUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CompositeModelRouteClient) UpdateOne(_m *CompositeModelRoute) *CompositeModelRouteUpdateOne {
+	mutation := newCompositeModelRouteMutation(c.config, OpUpdateOne, withCompositeModelRoute(_m))
+	return &CompositeModelRouteUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CompositeModelRouteClient) UpdateOneID(id int64) *CompositeModelRouteUpdateOne {
+	mutation := newCompositeModelRouteMutation(c.config, OpUpdateOne, withCompositeModelRouteID(id))
+	return &CompositeModelRouteUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CompositeModelRoute.
+func (c *CompositeModelRouteClient) Delete() *CompositeModelRouteDelete {
+	mutation := newCompositeModelRouteMutation(c.config, OpDelete)
+	return &CompositeModelRouteDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CompositeModelRouteClient) DeleteOne(_m *CompositeModelRoute) *CompositeModelRouteDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CompositeModelRouteClient) DeleteOneID(id int64) *CompositeModelRouteDeleteOne {
+	builder := c.Delete().Where(compositemodelroute.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CompositeModelRouteDeleteOne{builder}
+}
+
+// Query returns a query builder for CompositeModelRoute.
+func (c *CompositeModelRouteClient) Query() *CompositeModelRouteQuery {
+	return &CompositeModelRouteQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCompositeModelRoute},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CompositeModelRoute entity by its id.
+func (c *CompositeModelRouteClient) Get(ctx context.Context, id int64) (*CompositeModelRoute, error) {
+	return c.Query().Where(compositemodelroute.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CompositeModelRouteClient) GetX(ctx context.Context, id int64) *CompositeModelRoute {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryGroup queries the group edge of a CompositeModelRoute.
+func (c *CompositeModelRouteClient) QueryGroup(_m *CompositeModelRoute) *GroupQuery {
+	query := (&GroupClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(compositemodelroute.Table, compositemodelroute.FieldID, id),
+			sqlgraph.To(group.Table, group.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, compositemodelroute.GroupTable, compositemodelroute.GroupColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *CompositeModelRouteClient) Hooks() []Hook {
+	hooks := c.hooks.CompositeModelRoute
+	return append(hooks[:len(hooks):len(hooks)], compositemodelroute.Hooks[:]...)
+}
+
+// Interceptors returns the client interceptors.
+func (c *CompositeModelRouteClient) Interceptors() []Interceptor {
+	inters := c.inters.CompositeModelRoute
+	return append(inters[:len(inters):len(inters)], compositemodelroute.Interceptors[:]...)
+}
+
+func (c *CompositeModelRouteClient) mutate(ctx context.Context, m *CompositeModelRouteMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CompositeModelRouteCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CompositeModelRouteUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CompositeModelRouteUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CompositeModelRouteDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CompositeModelRoute mutation op: %q", m.Op())
+	}
+}
+
 // EmailBroadcastClient is a client for the EmailBroadcast schema.
 type EmailBroadcastClient struct {
 	config
@@ -3476,6 +3643,22 @@ func (c *GroupClient) QueryAllowedUsers(_m *Group) *UserQuery {
 	return query
 }
 
+// QueryBlockedUsers queries the blocked_users edge of a Group.
+func (c *GroupClient) QueryBlockedUsers(_m *Group) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(group.Table, group.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, group.BlockedUsersTable, group.BlockedUsersPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryAccountGroups queries the account_groups edge of a Group.
 func (c *GroupClient) QueryAccountGroups(_m *Group) *AccountGroupQuery {
 	query := (&AccountGroupClient{config: c.config}).Query()
@@ -3501,6 +3684,22 @@ func (c *GroupClient) QueryUserAllowedGroups(_m *Group) *UserAllowedGroupQuery {
 			sqlgraph.From(group.Table, group.FieldID, id),
 			sqlgraph.To(userallowedgroup.Table, userallowedgroup.GroupColumn),
 			sqlgraph.Edge(sqlgraph.O2M, true, group.UserAllowedGroupsTable, group.UserAllowedGroupsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUserBlockedGroups queries the user_blocked_groups edge of a Group.
+func (c *GroupClient) QueryUserBlockedGroups(_m *Group) *UserBlockedGroupQuery {
+	query := (&UserBlockedGroupClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(group.Table, group.FieldID, id),
+			sqlgraph.To(userblockedgroup.Table, userblockedgroup.GroupColumn),
+			sqlgraph.Edge(sqlgraph.O2M, true, group.UserBlockedGroupsTable, group.UserBlockedGroupsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -7243,6 +7442,22 @@ func (c *UserClient) QueryAllowedGroups(_m *User) *GroupQuery {
 	return query
 }
 
+// QueryBlockedGroups queries the blocked_groups edge of a User.
+func (c *UserClient) QueryBlockedGroups(_m *User) *GroupQuery {
+	query := (&GroupClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(group.Table, group.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, user.BlockedGroupsTable, user.BlockedGroupsPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryUsageLogs queries the usage_logs edge of a User.
 func (c *UserClient) QueryUsageLogs(_m *User) *UsageLogQuery {
 	query := (&UsageLogClient{config: c.config}).Query()
@@ -7428,6 +7643,22 @@ func (c *UserClient) QueryUserAllowedGroups(_m *User) *UserAllowedGroupQuery {
 			sqlgraph.From(user.Table, user.FieldID, id),
 			sqlgraph.To(userallowedgroup.Table, userallowedgroup.UserColumn),
 			sqlgraph.Edge(sqlgraph.O2M, true, user.UserAllowedGroupsTable, user.UserAllowedGroupsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUserBlockedGroups queries the user_blocked_groups edge of a User.
+func (c *UserClient) QueryUserBlockedGroups(_m *User) *UserBlockedGroupQuery {
+	query := (&UserBlockedGroupClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(userblockedgroup.Table, userblockedgroup.UserColumn),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.UserBlockedGroupsTable, user.UserBlockedGroupsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -7894,6 +8125,122 @@ func (c *UserAttributeValueClient) mutate(ctx context.Context, m *UserAttributeV
 	}
 }
 
+// UserBlockedGroupClient is a client for the UserBlockedGroup schema.
+type UserBlockedGroupClient struct {
+	config
+}
+
+// NewUserBlockedGroupClient returns a client for the UserBlockedGroup from the given config.
+func NewUserBlockedGroupClient(c config) *UserBlockedGroupClient {
+	return &UserBlockedGroupClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `userblockedgroup.Hooks(f(g(h())))`.
+func (c *UserBlockedGroupClient) Use(hooks ...Hook) {
+	c.hooks.UserBlockedGroup = append(c.hooks.UserBlockedGroup, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `userblockedgroup.Intercept(f(g(h())))`.
+func (c *UserBlockedGroupClient) Intercept(interceptors ...Interceptor) {
+	c.inters.UserBlockedGroup = append(c.inters.UserBlockedGroup, interceptors...)
+}
+
+// Create returns a builder for creating a UserBlockedGroup entity.
+func (c *UserBlockedGroupClient) Create() *UserBlockedGroupCreate {
+	mutation := newUserBlockedGroupMutation(c.config, OpCreate)
+	return &UserBlockedGroupCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of UserBlockedGroup entities.
+func (c *UserBlockedGroupClient) CreateBulk(builders ...*UserBlockedGroupCreate) *UserBlockedGroupCreateBulk {
+	return &UserBlockedGroupCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *UserBlockedGroupClient) MapCreateBulk(slice any, setFunc func(*UserBlockedGroupCreate, int)) *UserBlockedGroupCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &UserBlockedGroupCreateBulk{err: fmt.Errorf("calling to UserBlockedGroupClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*UserBlockedGroupCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &UserBlockedGroupCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for UserBlockedGroup.
+func (c *UserBlockedGroupClient) Update() *UserBlockedGroupUpdate {
+	mutation := newUserBlockedGroupMutation(c.config, OpUpdate)
+	return &UserBlockedGroupUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *UserBlockedGroupClient) UpdateOne(_m *UserBlockedGroup) *UserBlockedGroupUpdateOne {
+	mutation := newUserBlockedGroupMutation(c.config, OpUpdateOne)
+	mutation.user = &_m.UserID
+	mutation.group = &_m.GroupID
+	return &UserBlockedGroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for UserBlockedGroup.
+func (c *UserBlockedGroupClient) Delete() *UserBlockedGroupDelete {
+	mutation := newUserBlockedGroupMutation(c.config, OpDelete)
+	return &UserBlockedGroupDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Query returns a query builder for UserBlockedGroup.
+func (c *UserBlockedGroupClient) Query() *UserBlockedGroupQuery {
+	return &UserBlockedGroupQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeUserBlockedGroup},
+		inters: c.Interceptors(),
+	}
+}
+
+// QueryUser queries the user edge of a UserBlockedGroup.
+func (c *UserBlockedGroupClient) QueryUser(_m *UserBlockedGroup) *UserQuery {
+	return c.Query().
+		Where(userblockedgroup.UserID(_m.UserID), userblockedgroup.GroupID(_m.GroupID)).
+		QueryUser()
+}
+
+// QueryGroup queries the group edge of a UserBlockedGroup.
+func (c *UserBlockedGroupClient) QueryGroup(_m *UserBlockedGroup) *GroupQuery {
+	return c.Query().
+		Where(userblockedgroup.UserID(_m.UserID), userblockedgroup.GroupID(_m.GroupID)).
+		QueryGroup()
+}
+
+// Hooks returns the client hooks.
+func (c *UserBlockedGroupClient) Hooks() []Hook {
+	return c.hooks.UserBlockedGroup
+}
+
+// Interceptors returns the client interceptors.
+func (c *UserBlockedGroupClient) Interceptors() []Interceptor {
+	return c.inters.UserBlockedGroup
+}
+
+func (c *UserBlockedGroupClient) mutate(ctx context.Context, m *UserBlockedGroupMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&UserBlockedGroupCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&UserBlockedGroupUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&UserBlockedGroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&UserBlockedGroupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown UserBlockedGroup mutation op: %q", m.Op())
+	}
+}
+
 // UserPlatformQuotaClient is a client for the UserPlatformQuota schema.
 type UserPlatformQuotaClient struct {
 	config
@@ -8250,26 +8597,28 @@ type (
 		APIKey, APIKeyGroupRoute, Account, AccountGroup, Announcement, AnnouncementRead,
 		AuthIdentity, AuthIdentityChannel, BatchImageEvent, BatchImageItem,
 		BatchImageJob, ChannelMonitor, ChannelMonitorDailyRollup,
-		ChannelMonitorHistory, ChannelMonitorRequestTemplate, EmailBroadcast,
-		ErrorPassthroughRule, Group, IdempotencyRecord, IdentityAdoptionDecision,
-		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
-		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
-		ShopBalanceLedger, ShopCardKey, ShopCategory, ShopDrawCycle, ShopOrder,
-		ShopProduct, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
-		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		ChannelMonitorHistory, ChannelMonitorRequestTemplate, CompositeModelRoute,
+		EmailBroadcast, ErrorPassthroughRule, Group, IdempotencyRecord,
+		IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
+		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
+		RedeemCode, SecuritySecret, Setting, ShopBalanceLedger, ShopCardKey,
+		ShopCategory, ShopDrawCycle, ShopOrder, ShopProduct, SubscriptionPlan,
+		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
+		UserAttributeDefinition, UserAttributeValue, UserBlockedGroup,
 		UserPlatformQuota, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, APIKeyGroupRoute, Account, AccountGroup, Announcement, AnnouncementRead,
 		AuthIdentity, AuthIdentityChannel, BatchImageEvent, BatchImageItem,
 		BatchImageJob, ChannelMonitor, ChannelMonitorDailyRollup,
-		ChannelMonitorHistory, ChannelMonitorRequestTemplate, EmailBroadcast,
-		ErrorPassthroughRule, Group, IdempotencyRecord, IdentityAdoptionDecision,
-		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
-		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
-		ShopBalanceLedger, ShopCardKey, ShopCategory, ShopDrawCycle, ShopOrder,
-		ShopProduct, SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask,
-		UsageLog, User, UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		ChannelMonitorHistory, ChannelMonitorRequestTemplate, CompositeModelRoute,
+		EmailBroadcast, ErrorPassthroughRule, Group, IdempotencyRecord,
+		IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
+		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
+		RedeemCode, SecuritySecret, Setting, ShopBalanceLedger, ShopCardKey,
+		ShopCategory, ShopDrawCycle, ShopOrder, ShopProduct, SubscriptionPlan,
+		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
+		UserAttributeDefinition, UserAttributeValue, UserBlockedGroup,
 		UserPlatformQuota, UserSubscription []ent.Interceptor
 	}
 )

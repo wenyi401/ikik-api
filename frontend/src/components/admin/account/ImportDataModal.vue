@@ -12,12 +12,12 @@
       @submit.prevent="handleImport"
     >
       <div class="text-sm text-gray-600 dark:text-dark-300">
-        {{ t('admin.accounts.dataImportHint') }}
+        {{ t(accountScope === 'user' ? 'userAccounts.dataImportHint' : 'admin.accounts.dataImportHint') }}
       </div>
       <div
         class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-600 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
       >
-        {{ t('admin.accounts.dataImportWarning') }}
+        {{ t(accountScope === 'user' ? 'userAccounts.dataImportWarning' : 'admin.accounts.dataImportWarning') }}
       </div>
 
       <div>
@@ -61,7 +61,7 @@
         />
       </div>
 
-      <div>
+      <div v-if="accountScope === 'admin'">
         <label class="input-label">{{
           t('admin.accounts.dataImportURL')
         }}</label>
@@ -74,7 +74,7 @@
         <p class="input-hint">{{ t('admin.accounts.dataImportURLHint') }}</p>
       </div>
 
-      <div>
+      <div v-if="accountScope === 'admin'">
         <label class="input-label">
           {{ t('admin.accounts.dataImportTargetGroups') }}
           <span class="font-normal text-gray-400">
@@ -125,8 +125,12 @@
         </p>
       </div>
 
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div
+        class="grid grid-cols-1 gap-3"
+        :class="{ 'sm:grid-cols-2': accountScope === 'admin' }"
+      >
         <label
+          v-if="accountScope === 'admin'"
           class="flex items-start gap-3 rounded-lg border border-gray-200 p-3 dark:border-dark-700"
         >
           <input
@@ -187,7 +191,7 @@
                 class="input"
               />
             </label>
-            <label class="block">
+            <label v-if="accountScope === 'admin'" class="block">
               <span class="input-label">{{
                 t('admin.accounts.dataImportRateMultiplier')
               }}</span>
@@ -312,25 +316,33 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import { adminAPI } from '@/api/admin'
+import {
+  importCredentialContents as importAdminCredentialContents,
+  importData as importAdminData
+} from '@/api/admin/accounts'
+import { list as listAdminGroups } from '@/api/admin/groups'
+import { accountsAPI } from '@/api/accounts'
 import { useAppStore } from '@/stores/app'
 import type {
   AdminDataImportPayload,
   AdminDataImportResult,
   AdminDataPayload,
-  AdminGroup
+  Group
 } from '@/types'
 
 interface Props {
   show: boolean
+  accountScope?: 'admin' | 'user'
 }
 
 interface Emits {
   (e: 'close'): void
-  (e: 'imported'): void
+  (e: 'imported', payload?: { close: boolean }): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  accountScope: 'admin'
+})
 const emit = defineEmits<Emits>()
 
 const { t } = useI18n()
@@ -341,7 +353,7 @@ const extracting = ref(false)
 const dragActive = ref(false)
 const files = ref<File[]>([])
 const sourceURLs = ref('')
-const importTargetGroups = ref<AdminGroup[]>([])
+const importTargetGroups = ref<Group[]>([])
 const selectedGroupIds = ref<number[]>([])
 const compatibilityMode = ref(false)
 const overrideDefaults = ref(false)
@@ -457,13 +469,18 @@ const handleDrop = async (event: DragEvent) => {
 
 async function loadImportTargetGroups() {
   try {
+    if (props.accountScope === 'user') {
+      importTargetGroups.value = []
+      return
+    }
+
     const pageSize = 1000
     let page = 1
     let totalPages = 1
-    const groups: AdminGroup[] = []
+    const groups: Group[] = []
 
     do {
-      const response = await adminAPI.groups.list(page, pageSize, {
+      const response = await listAdminGroups(page, pageSize, {
         scope: 'public'
       })
       groups.push(...response.items)
@@ -562,13 +579,21 @@ const importAsCredentialContents = async (
   contents: string[],
   groupIds: number[]
 ): Promise<ImportResult> => {
-  const credentialResult = await adminAPI.accounts.importCredentialContents({
-    contents,
-    priority: 50,
-    group_ids: groupIds,
-    auto_pause_on_expired: true,
-    skip_default_group_bind: true
-  })
+  const credentialResult = props.accountScope === 'user'
+    ? await accountsAPI.importCredentialContents({
+        contents,
+        share_mode: 'private',
+        priority: 50,
+        group_ids: [],
+        auto_pause_on_expired: true
+      })
+    : await importAdminCredentialContents({
+        contents,
+        priority: 50,
+        group_ids: groupIds,
+        auto_pause_on_expired: true,
+        skip_default_group_bind: true
+      })
 
   return {
     credential_import: true,
@@ -784,7 +809,10 @@ const mergeResult = (target: ImportResult, source: ImportResult) => {
   target.errors = [...(target.errors || []), ...(source.errors || [])]
 }
 
-const accountDefaultsPayload = () => {
+const hasCreatedItems = (value: ImportResult) =>
+  value.account_created > 0 || value.proxy_created > 0
+
+const adminAccountDefaultsPayload = () => {
   if (!overrideDefaults.value) return undefined
   return {
     concurrency: Math.max(0, Number(defaults.concurrency) || 0),
@@ -799,14 +827,14 @@ const selectedImportGroupIds = () =>
     .map((id) => Number(id))
     .filter((id) => Number.isInteger(id) && id > 0)
 
-const commonImportOptions = () => {
+const adminImportOptions = () => {
   const groupIds = selectedImportGroupIds()
   return {
     skip_default_group_bind: true,
     ...(groupIds.length > 0 ? { group_ids: groupIds } : {}),
     ...(compatibilityMode.value ? { compatibility_mode: true } : {}),
     ...(overrideDefaults.value
-      ? { account_defaults: accountDefaultsPayload() }
+      ? { account_defaults: adminAccountDefaultsPayload() }
       : {})
   }
 }
@@ -842,14 +870,31 @@ const importLocalFile = async (
     throw new Error('__IKIK_IMPORT_VALIDATION_STOP__')
   }
 
-  if (
-    compatibilityMode.value ||
-    dataPayload ||
-    (parsed && isLikelyCodexImportPayload(parsed))
-  ) {
-    return await adminAPI.accounts.importData({
+  const shouldUseDataImport = props.accountScope === 'user'
+    ? Boolean(dataPayload)
+    : Boolean(
+        compatibilityMode.value ||
+        dataPayload ||
+        (parsed && isLikelyCodexImportPayload(parsed))
+      )
+  if (shouldUseDataImport) {
+    if (props.accountScope === 'user') {
+      return await accountsAPI.importData({
+        data: dataPayload!,
+        ...(overrideDefaults.value
+          ? {
+              account_defaults: {
+                concurrency: Math.max(0, Number(defaults.concurrency) || 0),
+                priority: Math.max(0, Number(defaults.priority) || 0),
+                auto_pause_on_expired: defaults.auto_pause_on_expired
+              }
+            }
+          : {})
+      })
+    }
+    return await importAdminData({
       data: parsed ?? text,
-      ...commonImportOptions()
+      ...adminImportOptions()
     })
   }
 
@@ -857,28 +902,28 @@ const importLocalFile = async (
 }
 
 const handleImport = async () => {
-  const remoteURLs = parseSourceURLs()
+  const remoteURLs = props.accountScope === 'admin' ? parseSourceURLs() : []
   if (files.value.length === 0 && remoteURLs.length === 0) {
     appStore.showError(t('admin.accounts.dataImportSelectFile'))
     return
   }
 
   importing.value = true
+  const merged = emptyResult()
   try {
     if (!validateSelectedTargetGroups(null)) {
       return
     }
 
-    const merged = emptyResult()
     const groupIds = selectedImportGroupIds()
     resetImportProgress()
     importProgress.total = remoteURLs.length + files.value.length
 
     for (const remoteURL of remoteURLs) {
       importProgress.current = remoteURL
-      const res = await adminAPI.accounts.importData({
+      const res = await importAdminData({
         source_url: remoteURL,
-        ...commonImportOptions()
+        ...adminImportOptions()
       })
       mergeResult(merged, res)
       importProgress.completed++
@@ -906,16 +951,23 @@ const handleImport = async () => {
       merged.proxy_failed > 0 ||
       (merged.account_skipped || 0) > 0
     ) {
+      if (hasCreatedItems(merged)) {
+        emit('imported', { close: false })
+      }
       appStore.showWarning(
         t('admin.accounts.dataImportCompletedWithErrors', msgParams)
       )
     } else {
       appStore.showSuccess(t('admin.accounts.dataImportSuccess', msgParams))
-      emit('imported')
+      emit('imported', { close: true })
     }
   } catch (error: any) {
     if (error?.message === '__IKIK_IMPORT_VALIDATION_STOP__') {
       return
+    }
+    if (hasCreatedItems(merged)) {
+      result.value = merged
+      emit('imported', { close: false })
     }
     if (error instanceof SyntaxError) {
       appStore.showError(t('admin.accounts.dataImportParseFailed'))

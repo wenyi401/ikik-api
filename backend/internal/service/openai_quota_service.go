@@ -28,6 +28,7 @@ const (
 	chatGPTRateLimitCreditsURL  = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits"
 	chatGPTRateLimitResetURL    = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume"
 	openaiQuotaUpstreamTimeout  = 20 * time.Second
+	openaiQuotaCleanupTimeout   = 5 * time.Second
 	openaiQuotaCodexBeta        = "codex-1"
 	openaiQuotaCodexOriginator  = "Codex Desktop"
 	openaiQuotaCodexLanguageTag = "zh-CN"
@@ -104,9 +105,11 @@ type OpenAIQuotaResetCredit struct {
 // The inner Credit also carries `redeemed_at` (RFC3339 string); we deliberately do
 // NOT add a top-level redeemed_at to avoid ambiguity with the nested field.
 type OpenAIQuotaResetResult struct {
-	Code         string                  `json:"code"`
-	Credit       *OpenAIQuotaResetCredit `json:"credit,omitempty"`
-	WindowsReset int                     `json:"windows_reset"`
+	Code                string                  `json:"code"`
+	Credit              *OpenAIQuotaResetCredit `json:"credit,omitempty"`
+	WindowsReset        int                     `json:"windows_reset"`
+	RuntimeStateCleared bool                    `json:"runtime_state_cleared"`
+	RuntimeStateWarning string                  `json:"runtime_state_warning,omitempty"`
 }
 
 // OpenAIQuotaService queries and consumes ChatGPT/Codex rate-limit reset credits
@@ -117,8 +120,17 @@ type OpenAIQuotaService struct {
 	proxyRepo            ProxyRepository
 	tokenProvider        *OpenAITokenProvider
 	privacyClientFactory PrivacyClientFactory
+	rateLimitService     *RateLimitService
 	agentIdentityTaskMu  sync.Mutex
 	agentIdentityWS      agentIdentityWSConnectionInvalidator
+}
+
+// SetRateLimitService attaches local runtime-state recovery after an upstream reset.
+func (s *OpenAIQuotaService) SetRateLimitService(rateLimitService *RateLimitService) {
+	if s == nil {
+		return
+	}
+	s.rateLimitService = rateLimitService
 }
 
 // NewOpenAIQuotaService constructs a quota service. token provider is required —
@@ -316,7 +328,24 @@ func (s *OpenAIQuotaService) ResetCredit(ctx context.Context, accountID int64) (
 		"code", payload.Code,
 		"windows_reset", payload.WindowsReset,
 	)
+	s.clearLocalRuntimeStateAfterReset(ctx, accountID, &payload)
 	return &payload, nil
+}
+
+func (s *OpenAIQuotaService) clearLocalRuntimeStateAfterReset(ctx context.Context, accountID int64, payload *OpenAIQuotaResetResult) {
+	if s == nil || s.rateLimitService == nil || payload == nil {
+		return
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), openaiQuotaCleanupTimeout)
+	defer cancel()
+	if err := s.rateLimitService.ClearRateLimit(cleanupCtx, accountID); err != nil {
+		// The upstream credit has already been consumed. Return the successful
+		// reset result instead of inviting a retry that could consume another one.
+		payload.RuntimeStateWarning = "upstream quota reset succeeded, but local runtime state could not be cleared"
+		slog.Error("openai_quota_reset_local_state_clear_failed", "account_id", accountID, "error", err)
+		return
+	}
+	payload.RuntimeStateCleared = true
 }
 
 // prepareUpstreamCall loads the account, validates it, obtains a fresh access

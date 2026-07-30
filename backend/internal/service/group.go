@@ -26,6 +26,7 @@ type Group struct {
 	PeakEnd            string
 	PeakRateMultiplier float64
 	IsExclusive        bool
+	IsSharedPool       bool
 	Status             string
 	Hydrated           bool // indicates the group was loaded from a trusted repository source
 	OwnerUserID        *int64

@@ -24,7 +24,10 @@
                 {{ t('userAccounts.proxyPool') }}
               </button>
               <button type="button" @click="showImportModal = true; close()">
-                {{ t('userAccounts.importAccounts') }}
+                {{ t('admin.accounts.credentialImport') }}
+              </button>
+              <button type="button" @click="showDataImportModal = true; close()">
+                {{ t('admin.accounts.dataImport') }}
               </button>
             </template>
           </UiMenu>
@@ -100,6 +103,9 @@
             </button>
             <button type="button" class="btn btn-secondary btn-sm" @click="bulkRefreshTokens">
               {{ t('admin.accounts.bulkActions.refreshToken') }}
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" @click="bulkRecoverState">
+              {{ t('admin.accounts.bulkActions.resetStatus') }}
             </button>
             <button type="button" class="btn btn-secondary btn-sm" @click="bulkRevalidatePublicShare">
               {{ t('userAccounts.bulkRevalidateShare') }}
@@ -287,7 +293,9 @@
               :today-stats-loading="todayStatsLoading"
               :usage-loader="accountsAPI.getUsage"
               usage-cache-scope="user"
+              account-scope="user"
               :manual-refresh-token="usageManualRefreshToken"
+              @quota-reset="handleOpenAIQuotaReset(row)"
             />
           </template>
 
@@ -460,8 +468,16 @@
 
     <ImportAccountsModal
       :show="showImportModal"
+      :proxies="userProxies"
       @close="showImportModal = false"
       @imported="handleAccountsImported"
+    />
+
+    <ImportDataModal
+      :show="showDataImportModal"
+      account-scope="user"
+      @close="showDataImportModal = false"
+      @imported="handleDataImported"
     />
 
     <UserProxyPoolModal
@@ -505,6 +521,7 @@
       @reauth="handleReAuth"
       @refresh-token="handleRefreshToken"
       @set-privacy="handleSetPrivacy"
+      @recover-state="handleRecoverState"
     />
   </AppLayout>
 </template>
@@ -541,6 +558,7 @@ import ReAuthAccountModal from '@/components/account/ReAuthAccountModal.vue'
 import AccountTestModal from '@/components/account/AccountTestModal.vue'
 import UserAccountActionMenu from '@/components/account/UserAccountActionMenu.vue'
 import ImportAccountsModal from '@/components/user/ImportAccountsModal.vue'
+import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
 import UserProxyPoolModal from '@/components/user/UserProxyPoolModal.vue'
 import type { Account, AccountPlatform, AccountType, AdminGroup, Group, Proxy, WindowStats } from '@/types'
 import type { Column } from '@/components/common/types'
@@ -559,6 +577,7 @@ const loading = ref(false)
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showImportModal = ref(false)
+const showDataImportModal = ref(false)
 const showBulkEditModal = ref(false)
 const showProxyPoolModal = ref(false)
 const showDeleteDialog = ref(false)
@@ -1152,6 +1171,16 @@ async function handleAccountsImported(payload?: { close: boolean }): Promise<voi
   await Promise.all([loadProxies(), loadAccounts()])
 }
 
+async function handleDataImported(payload?: { close: boolean }): Promise<void> {
+  if (payload?.close !== false) {
+    showDataImportModal.value = false
+  }
+  clearSelection()
+  pagination.value.page = 1
+  usageManualRefreshToken.value += 1
+  await Promise.all([loadGroups(), loadProxies(), loadAccounts()])
+}
+
 function openDeleteDialog(account: Account): void {
   accountToDelete.value = account
   showDeleteDialog.value = true
@@ -1161,7 +1190,7 @@ function openActionMenu(account: Account, event: MouseEvent): void {
   actionMenu.account = account
   const target = event.currentTarget as HTMLElement | null
   const menuWidth = 208
-  const menuHeight = 220
+  const menuHeight = 268
   const padding = 8
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
@@ -1257,6 +1286,32 @@ async function handleSetPrivacy(account: Account): Promise<void> {
   }
 }
 
+async function handleRecoverState(account: Account): Promise<void> {
+  try {
+    const updated = await accountsAPI.recoverState(account.id)
+    patchAccountInList(updated)
+    usageManualRefreshToken.value += 1
+    await refreshTodayStatsBatch()
+    appStore.showSuccess(t('admin.accounts.recoverStateSuccess'))
+  } catch (error: any) {
+    console.error('Failed to recover user account state:', error)
+    appStore.showError(
+      error?.response?.data?.message || error?.message || t('admin.accounts.recoverStateFailed')
+    )
+  }
+}
+
+async function handleOpenAIQuotaReset(account: Account): Promise<void> {
+  try {
+    const updated = await accountsAPI.getById(account.id)
+    patchAccountInList(updated)
+    usageManualRefreshToken.value += 1
+  } catch (error: any) {
+    console.error('Failed to reload user account after quota reset:', error)
+    appStore.showError(error?.response?.data?.message || error?.message || t('userAccounts.failedToLoad'))
+  }
+}
+
 async function toggleAccountStatus(account: Account): Promise<void> {
   togglingStatusId.value = account.id
   try {
@@ -1349,6 +1404,52 @@ async function bulkRefreshTokens(): Promise<void> {
   } catch (error: any) {
     console.error('Failed to create user account refresh task:', error)
     appStore.showError(error?.response?.data?.message || error?.message || t('common.error'))
+  }
+}
+
+async function bulkRecoverState(): Promise<void> {
+  const accountIds = [...selectedIds.value]
+  if (accountIds.length === 0) return
+  if (!confirm(t('common.confirm'))) return
+
+  try {
+    const result = await accountsAPI.bulkRecoverState(accountIds)
+    if (result.async && result.task) {
+      appStore.showSuccess(t('admin.accounts.bulkActions.asyncSubmitted', { count: result.task.total }))
+      clearSelection()
+      void pollUserAccountBatchTask(result.task.id, (completed) => {
+        if (completed.failed > 0) {
+          appStore.showError(t('admin.accounts.bulkActions.partialSuccess', {
+            success: completed.success,
+            failed: completed.failed
+          }))
+        } else {
+          appStore.showSuccess(t('admin.accounts.bulkActions.resetStatusSuccess', {
+            count: completed.success
+          }))
+        }
+      })
+      return
+    }
+
+    if (result.failed > 0) {
+      appStore.showError(t('admin.accounts.bulkActions.partialSuccess', {
+        success: result.success,
+        failed: result.failed
+      }))
+    } else {
+      appStore.showSuccess(t('admin.accounts.bulkActions.resetStatusSuccess', {
+        count: result.success
+      }))
+      clearSelection()
+    }
+    usageManualRefreshToken.value += 1
+    await loadAccounts()
+  } catch (error: any) {
+    console.error('Failed to recover user account states:', error)
+    appStore.showError(
+      error?.response?.data?.message || error?.message || t('admin.accounts.recoverStateFailed')
+    )
   }
 }
 

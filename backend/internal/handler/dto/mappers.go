@@ -27,6 +27,7 @@ func UserFromServiceShallow(u *service.User) *User {
 		Concurrency:                u.Concurrency,
 		Status:                     u.Status,
 		AllowedGroups:              u.AllowedGroups,
+		BlockedGroups:              u.BlockedGroups,
 		LastActiveAt:               u.LastActiveAt,
 		CreatedAt:                  u.CreatedAt,
 		UpdatedAt:                  u.UpdatedAt,
@@ -182,8 +183,11 @@ func groupFromServiceBase(g *service.Group) Group {
 		Name:                            g.Name,
 		Description:                     g.Description,
 		Platform:                        g.Platform,
+		Scope:                           g.Scope,
+		RequiredAccountLevel:            service.NormalizeRequiredAccountLevel(g.RequiredAccountLevel),
 		RateMultiplier:                  g.RateMultiplier,
 		IsExclusive:                     g.IsExclusive,
+		IsSharedPool:                    g.IsSharedPool,
 		Status:                          g.Status,
 		SubscriptionType:                g.SubscriptionType,
 		DailyLimitUSD:                   g.DailyLimitUSD,
@@ -225,6 +229,11 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		return nil
 	}
 	redactedCreds, credsStatus := RedactCredentials(a.Credentials)
+	extra := redactAccountManagedExtra(a.Extra)
+	var ollamaCloudUsage *service.OllamaCloudUsageState
+	if state := service.OllamaCloudUsageStateFromAccount(a); state.Eligible {
+		ollamaCloudUsage = state
+	}
 	out := &Account{
 		ID:                      a.ID,
 		Name:                    a.Name,
@@ -234,7 +243,8 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		Type:                    a.Type,
 		Credentials:             redactedCreds,
 		CredentialsStatus:       credsStatus,
-		Extra:                   a.Extra,
+		Extra:                   extra,
+		OllamaCloudUsage:        ollamaCloudUsage,
 		OwnerUserID:             a.OwnerUserID,
 		ShareMode:               service.NormalizeAccountShareMode(a.ShareMode),
 		ShareStatus:             service.NormalizeAccountShareStatus(a.ShareStatus),
@@ -394,6 +404,24 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 	}
 
 	return out
+}
+
+func redactAccountManagedExtra(extra map[string]any) map[string]any {
+	if extra == nil {
+		return nil
+	}
+	redacted := make(map[string]any, len(extra))
+	for key, value := range extra {
+		switch key {
+		case service.OllamaCloudUsageSessionExtraKey,
+			service.OllamaCloudUsageAutoRefreshExtraKey,
+			service.OllamaCloudUsageSnapshotExtraKey:
+			continue
+		default:
+			redacted[key] = value
+		}
+	}
+	return redacted
 }
 
 func AccountFromService(a *service.Account) *Account {

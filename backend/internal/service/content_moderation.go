@@ -94,6 +94,7 @@ const (
 	maxContentModerationModelFilterModels        = 1000
 	maxContentModerationModelFilterRunes         = 200
 	maxContentModerationClassifierPromptRunes    = 20000
+	maxContentModerationClassifierModels         = 20
 
 	contentModerationCleanupInterval = 24 * time.Hour
 	contentModerationCleanupTimeout  = 30 * time.Minute
@@ -202,6 +203,8 @@ type ContentModerationConfig struct {
 	ModerationProvider   string                          `json:"moderation_provider"`
 	BaseURL              string                          `json:"base_url"`
 	Model                string                          `json:"model"`
+	ClassifierGroupID    int64                           `json:"classifier_group_id,omitempty"`
+	ClassifierModels     []string                        `json:"classifier_models,omitempty"`
 	ClassifierPrompt     string                          `json:"classifier_prompt,omitempty"`
 	AliyunRegionID       string                          `json:"aliyun_region_id"`
 	AliyunEndpoint       string                          `json:"aliyun_endpoint"`
@@ -238,6 +241,8 @@ type ContentModerationConfigView struct {
 	ModerationProvider      string                          `json:"moderation_provider"`
 	BaseURL                 string                          `json:"base_url"`
 	Model                   string                          `json:"model"`
+	ClassifierGroupID       int64                           `json:"classifier_group_id"`
+	ClassifierModels        []string                        `json:"classifier_models"`
 	ClassifierPrompt        string                          `json:"classifier_prompt"`
 	ClassifierPromptDefault string                          `json:"classifier_prompt_default"`
 	AliyunRegionID          string                          `json:"aliyun_region_id"`
@@ -307,6 +312,8 @@ type TestContentModerationAPIKeysInput struct {
 	ModerationProvider string   `json:"moderation_provider"`
 	BaseURL            string   `json:"base_url"`
 	Model              string   `json:"model"`
+	ClassifierGroupID  int64    `json:"classifier_group_id"`
+	ClassifierModels   []string `json:"classifier_models"`
 	ClassifierPrompt   *string  `json:"classifier_prompt"`
 	AliyunRegionID     string   `json:"aliyun_region_id"`
 	AliyunEndpoint     string   `json:"aliyun_endpoint"`
@@ -317,9 +324,10 @@ type TestContentModerationAPIKeysInput struct {
 }
 
 type TestContentModerationAPIKeysResult struct {
-	Items       []ContentModerationAPIKeyStatus   `json:"items"`
-	AuditResult *ContentModerationTestAuditResult `json:"audit_result,omitempty"`
-	ImageCount  int                               `json:"image_count"`
+	Items           []ContentModerationAPIKeyStatus   `json:"items"`
+	AuditResult     *ContentModerationTestAuditResult `json:"audit_result,omitempty"`
+	ClassifierTrace *ContentModerationClassifierTrace `json:"classifier_trace,omitempty"`
+	ImageCount      int                               `json:"image_count"`
 }
 
 type ContentModerationTestAuditResult struct {
@@ -329,6 +337,7 @@ type ContentModerationTestAuditResult struct {
 	CompositeScore  float64            `json:"composite_score"`
 	CategoryScores  map[string]float64 `json:"category_scores"`
 	Thresholds      map[string]float64 `json:"thresholds"`
+	ClassifierModel string             `json:"classifier_model,omitempty"`
 }
 
 type UpdateContentModerationConfigInput struct {
@@ -337,6 +346,8 @@ type UpdateContentModerationConfigInput struct {
 	ModerationProvider   *string                          `json:"moderation_provider"`
 	BaseURL              *string                          `json:"base_url"`
 	Model                *string                          `json:"model"`
+	ClassifierGroupID    *int64                           `json:"classifier_group_id"`
+	ClassifierModels     *[]string                        `json:"classifier_models"`
 	ClassifierPrompt     *string                          `json:"classifier_prompt"`
 	AliyunRegionID       *string                          `json:"aliyun_region_id"`
 	AliyunEndpoint       *string                          `json:"aliyun_endpoint"`
@@ -376,24 +387,26 @@ type ContentModerationModelFilter struct {
 }
 
 type ContentModerationCheckInput struct {
-	RequestID         string
-	UserID            int64
-	UserEmail         string
-	APIKeyID          int64
-	APIKeyName        string
-	GroupID           *int64
-	GroupName         string
-	Endpoint          string
-	Provider          string
-	Model             string
-	Protocol          string
-	Body              []byte
-	InternalSignature string
+	RequestID           string
+	UserID              int64
+	UserEmail           string
+	APIKeyID            int64
+	APIKeyName          string
+	GroupID             *int64
+	GroupName           string
+	Endpoint            string
+	Provider            string
+	Model               string
+	Protocol            string
+	Body                []byte
+	CodexOfficialClient bool
+	InternalSignature   string
 }
 
 type ContentModerationInput struct {
-	Text   string
-	Images []string
+	Text       string
+	Images     []string
+	SkipReason string
 }
 
 func (in *ContentModerationInput) Normalize() {
@@ -478,6 +491,7 @@ type ContentModerationLog struct {
 	CategoryScores    map[string]float64 `json:"category_scores"`
 	ThresholdSnapshot map[string]float64 `json:"threshold_snapshot"`
 	InputExcerpt      string             `json:"input_excerpt"`
+	InputContent      string             `json:"input_content,omitempty"`
 	UpstreamLatencyMS *int               `json:"upstream_latency_ms,omitempty"`
 	Error             string             `json:"error"`
 	ViolationCount    int                `json:"violation_count"`
@@ -557,6 +571,10 @@ type ContentModerationRepository interface {
 	CleanupExpiredLogs(ctx context.Context, hitBefore time.Time, nonHitBefore time.Time) (*ContentModerationCleanupResult, error)
 }
 
+type ContentModerationLogDetailRepository interface {
+	GetLogByID(ctx context.Context, logID int64) (*ContentModerationLog, error)
+}
+
 type ContentModerationHashCache interface {
 	RecordFlaggedInputHash(ctx context.Context, inputHash string) error
 	HasFlaggedInputHash(ctx context.Context, inputHash string) (bool, error)
@@ -573,6 +591,8 @@ type ContentModerationService struct {
 	userRepo                 UserRepository
 	authCacheInvalidator     APIKeyAuthCacheInvalidator
 	emailService             *EmailService
+	classifierGatewayMu      sync.RWMutex
+	classifierGateway        ContentModerationClassifierGateway
 	httpClient               *http.Client
 	asyncQueue               chan contentModerationTask
 	workerCount              int
@@ -598,6 +618,24 @@ type ContentModerationService struct {
 	adaptiveOverviewMu       sync.Mutex
 	adaptiveOverview         *ContentModerationRiskOverview
 	adaptiveOverviewExpiry   time.Time
+}
+
+func (s *ContentModerationService) SetClassifierGateway(gateway ContentModerationClassifierGateway) {
+	if s == nil {
+		return
+	}
+	s.classifierGatewayMu.Lock()
+	s.classifierGateway = gateway
+	s.classifierGatewayMu.Unlock()
+}
+
+func (s *ContentModerationService) getClassifierGateway() ContentModerationClassifierGateway {
+	if s == nil {
+		return nil
+	}
+	s.classifierGatewayMu.RLock()
+	defer s.classifierGatewayMu.RUnlock()
+	return s.classifierGateway
 }
 
 type contentModerationTask struct {
@@ -689,6 +727,15 @@ func (s *ContentModerationService) UpdateConfig(ctx context.Context, input Updat
 	}
 	if input.Model != nil {
 		cfg.Model = strings.TrimSpace(*input.Model)
+	}
+	if input.ClassifierGroupID != nil {
+		cfg.ClassifierGroupID = *input.ClassifierGroupID
+	}
+	if input.ClassifierModels != nil {
+		cfg.ClassifierModels = normalizeContentModerationClassifierModels(*input.ClassifierModels)
+		if len(cfg.ClassifierModels) > 0 {
+			cfg.Model = cfg.ClassifierModels[0]
+		}
 	}
 	if input.ClassifierPrompt != nil {
 		prompt := strings.TrimSpace(*input.ClassifierPrompt)
@@ -825,6 +872,15 @@ func (s *ContentModerationService) TestAPIKeys(ctx context.Context, input TestCo
 	if strings.TrimSpace(input.Model) != "" {
 		cfg.Model = input.Model
 	}
+	if input.ClassifierGroupID > 0 {
+		cfg.ClassifierGroupID = input.ClassifierGroupID
+	}
+	if len(input.ClassifierModels) > 0 {
+		cfg.ClassifierModels = normalizeContentModerationClassifierModels(input.ClassifierModels)
+		if len(cfg.ClassifierModels) > 0 {
+			cfg.Model = cfg.ClassifierModels[0]
+		}
+	}
 	if input.ClassifierPrompt != nil {
 		cfg.ClassifierPrompt = strings.TrimSpace(*input.ClassifierPrompt)
 	}
@@ -847,6 +903,26 @@ func (s *ContentModerationService) TestAPIKeys(ctx context.Context, input TestCo
 	testInput, imageCount, err := buildModerationTestInput(input.Prompt, input.Images)
 	if err != nil {
 		return nil, err
+	}
+	if cfg.usesInternalClassifierGateway() {
+		httpStatus := 0
+		result, trace, callErr := s.callModelClassifierThroughGroupWithTrace(ctx, cfg, testInput, &httpStatus)
+		if trace != nil && callErr != nil {
+			trace.Error = trimRunes(callErr.Error(), maxModerationExcerptRunes)
+		}
+		if callErr != nil {
+			return &TestContentModerationAPIKeysResult{
+				Items:           []ContentModerationAPIKeyStatus{},
+				ClassifierTrace: trace,
+				ImageCount:      imageCount,
+			}, nil
+		}
+		return &TestContentModerationAPIKeysResult{
+			Items:           []ContentModerationAPIKeyStatus{},
+			AuditResult:     buildContentModerationTestAuditResult(result, cfg.Thresholds),
+			ClassifierTrace: trace,
+			ImageCount:      imageCount,
+		}, nil
 	}
 	auditOnly := contentModerationTestHasAuditInput(input.Prompt, input.Images)
 	if configured && auditOnly {
@@ -990,7 +1066,9 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 			"configured_models", cfg.ModelFilter.Models)
 		return allow, nil
 	}
-	content := ExtractContentModerationInput(input.Protocol, input.Body)
+	content := ExtractContentModerationInputWithOptions(input.Protocol, input.Body, ContentModerationExtractionOptions{
+		CodexOfficialClient: input.CodexOfficialClient,
+	})
 	if content.IsEmpty() {
 		slog.Info("content_moderation.skip_empty_input",
 			"user_id", input.UserID,
@@ -998,6 +1076,7 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 			"group_id", contentModerationLogGroupID(input.GroupID),
 			"endpoint", input.Endpoint,
 			"protocol", input.Protocol,
+			"skip_reason", content.SkipReason,
 			"body_bytes", len(input.Body))
 		return allow, nil
 	}
@@ -1109,7 +1188,7 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 				"sample_rate", riskEvent.SampleRate)
 			return allow, nil
 		}
-		if len(cfg.apiKeys()) == 0 {
+		if !cfg.hasModerationBackend() {
 			s.enqueueAdaptiveRiskTask(input, cfg, ContentModerationInput{}, hashText, riskEvent, false)
 			slog.Warn("content_moderation.skip_no_audit_api_keys",
 				"user_id", input.UserID,
@@ -1134,7 +1213,7 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 			"sample_rate", cfg.SampleRate)
 		return allow, nil
 	}
-	if len(cfg.apiKeys()) == 0 {
+	if !cfg.hasModerationBackend() {
 		if cfg.Mode == ContentModerationModePreBlock {
 			s.recordPreBlockSyncMetric(0, ContentModerationActionError)
 		}
@@ -1383,7 +1462,7 @@ func (s *ContentModerationService) worker(id int) {
 				s.asyncProcessed.Add(1)
 				return
 			}
-			if !cfg.Enabled || cfg.Mode == ContentModerationModeOff || len(cfg.apiKeys()) == 0 {
+			if !cfg.Enabled || cfg.Mode == ContentModerationModeOff || !cfg.hasModerationBackend() {
 				if task.riskEvent != nil {
 					s.recordAdaptiveRiskEvent(ctx, cfg, task.riskEvent)
 					s.asyncProcessed.Add(1)
@@ -1451,6 +1530,24 @@ func (s *ContentModerationService) ListLogs(ctx context.Context, filter ContentM
 		filter.Pagination.SortOrder = pagination.SortOrderDesc
 	}
 	return s.repo.ListLogs(ctx, filter)
+}
+
+func (s *ContentModerationService) GetLog(ctx context.Context, logID int64) (*ContentModerationLog, error) {
+	if logID <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_CONTENT_MODERATION_LOG_ID", "invalid content moderation log id")
+	}
+	repo, ok := s.repo.(ContentModerationLogDetailRepository)
+	if !ok {
+		return nil, infraerrors.InternalServer("CONTENT_MODERATION_LOG_DETAIL_UNAVAILABLE", "content moderation log detail is unavailable")
+	}
+	log, err := repo.GetLogByID(ctx, logID)
+	if err != nil {
+		return nil, err
+	}
+	if log == nil {
+		return nil, infraerrors.NotFound("CONTENT_MODERATION_LOG_NOT_FOUND", "content moderation log not found")
+	}
+	return log, nil
 }
 
 func (s *ContentModerationService) UnbanUser(ctx context.Context, userID int64) (*ContentModerationUnbanUserResult, error) {
@@ -1666,8 +1763,28 @@ func (s *ContentModerationService) validateConfig(ctx context.Context, cfg *Cont
 	default:
 		return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_MODE", "内容审计模式无效")
 	}
-	if _, err := url.ParseRequestURI(cfg.BaseURL); err != nil {
-		return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_BASE_URL", "OpenAI Base URL 无效")
+	if !cfg.usesInternalClassifierGateway() {
+		if _, err := url.ParseRequestURI(cfg.BaseURL); err != nil {
+			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_BASE_URL", "OpenAI Base URL 无效")
+		}
+	}
+	if cfg.ModerationProvider == ContentModerationProviderModelClassifier && cfg.ClassifierGroupID > 0 {
+		if len(cfg.ClassifierModels) == 0 {
+			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_CLASSIFIER_MODELS", "at least one classifier model is required")
+		}
+		if s.groupRepo == nil {
+			return infraerrors.ServiceUnavailable("CONTENT_MODERATION_GROUP_REPOSITORY_UNAVAILABLE", "classifier group validation is unavailable")
+		}
+		group, err := s.groupRepo.GetByIDLite(ctx, cfg.ClassifierGroupID)
+		if err != nil || group == nil {
+			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_CLASSIFIER_GROUP", "classifier group does not exist")
+		}
+		if !group.IsActive() {
+			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_CLASSIFIER_GROUP", "classifier group is disabled")
+		}
+		if !isContentModerationClassifierPlatform(group.Platform) {
+			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_CLASSIFIER_GROUP", "classifier group must use an OpenAI-compatible platform")
+		}
 	}
 	if cfg.ModerationProvider == ContentModerationProviderAliyunGuardrail {
 		if cfg.AliyunRegionID == "" {
@@ -1700,6 +1817,10 @@ func (s *ContentModerationService) validateConfig(ctx context.Context, cfg *Cont
 }
 
 func (s *ContentModerationService) callModeration(ctx context.Context, cfg *ContentModerationConfig, input any, trackKeyLoad ...bool) (*moderationAPIResult, error) {
+	if cfg != nil && cfg.usesInternalClassifierGateway() {
+		httpStatus := 0
+		return s.callModelClassifierOnce(ctx, cfg, "", input, &httpStatus)
+	}
 	attempts := cfg.RetryCount + 1
 	if attempts <= 0 {
 		attempts = 1
@@ -1817,6 +1938,7 @@ func (s *ContentModerationService) buildLog(input ContentModerationCheckInput, c
 	if input.APIKeyID > 0 {
 		apiKeyID = &input.APIKeyID
 	}
+	redactedInput := redactContentModerationSecrets(text)
 	return &ContentModerationLog{
 		RequestID:         input.RequestID,
 		UserID:            userID,
@@ -1835,7 +1957,8 @@ func (s *ContentModerationService) buildLog(input ContentModerationCheckInput, c
 		HighestScore:      highestScore,
 		CategoryScores:    cloneFloatMap(scores),
 		ThresholdSnapshot: cloneFloatMap(cfg.Thresholds),
-		InputExcerpt:      trimRunes(redactContentModerationSecrets(text), maxModerationExcerptRunes),
+		InputExcerpt:      trimRunes(redactedInput, maxModerationExcerptRunes),
+		InputContent:      redactedInput,
 		UpstreamLatencyMS: latency,
 		QueueDelayMS:      queueDelay,
 		Error:             errText,
@@ -2003,6 +2126,8 @@ func defaultContentModerationConfig() *ContentModerationConfig {
 		ModerationProvider:   ContentModerationProviderOpenAI,
 		BaseURL:              defaultContentModerationBaseURL,
 		Model:                defaultContentModerationModel,
+		ClassifierGroupID:    0,
+		ClassifierModels:     []string{},
 		ClassifierPrompt:     "",
 		AliyunRegionID:       defaultAliyunGuardrailRegionID,
 		AliyunEndpoint:       defaultAliyunGuardrailEndpoint,
@@ -2041,6 +2166,7 @@ func cloneContentModerationConfig(cfg *ContentModerationConfig) *ContentModerati
 	}
 	clone := *cfg
 	clone.APIKeys = append([]string(nil), cfg.APIKeys...)
+	clone.ClassifierModels = append([]string(nil), cfg.ClassifierModels...)
 	clone.GroupIDs = append([]int64(nil), cfg.GroupIDs...)
 	clone.BlockedKeywords = append([]string(nil), cfg.BlockedKeywords...)
 	clone.Thresholds = cloneFloatMap(cfg.Thresholds)
@@ -2071,6 +2197,15 @@ func (cfg *ContentModerationConfig) normalize() {
 		cfg.Model = defaultContentModerationModel
 	}
 	cfg.Model = strings.TrimSpace(cfg.Model)
+	cfg.ClassifierModels = normalizeContentModerationClassifierModels(cfg.ClassifierModels)
+	if cfg.ModerationProvider == ContentModerationProviderModelClassifier {
+		if len(cfg.ClassifierModels) == 0 && cfg.Model != "" {
+			cfg.ClassifierModels = []string{cfg.Model}
+		}
+		if len(cfg.ClassifierModels) > 0 {
+			cfg.Model = cfg.ClassifierModels[0]
+		}
+	}
 	cfg.ClassifierPrompt = strings.TrimSpace(cfg.ClassifierPrompt)
 	if strings.TrimSpace(cfg.AliyunRegionID) == "" {
 		cfg.AliyunRegionID = defaultAliyunGuardrailRegionID
@@ -2145,6 +2280,23 @@ func (cfg *ContentModerationConfig) normalize() {
 	cfg.KeywordBlockingMode = normalizeKeywordBlockingMode(cfg.KeywordBlockingMode)
 	cfg.ModelFilter = normalizeContentModerationModelFilter(cfg.ModelFilter)
 	cfg.AdaptivePolicy.normalize()
+}
+
+func (cfg *ContentModerationConfig) usesInternalClassifierGateway() bool {
+	return cfg != nil &&
+		cfg.ModerationProvider == ContentModerationProviderModelClassifier &&
+		cfg.ClassifierGroupID > 0 &&
+		len(cfg.ClassifierModels) > 0
+}
+
+func (cfg *ContentModerationConfig) hasModerationBackend() bool {
+	if cfg == nil {
+		return false
+	}
+	if cfg.usesInternalClassifierGateway() {
+		return true
+	}
+	return len(cfg.apiKeys()) > 0
 }
 
 func (cfg *ContentModerationConfig) includesGroup(groupID *int64) bool {
@@ -2349,6 +2501,8 @@ func (s *ContentModerationService) configView(cfg *ContentModerationConfig) *Con
 		ModerationProvider:      cfg.ModerationProvider,
 		BaseURL:                 cfg.BaseURL,
 		Model:                   cfg.Model,
+		ClassifierGroupID:       cfg.ClassifierGroupID,
+		ClassifierModels:        append([]string(nil), cfg.ClassifierModels...),
 		ClassifierPrompt:        cfg.ClassifierPrompt,
 		ClassifierPromptDefault: contentModerationClassifierDefaultPolicyPrompt,
 		AliyunRegionID:          cfg.AliyunRegionID,
@@ -2596,6 +2750,7 @@ func buildContentModerationTestAuditResult(result *moderationAPIResult, threshol
 		CompositeScore:  compositeScore,
 		CategoryScores:  scores,
 		Thresholds:      thresholdSnapshot,
+		ClassifierModel: result.ClassifierModel,
 	}
 }
 
@@ -2619,9 +2774,10 @@ type moderationAPIResponse struct {
 }
 
 type moderationAPIResult struct {
-	Flagged        bool               `json:"flagged"`
-	CategoryScores map[string]float64 `json:"category_scores"`
-	RiskSeverity   string             `json:"-"`
+	Flagged         bool               `json:"flagged"`
+	CategoryScores  map[string]float64 `json:"category_scores"`
+	RiskSeverity    string             `json:"-"`
+	ClassifierModel string             `json:"-"`
 }
 
 func evaluateModerationScores(scores map[string]float64, thresholds map[string]float64) (bool, string, float64) {
@@ -2832,6 +2988,14 @@ func normalizeContentModerationModelNames(models []string) []string {
 		if len(out) >= maxContentModerationModelFilterModels {
 			break
 		}
+	}
+	return out
+}
+
+func normalizeContentModerationClassifierModels(models []string) []string {
+	out := normalizeContentModerationModelNames(models)
+	if len(out) > maxContentModerationClassifierModels {
+		out = out[:maxContentModerationClassifierModels]
 	}
 	return out
 }

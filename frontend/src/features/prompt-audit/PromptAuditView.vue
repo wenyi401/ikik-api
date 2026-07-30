@@ -86,6 +86,21 @@
               @preview-delete="requestFilterDeletePreview"
             />
           </div>
+
+          <div v-show="activeTab === 'profiles'" data-test="tab-panel-profiles">
+            <ProfileWorkspace
+              :items="profiles.items"
+              :total="profiles.total"
+              :page="profiles.page"
+              :pages="profiles.pages"
+              :loading="loading.profiles"
+              :error="loadErrors.profiles"
+              @search="searchProfiles"
+              @refresh="loadProfiles"
+              @page="changeProfilePage"
+              @unblock="unblockProfile"
+            />
+          </div>
         </main>
       </template>
     </div>
@@ -155,6 +170,7 @@ import PolicyPanel from './components/PolicyPanel.vue'
 import EventWorkspace from './components/EventWorkspace.vue'
 import EventDetailDialog from './components/EventDetailDialog.vue'
 import FilterDeleteDialog from './components/FilterDeleteDialog.vue'
+import ProfileWorkspace from './components/ProfileWorkspace.vue'
 import promptAuditAPI from './api'
 import type {
   PromptAuditDraft,
@@ -167,15 +183,18 @@ import type {
   PromptEventPage,
   PromptLoadErrors,
   PromptProbeResult,
+	PromptAuditUserProfile,
+	PromptAuditUserProfilePage,
 } from './types'
 import { buildUpdateRequest, cloneData, configToDraft, draftFingerprint, emptyEventFilters } from './viewModel'
 
 const { t, locale } = useI18n()
 const appStore = useAppStore()
-type PromptAuditPageTab = 'config' | 'events'
+type PromptAuditPageTab = 'config' | 'events' | 'profiles'
 const activeTab = ref<PromptAuditPageTab>('events')
 const pageTabs = computed(() => [
   { id: 'events' as const, label: t('admin.promptAudit.tabs.events') },
+	{ id: 'profiles' as const, label: t('admin.promptAudit.tabs.profiles') },
   { id: 'config' as const, label: t('admin.promptAudit.tabs.config') },
 ])
 const serverConfig = ref<PromptAuditDraft | null>(null)
@@ -183,6 +202,8 @@ const draft = ref<PromptAuditDraft | null>(null)
 const runtime = ref<PromptAuditRuntime | null>(null)
 const groups = ref<PromptAuditGroup[]>([])
 const events = reactive<PromptEventPage>({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
+const profiles = reactive<PromptAuditUserProfilePage>({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
+const profileFilters = reactive({ keyword: '', blockedOnly: true })
 const filters = ref<PromptEventFilters>(emptyEventFilters())
 const appliedFilters = ref<PromptEventFilters>(emptyEventFilters())
 const selectedEventIds = ref<number[]>([])
@@ -195,8 +216,8 @@ const deletePreview = ref<PromptDeletePreview | null>(null)
 const deletePreviewFilters = ref<PromptEventFilters | null>(null)
 const showBlockingConfirmation = ref(false)
 const deleteRequest = reactive<{ mode: '' | 'single' | 'batch'; ids: number[] }>({ mode: '', ids: [] })
-const loading = reactive({ config: false, runtime: false, groups: false, events: false, saving: false, detail: false, deleting: false, previewing: false })
-const loadErrors = reactive<PromptLoadErrors>({ config: '', runtime: '', groups: '', events: '' })
+const loading = reactive({ config: false, runtime: false, groups: false, events: false, profiles: false, saving: false, detail: false, deleting: false, previewing: false })
+const loadErrors = reactive<PromptLoadErrors>({ config: '', runtime: '', groups: '', events: '', profiles: '' })
 const dirty = computed(() => draftFingerprint(draft.value) !== draftFingerprint(serverConfig.value))
 
 const SaveToggle = defineComponent({
@@ -284,8 +305,43 @@ async function loadEvents() {
     loading.events = false
   }
 }
+async function loadProfiles() {
+  loading.profiles = true
+  loadErrors.profiles = ''
+  try {
+    const result = await promptAuditAPI.listProfiles({
+      page: profiles.page,
+      page_size: profiles.page_size,
+      blocked_only: profileFilters.blockedOnly,
+      keyword: profileFilters.keyword || undefined,
+    })
+    Object.assign(profiles, result)
+  } catch (error) {
+    loadErrors.profiles = errorMessage(error, 'admin.promptAudit.errors.loadProfiles')
+  } finally {
+    loading.profiles = false
+  }
+}
 async function loadInitial() {
-  await Promise.allSettled([loadConfig(), loadRuntime(), loadGroups(), loadEvents()])
+  await Promise.allSettled([loadConfig(), loadRuntime(), loadGroups(), loadEvents(), loadProfiles()])
+}
+
+function searchProfiles(value: { keyword: string; blockedOnly: boolean }) {
+  profileFilters.keyword = value.keyword
+  profileFilters.blockedOnly = value.blockedOnly
+  profiles.page = 1
+  void loadProfiles()
+}
+function changeProfilePage(value: number) { profiles.page = value; void loadProfiles() }
+async function unblockProfile(profile: PromptAuditUserProfile) {
+  if (!window.confirm(t('admin.promptAudit.profiles.unblockConfirm', { email: profile.user_email || profile.user_id }))) return
+  try {
+    await promptAuditAPI.unblockProfile(profile.user_id)
+    appStore.showSuccess(t('admin.promptAudit.messages.unblocked'))
+    await loadProfiles()
+  } catch (error) {
+    appStore.showError(errorMessage(error, 'admin.promptAudit.errors.unblock'))
+  }
 }
 
 function replaceDraft(value: PromptAuditDraft) { draft.value = cloneData(value) }

@@ -34,6 +34,16 @@ func (c *Coordinator) Check(ctx context.Context, req Request) Decision {
 	if c.prompt != nil {
 		mode = c.prompt.EffectiveMode()
 	}
+	if admission, ok := c.prompt.(interface {
+		IsPromptAuditUserBlocked(context.Context, int64) (bool, error)
+	}); ok && mode != ModeOff {
+		blocked, err := admission.IsPromptAuditUserBlocked(ctx, req.UserID)
+		if err == nil && blocked {
+			return Decision{Kind: DecisionBlock, HTTPStatus: http.StatusForbidden, ErrorCode: "prompt_audit_user_blocked",
+				ClientMessage:  "该账号因提示词安全审计命中高风险规则，暂时无法继续使用",
+				AllowNextStage: false}
+		}
+	}
 	switch mode {
 	case ModeAsync:
 		// Enqueue is deliberately best-effort. The implementation owns a bounded

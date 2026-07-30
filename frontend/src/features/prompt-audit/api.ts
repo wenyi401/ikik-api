@@ -11,6 +11,8 @@ import type {
   PromptEventPage,
   PromptProbeResult,
   PromptAuditEndpointDraft,
+	PromptAuditUserProfile,
+	PromptAuditUserProfilePage,
 } from './types'
 import { eventFilterPayload, eventQueryParams } from './viewModel'
 
@@ -103,6 +105,21 @@ export async function listGroups(): Promise<PromptAuditGroup[]> {
   return data
 }
 
+export async function listProfiles(params: {
+	page: number
+	page_size: number
+	blocked_only?: boolean
+	keyword?: string
+}): Promise<PromptAuditUserProfilePage> {
+	const { data } = await apiClient.get<PromptAuditUserProfilePage>(`${basePath}/profiles`, { params })
+	return data
+}
+
+export async function unblockProfile(userId: number): Promise<PromptAuditUserProfile> {
+	const { data } = await apiClient.post<PromptAuditUserProfile>(`${basePath}/profiles/${userId}/unblock`)
+	return data
+}
+
 export const promptAuditAPI = {
   getConfig,
   updateConfig,
@@ -115,6 +132,8 @@ export const promptAuditAPI = {
   previewDelete,
   deleteEventsByFilter,
   listGroups,
+	listProfiles,
+	unblockProfile,
 }
 
 export default promptAuditAPI

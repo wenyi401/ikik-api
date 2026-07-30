@@ -83,6 +83,12 @@ func RegisterUserRoutes(
 			channels.GET("/available", h.AvailableChannel.List)
 		}
 
+		serviceStatus := authenticated.Group("/service-status")
+		{
+			serviceStatus.GET("/openai", h.ServiceStatus.GetOpenAI)
+			serviceStatus.GET("/providers", h.ServiceStatus.GetProviders)
+		}
+
 		// 使用记录
 		usage := authenticated.Group("/usage")
 		{
@@ -104,6 +110,12 @@ func RegisterUserRoutes(
 		{
 			announcements.GET("", h.Announcement.List)
 			announcements.POST("/:id/read", h.Announcement.MarkRead)
+		}
+
+		promptSubmissions := authenticated.Group("/prompt-submissions")
+		{
+			promptSubmissions.GET("/approved", h.PromptSubmission.ListApproved)
+			promptSubmissions.POST("", h.PromptSubmission.Submit)
 		}
 
 		// 卡密兑换

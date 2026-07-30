@@ -69,12 +69,13 @@
           <div
             v-for="column in dataColumns"
             :key="column.key"
-            class="flex items-start justify-between gap-4"
+            :data-field="column.key"
+            class="flex min-w-0 items-start justify-between gap-4"
           >
             <span class="text-xs font-medium text-[var(--app-muted)]">
               {{ column.label }}
             </span>
-            <div class="min-w-0 text-right text-sm text-[var(--app-text)]">
+            <div class="min-w-0 max-w-full text-right text-sm text-[var(--app-text)]">
               <slot :name="`cell-${column.key}`" :row="row" :value="row[column.key]" :expanded="actionsExpanded">
                 {{ column.formatter ? column.formatter(row[column.key], row) : row[column.key] }}
               </slot>

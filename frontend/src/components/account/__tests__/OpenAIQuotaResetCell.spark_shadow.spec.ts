@@ -2,9 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import OpenAIQuotaResetCell from '../OpenAIQuotaResetCell.vue'
 import type { Account } from '@/types'
-import { queryOpenAIQuota } from '@/api/admin/accounts'
+import { queryOpenAIQuota, resetOpenAIQuota } from '@/api/admin/accounts'
+import {
+  queryOpenAIQuota as queryUserOpenAIQuota,
+  resetOpenAIQuota as resetUserOpenAIQuota
+} from '@/api/accounts'
 
 vi.mock('@/api/admin/accounts', () => ({
+  queryOpenAIQuota: vi.fn(),
+  resetOpenAIQuota: vi.fn(),
+}))
+
+vi.mock('@/api/accounts', () => ({
   queryOpenAIQuota: vi.fn(),
   resetOpenAIQuota: vi.fn(),
 }))
@@ -55,6 +64,9 @@ const resetButton = (wrapper: ReturnType<typeof mount>) =>
 
 beforeEach(() => {
   vi.mocked(queryOpenAIQuota).mockReset()
+  vi.mocked(resetOpenAIQuota).mockReset()
+  vi.mocked(queryUserOpenAIQuota).mockReset()
+  vi.mocked(resetUserOpenAIQuota).mockReset()
 })
 
 describe('OpenAIQuotaResetCell — 外审 F6:影子禁用重置', () => {
@@ -134,6 +146,44 @@ describe('OpenAIQuotaResetCell — 外审 F6:影子禁用重置', () => {
     expect(wrapper.find('[data-testid="reset-credit-expiry-toggle"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="reset-credit-expiry-details"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('admin.accounts.openaiQuotaReset.expiresAt:')
+    wrapper.unmount()
+  })
+
+  it('用户作用域走 owner API，并优先展示本地状态清理警告', async () => {
+    vi.mocked(queryUserOpenAIQuota).mockResolvedValue({
+      rate_limit_reset_credits: {
+        available_count: 1,
+        credits: [{ expires_at: '2026-07-03T04:05:06Z' }],
+      },
+      fetched_at: 1770000000,
+    })
+    vi.mocked(resetUserOpenAIQuota).mockResolvedValue({
+      code: 'ok',
+      windows_reset: 1,
+      runtime_state_cleared: false,
+      runtime_state_warning: 'upstream reset succeeded; local state cleanup failed',
+    })
+
+    const wrapper = mount(OpenAIQuotaResetCell, {
+      props: {
+        account: makeAccount({ parent_account_id: null }),
+        accountScope: 'user',
+      },
+    })
+
+    await wrapper.findAll('button')[0].trigger('click')
+    await flushPromises()
+    await resetButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(queryUserOpenAIQuota).toHaveBeenCalledWith(1)
+    expect(resetUserOpenAIQuota).toHaveBeenCalledWith(1)
+    expect(queryOpenAIQuota).not.toHaveBeenCalled()
+    expect(resetOpenAIQuota).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('admin.accounts.openaiQuotaReset.runtimeStateWarning')
+    expect(wrapper.find('[title="upstream reset succeeded; local state cleanup failed"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('admin.accounts.openaiQuotaReset.resetSuccess')
+    expect(wrapper.emitted('reset')).toHaveLength(1)
     wrapper.unmount()
   })
 })

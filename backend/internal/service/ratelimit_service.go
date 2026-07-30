@@ -1770,7 +1770,30 @@ func (s *RateLimitService) RecoverAccountState(ctx context.Context, accountID in
 	if err != nil {
 		return nil, err
 	}
+	if account == nil {
+		return nil, ErrAccountNotFound
+	}
+	return s.recoverAccountState(ctx, accountID, account, options)
+}
 
+// RecoverOwnedAccountState restores an owned account only after verifying its owner.
+// Keep this authorization check in the service so callers cannot accidentally invoke
+// the ID-only administrative recovery path for a user-owned operation.
+func (s *RateLimitService) RecoverOwnedAccountState(ctx context.Context, ownerUserID, accountID int64, options AccountRecoveryOptions) (*SuccessfulTestRecoveryResult, error) {
+	if ownerUserID <= 0 {
+		return nil, ErrUserNotFound
+	}
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	if account == nil || account.OwnerUserID == nil || *account.OwnerUserID != ownerUserID {
+		return nil, ErrAccountNotFound
+	}
+	return s.recoverAccountState(ctx, accountID, account, options)
+}
+
+func (s *RateLimitService) recoverAccountState(ctx context.Context, accountID int64, account *Account, options AccountRecoveryOptions) (*SuccessfulTestRecoveryResult, error) {
 	result := &SuccessfulTestRecoveryResult{}
 	if account.Status == StatusError {
 		if err := s.accountRepo.ClearError(ctx, accountID); err != nil {

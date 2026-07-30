@@ -35,11 +35,6 @@ func (e *Enqueuer) Enqueue(ctx context.Context, req Request) error {
 		LogInfo(EventEnqueueSkipped, mergeLogFields(baseFields, map[string]any{"status": "skipped", "error_code": "group_out_of_scope"}))
 		return nil
 	}
-	if len(cfg.EnabledEndpoints()) == 0 {
-		e.recordDropped()
-		LogWarn(EventEnqueueDropped, mergeLogFields(baseFields, map[string]any{"status": "dropped", "error_code": "no_enabled_endpoint"}))
-		return nil
-	}
 	snapshot, err := ExtractPromptSnapshot(req)
 	if errors.Is(err, ErrNoPromptText) {
 		LogInfo(EventEnqueueSkipped, mergeLogFields(baseFields, map[string]any{"status": "skipped", "error_code": "no_user_text"}))
@@ -48,6 +43,30 @@ func (e *Enqueuer) Enqueue(ctx context.Context, req Request) error {
 	if err != nil {
 		e.recordDropped()
 		LogWarn(EventEnqueueDropped, mergeLogFields(baseFields, map[string]any{"status": "dropped", "error_code": "snapshot_invalid"}))
+		return nil
+	}
+	assessment := AssessLocalPrompt(snapshot.ScanText)
+	snapshot.PromptHash = assessment.NormalizedHash
+	decision := PromptAuditAdmissionDecision{RunRemote: true}
+	if admission, ok := e.repo.(PromptAuditAdmissionRepository); ok {
+		decision, err = admission.PreparePromptAudit(ctx, snapshot.UserID, snapshot.RequestID, snapshot.PromptHash, assessment.RequiresRemoteReview)
+		if err != nil {
+			// Fail open into remote audit. A profile lookup failure must not silently
+			// turn off prompt auditing.
+			decision = PromptAuditAdmissionDecision{RunRemote: true}
+		}
+	}
+	if decision.UserBlocked {
+		LogInfo(EventEnqueueSkipped, mergeLogFields(baseFields, map[string]any{"status": "skipped", "error_code": "user_already_blocked"}))
+		return nil
+	}
+	if !decision.RunRemote && !decision.KnownMalicious {
+		LogInfo(EventEnqueueSkipped, mergeLogFields(baseFields, map[string]any{"status": "sampled_out", "error_code": "adaptive_sampling"}))
+		return nil
+	}
+	if decision.RunRemote && len(cfg.EnabledEndpoints()) == 0 {
+		e.recordDropped()
+		LogWarn(EventEnqueueDropped, mergeLogFields(baseFields, map[string]any{"status": "dropped", "error_code": "no_enabled_endpoint"}))
 		return nil
 	}
 	job, err := e.repo.CreateStagingWithCapacity(ctx, snapshot.Redacted(), cfg.ConfigVersion, 3, cfg.QueueCapacity)

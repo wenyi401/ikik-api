@@ -28,6 +28,8 @@ type User struct {
 	Concurrency         int
 	Status              string
 	AllowedGroups       []int64
+	BlockedGroups       []int64
+	RiskGroupBlocks     []UserRiskGroupBlock
 	TokenVersion        int64 // Incremented on password change to invalidate existing tokens
 	// TokenVersionResolved indicates TokenVersion already contains the fingerprint-derived
 	// value expected in JWT claims and refresh-token state.
@@ -71,6 +73,12 @@ type User struct {
 	Subscriptions []UserSubscription
 }
 
+type UserRiskGroupBlock struct {
+	GroupID      int64      `json:"group_id"`
+	BlockedUntil *time.Time `json:"blocked_until,omitempty"`
+	Permanent    bool       `json:"permanent"`
+}
+
 func (u *User) IsAdmin() bool {
 	return u.Role == RoleAdmin
 }
@@ -81,9 +89,13 @@ func (u *User) IsActive() bool {
 
 // CanBindGroup checks whether a user can bind to a given group.
 // For standard groups:
-// - Public groups (non-exclusive): all users can bind
+// - Explicitly blocked groups: user cannot bind
+// - Public groups (non-exclusive): all other users can bind
 // - Exclusive groups: only users with the group in AllowedGroups can bind
 func (u *User) CanBindGroup(groupID int64, isExclusive bool) bool {
+	if u.IsGroupBlocked(groupID) {
+		return false
+	}
 	// 公开分组（非专属）：所有用户都可以绑定
 	if !isExclusive {
 		return true
@@ -91,6 +103,30 @@ func (u *User) CanBindGroup(groupID int64, isExclusive bool) bool {
 	// 专属分组：需要在 AllowedGroups 中
 	for _, id := range u.AllowedGroups {
 		if id == groupID {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *User) IsGroupBlocked(groupID int64) bool {
+	return u.isGroupBlockedAt(groupID, time.Now())
+}
+
+func (u *User) isGroupBlockedAt(groupID int64, now time.Time) bool {
+	if u == nil || groupID <= 0 {
+		return false
+	}
+	for _, id := range u.BlockedGroups {
+		if id == groupID {
+			return true
+		}
+	}
+	for _, block := range u.RiskGroupBlocks {
+		if block.GroupID != groupID {
+			continue
+		}
+		if block.Permanent || (block.BlockedUntil != nil && now.Before(*block.BlockedUntil)) {
 			return true
 		}
 	}

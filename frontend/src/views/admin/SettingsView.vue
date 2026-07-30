@@ -3768,6 +3768,69 @@
             </div>
           </div>
 
+          <div class="card" data-testid="ollama-cloud-usage-global-settings">
+            <div class="border-b border-[var(--app-border)] px-6 py-4">
+              <h2 class="text-lg font-semibold text-[var(--app-text)]">
+                {{ t("admin.settings.ollamaCloudUsage.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-[var(--app-muted)]">
+                {{ t("admin.settings.ollamaCloudUsage.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div v-if="ollamaCloudUsageLoading" class="flex items-center gap-2 text-[var(--app-muted)]">
+                <div class="h-4 w-4 animate-spin rounded-full border-2 border-[var(--app-border)] border-t-[var(--app-text)]"></div>
+                {{ t("common.loading") }}
+              </div>
+              <template v-else>
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <label class="font-medium text-[var(--app-text)]">
+                      {{ t("admin.settings.ollamaCloudUsage.enabled") }}
+                    </label>
+                    <p class="text-sm text-[var(--app-muted)]">
+                      {{ t("admin.settings.ollamaCloudUsage.enabledHint") }}
+                    </p>
+                  </div>
+                  <Toggle
+                    v-model="ollamaCloudUsageForm.enabled"
+                    :aria-label="t('admin.settings.ollamaCloudUsage.enabled')"
+                    data-testid="ollama-cloud-usage-global-enabled"
+                  />
+                </div>
+                <div v-if="ollamaCloudUsageForm.enabled" class="border-t border-[var(--app-border)] pt-4">
+                  <label class="input-label" for="ollama-cloud-usage-interval">
+                    {{ t("admin.settings.ollamaCloudUsage.intervalMinutes") }}
+                  </label>
+                  <input
+                    id="ollama-cloud-usage-interval"
+                    v-model.number="ollamaCloudUsageForm.interval_minutes"
+                    type="number"
+                    min="15"
+                    max="1440"
+                    class="input w-32"
+                    data-testid="ollama-cloud-usage-global-interval"
+                    @keydown.enter.prevent="saveOllamaCloudUsageSettings"
+                  />
+                  <p class="mt-1.5 text-xs text-[var(--app-muted)]">
+                    {{ t("admin.settings.ollamaCloudUsage.intervalHint") }}
+                  </p>
+                </div>
+                <div class="flex justify-end border-t border-[var(--app-border)] pt-4">
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-sm"
+                    :disabled="ollamaCloudUsageSaving"
+                    data-testid="ollama-cloud-usage-global-save"
+                    @click="saveOllamaCloudUsageSettings"
+                  >
+                    {{ ollamaCloudUsageSaving ? t("common.saving") : t("common.save") }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Gateway Scheduling Settings -->
           <div class="card">
             <div
@@ -7152,6 +7215,26 @@
                     </div>
                   </div>
                 </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                  <div class="flex items-center justify-between gap-4 rounded-lg border border-[var(--app-border)] p-4">
+                    <div>
+                      <label class="input-label mb-0">{{ t("admin.settings.payment.alipayForceQRCode") }}</label>
+                      <p class="mt-1 text-xs text-[var(--app-muted)]">
+                        {{ t("admin.settings.payment.alipayForceQRCodeHint") }}
+                      </p>
+                    </div>
+                    <Toggle v-model="form.payment_alipay_force_qrcode" />
+                  </div>
+                  <div class="flex items-center justify-between gap-4 rounded-lg border border-[var(--app-border)] p-4">
+                    <div>
+                      <label class="input-label mb-0">{{ t("admin.settings.payment.alipayMobilePrecreateDeepLink") }}</label>
+                      <p class="mt-1 text-xs text-[var(--app-muted)]">
+                        {{ t("admin.settings.payment.alipayMobilePrecreateDeepLinkHint") }}
+                      </p>
+                    </div>
+                    <Toggle v-model="form.payment_alipay_mobile_precreate_deep_link" />
+                  </div>
+                </div>
                 <!-- Row 4: Enabled payment types (provider badges like sub2apipay) -->
                 <div>
                   <label class="input-label">{{
@@ -7956,6 +8039,13 @@ const upstreamBillingProbeForm = reactive({
   interval_minutes: 30,
 });
 
+const ollamaCloudUsageLoading = ref(true);
+const ollamaCloudUsageSaving = ref(false);
+const ollamaCloudUsageForm = reactive({
+  enabled: false,
+  interval_minutes: 60,
+});
+
 // Overload Cooldown (529) 状态
 const overloadCooldownLoading = ref(true);
 const overloadCooldownSaving = ref(false);
@@ -8086,6 +8176,8 @@ type SettingsForm = Omit<
   github_oauth_client_secret: string;
   google_oauth_client_secret: string;
   payment_receipt_code_oss_secret_access_key: string;
+  payment_alipay_force_qrcode: boolean;
+  payment_alipay_mobile_precreate_deep_link: boolean;
   force_email_on_third_party_signup: boolean;
   openai_low_upstream_rate_priority_enabled: boolean;
   openai_oauth_scheduling_rate_multiplier: number;
@@ -8185,6 +8277,8 @@ const form = reactive<SettingsForm>({
   payment_cancel_rate_limit_window: 1,
   payment_cancel_rate_limit_unit: "day",
   payment_cancel_rate_limit_window_mode: "rolling",
+  payment_alipay_force_qrcode: false,
+  payment_alipay_mobile_precreate_deep_link: false,
   table_default_page_size: tablePageSizeDefault,
   table_page_size_options: [10, 20, 50, 100, 1000],
   custom_menu_items: [] as Array<{
@@ -10110,6 +10204,9 @@ async function saveSettings() {
       payment_cancel_rate_limit_unit: form.payment_cancel_rate_limit_unit,
       payment_cancel_rate_limit_window_mode:
         form.payment_cancel_rate_limit_window_mode,
+      payment_alipay_force_qrcode: form.payment_alipay_force_qrcode,
+      payment_alipay_mobile_precreate_deep_link:
+        form.payment_alipay_mobile_precreate_deep_link,
       openai_low_upstream_rate_priority_enabled:
         form.openai_low_upstream_rate_priority_enabled,
       openai_oauth_scheduling_rate_multiplier:
@@ -10464,6 +10561,37 @@ async function saveUpstreamBillingProbeSettings() {
     );
   } finally {
     upstreamBillingProbeSaving.value = false;
+  }
+}
+
+async function loadOllamaCloudUsageSettings() {
+  ollamaCloudUsageLoading.value = true;
+  try {
+    Object.assign(
+      ollamaCloudUsageForm,
+      await adminAPI.accounts.getOllamaCloudUsageSettings(),
+    );
+  } catch (_error: unknown) {
+    // Optional setting: keep fail-safe defaults when it cannot be loaded.
+  } finally {
+    ollamaCloudUsageLoading.value = false;
+  }
+}
+
+async function saveOllamaCloudUsageSettings() {
+  ollamaCloudUsageSaving.value = true;
+  try {
+    const updated = await adminAPI.accounts.updateOllamaCloudUsageSettings({
+      ...ollamaCloudUsageForm,
+    });
+    Object.assign(ollamaCloudUsageForm, updated);
+    appStore.showSuccess(t("admin.settings.ollamaCloudUsage.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(error, t("admin.settings.ollamaCloudUsage.saveFailed")),
+    );
+  } finally {
+    ollamaCloudUsageSaving.value = false;
   }
 }
 
@@ -11139,6 +11267,7 @@ onMounted(() => {
   loadSubscriptionGroups();
   loadAdminApiKey();
   loadUpstreamBillingProbeSettings();
+  loadOllamaCloudUsageSettings();
   loadOverloadCooldownSettings();
   loadStreamTimeoutSettings();
   loadRectifierSettings();

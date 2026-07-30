@@ -603,6 +603,36 @@ const SignalIcon = {
     )
 }
 
+const ServiceStatusIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M3 12h4l2.25-6 4.5 12L16 12h5'
+        })
+      ]
+    )
+}
+
+const PromptLibraryIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25'
+        })
+      ]
+    )
+}
+
 const PriceTagIcon = {
   render: () =>
     h(
@@ -752,6 +782,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   }
   items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
+    { path: '/service-status', label: t('nav.serviceStatus'), icon: ServiceStatusIcon },
     {
       path: '/self/accounts',
       label: t('nav.accountManagement'),
@@ -771,6 +802,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
       expandOnly: true,
       children: [
         { path: '/models', label: t('nav.modelMarket'), icon: ModelMarketIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
+        { path: '/prompts', label: t('nav.promptLibrary'), icon: PromptLibraryIcon },
         { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
         { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
       ],
@@ -879,6 +911,7 @@ const adminNavItems = computed((): NavItem[] => {
       ],
     },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
+    { path: '/admin/prompt-submissions', label: t('nav.promptSubmissions'), icon: PromptLibraryIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     {
       path: '/admin/security-audit',

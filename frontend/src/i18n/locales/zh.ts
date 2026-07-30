@@ -499,6 +499,9 @@ export default {
     dashboard: '仪表盘',
     announcements: '公告',
     apiKeys: 'API 密钥',
+    promptLibrary: '提示词',
+    promptSubmissions: '提示词审核',
+    serviceStatus: '服务状态',
     usage: '使用记录',
     redeem: '兑换',
     affiliate: '邀请返利',
@@ -559,6 +562,159 @@ export default {
     adminWorkspace: '管理端',
     openMenu: '打开菜单',
     userMenu: '用户菜单'
+  },
+
+  serviceStatus: {
+    title: '服务状态',
+    description: '查看 ChatGPT、Codex、Claude、Grok、Gemini 与 API 线路状态',
+    status: {
+      operational: '运行正常',
+      degraded: '性能下降',
+      partial_outage: '部分中断',
+      major_outage: '服务中断',
+      unknown: '暂不可用'
+    },
+    official: {
+      title: 'OpenAI 官方',
+      updatedAt: '更新于 {time}',
+      stale: ' · 缓存结果',
+      openSource: '打开官方状态页',
+      loadFailed: '官方状态暂时不可用',
+      activeCount: '{count} 个进行中事件',
+      noActive: '当前无事件',
+      activeIncidents: '进行中事件',
+      recentResolved: '近 7 天已恢复（{count}）'
+    },
+    providers: {
+      officialTitle: '{provider} 官方',
+      loadFailed: '供应商状态暂时不可用',
+      cached: '缓存结果',
+      activeIncidents: '{count} 个进行中事件',
+      noActive: '当前无进行中事件'
+    },
+    endpoints: {
+      title: 'API 线路',
+      subtitle: '从当前设备发起 3 次请求并取中位数',
+      testAll: '全部检测',
+      test: '检测',
+      defaultName: '默认线路',
+      default: '默认',
+      fastest: '最快',
+      empty: '暂无可检测线路',
+      copy: '复制线路',
+      copied: '线路已复制',
+      copyFailed: '线路复制失败',
+      status: {
+        idle: '未检测',
+        testing: '检测中',
+        online: '可用',
+        offline: '不可用'
+      }
+    }
+  },
+
+  promptLibrary: {
+    title: '提示词',
+    search: {
+      label: '搜索提示词',
+      placeholder: '描述你想找的提示词',
+      aiSearch: 'AI 搜索',
+      searching: '搜索中'
+    },
+    categories: {
+      label: '提示词分类',
+      featured: '精选',
+      community: '社区',
+      coding: '编程开发',
+      writing: '写作',
+      business: '商业',
+      creative: '创意',
+      image: '图片',
+      video: '视频',
+      education: '教育',
+      workflow: '工作流',
+      productivity: '效率',
+      all: '全部'
+    },
+    settings: {
+      title: 'AI 搜索设置',
+      apiKey: 'API 密钥',
+      model: '模型',
+      chooseModel: '选择模型',
+      selectApiKey: '选择 API 密钥',
+      searchApiKey: '搜索密钥',
+      selectApiKeyFirst: '请先选择 API 密钥',
+      selectModel: '选择模型',
+      searchModel: '搜索模型',
+      loadingModels: '正在加载模型',
+      noModels: '没有可用模型',
+      loadModelsFailed: '模型加载失败'
+    },
+    submit: {
+      action: '投稿',
+      title: '投稿提示词',
+      submit: '提交审核',
+      submitting: '提交中',
+      success: '已提交审核',
+      failed: '投稿失败',
+      fields: {
+        title: '标题',
+        type: '类型',
+        category: '分类',
+        description: '简介',
+        mediaUrl: '预览链接',
+        content: '提示词内容'
+      },
+      categories: {
+        coding: '编程开发',
+        writing: '写作',
+        business: '商业',
+        creative: '创意',
+        education: '教育',
+        workflow: '工作流',
+        productivity: '效率',
+        other: '其他'
+      }
+    },
+    actions: {
+      save: '保存',
+      cancel: '取消',
+      close: '关闭',
+      clear: '清空搜索',
+      copy: '复制提示词',
+      view: '查看',
+      refresh: '刷新',
+      retry: '重试'
+    },
+    results: {
+      total: '共 {count} 条',
+      ai: '找到 {count} 条结果',
+      featured: '精选提示词',
+      category: '{name} · {count} 条'
+    },
+    pagination: {
+      label: '提示词分页',
+      previous: '上一页',
+      next: '下一页'
+    },
+    types: {
+      text: '文本',
+      image: '图像',
+      video: '视频',
+      audio: '音频',
+      skill: '技能',
+      structured: '结构化',
+      taste: '风格'
+    },
+    empty: '没有找到相关提示词',
+    errors: {
+      loadFailed: '提示词加载失败',
+      searchFailed: 'AI 搜索失败'
+    },
+    messages: {
+      copied: '提示词已复制',
+      copyFailed: '复制失败'
+    }
   },
 
   store: {
@@ -989,7 +1145,7 @@ export default {
     selectedGroups: '已选 {count} 个分组',
     importTitle: '导入个人账号',
     importHint: '粘贴账号凭证或导入文件，个人导入只会创建官方 OAuth 账号。',
-    importWarning: '支持 ikik-api OAuth JSON、Codex-Manager ChatGPT Token JSON、OpenAI Refresh Token、Claude Session Key；API Key、URL、Upstream、Cookie 会被拒绝。',
+    importWarning: '支持 ikik-api OAuth JSON、Codex-Manager ChatGPT Token JSON、OpenAI Refresh Token，以及 Claude Web Session Key/完整 Cookie（需勾选对应模式）；API Key、URL 和 Upstream 会被拒绝。',
     importKiroConfigMode: '按 Kiro 配置解析',
     importKiroConfigModeHint: '用于导入 Kiro JSON 配置文件',
     importTextMode: '批量文本',
@@ -1005,6 +1161,8 @@ export default {
     importChooseDirectory: '选择目录',
     importSelectedFiles: '已选择 {count} 个文件',
     importFileReadFailed: '文件读取失败',
+    dataImportHint: '选择本地 JSON/TXT/ZIP 备份或凭证文件，批量恢复个人账号与私有代理。',
+    dataImportWarning: '导入只会创建归属于你的私有账号与私有代理，账号会自动绑定对应平台的个人私有分组；管理员专属字段将被忽略。',
     importButton: '开始导入',
     importing: '导入中...',
     exportAccounts: '导出账号',
@@ -1219,6 +1377,9 @@ export default {
     created: '创建时间',
     copyToClipboard: '复制到剪贴板',
     copied: '已复制！',
+    imageGeneration: '生图',
+    imageGenerationImported: 'API 密钥已导入生图工作台',
+    imageGenerationFailed: '无法打开生图工作台，请检查浏览器弹窗权限后重试',
     importToCcSwitch: '导入到 CCS',
     enable: '启用',
     disable: '禁用',
@@ -2353,6 +2514,35 @@ export default {
       providerAliyunGuardrails: '阿里云 AI 安全护栏',
       baseUrl: '内容安全 Base URL',
       model: '模型名',
+      classifierGroup: '调度分组',
+      classifierGroupPlaceholder: '选择分组',
+      classifierGroupRequired: '请选择分类器调度分组',
+      classifierGroupDisabled: '已停用',
+      classifierModels: '候选模型',
+      classifierModelPlaceholder: '输入模型 ID',
+      classifierAddModel: '添加模型',
+      classifierModelsEmpty: '至少添加一个模型',
+      classifierModelsRequired: '请添加分类器候选模型',
+      classifierPrimary: '首选',
+      classifierFallback: '备用',
+      classifierMoveUp: '上移',
+      classifierMoveDown: '下移',
+      classifierRemoveModel: '删除模型',
+      classifierModelCount: '{count} 个候选模型',
+      classifierRoute: '分类器路由',
+      classifierRouteHint: '按候选顺序调用，限流或不可用时自动切换',
+      classifierTest: '测试分类器',
+      classifierTesting: '测试中',
+      classifierTestDone: '分类器测试完成，使用 {model}',
+      classifierTestModel: '命中模型：{model}',
+      classifierTestDetails: '分类器测试明细',
+      classifierTestGroup: '分组：{group}，尝试 {count} 个模型',
+      classifierTestSucceeded: '成功',
+      classifierTestFailed: '失败',
+      classifierTestAttemptMeta: 'HTTP {status} · {latency} ms',
+      classifierTestAttemptSuccess: '可用',
+      classifierTestAttemptFailed: '失败',
+      classifierTestNoAttempts: '请求尚未进入候选模型调度',
       classifierPrompt: '分类策略提示词',
       classifierPromptHint: '可调整判断边界；JSON 输出格式由系统固定',
       classifierPromptDefault: '内置策略',
@@ -2473,6 +2663,10 @@ export default {
       unbanFailed: '解封用户失败',
       inputDetailTitle: '输入摘要详情',
       inputDetailContent: '完整内容',
+      inputDetailLoading: '正在读取完整内容',
+      inputDetailLoadFailed: '读取完整内容失败',
+      inputDetailStoredChars: '已保存 {count} 个字符',
+      inputDetailLegacyNotice: '旧记录仅保存了摘要，完整内容无法恢复',
       matchedKeyword: '命中关键词',
       queueDelay: '排队 {ms} ms',
       allGroups: '全部分组',
@@ -3446,8 +3640,8 @@ export default {
       amountRequired: '请输入有效金额',
       insufficientBalance: '余额不足',
       insufficientPoints: '积分不足',
-      setAllowedGroups: '设置允许分组',
-      allowedGroupsHint: '选择此用户可以使用的标准分组。订阅类型分组请在订阅管理中配置。',
+      setAllowedGroups: '设置分组权限',
+      allowedGroupsHint: '配置此用户可使用或禁止使用的标准分组。订阅类型分组请在订阅管理中配置。',
       noStandardGroups: '暂无标准分组',
       allowAllGroups: '允许全部分组',
       allowAllGroupsHint: '用户可以使用任何非专属分组',
@@ -3456,9 +3650,12 @@ export default {
       failedToUpdateAllowedGroups: '更新允许分组失败',
       // 用户分组配置
       groupConfig: '用户分组配置',
-      groupConfigHint: '为用户 {email} 配置专属分组倍率（覆盖分组默认倍率）',
+      groupConfigHint: '为用户 {email} 配置分组权限、封禁和专属倍率',
       exclusiveGroups: '专属分组',
       publicGroups: '公开分组（默认可用）',
+      blockGroup: '禁止使用',
+      blocked: '已封禁',
+      blockedLabel: '已封禁',
       defaultRate: '默认倍率',
       customRate: '专属倍率',
       useDefaultRate: '使用默认',
@@ -3660,6 +3857,11 @@ export default {
       },
       exclusive: '专属',
       exclusiveHint: '专属分组，可以手动指定给特定用户',
+      sharedPool: {
+        label: '共享号池',
+        hint: '接收用户共享账号',
+        badge: '共享号池'
+      },
       exclusiveTooltip: {
         title: '什么是专属分组？',
         description: '开启后，用户在创建 API Key 时将无法看到此分组。只有管理员手动将用户分配到此分组后，用户才能使用。',
@@ -6022,6 +6224,45 @@ export default {
       failedToGenerate: '生成兑换码失败',
       failedToUpdate: '更新兑换码失败',
       failedToDelete: '删除兑换码失败'
+    },
+
+    promptSubmissions: {
+      title: '提示词审核',
+      statusFilter: '投稿状态',
+      search: '搜索标题、内容或用户',
+      empty: '暂无提示词投稿',
+      review: '审核',
+      reviewTitle: '审核提示词',
+      reviewNote: '审核备注',
+      approve: '通过',
+      reject: '驳回',
+      loadFailed: '投稿列表加载失败',
+      reviewFailed: '审核操作失败',
+      translation: {
+        action: '翻译与分类',
+        title: '翻译与分类',
+        enabled: '自动翻译与分类',
+        group: '分组',
+        model: '模型',
+        selectGroup: '选择分组',
+        selectModel: '选择模型',
+        loadingModels: '正在加载模型',
+        translatedCount: '已处理 {count} 条',
+        loadFailed: '翻译与分类设置加载失败',
+        modelsFailed: '模型列表加载失败',
+        saveFailed: '翻译与分类设置保存失败',
+        saved: '翻译设置已保存'
+      },
+      status: {
+        pending: '待审核',
+        approved: '已通过',
+        rejected: '已驳回',
+        all: '全部'
+      },
+      messages: {
+        approved: '已通过审核',
+        rejected: '已驳回投稿'
+      }
     },
 
     // Announcements

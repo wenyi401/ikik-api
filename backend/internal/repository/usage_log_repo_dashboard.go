@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"ikik-api/internal/pkg/timezone"
@@ -464,6 +465,12 @@ func (r *usageLogRepository) GetUserDashboardStats(ctx context.Context, userID i
 	}
 	stats.TodayTokens = stats.TodayInputTokens + stats.TodayOutputTokens + stats.TodayCacheCreationTokens + stats.TodayCacheReadTokens
 
+	todayPlatforms, err := r.getUserTodayPlatformUsage(ctx, userID, today)
+	if err != nil {
+		return nil, err
+	}
+	stats.TodayPlatforms = todayPlatforms
+
 	// 性能指标：RPM 和 TPM（最近1分钟，仅统计该用户的请求）
 	rpm, tpm, err := r.getPerformanceStats(ctx, userID)
 	if err != nil {
@@ -524,6 +531,77 @@ func (r *usageLogRepository) GetUserDashboardStats(ctx context.Context, userID i
 	}
 
 	return stats, nil
+}
+
+func (r *usageLogRepository) getUserTodayPlatformUsage(ctx context.Context, userID int64, today time.Time) (results []usagestats.DashboardPlatformUsage, err error) {
+	query := `
+		WITH platform_usage AS (
+			SELECT
+				COALESCE(NULLIF(g.platform, ''), NULLIF(a.platform, ''), 'custom') AS platform,
+				COUNT(*) AS requests,
+				COALESCE(SUM(ul.input_tokens), 0) AS input_tokens,
+				COALESCE(SUM(ul.output_tokens), 0) AS output_tokens,
+				COALESCE(SUM(ul.cache_creation_tokens), 0) AS cache_creation_tokens,
+				COALESCE(SUM(ul.cache_read_tokens), 0) AS cache_read_tokens,
+				COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens), 0) AS total_tokens,
+				COALESCE(SUM(ul.total_cost), 0) AS cost,
+				COALESCE(SUM(ul.actual_cost), 0) AS actual_cost
+			FROM usage_logs ul
+			LEFT JOIN groups g ON g.id = ul.group_id
+			LEFT JOIN accounts a ON a.id = ul.account_id
+			WHERE ul.user_id = $1 AND ul.created_at >= $2
+			GROUP BY COALESCE(NULLIF(g.platform, ''), NULLIF(a.platform, ''), 'custom')
+		)
+		SELECT
+			platform,
+			requests,
+			input_tokens,
+			output_tokens,
+			cache_creation_tokens,
+			cache_read_tokens,
+			total_tokens,
+			cost,
+			actual_cost
+		FROM platform_usage
+		ORDER BY total_tokens DESC, requests DESC, platform ASC
+	`
+	rows, err := r.sql.QueryContext(ctx, query, userID, today)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			results = nil
+		}
+	}()
+
+	results = make([]usagestats.DashboardPlatformUsage, 0)
+	for rows.Next() {
+		var row usagestats.DashboardPlatformUsage
+		if err = rows.Scan(
+			&row.Platform,
+			&row.Requests,
+			&row.InputTokens,
+			&row.OutputTokens,
+			&row.CacheCreationTokens,
+			&row.CacheReadTokens,
+			&row.TotalTokens,
+			&row.Cost,
+			&row.ActualCost,
+		); err != nil {
+			return nil, err
+		}
+		row.Platform = strings.ToLower(strings.TrimSpace(row.Platform))
+		if row.Platform == "" {
+			row.Platform = "custom"
+		}
+		results = append(results, row)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 // getPerformanceStatsByAPIKey 获取指定 API Key 的 RPM 和 TPM（近5分钟平均值）

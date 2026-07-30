@@ -49,6 +49,8 @@ func ProvideAdminService(
 	runtimeBlocker AccountRuntimeBlocker,
 	affiliateService *AffiliateService,
 	privateGroupProvisioner UserPrivateGroupProvisioner,
+	compositeRouteRepo CompositeModelRouteRepository,
+	compositeResolver *CompositeRouteResolver,
 ) AdminService {
 	svc := NewAdminService(
 		userRepo,
@@ -70,6 +72,8 @@ func ProvideAdminService(
 		privacyClientFactory,
 		runtimeBlocker,
 		affiliateService,
+		compositeRouteRepo,
+		compositeResolver,
 	)
 	return SetAdminUserPrivateGroupProvisioner(svc, privateGroupProvisioner)
 }

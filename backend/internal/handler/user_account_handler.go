@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	adminhandler "ikik-api/internal/handler/admin"
 	"ikik-api/internal/handler/dto"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/openai"
@@ -29,6 +31,8 @@ type UserAccountHandler struct {
 	settingService          *service.SettingService
 	accountUsageService     *service.AccountUsageService
 	accountTestService      *service.AccountTestService
+	rateLimitService        *service.RateLimitService
+	openAIQuotaService      *service.OpenAIQuotaService
 	oauthService            *service.OAuthService
 	openaiOAuthService      *service.OpenAIOAuthService
 	geminiOAuthService      *service.GeminiOAuthService
@@ -36,6 +40,7 @@ type UserAccountHandler struct {
 	grokOAuthService        *service.GrokOAuthService
 	kiroOAuthService        *service.KiroOAuthService
 	accountBatchTaskService *service.AccountBatchTaskService
+	ollamaCloudUsage        *service.OllamaCloudUsageService
 }
 
 func NewUserAccountHandler(
@@ -94,6 +99,35 @@ func (h *UserAccountHandler) SetGrokOAuthService(grokOAuthService *service.GrokO
 	h.grokOAuthService = grokOAuthService
 }
 
+func (h *UserAccountHandler) SetRateLimitService(rateLimitService *service.RateLimitService) {
+	if h == nil {
+		return
+	}
+	h.rateLimitService = rateLimitService
+}
+
+func (h *UserAccountHandler) SetOpenAIQuotaService(openAIQuotaService *service.OpenAIQuotaService) {
+	if h == nil {
+		return
+	}
+	h.openAIQuotaService = openAIQuotaService
+}
+
+func (h *UserAccountHandler) SetOllamaCloudUsageService(usage *service.OllamaCloudUsageService) {
+	if h == nil {
+		return
+	}
+	h.ollamaCloudUsage = usage
+}
+
+func (h *UserAccountHandler) accountResponseFromService(account *service.Account) *dto.Account {
+	out := dto.AccountFromService(account)
+	if h != nil && h.ollamaCloudUsage != nil && out != nil {
+		h.ollamaCloudUsage.EnrichState(out.OllamaCloudUsage)
+	}
+	return out
+}
+
 type createUserAccountRequest struct {
 	Name               string         `json:"name" binding:"required"`
 	Notes              *string        `json:"notes"`
@@ -115,7 +149,10 @@ type createUserAccountRequest struct {
 type importUserAccountCredentialsRequest struct {
 	Contents           []string `json:"contents" binding:"required"`
 	KiroConfigImport   bool     `json:"kiro_config_import"`
+	ClaudeWebImport    bool     `json:"claude_web_import"`
+	ClaudeWebAuthMode  string   `json:"claude_web_auth_mode" binding:"omitempty,oneof=session_key full_cookie"`
 	ShareMode          string   `json:"share_mode" binding:"omitempty,oneof=private public"`
+	ProxyID            *int64   `json:"proxy_id"`
 	Concurrency        int      `json:"concurrency"`
 	LoadFactor         *int     `json:"load_factor"`
 	Priority           int      `json:"priority"`
@@ -610,9 +647,19 @@ func (h *UserAccountHandler) List(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	if h.ollamaCloudUsage != nil && len(accounts) > 0 {
+		accountPointers := make([]*service.Account, len(accounts))
+		for index := range accounts {
+			accountPointers[index] = &accounts[index]
+		}
+		if err := h.ollamaCloudUsage.ResolveAccounts(c.Request.Context(), accountPointers); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
 	out := make([]dto.Account, 0, len(accounts))
 	for i := range accounts {
-		out = append(out, *dto.AccountFromService(&accounts[i]))
+		out = append(out, *h.accountResponseFromService(&accounts[i]))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
 }
@@ -789,7 +836,13 @@ func (h *UserAccountHandler) GetByID(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, dto.AccountFromService(account))
+	if h.ollamaCloudUsage != nil {
+		if err := h.ollamaCloudUsage.ResolveAccounts(c.Request.Context(), []*service.Account{account}); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+	response.Success(c, h.accountResponseFromService(account))
 }
 
 func (h *UserAccountHandler) GetUsage(c *gin.Context) {
@@ -826,6 +879,80 @@ func (h *UserAccountHandler) GetUsage(c *gin.Context) {
 		}
 	}
 	response.Success(c, usage)
+}
+
+// QueryOpenAIQuota queries current quota and reset-credit metadata for an owned OpenAI OAuth account.
+// GET /api/v1/accounts/:id/quota
+func (h *UserAccountHandler) QueryOpenAIQuota(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if h.openAIQuotaService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "OpenAI quota service unavailable")
+		return
+	}
+	if err := h.validateOwnedOpenAIQuotaAccount(c.Request.Context(), subject.UserID, accountID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	usage, err := h.openAIQuotaService.QueryUsage(c.Request.Context(), accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, usage)
+}
+
+// ResetOpenAIQuota consumes one reset credit for an owned OpenAI OAuth account.
+// POST /api/v1/accounts/:id/reset-quota
+func (h *UserAccountHandler) ResetOpenAIQuota(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if h.openAIQuotaService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "OpenAI quota service unavailable")
+		return
+	}
+	if err := h.validateOwnedOpenAIQuotaAccount(c.Request.Context(), subject.UserID, accountID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	result, err := h.openAIQuotaService.ResetCredit(c.Request.Context(), accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *UserAccountHandler) validateOwnedOpenAIQuotaAccount(ctx context.Context, ownerUserID, accountID int64) error {
+	account, err := h.accountService.GetOwnedByID(ctx, ownerUserID, accountID)
+	if err != nil {
+		return err
+	}
+	if account.Platform != service.PlatformOpenAI {
+		return infraerrors.BadRequest("OPENAI_QUOTA_INVALID_PLATFORM", "account is not an OpenAI account")
+	}
+	if account.Type != service.AccountTypeOAuth {
+		return infraerrors.BadRequest("OPENAI_QUOTA_INVALID_TYPE", "account is not an OAuth account")
+	}
+	return nil
 }
 
 func (h *UserAccountHandler) GetStats(c *gin.Context) {
@@ -969,7 +1096,7 @@ func (h *UserAccountHandler) Create(c *gin.Context) {
 		if err != nil {
 			return nil, err
 		}
-		return dto.AccountFromService(account), nil
+		return h.accountResponseFromService(account), nil
 	})
 }
 
@@ -1020,7 +1147,7 @@ func (h *UserAccountHandler) Import(c *gin.Context) {
 		if err != nil {
 			return nil, err
 		}
-		return dto.AccountFromService(account), nil
+		return h.accountResponseFromService(account), nil
 	})
 }
 
@@ -1039,12 +1166,31 @@ func (h *UserAccountHandler) ImportCredentials(c *gin.Context) {
 	if req.Priority <= 0 {
 		req.Priority = userOwnedDefaultPriority
 	}
-	if req.Concurrency <= 0 {
-		req.Concurrency = userOwnedDefaultConcurrency
+
+	agentIdentityItems, agentIdentityParseErrors, agentIdentityErr := adminhandler.ParseCodexAgentIdentityImport(req.Contents)
+	if agentIdentityErr == nil && len(agentIdentityItems) > 0 {
+		if len(agentIdentityItems)+len(agentIdentityParseErrors) > service.MaxAccountCredentialImportItems {
+			response.BadRequest(c, fmt.Sprintf("Too many import items; maximum is %d", service.MaxAccountCredentialImportItems))
+			return
+		}
+		agentIdentityReq := userAgentIdentityImportRequest{
+			Contents:    req.Contents,
+			ShareMode:   req.ShareMode,
+			ProxyID:     req.ProxyID,
+			Concurrency: req.Concurrency,
+			LoadFactor:  req.LoadFactor,
+			Priority:    req.Priority,
+		}
+		executeUserIdempotentJSON(c, "user.accounts.import_credentials", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+			return h.importOwnedOpenAIAgentIdentities(ctx, subject.UserID, agentIdentityReq, agentIdentityItems, agentIdentityParseErrors), nil
+		})
+		return
 	}
 
 	sources, parseErrors := service.ParseAccountCredentialImportContentsWithOptions(req.Contents, service.AccountCredentialImportOptions{
-		KiroConfigImport: req.KiroConfigImport,
+		KiroConfigImport:  req.KiroConfigImport,
+		ClaudeWebImport:   req.ClaudeWebImport,
+		ClaudeWebAuthMode: req.ClaudeWebAuthMode,
 	})
 	if len(sources) == 0 && len(parseErrors) == 0 {
 		response.BadRequest(c, "No importable account credentials found")
@@ -1055,14 +1201,31 @@ func (h *UserAccountHandler) ImportCredentials(c *gin.Context) {
 		return
 	}
 
+	executeUserIdempotentJSON(c, "user.accounts.import_credentials", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		validatedReq := req
+		proxyID, proxyURL, err := h.resolveOwnedCredentialImportProxy(ctx, subject.UserID, validatedReq.ProxyID)
+		if err != nil {
+			return nil, err
+		}
+		validatedReq.ProxyID = proxyID
+		return h.importOwnedCredentials(ctx, subject.UserID, validatedReq, proxyURL, sources, parseErrors), nil
+	})
+}
+
+func (h *UserAccountHandler) importOwnedCredentials(
+	ctx context.Context,
+	ownerUserID int64,
+	req importUserAccountCredentialsRequest,
+	proxyURL string,
+	sources []service.AccountCredentialImportSource,
+	parseErrors []service.AccountCredentialImportError,
+) service.AccountCredentialImportResult {
 	result := service.AccountCredentialImportResult{
 		Total:  len(sources) + len(parseErrors),
-		Errors: []service.AccountCredentialImportError{},
+		Errors: append([]service.AccountCredentialImportError(nil), parseErrors...),
 	}
-	result.Errors = append(result.Errors, parseErrors...)
-
 	for idx, source := range sources {
-		account, err := h.createOwnedAccountFromCredentialImportSource(c.Request.Context(), subject.UserID, source, req, idx+1)
+		account, err := h.createOwnedAccountFromCredentialImportSource(ctx, ownerUserID, source, req, proxyURL, idx+1)
 		if err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, service.AccountCredentialImportError{
@@ -1078,7 +1241,28 @@ func (h *UserAccountHandler) ImportCredentials(c *gin.Context) {
 		}
 	}
 	result.Failed += len(parseErrors)
-	response.Success(c, result)
+	return result
+}
+
+func (h *UserAccountHandler) resolveOwnedCredentialImportProxy(
+	ctx context.Context,
+	ownerUserID int64,
+	requestedProxyID *int64,
+) (*int64, string, error) {
+	proxyID, err := h.accountService.ValidateOwnedProxyID(ctx, ownerUserID, requestedProxyID)
+	if err != nil || proxyID == nil {
+		return proxyID, "", err
+	}
+	proxies, err := h.accountService.ListOwnedProxies(ctx, ownerUserID)
+	if err != nil {
+		return nil, "", err
+	}
+	for i := range proxies {
+		if proxies[i].ID == *proxyID {
+			return proxyID, proxies[i].URL(), nil
+		}
+	}
+	return nil, "", service.ErrProxyNotFound
 }
 
 func (h *UserAccountHandler) createOwnedAccountFromCredentialImportSource(
@@ -1086,6 +1270,7 @@ func (h *UserAccountHandler) createOwnedAccountFromCredentialImportSource(
 	ownerUserID int64,
 	source service.AccountCredentialImportSource,
 	defaults importUserAccountCredentialsRequest,
+	proxyURL string,
 	sequence int,
 ) (*service.Account, error) {
 	req := service.CreateAccountRequest{
@@ -1096,7 +1281,7 @@ func (h *UserAccountHandler) createOwnedAccountFromCredentialImportSource(
 		Credentials:        source.Credentials,
 		Extra:              source.Extra,
 		ShareMode:          defaults.ShareMode,
-		ProxyID:            nil,
+		ProxyID:            defaults.ProxyID,
 		Concurrency:        defaults.Concurrency,
 		LoadFactor:         defaults.LoadFactor,
 		Priority:           defaults.Priority,
@@ -1114,7 +1299,11 @@ func (h *UserAccountHandler) createOwnedAccountFromCredentialImportSource(
 			req.Name = service.DeriveAccountCredentialImportName(req.Platform, req.Credentials, req.Extra, sequence)
 		}
 	case service.AccountCredentialImportKindOpenAIRefreshToken:
-		tokenInfo, err := h.openaiOAuthService.RefreshTokenWithClientID(ctx, source.Token, "", source.ClientID)
+		clientID := strings.TrimSpace(source.ClientID)
+		if clientID == "" {
+			clientID, _ = openai.OAuthClientConfigByPlatform(service.PlatformOpenAI)
+		}
+		tokenInfo, err := h.openaiOAuthService.RefreshTokenWithClientID(ctx, source.Token, proxyURL, clientID)
 		if err != nil {
 			return nil, fmt.Errorf("validate OpenAI refresh token: %w", err)
 		}
@@ -1133,7 +1322,7 @@ func (h *UserAccountHandler) createOwnedAccountFromCredentialImportSource(
 	case service.AccountCredentialImportKindClaudeSessionKey:
 		tokenInfo, err := h.oauthService.CookieAuth(ctx, &service.CookieAuthInput{
 			SessionKey: source.Token,
-			ProxyID:    nil,
+			ProxyID:    defaults.ProxyID,
 			Scope:      "full",
 		})
 		if err != nil {
@@ -1151,6 +1340,16 @@ func (h *UserAccountHandler) createOwnedAccountFromCredentialImportSource(
 		if req.Name == "" {
 			req.Name = fmt.Sprintf("Claude OAuth Account #%d", sequence)
 		}
+	case service.AccountCredentialImportKindClaudeWebSession:
+		req.Platform = service.PlatformAnthropic
+		req.Credentials = source.Credentials
+		req.Extra = source.Extra
+		if defaults.Concurrency <= 0 {
+			req.Concurrency = 1
+		}
+		if req.Name == "" {
+			req.Name = service.DeriveAccountCredentialImportName(req.Platform, req.Credentials, req.Extra, sequence)
+		}
 	case service.AccountCredentialImportKindKiroConfig:
 		if h.kiroOAuthService == nil {
 			return nil, fmt.Errorf("kiro OAuth service is not configured")
@@ -1164,7 +1363,7 @@ func (h *UserAccountHandler) createOwnedAccountFromCredentialImportSource(
 			StartURL:     source.StartURL,
 			Region:       source.Region,
 			ProfileArn:   source.ProfileArn,
-			ProxyID:      nil,
+			ProxyID:      defaults.ProxyID,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("validate Kiro config: %w", err)
@@ -1244,7 +1443,7 @@ func (h *UserAccountHandler) Update(c *gin.Context) {
 			return
 		}
 	}
-	response.Success(c, dto.AccountFromService(account))
+	response.Success(c, h.accountResponseFromService(account))
 }
 
 func (h *UserAccountHandler) RevalidatePublicShare(c *gin.Context) {
@@ -1272,7 +1471,7 @@ func (h *UserAccountHandler) RevalidatePublicShare(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, dto.AccountFromService(account))
+	response.Success(c, h.accountResponseFromService(account))
 }
 
 func (h *UserAccountHandler) CreateBatchRefreshTask(c *gin.Context) {
@@ -1584,6 +1783,100 @@ func (h *UserAccountHandler) Test(c *gin.Context) {
 	if err := h.accountTestService.TestAccountConnection(c, accountID, req.ModelID, req.Prompt, req.Mode); err != nil {
 		return
 	}
+
+	if h.rateLimitService != nil {
+		if _, err := h.rateLimitService.RecoverOwnedAccountState(c.Request.Context(), subject.UserID, accountID, service.AccountRecoveryOptions{}); err != nil {
+			_ = c.Error(err)
+		}
+	}
+}
+
+// RecoverState clears recoverable runtime state for an account owned by the caller.
+// POST /api/v1/accounts/:id/recover-state
+func (h *UserAccountHandler) RecoverState(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if h.rateLimitService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Rate limit service unavailable")
+		return
+	}
+
+	if _, err := h.rateLimitService.RecoverOwnedAccountState(c.Request.Context(), subject.UserID, accountID, service.AccountRecoveryOptions{
+		InvalidateToken: true,
+	}); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	account, err := h.accountService.GetOwnedByID(c.Request.Context(), subject.UserID, accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, h.accountResponseFromService(account))
+}
+
+// BatchRecoverState clears recoverable runtime state for accounts owned by the caller.
+// Ownership is validated for the complete batch before the first mutation.
+// POST /api/v1/accounts/batch-recover-state
+func (h *UserAccountHandler) BatchRecoverState(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	var req bulkDeleteUserAccountsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	accountIDs := normalizeUserAccountIDList(req.AccountIDs)
+	if len(accountIDs) == 0 {
+		response.BadRequest(c, "account_ids is required")
+		return
+	}
+	if h.rateLimitService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Rate limit service unavailable")
+		return
+	}
+
+	ctx := c.Request.Context()
+	for _, accountID := range accountIDs {
+		if _, err := h.accountService.GetOwnedByID(ctx, subject.UserID, accountID); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+
+	result := &service.BulkUpdateAccountsResult{
+		SuccessIDs: make([]int64, 0, len(accountIDs)),
+		FailedIDs:  make([]int64, 0, len(accountIDs)),
+		Results:    make([]service.BulkUpdateAccountResult, 0, len(accountIDs)),
+	}
+	for _, accountID := range accountIDs {
+		entry := service.BulkUpdateAccountResult{AccountID: accountID}
+		if _, err := h.rateLimitService.RecoverOwnedAccountState(ctx, subject.UserID, accountID, service.AccountRecoveryOptions{
+			InvalidateToken: true,
+		}); err != nil {
+			entry.Error = err.Error()
+			result.Failed++
+			result.FailedIDs = append(result.FailedIDs, accountID)
+		} else {
+			entry.Success = true
+			result.Success++
+			result.SuccessIDs = append(result.SuccessIDs, accountID)
+		}
+		result.Results = append(result.Results, entry)
+	}
+	response.Success(c, result)
 }
 
 func (h *UserAccountHandler) refreshOwnedAccount(ctx context.Context, ownerUserID int64, account *service.Account) (*service.Account, string, error) {
@@ -1714,13 +2007,13 @@ func (h *UserAccountHandler) Refresh(c *gin.Context) {
 	}
 	if warning == "missing_project_id_temporary" {
 		response.Success(c, gin.H{
-			"account": dto.AccountFromService(updatedAccount),
+			"account": h.accountResponseFromService(updatedAccount),
 			"message": "Token refreshed successfully, but project_id could not be retrieved (will retry automatically)",
 			"warning": "missing_project_id_temporary",
 		})
 		return
 	}
-	response.Success(c, dto.AccountFromService(updatedAccount))
+	response.Success(c, h.accountResponseFromService(updatedAccount))
 }
 
 func (h *UserAccountHandler) setOwnedAccountPrivacy(ctx context.Context, ownerUserID int64, account *service.Account) (string, error) {
@@ -1801,10 +2094,10 @@ func (h *UserAccountHandler) SetPrivacy(c *gin.Context) {
 			account.Extra = make(map[string]any)
 		}
 		account.Extra["privacy_mode"] = mode
-		response.Success(c, dto.AccountFromService(account))
+		response.Success(c, h.accountResponseFromService(account))
 		return
 	}
-	response.Success(c, dto.AccountFromService(updated))
+	response.Success(c, h.accountResponseFromService(updated))
 }
 
 func (h *UserAccountHandler) GenerateAnthropicOAuthURL(c *gin.Context) {

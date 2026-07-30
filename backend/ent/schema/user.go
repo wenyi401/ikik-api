@@ -147,6 +147,8 @@ func (User) Edges() []ent.Edge {
 		edge.To("announcement_reads", AnnouncementRead.Type),
 		edge.To("allowed_groups", Group.Type).
 			Through("user_allowed_groups", UserAllowedGroup.Type),
+		edge.To("blocked_groups", Group.Type).
+			Through("user_blocked_groups", UserBlockedGroup.Type),
 		edge.To("usage_logs", UsageLog.Type),
 		edge.To("attribute_values", UserAttributeValue.Type),
 		edge.To("promo_code_usages", PromoCodeUsage.Type),

@@ -33,9 +33,14 @@ func openPromptAuditIntegrationDB(t *testing.T) *sql.DB {
 	defer cancel()
 	require.NoError(t, db.PingContext(ctx))
 	_, err = db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS users (id BIGSERIAL PRIMARY KEY);
-		CREATE TABLE IF NOT EXISTS groups (id BIGSERIAL PRIMARY KEY);
-		CREATE TABLE IF NOT EXISTS api_keys (id BIGSERIAL PRIMARY KEY);
+		CREATE TABLE IF NOT EXISTS users (id BIGSERIAL PRIMARY KEY, email TEXT NOT NULL DEFAULT '');
+		CREATE TABLE IF NOT EXISTS groups (id BIGSERIAL PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active');
+		CREATE TABLE IF NOT EXISTS api_keys (
+			id BIGSERIAL PRIMARY KEY,
+			user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+			status TEXT NOT NULL DEFAULT 'active',
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
 		CREATE TABLE IF NOT EXISTS settings (
 			key VARCHAR(255) PRIMARY KEY,
 			value TEXT NOT NULL DEFAULT '',
@@ -43,7 +48,19 @@ func openPromptAuditIntegrationDB(t *testing.T) *sql.DB {
 		);
 	`)
 	require.NoError(t, err)
-	for _, name := range []string{"200_prompt_audit.sql", "201_prompt_audit_full_prompt.sql"} {
+	_, err = db.ExecContext(ctx, `
+		ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';
+		ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT 'integration-test-hash';
+		ALTER TABLE groups ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT 'integration-test-group';
+		ALTER TABLE groups ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+		ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS user_id BIGINT REFERENCES users(id) ON DELETE CASCADE;
+		ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS key TEXT NOT NULL DEFAULT 'integration-test-key';
+		ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT 'integration-test-key';
+		ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+		ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+	`)
+	require.NoError(t, err)
+	for _, name := range []string{"200_prompt_audit.sql", "201_prompt_audit_full_prompt.sql", "208_prompt_audit_adaptive_profiles.sql"} {
 		migration, err := os.ReadFile(filepath.Join("..", "..", "migrations", name))
 		require.NoError(t, err)
 		// The migration runner can retry an interrupted deployment; the migration
@@ -60,15 +77,81 @@ func openPromptAuditIntegrationDB(t *testing.T) *sql.DB {
 
 func resetPromptAuditIntegrationDB(t *testing.T, db *sql.DB) {
 	t.Helper()
-	_, err := db.Exec(`TRUNCATE TABLE prompt_audit_events, prompt_audit_jobs, api_keys, users, groups, settings RESTART IDENTITY CASCADE`)
+	_, err := db.Exec(`TRUNCATE TABLE prompt_audit_fingerprints, prompt_audit_user_profiles, prompt_audit_events, prompt_audit_jobs, api_keys, users, groups, settings RESTART IDENTITY CASCADE`)
 	require.NoError(t, err)
 }
 
-func insertIdentity(t *testing.T, db *sql.DB, table string) int64 {
+func insertIdentity(t *testing.T, db *sql.DB, table string, ownerID ...int64) int64 {
 	t.Helper()
 	var id int64
-	require.NoError(t, db.QueryRow(`INSERT INTO `+table+` DEFAULT VALUES RETURNING id`).Scan(&id))
+	suffix := time.Now().UnixNano()
+	var err error
+	switch table {
+	case "users":
+		err = db.QueryRow(`INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id`,
+			fmt.Sprintf("prompt-audit-%d@example.test", suffix), "integration-test-hash").Scan(&id)
+	case "groups":
+		err = db.QueryRow(`INSERT INTO groups (name) VALUES ($1) RETURNING id`, fmt.Sprintf("prompt-audit-%d", suffix)).Scan(&id)
+	case "api_keys":
+		require.Len(t, ownerID, 1, "api key fixture requires its user ID")
+		err = db.QueryRow(`INSERT INTO api_keys (user_id, key, name) VALUES ($1, $2, $3) RETURNING id`,
+			ownerID[0], fmt.Sprintf("sk-integration-%d", suffix), "prompt-audit-integration").Scan(&id)
+	default:
+		t.Fatalf("unsupported identity fixture table %q", table)
+	}
+	require.NoError(t, err)
 	return id
+}
+
+func TestPromptAuditAdaptiveEnforcementIsPolicyIsolated(t *testing.T) {
+	db := openPromptAuditIntegrationDB(t)
+	ctx := context.Background()
+	var userID, groupID, apiKeyID int64
+	require.NoError(t, db.QueryRowContext(ctx, `INSERT INTO users (email, password_hash) VALUES ('prompt-test@example.com', 'integration-test-hash') RETURNING id`).Scan(&userID))
+	require.NoError(t, db.QueryRowContext(ctx, `INSERT INTO groups (name) VALUES ('prompt-audit-adaptive') RETURNING id`).Scan(&groupID))
+	require.NoError(t, db.QueryRowContext(ctx, `INSERT INTO api_keys (user_id, key, name) VALUES ($1, 'sk-prompt-audit-adaptive', 'prompt-audit-adaptive') RETURNING id`, userID).Scan(&apiKeyID))
+	repo := NewPostgreSQLRepository(db)
+	promptHash := strings.Repeat("a", 64)
+
+	decision, err := repo.PreparePromptAudit(ctx, userID, "request-1", promptHash, true)
+	require.NoError(t, err)
+	require.True(t, decision.RunRemote)
+
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	err = applyPromptAuditCompletion(ctx, tx, PromptSnapshot{UserID: userID, APIKeyID: apiKeyID, GroupID: &groupID, PromptHash: promptHash}, &NormalizedResult{
+		Decision: EventCritical, RiskLevel: RiskCritical, Action: ActionBlock,
+		Categories: []string{"jailbreak"}, ScannerBackend: "qwen3guard-openai",
+	}, nil)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	var blocked bool
+	var riskLevel, keyStatus, groupStatus string
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT blocked, risk_level FROM prompt_audit_user_profiles WHERE user_id=$1`, userID).Scan(&blocked, &riskLevel))
+	require.True(t, blocked)
+	require.Equal(t, "critical", riskLevel)
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT status FROM api_keys WHERE id=$1`, apiKeyID).Scan(&keyStatus))
+	require.Equal(t, "disabled", keyStatus)
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT status FROM groups WHERE id=$1`, groupID).Scan(&groupStatus))
+	require.Equal(t, "active", groupStatus)
+
+	// Jobs already in flight when the user was blocked may still complete. A
+	// later safe result must not lower the score of a blocked profile.
+	tx, err = db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	require.NoError(t, applyPromptAuditCompletion(ctx, tx, PromptSnapshot{UserID: userID, APIKeyID: apiKeyID}, &NormalizedResult{
+		Decision: EventPass, RiskLevel: RiskLow, Action: ActionAllow, ScannerBackend: "qwen3guard-openai",
+	}, nil))
+	require.NoError(t, tx.Commit())
+	var riskScore float64
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT blocked, risk_score FROM prompt_audit_user_profiles WHERE user_id=$1`, userID).Scan(&blocked, &riskScore))
+	require.True(t, blocked)
+	require.Equal(t, 100.0, riskScore)
+
+	known, err := repo.IsKnownMaliciousPromptHash(ctx, promptHash)
+	require.NoError(t, err)
+	require.True(t, known)
 }
 
 func integrationSnapshot(seed string) PromptSnapshot {
@@ -300,7 +383,7 @@ func TestPromptAuditRepositoryForeignKeysFiltersAndStableIdentitySnapshots(t *te
 	repo := NewPostgreSQLRepository(db)
 	ctx := context.Background()
 	userID := insertIdentity(t, db, "users")
-	apiKeyID := insertIdentity(t, db, "api_keys")
+	apiKeyID := insertIdentity(t, db, "api_keys", userID)
 	groupID := insertIdentity(t, db, "groups")
 	snapshot := integrationSnapshot("identity")
 	snapshot.UserID, snapshot.APIKeyID, snapshot.GroupID = userID, apiKeyID, &groupID
@@ -322,9 +405,9 @@ func TestPromptAuditRepositoryForeignKeysFiltersAndStableIdentitySnapshots(t *te
 	require.Equal(t, snapshot.UserEmailSnapshot, page.Items[0].Snapshot.UserEmailSnapshot)
 	require.Equal(t, snapshot.APIKeyNameSnapshot, page.Items[0].Snapshot.APIKeyNameSnapshot)
 
-	_, err = db.Exec(`DELETE FROM users WHERE id=$1`, userID)
-	require.NoError(t, err)
 	_, err = db.Exec(`DELETE FROM api_keys WHERE id=$1`, apiKeyID)
+	require.NoError(t, err)
+	_, err = db.Exec(`DELETE FROM users WHERE id=$1`, userID)
 	require.NoError(t, err)
 	_, err = db.Exec(`DELETE FROM groups WHERE id=$1`, groupID)
 	require.NoError(t, err)

@@ -30,6 +30,16 @@ type fakePromptEngine struct {
 	evaluates atomic.Int64
 }
 
+type fakeAdmissionPromptEngine struct {
+	*fakePromptEngine
+	blocked bool
+	err     error
+}
+
+func (f *fakeAdmissionPromptEngine) IsPromptAuditUserBlocked(context.Context, int64) (bool, error) {
+	return f.blocked, f.err
+}
+
 func (f *fakePromptEngine) EffectiveMode() Mode { return f.mode }
 func (f *fakePromptEngine) Enqueue(context.Context, Request) error {
 	f.enqueues.Add(1)
@@ -72,6 +82,29 @@ func TestCoordinatorModesAndPriority(t *testing.T) {
 			require.Equal(t, tt.wantEvaluation, prompt.evaluates.Load())
 		})
 	}
+}
+
+func TestCoordinatorBlocksPromptAuditQuarantinedUserBeforeDispatch(t *testing.T) {
+	legacy := &fakeLegacyEngine{}
+	prompt := &fakeAdmissionPromptEngine{fakePromptEngine: &fakePromptEngine{mode: ModeAsync}, blocked: true}
+
+	decision := NewCoordinator(legacy, prompt).Check(context.Background(), Request{UserID: 42})
+
+	require.Equal(t, DecisionBlock, decision.Kind)
+	require.Equal(t, http.StatusForbidden, decision.HTTPStatus)
+	require.Equal(t, "prompt_audit_user_blocked", decision.ErrorCode)
+	require.False(t, decision.AllowNextStage)
+	require.Zero(t, legacy.calls.Load())
+	require.Zero(t, prompt.enqueues.Load())
+}
+
+func TestCoordinatorAdmissionLookupFailureFailsOpen(t *testing.T) {
+	prompt := &fakeAdmissionPromptEngine{fakePromptEngine: &fakePromptEngine{mode: ModeAsync}, err: errors.New("database unavailable")}
+
+	decision := NewCoordinator(&fakeLegacyEngine{}, prompt).Check(context.Background(), Request{UserID: 42})
+
+	require.True(t, decision.AllowNextStage)
+	require.Equal(t, int64(1), prompt.enqueues.Load())
 }
 
 func TestCoordinatorDoesNotMutateRequestBody(t *testing.T) {

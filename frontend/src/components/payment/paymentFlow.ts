@@ -23,6 +23,7 @@ export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex'
 export type StripeVisibleMethod = 'alipay' | 'wechat_pay'
 export type PaymentLaunchKind =
   | 'qr_waiting'
+  | 'alipay_deep_link'
   | 'redirect_waiting'
   | 'stripe_popup'
   | 'stripe_route'
@@ -48,6 +49,7 @@ export interface PaymentRecoverySnapshot {
   orderType: OrderType | ''
   paymentMode: string
   resumeToken: string
+  alipayMobilePrecreateDeepLink?: boolean
   createdAt: number
 }
 
@@ -56,6 +58,8 @@ export interface PaymentLaunchContext {
   orderType: OrderType
   isMobile: boolean
   isWechatBrowser?: boolean
+  forceQRCode?: boolean
+  mobilePrecreateDeepLink?: boolean
   now?: number
   stripePopupUrl?: string
   stripeRouteUrl?: string
@@ -79,6 +83,8 @@ export interface BuildCreateOrderPayloadInput {
   origin?: string
   isMobile: boolean
   isWechatBrowser: boolean
+  forceQRCode?: boolean
+  mobilePrecreateDeepLink?: boolean
 }
 
 type CreateOrderFlowResult = CreateOrderResult & {
@@ -120,11 +126,14 @@ export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<
 export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): CreateOrderRequest {
   const visibleMethod = normalizeVisibleMethod(input.paymentType) || input.paymentType.trim()
   const normalizedOrigin = (input.origin || '').trim().replace(/\/+$/, '')
+  const effectiveMobile = input.forceQRCode && !input.mobilePrecreateDeepLink && visibleMethod === 'alipay'
+    ? false
+    : input.isMobile
   const payload: CreateOrderRequest = {
     amount: input.amount,
     payment_type: visibleMethod,
     order_type: input.orderType,
-    is_mobile: input.isMobile,
+    is_mobile: effectiveMobile,
     payment_source: visibleMethod === 'wxpay' && input.isWechatBrowser
       ? 'wechat_in_app_resume'
       : 'hosted_redirect',
@@ -162,6 +171,7 @@ export function decidePaymentLaunch(
     orderType: context.orderType,
     paymentMode: (result.payment_mode || '').trim(),
     resumeToken: result.resume_token || '',
+    alipayMobilePrecreateDeepLink: result.alipay_mobile_precreate_deep_link === true,
   }, context.now)
 
   if (visibleMethod === 'airwallex' && baseState.clientSecret && baseState.intentId) {
@@ -198,10 +208,22 @@ export function decidePaymentLaunch(
     return { kind: 'wechat_jsapi', paymentState: baseState, recovery: baseState, jsapi: jsapiPayload }
   }
 
+  if (
+    visibleMethod === 'alipay'
+    && context.isMobile
+    && baseState.alipayMobilePrecreateDeepLink
+    && baseState.qrCode
+  ) {
+    return { kind: 'alipay_deep_link', paymentState: baseState, recovery: baseState }
+  }
+
   const normalizedPaymentMode = baseState.paymentMode.trim().toLowerCase()
+  const effectiveMobile = context.forceQRCode && !context.mobilePrecreateDeepLink && visibleMethod === 'alipay'
+    ? false
+    : context.isMobile
   const prefersRedirect = normalizedPaymentMode === 'redirect'
     || normalizedPaymentMode === 'popup'
-    || (context.isMobile && !!baseState.payUrl)
+    || (effectiveMobile && !!baseState.payUrl)
   const prefersQr = normalizedPaymentMode === 'qrcode'
     || normalizedPaymentMode === 'native'
     || (!prefersRedirect && !!baseState.qrCode)
@@ -300,6 +322,7 @@ export function readPaymentRecoverySnapshot(
       || typeof parsed.payAmount !== 'number'
       || typeof parsed.paymentMode !== 'string'
       || typeof parsed.resumeToken !== 'string'
+      || (parsed.alipayMobilePrecreateDeepLink != null && typeof parsed.alipayMobilePrecreateDeepLink !== 'boolean')
       || typeof parsed.createdAt !== 'number'
     ) {
       return null
@@ -337,6 +360,7 @@ export function readPaymentRecoverySnapshot(
       orderType: parsed.orderType === 'subscription' ? 'subscription' : 'balance',
       paymentMode: parsed.paymentMode,
       resumeToken: parsed.resumeToken,
+      alipayMobilePrecreateDeepLink: parsed.alipayMobilePrecreateDeepLink === true,
       createdAt: parsed.createdAt,
     }
   } catch {

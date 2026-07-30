@@ -31,7 +31,7 @@ func (s *AccountService) ApproveOwnedPublicShareWithOptions(ctx context.Context,
 	if ownedAccountForcesPrivateShare(account.Type) {
 		return nil, ErrOwnedAccountAPIKeyPublicShareNotAllowed
 	}
-	if err := validateOwnedAccountSource(account.Type, account.Credentials, account.Extra); err != nil {
+	if err := validateOwnedAccountSourceForPlatform(account.Platform, account.Type, account.Credentials, account.Extra); err != nil {
 		return nil, err
 	}
 	if !isOwnedAccountPublicShareApprovable(account, opts.AllowRateLimited) {
@@ -172,7 +172,7 @@ func (s *AccountService) BulkUpdateOwned(ctx context.Context, ownerUserID int64,
 		nextAccount := *account
 		nextAccount.Credentials = nextCredentials
 		nextAccount.Extra = nextExtra
-		if err := validateOwnedAccountSource(account.Type, nextCredentials, nextExtra); err != nil {
+		if err := validateOwnedAccountSourceForPlatform(account.Platform, account.Type, nextCredentials, nextExtra); err != nil {
 			return nil, err
 		}
 		nextConcurrency := ownedPersonalDefaultConcurrency
@@ -505,7 +505,7 @@ func (s *AccountService) UpdateOwned(ctx context.Context, ownerUserID, accountID
 		groupIDs = managedGroupIDs
 		shouldBindGroups = true
 	}
-	if err := validateOwnedAccountSource(account.Type, account.Credentials, account.Extra); err != nil {
+	if err := validateOwnedAccountSourceForPlatform(account.Platform, account.Type, account.Credentials, account.Extra); err != nil {
 		return nil, err
 	}
 	if req.Credentials != nil || req.Extra != nil {
@@ -559,6 +559,18 @@ func accountDuplicateIdentityKeys(account *Account) []ownedAccountDuplicateKey {
 	case PlatformOpenAI:
 		if account.Type != AccountTypeOAuth {
 			return nil
+		}
+		if account.IsOpenAIAgentIdentity() {
+			accountID := strings.TrimSpace(account.GetChatGPTAccountID())
+			userID := strings.TrimSpace(account.GetChatGPTUserID())
+			if accountID != "" && userID != "" {
+				add("openai.agent_identity", accountID+"|"+userID)
+			} else if userID != "" {
+				add("openai.chatgpt_user_id", userID)
+			} else {
+				add("openai.chatgpt_account_id", accountID)
+			}
+			return keys
 		}
 		if chatgptUserID := account.GetChatGPTUserID(); chatgptUserID != "" {
 			add("openai.chatgpt_user_id", chatgptUserID)
@@ -696,6 +708,9 @@ func (s *AccountService) canUserBindOwnedAccountGroup(ctx context.Context, user 
 	if user == nil || group == nil {
 		return false, nil
 	}
+	if user.IsGroupBlocked(group.ID) {
+		return false, nil
+	}
 	if group.IsSubscriptionType() {
 		if s.userSubRepo == nil {
 			return false, ErrOwnedAccountGroupValidationUnavailable
@@ -712,16 +727,35 @@ func (s *AccountService) canUserBindOwnedAccountGroup(ctx context.Context, user 
 	return user.CanBindGroup(group.ID, group.IsExclusive), nil
 }
 func (s *AccountService) createOwned(ctx context.Context, ownerUserID int64, req CreateAccountRequest) (*Account, error) {
+	return s.createOwnedWithOptions(ctx, ownerUserID, req, ownedAccountCreateOptions{
+		validateProxyID: s.ValidateOwnedProxyID,
+		schedulable:     true,
+	})
+}
+
+type ownedAccountProxyValidator func(context.Context, int64, *int64) (*int64, error)
+
+type ownedAccountCreateOptions struct {
+	validateProxyID ownedAccountProxyValidator
+	schedulable     bool
+}
+
+func (s *AccountService) createOwnedWithOptions(
+	ctx context.Context,
+	ownerUserID int64,
+	req CreateAccountRequest,
+	opts ownedAccountCreateOptions,
+) (*Account, error) {
 	if ownerUserID <= 0 {
 		return nil, ErrUserNotFound
 	}
 
 	req.AccountLevel = AccountLevelUnknown
 	applyOwnedPersonalAccountTemplateToCreate(&req)
-	if err := validateOwnedAccountSource(req.Type, req.Credentials, req.Extra); err != nil {
+	if err := validateOwnedAccountSourceForPlatform(req.Platform, req.Type, req.Credentials, req.Extra); err != nil {
 		return nil, err
 	}
-	proxyID, err := s.ValidateOwnedProxyID(ctx, ownerUserID, req.ProxyID)
+	proxyID, err := opts.validateProxyID(ctx, ownerUserID, req.ProxyID)
 	if err != nil {
 		return nil, err
 	}
@@ -759,7 +793,7 @@ func (s *AccountService) createOwned(ctx context.Context, ownerUserID int64, req
 		Status:             StatusActive,
 		ExpiresAt:          req.ExpiresAt,
 		AutoPauseOnExpired: true,
-		Schedulable:        true,
+		Schedulable:        opts.schedulable,
 	}
 	if req.AutoPauseOnExpired != nil {
 		account.AutoPauseOnExpired = *req.AutoPauseOnExpired
@@ -959,6 +993,15 @@ func isOwnedPublicSharePoolGroup(group *Group, platform string) bool {
 	}
 	return true
 }
+
+func supportsOwnedPublicSharePoolPlatform(platform string) bool {
+	switch strings.ToLower(strings.TrimSpace(platform)) {
+	case PlatformOpenAI, PlatformAnthropic, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformKiro:
+		return true
+	default:
+		return false
+	}
+}
 func (s *AccountService) managedOwnedAccountGroupIDsForShareMode(ctx context.Context, ownerUserID int64, account *Account, nextMode string) ([]int64, error) {
 	if account == nil {
 		return nil, ErrAccountNotFound
@@ -1126,9 +1169,14 @@ func (s *AccountService) resolveOwnedPublicShareGroup(ctx context.Context, accou
 			"account_level": accountLevel,
 		})
 	}
+	if !supportsOwnedPublicSharePoolPlatform(platform) {
+		return nil, ErrOwnedAccountPublicPoolUnavailable.WithMetadata(map[string]string{
+			"platform": platform,
+		})
+	}
 	for i := range groups {
 		group := groups[i]
-		if isOwnedPublicSharePoolGroup(&group, platform) && NormalizeRequiredAccountLevel(group.RequiredAccountLevel) == "" {
+		if group.IsSharedPool && isOwnedPublicSharePoolGroup(&group, platform) && NormalizeRequiredAccountLevel(group.RequiredAccountLevel) == "" {
 			return &group, nil
 		}
 	}
@@ -1190,11 +1238,25 @@ func (s *AccountService) validateOwnedAccountGroupBinding(ctx context.Context, o
 	return groupIDs, nil
 }
 func validateOwnedAccountSource(accountType string, credentials, extra map[string]any) error {
+	return validateOwnedAccountSourceForPlatform("", accountType, credentials, extra)
+}
+
+func validateOwnedAccountSourceForPlatform(platform, accountType string, credentials, extra map[string]any) error {
 	if !isAllowedOwnedAccountType(accountType) {
 		return ErrOwnedAccountTypeNotAllowed
 	}
 	switch strings.ToLower(strings.TrimSpace(accountType)) {
 	case AccountTypeOAuth, AccountTypeSetupToken:
+		if strings.EqualFold(strings.TrimSpace(platform), PlatformAnthropic) &&
+			strings.EqualFold(strings.TrimSpace(accountType), AccountTypeOAuth) &&
+			isOwnedClaudeWebSessionExtra(extra) {
+			return validateOwnedClaudeWebCredentials(credentials, extra)
+		}
+		if strings.EqualFold(strings.TrimSpace(platform), PlatformOpenAI) &&
+			strings.EqualFold(strings.TrimSpace(accountType), AccountTypeOAuth) &&
+			strings.EqualFold(strings.TrimSpace(stringMapValue(credentials, "auth_mode")), OpenAIAuthModeAgentIdentity) {
+			return validateOwnedOpenAIAgentIdentityCredentials(credentials, extra)
+		}
 		if !hasNonEmptyStringField(credentials, "access_token") {
 			return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{
 				"field": "access_token",
@@ -1246,6 +1308,183 @@ func validateOwnedAccountSource(accountType string, credentials, extra map[strin
 		}
 	}
 	return nil
+}
+
+func validateOwnedOpenAIAgentIdentityCredentials(credentials, extra map[string]any) error {
+	required := []string{"agent_runtime_id", "agent_private_key", "chatgpt_account_id", "chatgpt_user_id"}
+	for _, field := range required {
+		if !hasNonEmptyStringField(credentials, field) {
+			return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{"field": field})
+		}
+	}
+	if err := ValidateOpenAIAgentIdentityPrivateKey(stringMapValue(credentials, "agent_private_key")); err != nil {
+		return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{"field": "agent_private_key"})
+	}
+
+	allowedFields := map[string]struct{}{
+		"auth_mode":                  {},
+		"agent_runtime_id":           {},
+		"agent_private_key":          {},
+		"task_id":                    {},
+		"chatgpt_account_id":         {},
+		"chatgpt_user_id":            {},
+		"chatgpt_account_is_fedramp": {},
+		"email":                      {},
+		"plan_type":                  {},
+	}
+	remaining := make(map[string]any, len(credentials))
+	for key, value := range credentials {
+		if _, ok := allowedFields[key]; ok {
+			switch key {
+			case "chatgpt_account_is_fedramp":
+				if _, ok := value.(bool); !ok {
+					return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{"field": key})
+				}
+			default:
+				text, ok := value.(string)
+				if !ok || strings.ContainsAny(text, "\r\n\x00") || len(text) > 64*1024 {
+					return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{"field": key})
+				}
+			}
+			continue
+		}
+		remaining[key] = value
+	}
+	if field, ok := findDisallowedOwnedAccountField(remaining); ok {
+		return ErrOwnedAccountCredentialsNotAllowed.WithMetadata(map[string]string{
+			"section": "credentials",
+			"field":   field,
+		})
+	}
+	if field, ok := findDisallowedOwnedAccountField(extra); ok {
+		return ErrOwnedAccountCredentialsNotAllowed.WithMetadata(map[string]string{
+			"section": "extra",
+			"field":   field,
+		})
+	}
+	return nil
+}
+
+func isOwnedClaudeWebSessionExtra(extra map[string]any) bool {
+	if extra == nil {
+		return false
+	}
+	switch value := extra[ClaudeWebSessionExtraKey].(type) {
+	case bool:
+		return value
+	case string:
+		return strings.EqualFold(strings.TrimSpace(value), "true")
+	default:
+		return false
+	}
+}
+
+func validateOwnedClaudeWebCredentials(credentials, extra map[string]any) error {
+	sessionKey, _ := credentials[ClaudeWebSessionKeyCredential].(string)
+	sessionKey = strings.TrimSpace(sessionKey)
+	extracted, valid := extractClaudeSessionKey(sessionKey)
+	if !valid || extracted != sessionKey {
+		return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{
+			"field": ClaudeWebSessionKeyCredential,
+		})
+	}
+
+	authMode, _ := credentials[ClaudeWebAuthModeCredential].(string)
+	authMode = strings.ToLower(strings.TrimSpace(authMode))
+	switch authMode {
+	case ClaudeWebAuthModeSessionKey:
+		if strings.TrimSpace(stringMapValue(credentials, ClaudeWebBrowserCookieCredential)) != "" {
+			return ErrOwnedAccountCredentialsNotAllowed.WithMetadata(map[string]string{
+				"section": "credentials",
+				"field":   ClaudeWebBrowserCookieCredential,
+			})
+		}
+	case ClaudeWebAuthModeFullCookie:
+		browserCookie := strings.TrimSpace(stringMapValue(credentials, ClaudeWebBrowserCookieCredential))
+		if browserCookie == "" || strings.ContainsAny(browserCookie, "\r\n\x00") || len(browserCookie) > 64*1024 {
+			return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{
+				"field": ClaudeWebBrowserCookieCredential,
+			})
+		}
+		cookieSessionKey, ok := extractClaudeSessionKey(claudeWebCookieValue(browserCookie, "sessionKey"))
+		if !ok || cookieSessionKey != sessionKey {
+			return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{
+				"field": ClaudeWebBrowserCookieCredential,
+			})
+		}
+	default:
+		return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{
+			"field": ClaudeWebAuthModeCredential,
+		})
+	}
+
+	allowedCredentialFields := map[string]struct{}{
+		ClaudeWebSessionKeyCredential:      {},
+		ClaudeWebSessionKeyLCCredential:    {},
+		ClaudeWebRoutingHintCredential:     {},
+		ClaudeWebCFBMCredential:            {},
+		ClaudeWebCFUVIDCredential:          {},
+		ClaudeWebOrganizationCredential:    {},
+		ClaudeWebAccountUUIDCredential:     {},
+		ClaudeWebEmailCredential:           {},
+		ClaudeWebAuthModeCredential:        {},
+		ClaudeWebBrowserCookieCredential:   {},
+		ClaudeWebDeviceIDCredential:        {},
+		ClaudeWebActivitySessionCredential: {},
+		ClaudeWebAnonymousIDCredential:     {},
+		ClaudeWebSSIDCredential:            {},
+	}
+	remainingCredentials := make(map[string]any, len(credentials))
+	for key, value := range credentials {
+		if _, allowed := allowedCredentialFields[key]; allowed {
+			text, ok := value.(string)
+			if !ok || strings.ContainsAny(text, "\r\n\x00") || len(text) > 64*1024 {
+				return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{"field": key})
+			}
+			continue
+		}
+		remainingCredentials[key] = value
+	}
+	if field, ok := findDisallowedOwnedAccountField(remainingCredentials); ok {
+		return ErrOwnedAccountCredentialsNotAllowed.WithMetadata(map[string]string{
+			"section": "credentials",
+			"field":   field,
+		})
+	}
+
+	remainingExtra := make(map[string]any, len(extra))
+	for key, value := range extra {
+		switch key {
+		case ClaudeWebSessionExtraKey:
+			if !isOwnedClaudeWebSessionExtra(map[string]any{ClaudeWebSessionExtraKey: value}) {
+				return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{"field": key})
+			}
+			continue
+		case "credential_format", "org_name", "saved_at":
+			text, ok := value.(string)
+			if !ok || strings.ContainsAny(text, "\r\n\x00") || len(text) > 4096 {
+				return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{"field": key})
+			}
+			if key == "credential_format" && !strings.EqualFold(strings.TrimSpace(text), "claude_web") {
+				return ErrOwnedAccountCredentialsInvalid.WithMetadata(map[string]string{"field": key})
+			}
+			continue
+		default:
+			remainingExtra[key] = value
+		}
+	}
+	if field, ok := findDisallowedOwnedAccountField(remainingExtra); ok {
+		return ErrOwnedAccountCredentialsNotAllowed.WithMetadata(map[string]string{
+			"section": "extra",
+			"field":   field,
+		})
+	}
+	return nil
+}
+
+func stringMapValue(values map[string]any, key string) string {
+	value, _ := values[key].(string)
+	return value
 }
 
 func (s *AccountService) validateOwnedPublicSharePolicy(ctx context.Context, account *Account, group *Group) error {

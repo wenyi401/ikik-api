@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/server/middleware"
-	"github.com/gin-gonic/gin"
 )
 
 type PromptAdminService interface {
@@ -23,6 +23,8 @@ type PromptAdminService interface {
 	DeleteEventsByIDs(context.Context, []int64) (*DeleteResult, error)
 	PreviewDelete(context.Context, EventFilter, int64) (*DeletePreview, error)
 	DeleteByFilter(context.Context, DeleteByFilterRequest, int64) (*DeleteResult, error)
+	ListPromptAuditUserProfiles(context.Context, int, int, bool, string) (*PromptAuditUserProfilePage, error)
+	UnblockPromptAuditUser(context.Context, int64) (*PromptAuditUserProfile, error)
 }
 
 type PromptAdminHandler struct{ service PromptAdminService }
@@ -95,6 +97,44 @@ func (h *PromptAdminHandler) ListEvents(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+func (h *PromptAdminHandler) ListProfiles(c *gin.Context) {
+	page, err := positiveIntQuery(c, "page", 1, 0)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	pageSize, err := positiveIntQuery(c, "page_size", 20, 100)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	result, err := h.service.ListPromptAuditUserProfiles(c.Request.Context(), page, pageSize, c.Query("blocked_only") == "true", c.Query("keyword"))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *PromptAdminHandler) UnblockProfile(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.ErrorFrom(c, infraerrors.BadRequest("prompt_audit_invalid_user_id", "用户 ID 无效"))
+		return
+	}
+	profile, err := h.service.UnblockPromptAuditUser(c.Request.Context(), userID)
+	if errors.Is(err, ErrPromptAuditProfileNotFound) {
+		response.ErrorFrom(c, infraerrors.NotFound("prompt_audit_profile_not_found", "提示词审计用户标记不存在"))
+		return
+	}
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	setPromptAdminAudit(c, "success", "", map[string]any{"target_user_id": userID, "action": "unblock_prompt_audit_user"})
+	response.Success(c, profile)
 }
 
 func (h *PromptAdminHandler) GetEvent(c *gin.Context) {

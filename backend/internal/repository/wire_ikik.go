@@ -10,6 +10,8 @@ var IkikProviderSet = wire.NewSet(
 	NewCarpoolRepository,
 	NewEmailBroadcastRepository,
 	NewGroupRateScheduleRepository,
+	NewPromptLibraryTranslationRepository,
+	NewPromptSubmissionRepository,
 	NewReceiptCodeObjectStoreFactory,
 	NewReceiptCodeRepository,
 	NewShopFileCardObjectStoreFactory,

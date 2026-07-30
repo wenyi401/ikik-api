@@ -42,6 +42,7 @@ const messages: Record<string, string> = {
   'keys.created': 'Created',
   'keys.expiresAt': 'Expires',
   'keys.group': 'Group',
+  'keys.imageGeneration': 'Create image',
   'keys.id': 'ID',
   'keys.currentConcurrency': 'Current Concurrency',
   'keys.lastUsedAt': 'Last Used',
@@ -172,6 +173,9 @@ const DataTableStub = {
         <slot name="cell-name" :value="row.name" :row="row" />
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
+        </div>
+        <div data-test="key-actions">
+          <slot name="cell-actions" :row="row" />
         </div>
         <div
           v-if="columns.some((col) => col.key === 'last_used_ip')"
@@ -394,6 +398,20 @@ describe('user KeysView column settings', () => {
     expect(wrapper.get('[data-test="current-concurrency"]').text()).toBe('3')
   })
 
+  it('always shows image generation for an API key', async () => {
+    listKeys.mockResolvedValueOnce({
+      items: [createApiKey()],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+
+    const wrapper = await mountView()
+
+    expect(wrapper.get('[data-test="key-actions"]').text()).toContain('Create image')
+  })
+
   it('marks current concurrency as sortable', async () => {
     const wrapper = await mountView()
 
@@ -479,6 +497,8 @@ describe('user KeysView column settings', () => {
     const vm = wrapper.vm as unknown as {
       groupOptions: Array<{ value: number; label: string; scope: string }>
       privateRouterRouteForms: () => Array<{ group_id: number; priority: number }>
+      showSpecificPrivateGroups: boolean
+      isPrivateRouterRoutes: (routes: Array<{ group_id: number }>) => boolean
     }
 
     expect(vm.groupOptions.map((option) => option.label)).toEqual([
@@ -491,5 +511,17 @@ describe('user KeysView column settings', () => {
       [11, 101],
       [31, 102],
     ])
+
+    vm.showSpecificPrivateGroups = true
+    await nextTick()
+    expect(vm.groupOptions.map((option) => option.label)).toEqual([
+      'keys.privateRouter.title',
+      'Anthropic Private',
+      'OpenAI Private',
+      'Kiro Private',
+      'Public Group',
+    ])
+    expect(vm.isPrivateRouterRoutes([{ group_id: 11 }])).toBe(false)
+    expect(vm.isPrivateRouterRoutes([{ group_id: 21 }, { group_id: 11 }, { group_id: 31 }])).toBe(true)
   })
 })

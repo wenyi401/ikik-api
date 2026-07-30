@@ -251,3 +251,16 @@ func TestBillingCacheService_CheckRPM_NilUserIsNoop(t *testing.T) {
 	require.EqualValues(t, 0, atomic.LoadInt32(&cache.userCalls))
 	require.EqualValues(t, 0, atomic.LoadInt32(&repo.calls))
 }
+
+func TestBillingCacheService_CheckRPM_ReusedUserAdmissionStillChecksFallbackGroup(t *testing.T) {
+	cache := &userRPMCacheStub{userGroupCounts: []int{1}}
+	repo := &rpmOverrideRepoStub{override: nil}
+	svc := newBillingServiceForRPM(t, cache, repo)
+	ctx := WithUserRPMAlreadyCounted(context.Background())
+
+	err := svc.checkRPM(ctx, &User{ID: 1, RPMLimit: 1}, &Group{ID: 20, RPMLimit: 5})
+
+	require.NoError(t, err)
+	require.EqualValues(t, 1, atomic.LoadInt32(&cache.userGroupCalls))
+	require.EqualValues(t, 0, atomic.LoadInt32(&cache.userCalls))
+}

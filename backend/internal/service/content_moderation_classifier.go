@@ -76,6 +76,53 @@ type modelClassifierDecision struct {
 	Severity   int     `json:"severity"`
 }
 
+type ContentModerationClassifierGatewayInput struct {
+	GroupID  int64
+	Platform string
+	Model    string
+	Body     []byte
+}
+
+type ContentModerationClassifierGatewayResponse struct {
+	StatusCode int
+	Body       []byte
+	AccountID  int64
+}
+
+type ContentModerationClassifierAttempt struct {
+	Model      string `json:"model"`
+	StatusCode int    `json:"status_code"`
+	LatencyMS  int64  `json:"latency_ms"`
+	Success    bool   `json:"success"`
+	Error      string `json:"error,omitempty"`
+}
+
+type ContentModerationClassifierTrace struct {
+	GroupID   int64                                `json:"group_id"`
+	GroupName string                               `json:"group_name,omitempty"`
+	Attempts  []ContentModerationClassifierAttempt `json:"attempts"`
+	Error     string                               `json:"error,omitempty"`
+}
+
+type ContentModerationClassifierGateway interface {
+	ForwardContentModerationClassifier(context.Context, ContentModerationClassifierGatewayInput) (*ContentModerationClassifierGatewayResponse, error)
+}
+
+type ContentModerationClassifierGatewayError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *ContentModerationClassifierGatewayError) Error() string {
+	if e == nil {
+		return "model classifier gateway failed"
+	}
+	if e.StatusCode > 0 {
+		return fmt.Sprintf("model classifier gateway status %d: %s", e.StatusCode, strings.TrimSpace(e.Message))
+	}
+	return "model classifier gateway: " + strings.TrimSpace(e.Message)
+}
+
 var modelClassifierCategories = map[string]string{
 	"harassment_or_defamation":          ContentModerationPolicyCategoryHarassment,
 	"self_harm":                         ContentModerationPolicyCategorySelfHarm,
@@ -106,20 +153,15 @@ var modelClassifierCategories = map[string]string{
 }
 
 func (s *ContentModerationService) callModelClassifierOnce(ctx context.Context, cfg *ContentModerationConfig, apiKey string, input any, httpStatus *int) (*moderationAPIResult, error) {
+	if cfg != nil && cfg.usesInternalClassifierGateway() {
+		return s.callModelClassifierThroughGroup(ctx, cfg, input, httpStatus)
+	}
 	base := strings.TrimRight(cfg.BaseURL, "/")
 	endpoint, err := url.JoinPath(base, "/v1/chat/completions")
 	if err != nil {
 		return nil, err
 	}
-	payload := modelClassifierRequest{
-		Model: cfg.Model,
-		Messages: []modelClassifierMessage{
-			{Role: "system", Content: contentModerationClassifierSystemPrompt(cfg)},
-			{Role: "user", Content: modelClassifierUserContent(input)},
-		},
-		Stream: false,
-	}
-	raw, err := json.Marshal(payload)
+	raw, err := buildModelClassifierRequest(cfg, cfg.Model, input)
 	if err != nil {
 		return nil, err
 	}
@@ -149,9 +191,28 @@ func (s *ContentModerationService) callModelClassifierOnce(ctx context.Context, 
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return nil, fmt.Errorf("model classifier status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
-	var out modelClassifierResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
 		return nil, err
+	}
+	return parseModelClassifierResponse(body, cfg.Model)
+}
+
+func buildModelClassifierRequest(cfg *ContentModerationConfig, model string, input any) ([]byte, error) {
+	return json.Marshal(modelClassifierRequest{
+		Model: strings.TrimSpace(model),
+		Messages: []modelClassifierMessage{
+			{Role: "system", Content: contentModerationClassifierSystemPrompt(cfg)},
+			{Role: "user", Content: modelClassifierUserContent(input)},
+		},
+		Stream: false,
+	})
+}
+
+func parseModelClassifierResponse(body []byte, model string) (*moderationAPIResult, error) {
+	var out modelClassifierResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("decode model classifier response: %w", err)
 	}
 	if len(out.Choices) == 0 {
 		return nil, errors.New("model classifier returned no choices")
@@ -160,7 +221,143 @@ func (s *ContentModerationService) callModelClassifierOnce(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	return modelClassifierModerationResult(decision), nil
+	result := modelClassifierModerationResult(decision)
+	result.ClassifierModel = strings.TrimSpace(model)
+	return result, nil
+}
+
+func (s *ContentModerationService) callModelClassifierThroughGroup(ctx context.Context, cfg *ContentModerationConfig, input any, httpStatus *int) (*moderationAPIResult, error) {
+	result, _, err := s.callModelClassifierThroughGroupWithTrace(ctx, cfg, input, httpStatus)
+	return result, err
+}
+
+func (s *ContentModerationService) callModelClassifierThroughGroupWithTrace(ctx context.Context, cfg *ContentModerationConfig, input any, httpStatus *int) (*moderationAPIResult, *ContentModerationClassifierTrace, error) {
+	trace := &ContentModerationClassifierTrace{
+		GroupID:  cfg.ClassifierGroupID,
+		Attempts: []ContentModerationClassifierAttempt{},
+	}
+	gateway := s.getClassifierGateway()
+	if gateway == nil {
+		return nil, trace, errors.New("model classifier internal gateway is unavailable")
+	}
+	if s.groupRepo == nil {
+		return nil, trace, errors.New("model classifier group repository is unavailable")
+	}
+	group, err := s.groupRepo.GetByIDLite(ctx, cfg.ClassifierGroupID)
+	if err != nil {
+		return nil, trace, fmt.Errorf("load model classifier group %d: %w", cfg.ClassifierGroupID, err)
+	}
+	if group == nil {
+		return nil, trace, fmt.Errorf("model classifier group %d does not exist", cfg.ClassifierGroupID)
+	}
+	trace.GroupName = group.Name
+	if !group.IsActive() {
+		return nil, trace, errors.New("model classifier group is disabled")
+	}
+	if !isContentModerationClassifierPlatform(group.Platform) {
+		return nil, trace, fmt.Errorf("model classifier group platform %q is not OpenAI-compatible", group.Platform)
+	}
+
+	models := normalizeContentModerationClassifierModels(cfg.ClassifierModels)
+	if len(models) == 0 {
+		return nil, trace, errors.New("no model classifier candidates configured")
+	}
+	errorsByModel := make([]string, 0, len(models))
+	for _, model := range models {
+		startedAt := time.Now()
+		raw, buildErr := buildModelClassifierRequest(cfg, model, input)
+		if buildErr != nil {
+			trace.Attempts = append(trace.Attempts, ContentModerationClassifierAttempt{
+				Model:     model,
+				LatencyMS: time.Since(startedAt).Milliseconds(),
+				Error:     trimRunes(buildErr.Error(), maxModerationExcerptRunes),
+			})
+			return nil, trace, buildErr
+		}
+		timeout := time.Duration(cfg.TimeoutMS) * time.Millisecond
+		reqCtx, cancel := context.WithTimeout(ctx, timeout)
+		response, callErr := gateway.ForwardContentModerationClassifier(reqCtx, ContentModerationClassifierGatewayInput{
+			GroupID:  cfg.ClassifierGroupID,
+			Platform: group.Platform,
+			Model:    model,
+			Body:     raw,
+		})
+		cancel()
+
+		status := 0
+		if response != nil {
+			status = response.StatusCode
+		}
+		var gatewayErr *ContentModerationClassifierGatewayError
+		if errors.As(callErr, &gatewayErr) && gatewayErr != nil && gatewayErr.StatusCode > 0 {
+			status = gatewayErr.StatusCode
+		}
+		if httpStatus != nil {
+			*httpStatus = status
+		}
+		if callErr != nil {
+			trace.Attempts = append(trace.Attempts, ContentModerationClassifierAttempt{
+				Model:      model,
+				StatusCode: status,
+				LatencyMS:  time.Since(startedAt).Milliseconds(),
+				Error:      trimRunes(callErr.Error(), maxModerationExcerptRunes),
+			})
+			errorsByModel = append(errorsByModel, model+": "+trimRunes(callErr.Error(), maxModerationExcerptRunes))
+			if shouldFallbackContentModerationClassifierModel(status) {
+				continue
+			}
+			return nil, trace, callErr
+		}
+		if response == nil {
+			trace.Attempts = append(trace.Attempts, ContentModerationClassifierAttempt{
+				Model:      model,
+				StatusCode: status,
+				LatencyMS:  time.Since(startedAt).Milliseconds(),
+				Error:      "empty gateway response",
+			})
+			errorsByModel = append(errorsByModel, model+": empty gateway response")
+			continue
+		}
+		result, parseErr := parseModelClassifierResponse(response.Body, model)
+		if parseErr == nil {
+			trace.Attempts = append(trace.Attempts, ContentModerationClassifierAttempt{
+				Model:      model,
+				StatusCode: status,
+				LatencyMS:  time.Since(startedAt).Milliseconds(),
+				Success:    true,
+			})
+			if httpStatus != nil && *httpStatus == 0 {
+				*httpStatus = http.StatusOK
+			}
+			return result, trace, nil
+		}
+		trace.Attempts = append(trace.Attempts, ContentModerationClassifierAttempt{
+			Model:      model,
+			StatusCode: status,
+			LatencyMS:  time.Since(startedAt).Milliseconds(),
+			Error:      trimRunes(parseErr.Error(), maxModerationExcerptRunes),
+		})
+		errorsByModel = append(errorsByModel, model+": "+trimRunes(parseErr.Error(), maxModerationExcerptRunes))
+	}
+	return nil, trace, fmt.Errorf("model classifier candidates exhausted: %s", strings.Join(errorsByModel, "; "))
+}
+
+func shouldFallbackContentModerationClassifierModel(status int) bool {
+	if status == 0 || status == http.StatusUnauthorized || status == http.StatusForbidden ||
+		status == http.StatusNotFound || status == http.StatusRequestTimeout ||
+		status == http.StatusConflict || status == http.StatusTooManyRequests {
+		return true
+	}
+	return status >= http.StatusInternalServerError
+}
+
+func isContentModerationClassifierPlatform(platform string) bool {
+	switch strings.ToLower(strings.TrimSpace(platform)) {
+	case PlatformOpenAI, PlatformGrok, PlatformKiro:
+		return true
+	default:
+		return false
+	}
 }
 
 func signContentModerationClassifierRequest(body []byte, apiKey string) string {

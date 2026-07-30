@@ -39,6 +39,8 @@ func ProvideUserAccountHandler(
 	accountService *service.AccountService,
 	accountUsageService *service.AccountUsageService,
 	accountTestService *service.AccountTestService,
+	rateLimitService *service.RateLimitService,
+	openAIQuotaService *service.OpenAIQuotaService,
 	oauthService *service.OAuthService,
 	openaiOAuthService *service.OpenAIOAuthService,
 	geminiOAuthService *service.GeminiOAuthService,
@@ -48,6 +50,7 @@ func ProvideUserAccountHandler(
 	accountBatchTaskService *service.AccountBatchTaskService,
 	carpoolService *service.CarpoolService,
 	settingService *service.SettingService,
+	ollamaCloudUsage *service.OllamaCloudUsageService,
 ) *UserAccountHandler {
 	h := NewUserAccountHandler(
 		accountService,
@@ -63,6 +66,9 @@ func ProvideUserAccountHandler(
 	h.SetSettingService(settingService)
 	h.SetGrokOAuthService(grokOAuthService)
 	h.SetKiroOAuthService(kiroOAuthService)
+	h.SetRateLimitService(rateLimitService)
+	h.SetOpenAIQuotaService(openAIQuotaService)
+	h.SetOllamaCloudUsageService(ollamaCloudUsage)
 	return h
 }
 
@@ -74,6 +80,7 @@ var IkikProviderSet = wire.NewSet(
 	NewReceiptCodeHandler,
 	NewWithdrawalHandler,
 	NewShopHandler,
+	NewPromptSubmissionHandler,
 	admin.NewAccountSharePolicyHandler,
 	admin.NewCarpoolHandler,
 	admin.NewEmailBroadcastHandler,
@@ -82,4 +89,5 @@ var IkikProviderSet = wire.NewSet(
 	admin.NewWithdrawalHandler,
 	admin.NewShopHandler,
 	admin.NewModuleHandler,
+	admin.NewPromptSubmissionHandler,
 )

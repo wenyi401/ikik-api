@@ -25,6 +25,8 @@ type contentModerationConfigRequest struct {
 	ModerationProvider   *string                                  `json:"moderation_provider"`
 	BaseURL              *string                                  `json:"base_url"`
 	Model                *string                                  `json:"model"`
+	ClassifierGroupID    *int64                                   `json:"classifier_group_id"`
+	ClassifierModels     *[]string                                `json:"classifier_models"`
 	ClassifierPrompt     *string                                  `json:"classifier_prompt"`
 	AliyunRegionID       *string                                  `json:"aliyun_region_id"`
 	AliyunEndpoint       *string                                  `json:"aliyun_endpoint"`
@@ -63,6 +65,8 @@ type contentModerationAPIKeyTestRequest struct {
 	ModerationProvider string   `json:"moderation_provider"`
 	BaseURL            string   `json:"base_url"`
 	Model              string   `json:"model"`
+	ClassifierGroupID  int64    `json:"classifier_group_id"`
+	ClassifierModels   []string `json:"classifier_models"`
 	ClassifierPrompt   *string  `json:"classifier_prompt"`
 	AliyunRegionID     string   `json:"aliyun_region_id"`
 	AliyunEndpoint     string   `json:"aliyun_endpoint"`
@@ -102,6 +106,8 @@ func (h *ContentModerationHandler) UpdateConfig(c *gin.Context) {
 		ModerationProvider:   req.ModerationProvider,
 		BaseURL:              req.BaseURL,
 		Model:                req.Model,
+		ClassifierGroupID:    req.ClassifierGroupID,
+		ClassifierModels:     req.ClassifierModels,
 		ClassifierPrompt:     req.ClassifierPrompt,
 		AliyunRegionID:       req.AliyunRegionID,
 		AliyunEndpoint:       req.AliyunEndpoint,
@@ -192,6 +198,8 @@ func (h *ContentModerationHandler) TestAPIKeys(c *gin.Context) {
 		ModerationProvider: req.ModerationProvider,
 		BaseURL:            req.BaseURL,
 		Model:              req.Model,
+		ClassifierGroupID:  req.ClassifierGroupID,
+		ClassifierModels:   req.ClassifierModels,
 		ClassifierPrompt:   req.ClassifierPrompt,
 		AliyunRegionID:     req.AliyunRegionID,
 		AliyunEndpoint:     req.AliyunEndpoint,
@@ -261,6 +269,20 @@ func (h *ContentModerationHandler) ListLogs(c *gin.Context) {
 		return
 	}
 	response.Paginated(c, items, pageResult.Total, pageResult.Page, pageResult.PageSize)
+}
+
+func (h *ContentModerationHandler) GetLog(c *gin.Context) {
+	logID, err := strconv.ParseInt(strings.TrimSpace(c.Param("log_id")), 10, 64)
+	if err != nil || logID <= 0 {
+		response.BadRequest(c, "Invalid log_id")
+		return
+	}
+	item, err := h.service.GetLog(c.Request.Context(), logID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, item)
 }
 
 func (h *ContentModerationHandler) UnbanUser(c *gin.Context) {

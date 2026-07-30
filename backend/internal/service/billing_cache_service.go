@@ -15,6 +15,22 @@ import (
 	"ikik-api/internal/pkg/timezone"
 )
 
+type userRPMAlreadyCountedContextKey struct{}
+
+// WithUserRPMAlreadyCounted keeps route failover from counting one inbound
+// request against the user's global RPM limit more than once. Per-group RPM
+// admission still runs for every group that the request attempts to use.
+func WithUserRPMAlreadyCounted(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, userRPMAlreadyCountedContextKey{}, true)
+}
+
+func userRPMAlreadyCounted(ctx context.Context) bool {
+	return ctx != nil && ctx.Value(userRPMAlreadyCountedContextKey{}) == true
+}
+
 // 错误定义
 // 注：ErrInsufficientBalance在redeem_service.go中定义
 // 注：ErrDailyLimitExceeded/ErrWeeklyLimitExceeded/ErrMonthlyLimitExceeded在subscription_service.go中定义
@@ -781,7 +797,7 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 //  1. (用户, 分组) rpm_override       — 最细粒度：管理员为特定用户在特定分组设定的专属限额。
 //     override=0 表示该用户在该分组免检（绿灯），但 user 级全局上限仍然生效。
 //  2. group.rpm_limit                 — 分组级：该分组的统一 RPM 容量（仅当无 override 时生效）。
-//  3. user.rpm_limit                  — 用户级全局硬上限：无论 override/group 如何配置，始终生效。
+//  3. user.rpm_limit                  — 用户级全局硬上限：无论 override/group 如何配置，每个入站请求检查一次。
 //
 // 与旧版"级联互斥"设计不同，新版确保 user.rpm_limit 作为全局天花板不会被 group 或 override 覆盖。
 // Redis 故障一律 fail-open（打 warning，不阻塞业务）。
@@ -842,7 +858,7 @@ func (s *BillingCacheService) checkRPM(ctx context.Context, user *User, group *G
 	}
 
 	// ── 第二层：用户级全局硬上限（始终生效） ──
-	if user.RPMLimit > 0 {
+	if user.RPMLimit > 0 && !userRPMAlreadyCounted(ctx) {
 		count, err := s.userRPMCache.IncrementUserRPM(ctx, user.ID)
 		if err != nil {
 			logger.LegacyPrintf(

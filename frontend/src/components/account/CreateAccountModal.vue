@@ -3280,7 +3280,7 @@
         :show-session-token-option="false"
         :show-access-token-option="false"
         :show-codex-session-import-option="!isUserScope && form.platform === 'openai'"
-        :show-agent-identity-option="!isUserScope && form.platform === 'openai'"
+        :show-agent-identity-option="form.platform === 'openai'"
         :show-codex-pat-option="!isUserScope && form.platform === 'openai'"
         :show-sso-option="form.platform === 'grok'"
         :show-manual-option="true"
@@ -5761,28 +5761,40 @@ const handleOpenAIImportCodexSession = async (content: string) => {
     return
   }
 
-  const credentialExtras = buildOpenAICodexImportCredentialExtras()
+  const isUserAgentIdentityImport = isUserScope.value && oauthFlowRef.value?.inputMethod === 'agent_identity'
+  const credentialExtras = isUserAgentIdentityImport ? {} : buildOpenAICodexImportCredentialExtras()
   if (credentialExtras === null) return
 
   openaiOAuth.loading.value = true
   openaiOAuth.error.value = ''
   try {
-    const result = await adminAPI.accounts.importCodexSession({
-      content: trimmed,
-      name: form.name,
-      notes: form.notes || null,
-      proxy_id: form.proxy_id,
-      concurrency: form.concurrency,
-      load_factor: form.load_factor ?? undefined,
-      priority: form.priority,
-      rate_multiplier: form.rate_multiplier,
-      group_ids: form.group_ids,
-      expires_at: form.expires_at,
-      auto_pause_on_expired: autoPauseOnExpired.value,
-      credential_extras: Object.keys(credentialExtras).length > 0 ? credentialExtras : undefined,
-      extra: buildOpenAICodexImportExtra(),
-      update_existing: true
-    })
+    const result = isUserAgentIdentityImport
+      ? await accountsAPI.importAgentIdentity({
+          content: trimmed,
+          name: form.name,
+          notes: form.notes || null,
+          share_mode: form.share_mode,
+          proxy_id: form.proxy_id,
+          concurrency: form.concurrency,
+          load_factor: form.load_factor ?? undefined,
+          priority: form.priority
+        })
+      : await adminAPI.accounts.importCodexSession({
+          content: trimmed,
+          name: form.name,
+          notes: form.notes || null,
+          proxy_id: form.proxy_id,
+          concurrency: form.concurrency,
+          load_factor: form.load_factor ?? undefined,
+          priority: form.priority,
+          rate_multiplier: form.rate_multiplier,
+          group_ids: form.group_ids,
+          expires_at: form.expires_at,
+          auto_pause_on_expired: autoPauseOnExpired.value,
+          credential_extras: Object.keys(credentialExtras).length > 0 ? credentialExtras : undefined,
+          extra: buildOpenAICodexImportExtra(),
+          update_existing: true
+        })
 
     const successCount = result.created + result.updated
     const params = {
@@ -6540,20 +6552,21 @@ const handleAnthropicExchange = async (authCode: string) => {
 
   try {
     const proxyConfig = form.proxy_id ? { proxy_id: form.proxy_id } : {}
-    const endpoint =
-      isUserScope.value
-        ? addMethod.value === 'oauth'
-          ? '/account-oauth/anthropic/exchange-code'
-          : '/account-oauth/anthropic/setup-token/exchange-code'
-        : addMethod.value === 'oauth'
-          ? '/admin/accounts/exchange-code'
-          : '/admin/accounts/exchange-setup-token-code'
-
-    const tokenInfo = await adminAPI.accounts.exchangeCode(endpoint, {
+    const exchangePayload = {
       session_id: oauth.sessionId.value,
       code: authCode.trim(),
       ...proxyConfig
-    })
+    }
+    const tokenInfo = isUserScope.value
+      ? addMethod.value === 'oauth'
+        ? await accountsAPI.exchangeAnthropicOAuthCode(exchangePayload)
+        : await accountsAPI.exchangeAnthropicSetupTokenCode(exchangePayload)
+      : await adminAPI.accounts.exchangeCode(
+          addMethod.value === 'oauth'
+            ? '/admin/accounts/exchange-code'
+            : '/admin/accounts/exchange-setup-token-code',
+          exchangePayload
+        )
 
     // Build extra with quota control settings
     const baseExtra = oauth.buildExtraInfo(tokenInfo) || {}
@@ -6665,26 +6678,26 @@ const handleCookieAuth = async (sessionKey: string) => {
       return
     }
 
-    const endpoint =
-      isUserScope.value
-        ? addMethod.value === 'oauth'
-          ? '/account-oauth/anthropic/cookie-auth'
-          : '/account-oauth/anthropic/setup-token-cookie-auth'
-        : addMethod.value === 'oauth'
-          ? '/admin/accounts/cookie-auth'
-          : '/admin/accounts/setup-token-cookie-auth'
-
     let successCount = 0
     let failedCount = 0
     const errors: string[] = []
 
     for (let i = 0; i < keys.length; i++) {
       try {
-        const tokenInfo = await adminAPI.accounts.exchangeCode(endpoint, {
-          session_id: '',
-          code: keys[i],
-          ...proxyConfig
-        })
+        const tokenInfo = isUserScope.value
+          ? addMethod.value === 'oauth'
+            ? await accountsAPI.anthropicCookieAuth({ code: keys[i], ...proxyConfig })
+            : await accountsAPI.anthropicSetupTokenCookieAuth({ code: keys[i], ...proxyConfig })
+          : await adminAPI.accounts.exchangeCode(
+              addMethod.value === 'oauth'
+                ? '/admin/accounts/cookie-auth'
+                : '/admin/accounts/setup-token-cookie-auth',
+              {
+                session_id: '',
+                code: keys[i],
+                ...proxyConfig
+              }
+            )
 
         // Build extra with quota control settings
         const baseExtra = oauth.buildExtraInfo(tokenInfo) || {}

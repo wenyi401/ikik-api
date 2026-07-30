@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/pkg/usagestats"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
@@ -495,7 +495,9 @@ func TestUsageLogRepositoryGetStatsWithFiltersRequestedModelSource(t *testing.T)
 			"total_actual_cost",
 			"total_account_cost",
 			"avg_duration_ms",
-		}).AddRow(int64(1), int64(2), int64(3), int64(4), int64(1), int64(3), 1.2, 1.0, 1.2, 20.0))
+			"avg_first_token_ms",
+			"requests_with_first_token",
+		}).AddRow(int64(1), int64(2), int64(3), int64(4), int64(1), int64(3), 1.2, 1.0, 1.2, 20.0, 6.5, int64(1)))
 	mock.ExpectQuery("SELECT COALESCE\\(NULLIF\\(TRIM\\(inbound_endpoint\\), ''\\), 'unknown'\\) AS endpoint").
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "gpt-5").
 		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "total_tokens", "cost", "actual_cost"}))
@@ -509,6 +511,8 @@ func TestUsageLogRepositoryGetStatsWithFiltersRequestedModelSource(t *testing.T)
 	stats, err := repo.GetStatsWithFilters(context.Background(), filters)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), stats.TotalRequests)
+	require.Equal(t, 6.5, stats.AverageFirstTokenMs)
+	require.Equal(t, int64(1), stats.RequestsWithFirstToken)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -536,7 +540,9 @@ func TestUsageLogRepositoryGetStatsWithFiltersRequestTypePriority(t *testing.T) 
 			"total_actual_cost",
 			"total_account_cost",
 			"avg_duration_ms",
-		}).AddRow(int64(1), int64(2), int64(3), int64(4), int64(1), int64(3), 1.2, 1.0, 1.2, 20.0))
+			"avg_first_token_ms",
+			"requests_with_first_token",
+		}).AddRow(int64(1), int64(2), int64(3), int64(4), int64(1), int64(3), 1.2, 1.0, 1.2, 20.0, 8.5, int64(1)))
 	mock.ExpectQuery("SELECT COALESCE\\(NULLIF\\(TRIM\\(inbound_endpoint\\), ''\\), 'unknown'\\) AS endpoint").
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), requestType).
 		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "total_tokens", "cost", "actual_cost"}))
@@ -551,6 +557,8 @@ func TestUsageLogRepositoryGetStatsWithFiltersRequestTypePriority(t *testing.T) 
 	require.NoError(t, err)
 	require.Equal(t, int64(1), stats.TotalRequests)
 	require.Equal(t, int64(9), stats.TotalTokens)
+	require.Equal(t, 8.5, stats.AverageFirstTokenMs)
+	require.Equal(t, int64(1), stats.RequestsWithFirstToken)
 	require.NotNil(t, stats.TotalAccountCost, "TotalAccountCost should always be returned")
 	require.Equal(t, 1.2, *stats.TotalAccountCost)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -671,8 +679,8 @@ func TestUsageLogRepositoryGetStatsWithFiltersAlwaysReturnsAccountCost(t *testin
 			"total_requests", "total_input_tokens", "total_output_tokens",
 			"total_cache_tokens", "total_cache_creation_tokens", "total_cache_read_tokens",
 			"total_cost", "total_actual_cost",
-			"total_account_cost", "avg_duration_ms",
-		}).AddRow(int64(50), int64(1000), int64(2000), int64(100), int64(60), int64(40), 15.0, 12.5, 11.0, 100.0))
+			"total_account_cost", "avg_duration_ms", "avg_first_token_ms", "requests_with_first_token",
+		}).AddRow(int64(50), int64(1000), int64(2000), int64(100), int64(60), int64(40), 15.0, 12.5, 11.0, 100.0, 12.5, int64(45)))
 	mock.ExpectQuery("SELECT COALESCE\\(NULLIF\\(TRIM\\(inbound_endpoint\\)").
 		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "total_tokens", "cost", "actual_cost"}))
 	mock.ExpectQuery("SELECT COALESCE\\(NULLIF\\(TRIM\\(upstream_endpoint\\)").
@@ -684,6 +692,8 @@ func TestUsageLogRepositoryGetStatsWithFiltersAlwaysReturnsAccountCost(t *testin
 	require.NoError(t, err)
 	require.NotNil(t, stats.TotalAccountCost, "TotalAccountCost must always be returned, even without AccountID filter")
 	require.Equal(t, 11.0, *stats.TotalAccountCost)
+	require.Equal(t, 12.5, stats.AverageFirstTokenMs)
+	require.Equal(t, int64(45), stats.RequestsWithFirstToken)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

@@ -10,14 +10,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	dbent "ikik-api/ent"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/pkg/timezone"
 	"ikik-api/internal/pkg/usagestats"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
 type UsageLogRepoSuite struct {
@@ -885,14 +885,106 @@ func (s *UsageLogRepoSuite) TestDashboardStatsWithRange_Fallback() {
 func (s *UsageLogRepoSuite) TestGetUserDashboardStats() {
 	user := mustCreateUser(s.T(), s.client, &service.User{Email: "userdash@test.com"})
 	apiKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: user.ID, Key: "sk-userdash", Name: "k"})
-	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-userdash"})
+	openAIAccount := mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:     "acc-userdash-openai",
+		Platform: service.PlatformOpenAI,
+	})
+	unknownPlatformAccount := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-userdash-unknown"})
+	_, err := s.tx.ExecContext(s.ctx, "UPDATE accounts SET platform = '' WHERE id = $1", unknownPlatformAccount.ID)
+	s.Require().NoError(err, "clear account platform for custom fallback fixture")
 
-	s.createUsageLog(user, apiKey, account, 10, 20, 0.5, time.Now())
+	today := timezone.Today().Add(time.Hour)
+	logs := []*service.UsageLog{
+		{
+			UserID:              user.ID,
+			APIKeyID:            apiKey.ID,
+			AccountID:           openAIAccount.ID,
+			RequestID:           uuid.NewString(),
+			Model:               "gpt-5",
+			InputTokens:         10,
+			OutputTokens:        20,
+			CacheCreationTokens: 3,
+			CacheReadTokens:     4,
+			TotalCost:           1.5,
+			ActualCost:          1.2,
+			CreatedAt:           today,
+		},
+		{
+			UserID:              user.ID,
+			APIKeyID:            apiKey.ID,
+			AccountID:           openAIAccount.ID,
+			RequestID:           uuid.NewString(),
+			Model:               "gpt-5-free",
+			InputTokens:         5,
+			OutputTokens:        6,
+			CacheCreationTokens: 7,
+			CacheReadTokens:     8,
+			TotalCost:           0,
+			ActualCost:          0,
+			CreatedAt:           today.Add(time.Minute),
+		},
+		{
+			UserID:              user.ID,
+			APIKeyID:            apiKey.ID,
+			AccountID:           unknownPlatformAccount.ID,
+			RequestID:           uuid.NewString(),
+			Model:               "custom-model",
+			InputTokens:         2,
+			OutputTokens:        3,
+			CacheCreationTokens: 4,
+			CacheReadTokens:     5,
+			TotalCost:           0.4,
+			ActualCost:          0.3,
+			CreatedAt:           today.Add(2 * time.Minute),
+		},
+	}
+	for _, usageLog := range logs {
+		_, err = s.repo.Create(s.ctx, usageLog)
+		s.Require().NoError(err, "create dashboard platform usage fixture")
+	}
 
 	stats, err := s.repo.GetUserDashboardStats(s.ctx, user.ID)
 	s.Require().NoError(err, "GetUserDashboardStats")
 	s.Require().Equal(int64(1), stats.TotalAPIKeys)
-	s.Require().Equal(int64(1), stats.TotalRequests)
+	s.Require().Equal(int64(3), stats.TotalRequests)
+	s.Require().Equal(int64(3), stats.TodayRequests)
+	s.Require().Equal(int64(77), stats.TodayTokens)
+
+	todayPlatforms := make(map[string]usagestats.DashboardPlatformUsage, len(stats.TodayPlatforms))
+	for _, platform := range stats.TodayPlatforms {
+		todayPlatforms[platform.Platform] = platform
+	}
+	s.Require().Len(todayPlatforms, 2)
+	openAIToday, ok := todayPlatforms[service.PlatformOpenAI]
+	s.Require().True(ok, "today_platforms must contain openai")
+	s.Require().Equal(int64(2), openAIToday.Requests, "zero-cost token usage must remain visible")
+	s.Require().Equal(int64(15), openAIToday.InputTokens)
+	s.Require().Equal(int64(26), openAIToday.OutputTokens)
+	s.Require().Equal(int64(10), openAIToday.CacheCreationTokens)
+	s.Require().Equal(int64(12), openAIToday.CacheReadTokens)
+	s.Require().Equal(int64(63), openAIToday.TotalTokens)
+	s.Require().InDelta(1.5, openAIToday.Cost, 0.0001)
+	s.Require().InDelta(1.2, openAIToday.ActualCost, 0.0001)
+
+	customToday, ok := todayPlatforms["custom"]
+	s.Require().True(ok, "usage without a group/account platform must fall back to custom")
+	s.Require().Equal(int64(1), customToday.Requests)
+	s.Require().Equal(int64(14), customToday.TotalTokens)
+	s.Require().InDelta(0.4, customToday.Cost, 0.0001)
+	s.Require().InDelta(0.3, customToday.ActualCost, 0.0001)
+
+	byPlatform := make(map[string]usagestats.PlatformDashboardStats, len(stats.ByPlatform))
+	for _, platform := range stats.ByPlatform {
+		byPlatform[platform.Platform] = platform
+	}
+	openAIAll, ok := byPlatform[service.PlatformOpenAI]
+	s.Require().True(ok, "existing by_platform summary must remain available")
+	s.Require().Equal(int64(1), openAIAll.TotalRequests)
+	s.Require().Equal(int64(37), openAIAll.TotalTokens)
+	s.Require().InDelta(1.2, openAIAll.TotalActualCost, 0.0001)
+	s.Require().Equal(int64(1), openAIAll.TodayRequests)
+	s.Require().Equal(int64(37), openAIAll.TodayTokens)
+	s.Require().InDelta(1.2, openAIAll.TodayActualCost, 0.0001)
 }
 
 // --- GetAccountTodayStats ---
