@@ -3,10 +3,11 @@ package handler
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/service"
 )
 
 type grokMediaEligibilityProberStub struct {
@@ -41,10 +42,10 @@ func TestShouldRecordGrokMediaUsage(t *testing.T) {
 			want:     true,
 		},
 		{
-			name:     "video generation records usage",
+			name:     "video generation defers usage until status",
 			endpoint: service.GrokMediaEndpointVideosGenerations,
 			model:    "grok-imagine-video-1.5",
-			want:     true,
+			want:     false,
 		},
 		{
 			name:     "video status skips empty model usage",
@@ -68,7 +69,14 @@ func TestShouldRecordGrokMediaUsage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, shouldRecordGrokMediaUsage(tt.endpoint, tt.model))
+			require.False(t, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, nil))
+			result := &service.OpenAIForwardResult{ImageCount: 1}
+			if tt.endpoint.IsGenerationRequest() && !isGrokVideoCreateEndpoint(tt.endpoint) && strings.TrimSpace(tt.model) != "" {
+				require.Equal(t, tt.want, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, result))
+			} else {
+				require.False(t, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, result))
+			}
+			require.False(t, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, &service.OpenAIForwardResult{}))
 		})
 	}
 }

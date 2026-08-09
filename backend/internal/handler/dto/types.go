@@ -175,6 +175,11 @@ type Group struct {
 type AdminGroup struct {
 	Group
 
+	// 分组利润控制仅管理员可见，避免向用户侧暴露运营成本边界。
+	ProfitControlEnabled bool    `json:"profit_control_enabled"`
+	ProfitMinMargin      float64 `json:"profit_min_margin"`
+	ProfitSafetyBuffer   float64 `json:"profit_safety_buffer"`
+
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`
 	ModelRoutingEnabled bool               `json:"model_routing_enabled"`
@@ -571,6 +576,10 @@ type AdminUsageLog struct {
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.
 	// Omitted when no mapping was applied (requested model was used as-is).
 	UpstreamModel *string `json:"upstream_model,omitempty"`
+	// UpstreamResponseModel is the raw model declared by the upstream response.
+	UpstreamResponseModel *string `json:"upstream_response_model,omitempty"`
+	// UpstreamModelMismatch is nil when the upstream did not declare a model.
+	UpstreamModelMismatch *bool `json:"upstream_model_mismatch,omitempty"`
 
 	// ChannelID 渠道 ID
 	ChannelID *int64 `json:"channel_id,omitempty"`

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -2720,13 +2721,14 @@ func unwrapGeminiResponse(raw []byte) ([]byte, error) {
 	return raw, nil
 }
 
-func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel string, rawData []byte) (map[string]any, *ClaudeUsage) {
+func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel string, rawData []byte, inlineDataFlags ...bool) (map[string]any, *ClaudeUsage) {
 	usage := extractGeminiUsage(rawData)
 	if usage == nil {
 		usage = &ClaudeUsage{}
 	}
 
 	contentBlocks := make([]any, 0)
+	includeInlineData := len(inlineDataFlags) > 0 && inlineDataFlags[0]
 	sawToolUse := false
 	if candidates, ok := geminiResp["candidates"].([]any); ok && len(candidates) > 0 {
 		if cand, ok := candidates[0].(map[string]any); ok {
@@ -2742,6 +2744,16 @@ func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel strin
 								"type": "text",
 								"text": text,
 							})
+						}
+						if inlineData, ok := pm["inlineData"].(map[string]any); includeInlineData && ok {
+							mimeType, _ := inlineData["mimeType"].(string)
+							data, _ := inlineData["data"].(string)
+							if isGeminiInlineImageMIMEType(strings.ToLower(strings.TrimSpace(mimeType))) && isValidBase64(data) {
+								contentBlocks = append(contentBlocks, map[string]any{
+									"type": "text",
+									"text": fmt.Sprintf("![image](data:%s;base64,%s)", mimeType, data),
+								})
+							}
 						}
 						if fc, ok := pm["functionCall"].(map[string]any); ok {
 							name, _ := fc["name"].(string)
@@ -2769,7 +2781,7 @@ func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel strin
 	}
 
 	resp := map[string]any{
-		"id":            "msg_" + randomHex(12),
+		"id":            generateAnthropicMsgID(),
 		"type":          "message",
 		"role":          "assistant",
 		"model":         originalModel,
@@ -2783,6 +2795,23 @@ func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel strin
 	}
 
 	return resp, usage
+}
+
+func isValidBase64(data string) bool {
+	if data == "" {
+		return false
+	}
+	_, err := base64.StdEncoding.DecodeString(data)
+	return err == nil
+}
+
+func generateAnthropicMsgID() string {
+	const prefix = "msg_01"
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return prefix + randomHex(16)
+	}
+	return prefix + hex.EncodeToString(buf)
 }
 
 func extractGeminiUsage(data []byte) *ClaudeUsage {

@@ -27,6 +27,8 @@ services:
     image: ${IKIK_API_IMAGE:-wenyi401/ikik-api:latest}
     container_name: ikik-api
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ulimits:
       nofile:
         soft: 100000

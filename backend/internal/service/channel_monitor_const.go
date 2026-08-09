@@ -71,6 +71,10 @@ const (
 	MonitorStatusFailed      = "failed"
 	MonitorStatusError       = "error"
 
+	// ChannelMonitorModeV1 uses active provider probes; V2 uses passive aggregation.
+	ChannelMonitorModeV1 = "v1"
+	ChannelMonitorModeV2 = "v2"
+
 	// monitorAvailability7Days / 15 / 30 用于聚合查询窗口。
 	monitorAvailability7Days  = 7
 	monitorAvailability15Days = 15
@@ -155,5 +159,20 @@ var (
 	)
 	ErrChannelMonitorAPIKeyDecryptFailed = infraerrors.InternalServer(
 		"CHANNEL_MONITOR_KEY_DECRYPT_FAILED", "api key decryption failed; please re-edit the monitor with a fresh key",
+	)
+)
+
+var (
+	ErrChannelMonitorDisabled = infraerrors.Forbidden(
+		"CHANNEL_MONITOR_DISABLED",
+		"channel monitor feature is disabled",
+	)
+	ErrChannelMonitorActiveProbesRetired = infraerrors.Forbidden(
+		"CHANNEL_MONITOR_ACTIVE_PROBES_RETIRED",
+		"channel monitor active probes are retired in v2 mode",
+	)
+	ErrChannelMonitorModeMismatch = infraerrors.Forbidden(
+		"CHANNEL_MONITOR_MODE_MISMATCH",
+		"channel monitor mode does not allow this operation",
 	)
 )

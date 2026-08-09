@@ -475,413 +475,6 @@ func (_u *GroupUpdate) ClearImagePrice4k() *GroupUpdate {
 	return _u
 }
 
-// SetClaudeCodeOnly sets the "claude_code_only" field.
-func (_u *GroupUpdate) SetClaudeCodeOnly(v bool) *GroupUpdate {
-	_u.mutation.SetClaudeCodeOnly(v)
-	return _u
-}
-
-// SetNillableClaudeCodeOnly sets the "claude_code_only" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableClaudeCodeOnly(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetClaudeCodeOnly(*v)
-	}
-	return _u
-}
-
-// SetFallbackGroupID sets the "fallback_group_id" field.
-func (_u *GroupUpdate) SetFallbackGroupID(v int64) *GroupUpdate {
-	_u.mutation.ResetFallbackGroupID()
-	_u.mutation.SetFallbackGroupID(v)
-	return _u
-}
-
-// SetNillableFallbackGroupID sets the "fallback_group_id" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableFallbackGroupID(v *int64) *GroupUpdate {
-	if v != nil {
-		_u.SetFallbackGroupID(*v)
-	}
-	return _u
-}
-
-// AddFallbackGroupID adds value to the "fallback_group_id" field.
-func (_u *GroupUpdate) AddFallbackGroupID(v int64) *GroupUpdate {
-	_u.mutation.AddFallbackGroupID(v)
-	return _u
-}
-
-// ClearFallbackGroupID clears the value of the "fallback_group_id" field.
-func (_u *GroupUpdate) ClearFallbackGroupID() *GroupUpdate {
-	_u.mutation.ClearFallbackGroupID()
-	return _u
-}
-
-// SetFallbackGroupIDOnInvalidRequest sets the "fallback_group_id_on_invalid_request" field.
-func (_u *GroupUpdate) SetFallbackGroupIDOnInvalidRequest(v int64) *GroupUpdate {
-	_u.mutation.ResetFallbackGroupIDOnInvalidRequest()
-	_u.mutation.SetFallbackGroupIDOnInvalidRequest(v)
-	return _u
-}
-
-// SetNillableFallbackGroupIDOnInvalidRequest sets the "fallback_group_id_on_invalid_request" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableFallbackGroupIDOnInvalidRequest(v *int64) *GroupUpdate {
-	if v != nil {
-		_u.SetFallbackGroupIDOnInvalidRequest(*v)
-	}
-	return _u
-}
-
-// AddFallbackGroupIDOnInvalidRequest adds value to the "fallback_group_id_on_invalid_request" field.
-func (_u *GroupUpdate) AddFallbackGroupIDOnInvalidRequest(v int64) *GroupUpdate {
-	_u.mutation.AddFallbackGroupIDOnInvalidRequest(v)
-	return _u
-}
-
-// ClearFallbackGroupIDOnInvalidRequest clears the value of the "fallback_group_id_on_invalid_request" field.
-func (_u *GroupUpdate) ClearFallbackGroupIDOnInvalidRequest() *GroupUpdate {
-	_u.mutation.ClearFallbackGroupIDOnInvalidRequest()
-	return _u
-}
-
-// SetModelRouting sets the "model_routing" field.
-func (_u *GroupUpdate) SetModelRouting(v map[string][]int64) *GroupUpdate {
-	_u.mutation.SetModelRouting(v)
-	return _u
-}
-
-// ClearModelRouting clears the value of the "model_routing" field.
-func (_u *GroupUpdate) ClearModelRouting() *GroupUpdate {
-	_u.mutation.ClearModelRouting()
-	return _u
-}
-
-// SetModelRoutingEnabled sets the "model_routing_enabled" field.
-func (_u *GroupUpdate) SetModelRoutingEnabled(v bool) *GroupUpdate {
-	_u.mutation.SetModelRoutingEnabled(v)
-	return _u
-}
-
-// SetNillableModelRoutingEnabled sets the "model_routing_enabled" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableModelRoutingEnabled(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetModelRoutingEnabled(*v)
-	}
-	return _u
-}
-
-// SetMcpXMLInject sets the "mcp_xml_inject" field.
-func (_u *GroupUpdate) SetMcpXMLInject(v bool) *GroupUpdate {
-	_u.mutation.SetMcpXMLInject(v)
-	return _u
-}
-
-// SetNillableMcpXMLInject sets the "mcp_xml_inject" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableMcpXMLInject(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetMcpXMLInject(*v)
-	}
-	return _u
-}
-
-// SetSupportedModelScopes sets the "supported_model_scopes" field.
-func (_u *GroupUpdate) SetSupportedModelScopes(v []string) *GroupUpdate {
-	_u.mutation.SetSupportedModelScopes(v)
-	return _u
-}
-
-// AppendSupportedModelScopes appends value to the "supported_model_scopes" field.
-func (_u *GroupUpdate) AppendSupportedModelScopes(v []string) *GroupUpdate {
-	_u.mutation.AppendSupportedModelScopes(v)
-	return _u
-}
-
-// SetSortOrder sets the "sort_order" field.
-func (_u *GroupUpdate) SetSortOrder(v int) *GroupUpdate {
-	_u.mutation.ResetSortOrder()
-	_u.mutation.SetSortOrder(v)
-	return _u
-}
-
-// SetNillableSortOrder sets the "sort_order" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableSortOrder(v *int) *GroupUpdate {
-	if v != nil {
-		_u.SetSortOrder(*v)
-	}
-	return _u
-}
-
-// AddSortOrder adds value to the "sort_order" field.
-func (_u *GroupUpdate) AddSortOrder(v int) *GroupUpdate {
-	_u.mutation.AddSortOrder(v)
-	return _u
-}
-
-// SetAllowMessagesDispatch sets the "allow_messages_dispatch" field.
-func (_u *GroupUpdate) SetAllowMessagesDispatch(v bool) *GroupUpdate {
-	_u.mutation.SetAllowMessagesDispatch(v)
-	return _u
-}
-
-// SetNillableAllowMessagesDispatch sets the "allow_messages_dispatch" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableAllowMessagesDispatch(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetAllowMessagesDispatch(*v)
-	}
-	return _u
-}
-
-// SetRequireOauthOnly sets the "require_oauth_only" field.
-func (_u *GroupUpdate) SetRequireOauthOnly(v bool) *GroupUpdate {
-	_u.mutation.SetRequireOauthOnly(v)
-	return _u
-}
-
-// SetNillableRequireOauthOnly sets the "require_oauth_only" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableRequireOauthOnly(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetRequireOauthOnly(*v)
-	}
-	return _u
-}
-
-// SetRequirePrivacySet sets the "require_privacy_set" field.
-func (_u *GroupUpdate) SetRequirePrivacySet(v bool) *GroupUpdate {
-	_u.mutation.SetRequirePrivacySet(v)
-	return _u
-}
-
-// SetNillableRequirePrivacySet sets the "require_privacy_set" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableRequirePrivacySet(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetRequirePrivacySet(*v)
-	}
-	return _u
-}
-
-// SetDefaultMappedModel sets the "default_mapped_model" field.
-func (_u *GroupUpdate) SetDefaultMappedModel(v string) *GroupUpdate {
-	_u.mutation.SetDefaultMappedModel(v)
-	return _u
-}
-
-// SetNillableDefaultMappedModel sets the "default_mapped_model" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableDefaultMappedModel(v *string) *GroupUpdate {
-	if v != nil {
-		_u.SetDefaultMappedModel(*v)
-	}
-	return _u
-}
-
-// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (_u *GroupUpdate) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
-	_u.mutation.SetMessagesDispatchModelConfig(v)
-	return _u
-}
-
-// SetNillableMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
-	if v != nil {
-		_u.SetMessagesDispatchModelConfig(*v)
-	}
-	return _u
-}
-
-// SetModelsListConfig sets the "models_list_config" field.
-func (_u *GroupUpdate) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpdate {
-	_u.mutation.SetModelsListConfig(v)
-	return _u
-}
-
-// SetNillableModelsListConfig sets the "models_list_config" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableModelsListConfig(v *domain.GroupModelsListConfig) *GroupUpdate {
-	if v != nil {
-		_u.SetModelsListConfig(*v)
-	}
-	return _u
-}
-
-// SetOpenaiExperimentalPromptEnabled sets the "openai_experimental_prompt_enabled" field.
-func (_u *GroupUpdate) SetOpenaiExperimentalPromptEnabled(v bool) *GroupUpdate {
-	_u.mutation.SetOpenaiExperimentalPromptEnabled(v)
-	return _u
-}
-
-// SetNillableOpenaiExperimentalPromptEnabled sets the "openai_experimental_prompt_enabled" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableOpenaiExperimentalPromptEnabled(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetOpenaiExperimentalPromptEnabled(*v)
-	}
-	return _u
-}
-
-// SetRpmLimit sets the "rpm_limit" field.
-func (_u *GroupUpdate) SetRpmLimit(v int) *GroupUpdate {
-	_u.mutation.ResetRpmLimit()
-	_u.mutation.SetRpmLimit(v)
-	return _u
-}
-
-// SetNillableRpmLimit sets the "rpm_limit" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableRpmLimit(v *int) *GroupUpdate {
-	if v != nil {
-		_u.SetRpmLimit(*v)
-	}
-	return _u
-}
-
-// AddRpmLimit adds value to the "rpm_limit" field.
-func (_u *GroupUpdate) AddRpmLimit(v int) *GroupUpdate {
-	_u.mutation.AddRpmLimit(v)
-	return _u
-}
-
-// SetKiroCacheEmulationEnabled sets the "kiro_cache_emulation_enabled" field.
-func (_u *GroupUpdate) SetKiroCacheEmulationEnabled(v bool) *GroupUpdate {
-	_u.mutation.SetKiroCacheEmulationEnabled(v)
-	return _u
-}
-
-// SetNillableKiroCacheEmulationEnabled sets the "kiro_cache_emulation_enabled" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableKiroCacheEmulationEnabled(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetKiroCacheEmulationEnabled(*v)
-	}
-	return _u
-}
-
-// SetKiroAutoStickyEnabled sets the "kiro_auto_sticky_enabled" field.
-func (_u *GroupUpdate) SetKiroAutoStickyEnabled(v bool) *GroupUpdate {
-	_u.mutation.SetKiroAutoStickyEnabled(v)
-	return _u
-}
-
-// SetNillableKiroAutoStickyEnabled sets the "kiro_auto_sticky_enabled" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableKiroAutoStickyEnabled(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetKiroAutoStickyEnabled(*v)
-	}
-	return _u
-}
-
-// SetKiroStickySessionTTLSeconds sets the "kiro_sticky_session_ttl_seconds" field.
-func (_u *GroupUpdate) SetKiroStickySessionTTLSeconds(v int) *GroupUpdate {
-	_u.mutation.ResetKiroStickySessionTTLSeconds()
-	_u.mutation.SetKiroStickySessionTTLSeconds(v)
-	return _u
-}
-
-// SetNillableKiroStickySessionTTLSeconds sets the "kiro_sticky_session_ttl_seconds" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableKiroStickySessionTTLSeconds(v *int) *GroupUpdate {
-	if v != nil {
-		_u.SetKiroStickySessionTTLSeconds(*v)
-	}
-	return _u
-}
-
-// AddKiroStickySessionTTLSeconds adds value to the "kiro_sticky_session_ttl_seconds" field.
-func (_u *GroupUpdate) AddKiroStickySessionTTLSeconds(v int) *GroupUpdate {
-	_u.mutation.AddKiroStickySessionTTLSeconds(v)
-	return _u
-}
-
-// SetKiroCacheEmulationRatio sets the "kiro_cache_emulation_ratio" field.
-func (_u *GroupUpdate) SetKiroCacheEmulationRatio(v float64) *GroupUpdate {
-	_u.mutation.ResetKiroCacheEmulationRatio()
-	_u.mutation.SetKiroCacheEmulationRatio(v)
-	return _u
-}
-
-// SetNillableKiroCacheEmulationRatio sets the "kiro_cache_emulation_ratio" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableKiroCacheEmulationRatio(v *float64) *GroupUpdate {
-	if v != nil {
-		_u.SetKiroCacheEmulationRatio(*v)
-	}
-	return _u
-}
-
-// AddKiroCacheEmulationRatio adds value to the "kiro_cache_emulation_ratio" field.
-func (_u *GroupUpdate) AddKiroCacheEmulationRatio(v float64) *GroupUpdate {
-	_u.mutation.AddKiroCacheEmulationRatio(v)
-	return _u
-}
-
-// SetKiroEndpointMode sets the "kiro_endpoint_mode" field.
-func (_u *GroupUpdate) SetKiroEndpointMode(v string) *GroupUpdate {
-	_u.mutation.SetKiroEndpointMode(v)
-	return _u
-}
-
-// SetNillableKiroEndpointMode sets the "kiro_endpoint_mode" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableKiroEndpointMode(v *string) *GroupUpdate {
-	if v != nil {
-		_u.SetKiroEndpointMode(*v)
-	}
-	return _u
-}
-
-// SetPeakRateEnabled sets the "peak_rate_enabled" field.
-func (_u *GroupUpdate) SetPeakRateEnabled(v bool) *GroupUpdate {
-	_u.mutation.SetPeakRateEnabled(v)
-	return _u
-}
-
-// SetNillablePeakRateEnabled sets the "peak_rate_enabled" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillablePeakRateEnabled(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetPeakRateEnabled(*v)
-	}
-	return _u
-}
-
-// SetPeakStart sets the "peak_start" field.
-func (_u *GroupUpdate) SetPeakStart(v string) *GroupUpdate {
-	_u.mutation.SetPeakStart(v)
-	return _u
-}
-
-// SetNillablePeakStart sets the "peak_start" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillablePeakStart(v *string) *GroupUpdate {
-	if v != nil {
-		_u.SetPeakStart(*v)
-	}
-	return _u
-}
-
-// SetPeakEnd sets the "peak_end" field.
-func (_u *GroupUpdate) SetPeakEnd(v string) *GroupUpdate {
-	_u.mutation.SetPeakEnd(v)
-	return _u
-}
-
-// SetNillablePeakEnd sets the "peak_end" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillablePeakEnd(v *string) *GroupUpdate {
-	if v != nil {
-		_u.SetPeakEnd(*v)
-	}
-	return _u
-}
-
-// SetPeakRateMultiplier sets the "peak_rate_multiplier" field.
-func (_u *GroupUpdate) SetPeakRateMultiplier(v float64) *GroupUpdate {
-	_u.mutation.ResetPeakRateMultiplier()
-	_u.mutation.SetPeakRateMultiplier(v)
-	return _u
-}
-
-// SetNillablePeakRateMultiplier sets the "peak_rate_multiplier" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillablePeakRateMultiplier(v *float64) *GroupUpdate {
-	if v != nil {
-		_u.SetPeakRateMultiplier(*v)
-	}
-	return _u
-}
-
-// AddPeakRateMultiplier adds value to the "peak_rate_multiplier" field.
-func (_u *GroupUpdate) AddPeakRateMultiplier(v float64) *GroupUpdate {
-	_u.mutation.AddPeakRateMultiplier(v)
-	return _u
-}
-
 // SetAllowBatchImageGeneration sets the "allow_batch_image_generation" field.
 func (_u *GroupUpdate) SetAllowBatchImageGeneration(v bool) *GroupUpdate {
 	_u.mutation.SetAllowBatchImageGeneration(v)
@@ -1054,6 +647,18 @@ func (_u *GroupUpdate) ClearVideoPrice1080p() *GroupUpdate {
 	return _u
 }
 
+// SetVideoModelPrices sets the "video_model_prices" field.
+func (_u *GroupUpdate) SetVideoModelPrices(v map[string]map[string]float64) *GroupUpdate {
+	_u.mutation.SetVideoModelPrices(v)
+	return _u
+}
+
+// ClearVideoModelPrices clears the value of the "video_model_prices" field.
+func (_u *GroupUpdate) ClearVideoModelPrices() *GroupUpdate {
+	_u.mutation.ClearVideoModelPrices()
+	return _u
+}
+
 // SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
 func (_u *GroupUpdate) SetWebSearchPricePerCall(v float64) *GroupUpdate {
 	_u.mutation.ResetWebSearchPricePerCall()
@@ -1078,6 +683,617 @@ func (_u *GroupUpdate) AddWebSearchPricePerCall(v float64) *GroupUpdate {
 // ClearWebSearchPricePerCall clears the value of the "web_search_price_per_call" field.
 func (_u *GroupUpdate) ClearWebSearchPricePerCall() *GroupUpdate {
 	_u.mutation.ClearWebSearchPricePerCall()
+	return _u
+}
+
+// SetSearchPricePer1k sets the "search_price_per_1k" field.
+func (_u *GroupUpdate) SetSearchPricePer1k(v float64) *GroupUpdate {
+	_u.mutation.ResetSearchPricePer1k()
+	_u.mutation.SetSearchPricePer1k(v)
+	return _u
+}
+
+// SetNillableSearchPricePer1k sets the "search_price_per_1k" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableSearchPricePer1k(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetSearchPricePer1k(*v)
+	}
+	return _u
+}
+
+// AddSearchPricePer1k adds value to the "search_price_per_1k" field.
+func (_u *GroupUpdate) AddSearchPricePer1k(v float64) *GroupUpdate {
+	_u.mutation.AddSearchPricePer1k(v)
+	return _u
+}
+
+// ClearSearchPricePer1k clears the value of the "search_price_per_1k" field.
+func (_u *GroupUpdate) ClearSearchPricePer1k() *GroupUpdate {
+	_u.mutation.ClearSearchPricePer1k()
+	return _u
+}
+
+// SetAudioRealtimePricePerMin sets the "audio_realtime_price_per_min" field.
+func (_u *GroupUpdate) SetAudioRealtimePricePerMin(v float64) *GroupUpdate {
+	_u.mutation.ResetAudioRealtimePricePerMin()
+	_u.mutation.SetAudioRealtimePricePerMin(v)
+	return _u
+}
+
+// SetNillableAudioRealtimePricePerMin sets the "audio_realtime_price_per_min" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableAudioRealtimePricePerMin(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetAudioRealtimePricePerMin(*v)
+	}
+	return _u
+}
+
+// AddAudioRealtimePricePerMin adds value to the "audio_realtime_price_per_min" field.
+func (_u *GroupUpdate) AddAudioRealtimePricePerMin(v float64) *GroupUpdate {
+	_u.mutation.AddAudioRealtimePricePerMin(v)
+	return _u
+}
+
+// ClearAudioRealtimePricePerMin clears the value of the "audio_realtime_price_per_min" field.
+func (_u *GroupUpdate) ClearAudioRealtimePricePerMin() *GroupUpdate {
+	_u.mutation.ClearAudioRealtimePricePerMin()
+	return _u
+}
+
+// SetAudioTtsPricePerMillionChars sets the "audio_tts_price_per_million_chars" field.
+func (_u *GroupUpdate) SetAudioTtsPricePerMillionChars(v float64) *GroupUpdate {
+	_u.mutation.ResetAudioTtsPricePerMillionChars()
+	_u.mutation.SetAudioTtsPricePerMillionChars(v)
+	return _u
+}
+
+// SetNillableAudioTtsPricePerMillionChars sets the "audio_tts_price_per_million_chars" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableAudioTtsPricePerMillionChars(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetAudioTtsPricePerMillionChars(*v)
+	}
+	return _u
+}
+
+// AddAudioTtsPricePerMillionChars adds value to the "audio_tts_price_per_million_chars" field.
+func (_u *GroupUpdate) AddAudioTtsPricePerMillionChars(v float64) *GroupUpdate {
+	_u.mutation.AddAudioTtsPricePerMillionChars(v)
+	return _u
+}
+
+// ClearAudioTtsPricePerMillionChars clears the value of the "audio_tts_price_per_million_chars" field.
+func (_u *GroupUpdate) ClearAudioTtsPricePerMillionChars() *GroupUpdate {
+	_u.mutation.ClearAudioTtsPricePerMillionChars()
+	return _u
+}
+
+// SetAudioSttPricePerHour sets the "audio_stt_price_per_hour" field.
+func (_u *GroupUpdate) SetAudioSttPricePerHour(v float64) *GroupUpdate {
+	_u.mutation.ResetAudioSttPricePerHour()
+	_u.mutation.SetAudioSttPricePerHour(v)
+	return _u
+}
+
+// SetNillableAudioSttPricePerHour sets the "audio_stt_price_per_hour" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableAudioSttPricePerHour(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetAudioSttPricePerHour(*v)
+	}
+	return _u
+}
+
+// AddAudioSttPricePerHour adds value to the "audio_stt_price_per_hour" field.
+func (_u *GroupUpdate) AddAudioSttPricePerHour(v float64) *GroupUpdate {
+	_u.mutation.AddAudioSttPricePerHour(v)
+	return _u
+}
+
+// ClearAudioSttPricePerHour clears the value of the "audio_stt_price_per_hour" field.
+func (_u *GroupUpdate) ClearAudioSttPricePerHour() *GroupUpdate {
+	_u.mutation.ClearAudioSttPricePerHour()
+	return _u
+}
+
+// SetClaudeCodeOnly sets the "claude_code_only" field.
+func (_u *GroupUpdate) SetClaudeCodeOnly(v bool) *GroupUpdate {
+	_u.mutation.SetClaudeCodeOnly(v)
+	return _u
+}
+
+// SetNillableClaudeCodeOnly sets the "claude_code_only" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableClaudeCodeOnly(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetClaudeCodeOnly(*v)
+	}
+	return _u
+}
+
+// SetFallbackGroupID sets the "fallback_group_id" field.
+func (_u *GroupUpdate) SetFallbackGroupID(v int64) *GroupUpdate {
+	_u.mutation.ResetFallbackGroupID()
+	_u.mutation.SetFallbackGroupID(v)
+	return _u
+}
+
+// SetNillableFallbackGroupID sets the "fallback_group_id" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableFallbackGroupID(v *int64) *GroupUpdate {
+	if v != nil {
+		_u.SetFallbackGroupID(*v)
+	}
+	return _u
+}
+
+// AddFallbackGroupID adds value to the "fallback_group_id" field.
+func (_u *GroupUpdate) AddFallbackGroupID(v int64) *GroupUpdate {
+	_u.mutation.AddFallbackGroupID(v)
+	return _u
+}
+
+// ClearFallbackGroupID clears the value of the "fallback_group_id" field.
+func (_u *GroupUpdate) ClearFallbackGroupID() *GroupUpdate {
+	_u.mutation.ClearFallbackGroupID()
+	return _u
+}
+
+// SetFallbackGroupIDOnInvalidRequest sets the "fallback_group_id_on_invalid_request" field.
+func (_u *GroupUpdate) SetFallbackGroupIDOnInvalidRequest(v int64) *GroupUpdate {
+	_u.mutation.ResetFallbackGroupIDOnInvalidRequest()
+	_u.mutation.SetFallbackGroupIDOnInvalidRequest(v)
+	return _u
+}
+
+// SetNillableFallbackGroupIDOnInvalidRequest sets the "fallback_group_id_on_invalid_request" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableFallbackGroupIDOnInvalidRequest(v *int64) *GroupUpdate {
+	if v != nil {
+		_u.SetFallbackGroupIDOnInvalidRequest(*v)
+	}
+	return _u
+}
+
+// AddFallbackGroupIDOnInvalidRequest adds value to the "fallback_group_id_on_invalid_request" field.
+func (_u *GroupUpdate) AddFallbackGroupIDOnInvalidRequest(v int64) *GroupUpdate {
+	_u.mutation.AddFallbackGroupIDOnInvalidRequest(v)
+	return _u
+}
+
+// ClearFallbackGroupIDOnInvalidRequest clears the value of the "fallback_group_id_on_invalid_request" field.
+func (_u *GroupUpdate) ClearFallbackGroupIDOnInvalidRequest() *GroupUpdate {
+	_u.mutation.ClearFallbackGroupIDOnInvalidRequest()
+	return _u
+}
+
+// SetModelRouting sets the "model_routing" field.
+func (_u *GroupUpdate) SetModelRouting(v map[string][]int64) *GroupUpdate {
+	_u.mutation.SetModelRouting(v)
+	return _u
+}
+
+// ClearModelRouting clears the value of the "model_routing" field.
+func (_u *GroupUpdate) ClearModelRouting() *GroupUpdate {
+	_u.mutation.ClearModelRouting()
+	return _u
+}
+
+// SetModelRoutingEnabled sets the "model_routing_enabled" field.
+func (_u *GroupUpdate) SetModelRoutingEnabled(v bool) *GroupUpdate {
+	_u.mutation.SetModelRoutingEnabled(v)
+	return _u
+}
+
+// SetNillableModelRoutingEnabled sets the "model_routing_enabled" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableModelRoutingEnabled(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetModelRoutingEnabled(*v)
+	}
+	return _u
+}
+
+// SetMcpXMLInject sets the "mcp_xml_inject" field.
+func (_u *GroupUpdate) SetMcpXMLInject(v bool) *GroupUpdate {
+	_u.mutation.SetMcpXMLInject(v)
+	return _u
+}
+
+// SetNillableMcpXMLInject sets the "mcp_xml_inject" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableMcpXMLInject(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetMcpXMLInject(*v)
+	}
+	return _u
+}
+
+// SetSupportedModelScopes sets the "supported_model_scopes" field.
+func (_u *GroupUpdate) SetSupportedModelScopes(v []string) *GroupUpdate {
+	_u.mutation.SetSupportedModelScopes(v)
+	return _u
+}
+
+// AppendSupportedModelScopes appends value to the "supported_model_scopes" field.
+func (_u *GroupUpdate) AppendSupportedModelScopes(v []string) *GroupUpdate {
+	_u.mutation.AppendSupportedModelScopes(v)
+	return _u
+}
+
+// SetSortOrder sets the "sort_order" field.
+func (_u *GroupUpdate) SetSortOrder(v int) *GroupUpdate {
+	_u.mutation.ResetSortOrder()
+	_u.mutation.SetSortOrder(v)
+	return _u
+}
+
+// SetNillableSortOrder sets the "sort_order" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableSortOrder(v *int) *GroupUpdate {
+	if v != nil {
+		_u.SetSortOrder(*v)
+	}
+	return _u
+}
+
+// AddSortOrder adds value to the "sort_order" field.
+func (_u *GroupUpdate) AddSortOrder(v int) *GroupUpdate {
+	_u.mutation.AddSortOrder(v)
+	return _u
+}
+
+// SetAllowMessagesDispatch sets the "allow_messages_dispatch" field.
+func (_u *GroupUpdate) SetAllowMessagesDispatch(v bool) *GroupUpdate {
+	_u.mutation.SetAllowMessagesDispatch(v)
+	return _u
+}
+
+// SetNillableAllowMessagesDispatch sets the "allow_messages_dispatch" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableAllowMessagesDispatch(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetAllowMessagesDispatch(*v)
+	}
+	return _u
+}
+
+// SetAllowLive sets the "allow_live" field.
+func (_u *GroupUpdate) SetAllowLive(v bool) *GroupUpdate {
+	_u.mutation.SetAllowLive(v)
+	return _u
+}
+
+// SetNillableAllowLive sets the "allow_live" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableAllowLive(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetAllowLive(*v)
+	}
+	return _u
+}
+
+// SetRequireOauthOnly sets the "require_oauth_only" field.
+func (_u *GroupUpdate) SetRequireOauthOnly(v bool) *GroupUpdate {
+	_u.mutation.SetRequireOauthOnly(v)
+	return _u
+}
+
+// SetNillableRequireOauthOnly sets the "require_oauth_only" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableRequireOauthOnly(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetRequireOauthOnly(*v)
+	}
+	return _u
+}
+
+// SetRequirePrivacySet sets the "require_privacy_set" field.
+func (_u *GroupUpdate) SetRequirePrivacySet(v bool) *GroupUpdate {
+	_u.mutation.SetRequirePrivacySet(v)
+	return _u
+}
+
+// SetNillableRequirePrivacySet sets the "require_privacy_set" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableRequirePrivacySet(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetRequirePrivacySet(*v)
+	}
+	return _u
+}
+
+// SetDefaultMappedModel sets the "default_mapped_model" field.
+func (_u *GroupUpdate) SetDefaultMappedModel(v string) *GroupUpdate {
+	_u.mutation.SetDefaultMappedModel(v)
+	return _u
+}
+
+// SetNillableDefaultMappedModel sets the "default_mapped_model" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableDefaultMappedModel(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetDefaultMappedModel(*v)
+	}
+	return _u
+}
+
+// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
+func (_u *GroupUpdate) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
+	_u.mutation.SetMessagesDispatchModelConfig(v)
+	return _u
+}
+
+// SetNillableMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
+	if v != nil {
+		_u.SetMessagesDispatchModelConfig(*v)
+	}
+	return _u
+}
+
+// SetModelsListConfig sets the "models_list_config" field.
+func (_u *GroupUpdate) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpdate {
+	_u.mutation.SetModelsListConfig(v)
+	return _u
+}
+
+// SetNillableModelsListConfig sets the "models_list_config" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableModelsListConfig(v *domain.GroupModelsListConfig) *GroupUpdate {
+	if v != nil {
+		_u.SetModelsListConfig(*v)
+	}
+	return _u
+}
+
+// SetOpenaiExperimentalPromptEnabled sets the "openai_experimental_prompt_enabled" field.
+func (_u *GroupUpdate) SetOpenaiExperimentalPromptEnabled(v bool) *GroupUpdate {
+	_u.mutation.SetOpenaiExperimentalPromptEnabled(v)
+	return _u
+}
+
+// SetNillableOpenaiExperimentalPromptEnabled sets the "openai_experimental_prompt_enabled" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableOpenaiExperimentalPromptEnabled(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetOpenaiExperimentalPromptEnabled(*v)
+	}
+	return _u
+}
+
+// SetRpmLimit sets the "rpm_limit" field.
+func (_u *GroupUpdate) SetRpmLimit(v int) *GroupUpdate {
+	_u.mutation.ResetRpmLimit()
+	_u.mutation.SetRpmLimit(v)
+	return _u
+}
+
+// SetNillableRpmLimit sets the "rpm_limit" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableRpmLimit(v *int) *GroupUpdate {
+	if v != nil {
+		_u.SetRpmLimit(*v)
+	}
+	return _u
+}
+
+// AddRpmLimit adds value to the "rpm_limit" field.
+func (_u *GroupUpdate) AddRpmLimit(v int) *GroupUpdate {
+	_u.mutation.AddRpmLimit(v)
+	return _u
+}
+
+// SetMaxReasoningEffort sets the "max_reasoning_effort" field.
+func (_u *GroupUpdate) SetMaxReasoningEffort(v string) *GroupUpdate {
+	_u.mutation.SetMaxReasoningEffort(v)
+	return _u
+}
+
+// SetNillableMaxReasoningEffort sets the "max_reasoning_effort" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableMaxReasoningEffort(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetMaxReasoningEffort(*v)
+	}
+	return _u
+}
+
+// SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
+func (_u *GroupUpdate) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpdate {
+	_u.mutation.SetReasoningEffortMappings(v)
+	return _u
+}
+
+// AppendReasoningEffortMappings appends value to the "reasoning_effort_mappings" field.
+func (_u *GroupUpdate) AppendReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpdate {
+	_u.mutation.AppendReasoningEffortMappings(v)
+	return _u
+}
+
+// SetProfitControlEnabled sets the "profit_control_enabled" field.
+func (_u *GroupUpdate) SetProfitControlEnabled(v bool) *GroupUpdate {
+	_u.mutation.SetProfitControlEnabled(v)
+	return _u
+}
+
+// SetNillableProfitControlEnabled sets the "profit_control_enabled" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableProfitControlEnabled(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetProfitControlEnabled(*v)
+	}
+	return _u
+}
+
+// SetProfitMinMargin sets the "profit_min_margin" field.
+func (_u *GroupUpdate) SetProfitMinMargin(v float64) *GroupUpdate {
+	_u.mutation.ResetProfitMinMargin()
+	_u.mutation.SetProfitMinMargin(v)
+	return _u
+}
+
+// SetNillableProfitMinMargin sets the "profit_min_margin" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableProfitMinMargin(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetProfitMinMargin(*v)
+	}
+	return _u
+}
+
+// AddProfitMinMargin adds value to the "profit_min_margin" field.
+func (_u *GroupUpdate) AddProfitMinMargin(v float64) *GroupUpdate {
+	_u.mutation.AddProfitMinMargin(v)
+	return _u
+}
+
+// SetProfitSafetyBuffer sets the "profit_safety_buffer" field.
+func (_u *GroupUpdate) SetProfitSafetyBuffer(v float64) *GroupUpdate {
+	_u.mutation.ResetProfitSafetyBuffer()
+	_u.mutation.SetProfitSafetyBuffer(v)
+	return _u
+}
+
+// SetNillableProfitSafetyBuffer sets the "profit_safety_buffer" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableProfitSafetyBuffer(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetProfitSafetyBuffer(*v)
+	}
+	return _u
+}
+
+// AddProfitSafetyBuffer adds value to the "profit_safety_buffer" field.
+func (_u *GroupUpdate) AddProfitSafetyBuffer(v float64) *GroupUpdate {
+	_u.mutation.AddProfitSafetyBuffer(v)
+	return _u
+}
+
+// SetKiroCacheEmulationEnabled sets the "kiro_cache_emulation_enabled" field.
+func (_u *GroupUpdate) SetKiroCacheEmulationEnabled(v bool) *GroupUpdate {
+	_u.mutation.SetKiroCacheEmulationEnabled(v)
+	return _u
+}
+
+// SetNillableKiroCacheEmulationEnabled sets the "kiro_cache_emulation_enabled" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableKiroCacheEmulationEnabled(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetKiroCacheEmulationEnabled(*v)
+	}
+	return _u
+}
+
+// SetKiroAutoStickyEnabled sets the "kiro_auto_sticky_enabled" field.
+func (_u *GroupUpdate) SetKiroAutoStickyEnabled(v bool) *GroupUpdate {
+	_u.mutation.SetKiroAutoStickyEnabled(v)
+	return _u
+}
+
+// SetNillableKiroAutoStickyEnabled sets the "kiro_auto_sticky_enabled" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableKiroAutoStickyEnabled(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetKiroAutoStickyEnabled(*v)
+	}
+	return _u
+}
+
+// SetKiroStickySessionTTLSeconds sets the "kiro_sticky_session_ttl_seconds" field.
+func (_u *GroupUpdate) SetKiroStickySessionTTLSeconds(v int) *GroupUpdate {
+	_u.mutation.ResetKiroStickySessionTTLSeconds()
+	_u.mutation.SetKiroStickySessionTTLSeconds(v)
+	return _u
+}
+
+// SetNillableKiroStickySessionTTLSeconds sets the "kiro_sticky_session_ttl_seconds" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableKiroStickySessionTTLSeconds(v *int) *GroupUpdate {
+	if v != nil {
+		_u.SetKiroStickySessionTTLSeconds(*v)
+	}
+	return _u
+}
+
+// AddKiroStickySessionTTLSeconds adds value to the "kiro_sticky_session_ttl_seconds" field.
+func (_u *GroupUpdate) AddKiroStickySessionTTLSeconds(v int) *GroupUpdate {
+	_u.mutation.AddKiroStickySessionTTLSeconds(v)
+	return _u
+}
+
+// SetKiroCacheEmulationRatio sets the "kiro_cache_emulation_ratio" field.
+func (_u *GroupUpdate) SetKiroCacheEmulationRatio(v float64) *GroupUpdate {
+	_u.mutation.ResetKiroCacheEmulationRatio()
+	_u.mutation.SetKiroCacheEmulationRatio(v)
+	return _u
+}
+
+// SetNillableKiroCacheEmulationRatio sets the "kiro_cache_emulation_ratio" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableKiroCacheEmulationRatio(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetKiroCacheEmulationRatio(*v)
+	}
+	return _u
+}
+
+// AddKiroCacheEmulationRatio adds value to the "kiro_cache_emulation_ratio" field.
+func (_u *GroupUpdate) AddKiroCacheEmulationRatio(v float64) *GroupUpdate {
+	_u.mutation.AddKiroCacheEmulationRatio(v)
+	return _u
+}
+
+// SetKiroEndpointMode sets the "kiro_endpoint_mode" field.
+func (_u *GroupUpdate) SetKiroEndpointMode(v string) *GroupUpdate {
+	_u.mutation.SetKiroEndpointMode(v)
+	return _u
+}
+
+// SetNillableKiroEndpointMode sets the "kiro_endpoint_mode" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableKiroEndpointMode(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetKiroEndpointMode(*v)
+	}
+	return _u
+}
+
+// SetPeakRateEnabled sets the "peak_rate_enabled" field.
+func (_u *GroupUpdate) SetPeakRateEnabled(v bool) *GroupUpdate {
+	_u.mutation.SetPeakRateEnabled(v)
+	return _u
+}
+
+// SetNillablePeakRateEnabled sets the "peak_rate_enabled" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillablePeakRateEnabled(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetPeakRateEnabled(*v)
+	}
+	return _u
+}
+
+// SetPeakStart sets the "peak_start" field.
+func (_u *GroupUpdate) SetPeakStart(v string) *GroupUpdate {
+	_u.mutation.SetPeakStart(v)
+	return _u
+}
+
+// SetNillablePeakStart sets the "peak_start" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillablePeakStart(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetPeakStart(*v)
+	}
+	return _u
+}
+
+// SetPeakEnd sets the "peak_end" field.
+func (_u *GroupUpdate) SetPeakEnd(v string) *GroupUpdate {
+	_u.mutation.SetPeakEnd(v)
+	return _u
+}
+
+// SetNillablePeakEnd sets the "peak_end" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillablePeakEnd(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetPeakEnd(*v)
+	}
+	return _u
+}
+
+// SetPeakRateMultiplier sets the "peak_rate_multiplier" field.
+func (_u *GroupUpdate) SetPeakRateMultiplier(v float64) *GroupUpdate {
+	_u.mutation.ResetPeakRateMultiplier()
+	_u.mutation.SetPeakRateMultiplier(v)
+	return _u
+}
+
+// SetNillablePeakRateMultiplier sets the "peak_rate_multiplier" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillablePeakRateMultiplier(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetPeakRateMultiplier(*v)
+	}
+	return _u
+}
+
+// AddPeakRateMultiplier adds value to the "peak_rate_multiplier" field.
+func (_u *GroupUpdate) AddPeakRateMultiplier(v float64) *GroupUpdate {
+	_u.mutation.AddPeakRateMultiplier(v)
 	return _u
 }
 
@@ -1448,9 +1664,34 @@ func (_u *GroupUpdate) check() error {
 			return &ValidationError{Name: "subscription_type", err: fmt.Errorf(`ent: validator failed for field "Group.subscription_type": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.SearchPricePer1k(); ok {
+		if err := group.SearchPricePer1kValidator(v); err != nil {
+			return &ValidationError{Name: "search_price_per_1k", err: fmt.Errorf(`ent: validator failed for field "Group.search_price_per_1k": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.AudioRealtimePricePerMin(); ok {
+		if err := group.AudioRealtimePricePerMinValidator(v); err != nil {
+			return &ValidationError{Name: "audio_realtime_price_per_min", err: fmt.Errorf(`ent: validator failed for field "Group.audio_realtime_price_per_min": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.AudioTtsPricePerMillionChars(); ok {
+		if err := group.AudioTtsPricePerMillionCharsValidator(v); err != nil {
+			return &ValidationError{Name: "audio_tts_price_per_million_chars", err: fmt.Errorf(`ent: validator failed for field "Group.audio_tts_price_per_million_chars": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.AudioSttPricePerHour(); ok {
+		if err := group.AudioSttPricePerHourValidator(v); err != nil {
+			return &ValidationError{Name: "audio_stt_price_per_hour", err: fmt.Errorf(`ent: validator failed for field "Group.audio_stt_price_per_hour": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.DefaultMappedModel(); ok {
 		if err := group.DefaultMappedModelValidator(v); err != nil {
 			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.MaxReasoningEffort(); ok {
+		if err := group.MaxReasoningEffortValidator(v); err != nil {
+			return &ValidationError{Name: "max_reasoning_effort", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.KiroEndpointMode(); ok {
@@ -1612,116 +1853,6 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.ImagePrice4kCleared() {
 		_spec.ClearField(group.FieldImagePrice4k, field.TypeFloat64)
 	}
-	if value, ok := _u.mutation.ClaudeCodeOnly(); ok {
-		_spec.SetField(group.FieldClaudeCodeOnly, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.FallbackGroupID(); ok {
-		_spec.SetField(group.FieldFallbackGroupID, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedFallbackGroupID(); ok {
-		_spec.AddField(group.FieldFallbackGroupID, field.TypeInt64, value)
-	}
-	if _u.mutation.FallbackGroupIDCleared() {
-		_spec.ClearField(group.FieldFallbackGroupID, field.TypeInt64)
-	}
-	if value, ok := _u.mutation.FallbackGroupIDOnInvalidRequest(); ok {
-		_spec.SetField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedFallbackGroupIDOnInvalidRequest(); ok {
-		_spec.AddField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64, value)
-	}
-	if _u.mutation.FallbackGroupIDOnInvalidRequestCleared() {
-		_spec.ClearField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64)
-	}
-	if value, ok := _u.mutation.ModelRouting(); ok {
-		_spec.SetField(group.FieldModelRouting, field.TypeJSON, value)
-	}
-	if _u.mutation.ModelRoutingCleared() {
-		_spec.ClearField(group.FieldModelRouting, field.TypeJSON)
-	}
-	if value, ok := _u.mutation.ModelRoutingEnabled(); ok {
-		_spec.SetField(group.FieldModelRoutingEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.McpXMLInject(); ok {
-		_spec.SetField(group.FieldMcpXMLInject, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.SupportedModelScopes(); ok {
-		_spec.SetField(group.FieldSupportedModelScopes, field.TypeJSON, value)
-	}
-	if value, ok := _u.mutation.AppendedSupportedModelScopes(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, group.FieldSupportedModelScopes, value)
-		})
-	}
-	if value, ok := _u.mutation.SortOrder(); ok {
-		_spec.SetField(group.FieldSortOrder, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedSortOrder(); ok {
-		_spec.AddField(group.FieldSortOrder, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AllowMessagesDispatch(); ok {
-		_spec.SetField(group.FieldAllowMessagesDispatch, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.RequireOauthOnly(); ok {
-		_spec.SetField(group.FieldRequireOauthOnly, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.RequirePrivacySet(); ok {
-		_spec.SetField(group.FieldRequirePrivacySet, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.DefaultMappedModel(); ok {
-		_spec.SetField(group.FieldDefaultMappedModel, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.MessagesDispatchModelConfig(); ok {
-		_spec.SetField(group.FieldMessagesDispatchModelConfig, field.TypeJSON, value)
-	}
-	if value, ok := _u.mutation.ModelsListConfig(); ok {
-		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
-	}
-	if value, ok := _u.mutation.OpenaiExperimentalPromptEnabled(); ok {
-		_spec.SetField(group.FieldOpenaiExperimentalPromptEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.RpmLimit(); ok {
-		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedRpmLimit(); ok {
-		_spec.AddField(group.FieldRpmLimit, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.KiroCacheEmulationEnabled(); ok {
-		_spec.SetField(group.FieldKiroCacheEmulationEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.KiroAutoStickyEnabled(); ok {
-		_spec.SetField(group.FieldKiroAutoStickyEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.KiroStickySessionTTLSeconds(); ok {
-		_spec.SetField(group.FieldKiroStickySessionTTLSeconds, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedKiroStickySessionTTLSeconds(); ok {
-		_spec.AddField(group.FieldKiroStickySessionTTLSeconds, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.KiroCacheEmulationRatio(); ok {
-		_spec.SetField(group.FieldKiroCacheEmulationRatio, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedKiroCacheEmulationRatio(); ok {
-		_spec.AddField(group.FieldKiroCacheEmulationRatio, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.KiroEndpointMode(); ok {
-		_spec.SetField(group.FieldKiroEndpointMode, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.PeakRateEnabled(); ok {
-		_spec.SetField(group.FieldPeakRateEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.PeakStart(); ok {
-		_spec.SetField(group.FieldPeakStart, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.PeakEnd(); ok {
-		_spec.SetField(group.FieldPeakEnd, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.PeakRateMultiplier(); ok {
-		_spec.SetField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedPeakRateMultiplier(); ok {
-		_spec.AddField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
-	}
 	if value, ok := _u.mutation.AllowBatchImageGeneration(); ok {
 		_spec.SetField(group.FieldAllowBatchImageGeneration, field.TypeBool, value)
 	}
@@ -1773,6 +1904,12 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.VideoPrice1080pCleared() {
 		_spec.ClearField(group.FieldVideoPrice1080p, field.TypeFloat64)
 	}
+	if value, ok := _u.mutation.VideoModelPrices(); ok {
+		_spec.SetField(group.FieldVideoModelPrices, field.TypeJSON, value)
+	}
+	if _u.mutation.VideoModelPricesCleared() {
+		_spec.ClearField(group.FieldVideoModelPrices, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.WebSearchPricePerCall(); ok {
 		_spec.SetField(group.FieldWebSearchPricePerCall, field.TypeFloat64, value)
 	}
@@ -1781,6 +1918,181 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.WebSearchPricePerCallCleared() {
 		_spec.ClearField(group.FieldWebSearchPricePerCall, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.SearchPricePer1k(); ok {
+		_spec.SetField(group.FieldSearchPricePer1k, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedSearchPricePer1k(); ok {
+		_spec.AddField(group.FieldSearchPricePer1k, field.TypeFloat64, value)
+	}
+	if _u.mutation.SearchPricePer1kCleared() {
+		_spec.ClearField(group.FieldSearchPricePer1k, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.AudioRealtimePricePerMin(); ok {
+		_spec.SetField(group.FieldAudioRealtimePricePerMin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedAudioRealtimePricePerMin(); ok {
+		_spec.AddField(group.FieldAudioRealtimePricePerMin, field.TypeFloat64, value)
+	}
+	if _u.mutation.AudioRealtimePricePerMinCleared() {
+		_spec.ClearField(group.FieldAudioRealtimePricePerMin, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.AudioTtsPricePerMillionChars(); ok {
+		_spec.SetField(group.FieldAudioTtsPricePerMillionChars, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedAudioTtsPricePerMillionChars(); ok {
+		_spec.AddField(group.FieldAudioTtsPricePerMillionChars, field.TypeFloat64, value)
+	}
+	if _u.mutation.AudioTtsPricePerMillionCharsCleared() {
+		_spec.ClearField(group.FieldAudioTtsPricePerMillionChars, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.AudioSttPricePerHour(); ok {
+		_spec.SetField(group.FieldAudioSttPricePerHour, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedAudioSttPricePerHour(); ok {
+		_spec.AddField(group.FieldAudioSttPricePerHour, field.TypeFloat64, value)
+	}
+	if _u.mutation.AudioSttPricePerHourCleared() {
+		_spec.ClearField(group.FieldAudioSttPricePerHour, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.ClaudeCodeOnly(); ok {
+		_spec.SetField(group.FieldClaudeCodeOnly, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.FallbackGroupID(); ok {
+		_spec.SetField(group.FieldFallbackGroupID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedFallbackGroupID(); ok {
+		_spec.AddField(group.FieldFallbackGroupID, field.TypeInt64, value)
+	}
+	if _u.mutation.FallbackGroupIDCleared() {
+		_spec.ClearField(group.FieldFallbackGroupID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.FallbackGroupIDOnInvalidRequest(); ok {
+		_spec.SetField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedFallbackGroupIDOnInvalidRequest(); ok {
+		_spec.AddField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64, value)
+	}
+	if _u.mutation.FallbackGroupIDOnInvalidRequestCleared() {
+		_spec.ClearField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.ModelRouting(); ok {
+		_spec.SetField(group.FieldModelRouting, field.TypeJSON, value)
+	}
+	if _u.mutation.ModelRoutingCleared() {
+		_spec.ClearField(group.FieldModelRouting, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.ModelRoutingEnabled(); ok {
+		_spec.SetField(group.FieldModelRoutingEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.McpXMLInject(); ok {
+		_spec.SetField(group.FieldMcpXMLInject, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SupportedModelScopes(); ok {
+		_spec.SetField(group.FieldSupportedModelScopes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedSupportedModelScopes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldSupportedModelScopes, value)
+		})
+	}
+	if value, ok := _u.mutation.SortOrder(); ok {
+		_spec.SetField(group.FieldSortOrder, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSortOrder(); ok {
+		_spec.AddField(group.FieldSortOrder, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AllowMessagesDispatch(); ok {
+		_spec.SetField(group.FieldAllowMessagesDispatch, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.AllowLive(); ok {
+		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RequireOauthOnly(); ok {
+		_spec.SetField(group.FieldRequireOauthOnly, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RequirePrivacySet(); ok {
+		_spec.SetField(group.FieldRequirePrivacySet, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.DefaultMappedModel(); ok {
+		_spec.SetField(group.FieldDefaultMappedModel, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.MessagesDispatchModelConfig(); ok {
+		_spec.SetField(group.FieldMessagesDispatchModelConfig, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.ModelsListConfig(); ok {
+		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.OpenaiExperimentalPromptEnabled(); ok {
+		_spec.SetField(group.FieldOpenaiExperimentalPromptEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RpmLimit(); ok {
+		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRpmLimit(); ok {
+		_spec.AddField(group.FieldRpmLimit, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxReasoningEffort(); ok {
+		_spec.SetField(group.FieldMaxReasoningEffort, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ReasoningEffortMappings(); ok {
+		_spec.SetField(group.FieldReasoningEffortMappings, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedReasoningEffortMappings(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldReasoningEffortMappings, value)
+		})
+	}
+	if value, ok := _u.mutation.ProfitControlEnabled(); ok {
+		_spec.SetField(group.FieldProfitControlEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ProfitMinMargin(); ok {
+		_spec.SetField(group.FieldProfitMinMargin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedProfitMinMargin(); ok {
+		_spec.AddField(group.FieldProfitMinMargin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ProfitSafetyBuffer(); ok {
+		_spec.SetField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedProfitSafetyBuffer(); ok {
+		_spec.AddField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.KiroCacheEmulationEnabled(); ok {
+		_spec.SetField(group.FieldKiroCacheEmulationEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.KiroAutoStickyEnabled(); ok {
+		_spec.SetField(group.FieldKiroAutoStickyEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.KiroStickySessionTTLSeconds(); ok {
+		_spec.SetField(group.FieldKiroStickySessionTTLSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedKiroStickySessionTTLSeconds(); ok {
+		_spec.AddField(group.FieldKiroStickySessionTTLSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.KiroCacheEmulationRatio(); ok {
+		_spec.SetField(group.FieldKiroCacheEmulationRatio, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedKiroCacheEmulationRatio(); ok {
+		_spec.AddField(group.FieldKiroCacheEmulationRatio, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.KiroEndpointMode(); ok {
+		_spec.SetField(group.FieldKiroEndpointMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PeakRateEnabled(); ok {
+		_spec.SetField(group.FieldPeakRateEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.PeakStart(); ok {
+		_spec.SetField(group.FieldPeakStart, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PeakEnd(); ok {
+		_spec.SetField(group.FieldPeakEnd, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PeakRateMultiplier(); ok {
+		_spec.SetField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedPeakRateMultiplier(); ok {
+		_spec.AddField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -2636,413 +2948,6 @@ func (_u *GroupUpdateOne) ClearImagePrice4k() *GroupUpdateOne {
 	return _u
 }
 
-// SetClaudeCodeOnly sets the "claude_code_only" field.
-func (_u *GroupUpdateOne) SetClaudeCodeOnly(v bool) *GroupUpdateOne {
-	_u.mutation.SetClaudeCodeOnly(v)
-	return _u
-}
-
-// SetNillableClaudeCodeOnly sets the "claude_code_only" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableClaudeCodeOnly(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetClaudeCodeOnly(*v)
-	}
-	return _u
-}
-
-// SetFallbackGroupID sets the "fallback_group_id" field.
-func (_u *GroupUpdateOne) SetFallbackGroupID(v int64) *GroupUpdateOne {
-	_u.mutation.ResetFallbackGroupID()
-	_u.mutation.SetFallbackGroupID(v)
-	return _u
-}
-
-// SetNillableFallbackGroupID sets the "fallback_group_id" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableFallbackGroupID(v *int64) *GroupUpdateOne {
-	if v != nil {
-		_u.SetFallbackGroupID(*v)
-	}
-	return _u
-}
-
-// AddFallbackGroupID adds value to the "fallback_group_id" field.
-func (_u *GroupUpdateOne) AddFallbackGroupID(v int64) *GroupUpdateOne {
-	_u.mutation.AddFallbackGroupID(v)
-	return _u
-}
-
-// ClearFallbackGroupID clears the value of the "fallback_group_id" field.
-func (_u *GroupUpdateOne) ClearFallbackGroupID() *GroupUpdateOne {
-	_u.mutation.ClearFallbackGroupID()
-	return _u
-}
-
-// SetFallbackGroupIDOnInvalidRequest sets the "fallback_group_id_on_invalid_request" field.
-func (_u *GroupUpdateOne) SetFallbackGroupIDOnInvalidRequest(v int64) *GroupUpdateOne {
-	_u.mutation.ResetFallbackGroupIDOnInvalidRequest()
-	_u.mutation.SetFallbackGroupIDOnInvalidRequest(v)
-	return _u
-}
-
-// SetNillableFallbackGroupIDOnInvalidRequest sets the "fallback_group_id_on_invalid_request" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableFallbackGroupIDOnInvalidRequest(v *int64) *GroupUpdateOne {
-	if v != nil {
-		_u.SetFallbackGroupIDOnInvalidRequest(*v)
-	}
-	return _u
-}
-
-// AddFallbackGroupIDOnInvalidRequest adds value to the "fallback_group_id_on_invalid_request" field.
-func (_u *GroupUpdateOne) AddFallbackGroupIDOnInvalidRequest(v int64) *GroupUpdateOne {
-	_u.mutation.AddFallbackGroupIDOnInvalidRequest(v)
-	return _u
-}
-
-// ClearFallbackGroupIDOnInvalidRequest clears the value of the "fallback_group_id_on_invalid_request" field.
-func (_u *GroupUpdateOne) ClearFallbackGroupIDOnInvalidRequest() *GroupUpdateOne {
-	_u.mutation.ClearFallbackGroupIDOnInvalidRequest()
-	return _u
-}
-
-// SetModelRouting sets the "model_routing" field.
-func (_u *GroupUpdateOne) SetModelRouting(v map[string][]int64) *GroupUpdateOne {
-	_u.mutation.SetModelRouting(v)
-	return _u
-}
-
-// ClearModelRouting clears the value of the "model_routing" field.
-func (_u *GroupUpdateOne) ClearModelRouting() *GroupUpdateOne {
-	_u.mutation.ClearModelRouting()
-	return _u
-}
-
-// SetModelRoutingEnabled sets the "model_routing_enabled" field.
-func (_u *GroupUpdateOne) SetModelRoutingEnabled(v bool) *GroupUpdateOne {
-	_u.mutation.SetModelRoutingEnabled(v)
-	return _u
-}
-
-// SetNillableModelRoutingEnabled sets the "model_routing_enabled" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableModelRoutingEnabled(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetModelRoutingEnabled(*v)
-	}
-	return _u
-}
-
-// SetMcpXMLInject sets the "mcp_xml_inject" field.
-func (_u *GroupUpdateOne) SetMcpXMLInject(v bool) *GroupUpdateOne {
-	_u.mutation.SetMcpXMLInject(v)
-	return _u
-}
-
-// SetNillableMcpXMLInject sets the "mcp_xml_inject" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableMcpXMLInject(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetMcpXMLInject(*v)
-	}
-	return _u
-}
-
-// SetSupportedModelScopes sets the "supported_model_scopes" field.
-func (_u *GroupUpdateOne) SetSupportedModelScopes(v []string) *GroupUpdateOne {
-	_u.mutation.SetSupportedModelScopes(v)
-	return _u
-}
-
-// AppendSupportedModelScopes appends value to the "supported_model_scopes" field.
-func (_u *GroupUpdateOne) AppendSupportedModelScopes(v []string) *GroupUpdateOne {
-	_u.mutation.AppendSupportedModelScopes(v)
-	return _u
-}
-
-// SetSortOrder sets the "sort_order" field.
-func (_u *GroupUpdateOne) SetSortOrder(v int) *GroupUpdateOne {
-	_u.mutation.ResetSortOrder()
-	_u.mutation.SetSortOrder(v)
-	return _u
-}
-
-// SetNillableSortOrder sets the "sort_order" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableSortOrder(v *int) *GroupUpdateOne {
-	if v != nil {
-		_u.SetSortOrder(*v)
-	}
-	return _u
-}
-
-// AddSortOrder adds value to the "sort_order" field.
-func (_u *GroupUpdateOne) AddSortOrder(v int) *GroupUpdateOne {
-	_u.mutation.AddSortOrder(v)
-	return _u
-}
-
-// SetAllowMessagesDispatch sets the "allow_messages_dispatch" field.
-func (_u *GroupUpdateOne) SetAllowMessagesDispatch(v bool) *GroupUpdateOne {
-	_u.mutation.SetAllowMessagesDispatch(v)
-	return _u
-}
-
-// SetNillableAllowMessagesDispatch sets the "allow_messages_dispatch" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableAllowMessagesDispatch(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetAllowMessagesDispatch(*v)
-	}
-	return _u
-}
-
-// SetRequireOauthOnly sets the "require_oauth_only" field.
-func (_u *GroupUpdateOne) SetRequireOauthOnly(v bool) *GroupUpdateOne {
-	_u.mutation.SetRequireOauthOnly(v)
-	return _u
-}
-
-// SetNillableRequireOauthOnly sets the "require_oauth_only" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableRequireOauthOnly(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetRequireOauthOnly(*v)
-	}
-	return _u
-}
-
-// SetRequirePrivacySet sets the "require_privacy_set" field.
-func (_u *GroupUpdateOne) SetRequirePrivacySet(v bool) *GroupUpdateOne {
-	_u.mutation.SetRequirePrivacySet(v)
-	return _u
-}
-
-// SetNillableRequirePrivacySet sets the "require_privacy_set" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableRequirePrivacySet(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetRequirePrivacySet(*v)
-	}
-	return _u
-}
-
-// SetDefaultMappedModel sets the "default_mapped_model" field.
-func (_u *GroupUpdateOne) SetDefaultMappedModel(v string) *GroupUpdateOne {
-	_u.mutation.SetDefaultMappedModel(v)
-	return _u
-}
-
-// SetNillableDefaultMappedModel sets the "default_mapped_model" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableDefaultMappedModel(v *string) *GroupUpdateOne {
-	if v != nil {
-		_u.SetDefaultMappedModel(*v)
-	}
-	return _u
-}
-
-// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (_u *GroupUpdateOne) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
-	_u.mutation.SetMessagesDispatchModelConfig(v)
-	return _u
-}
-
-// SetNillableMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
-	if v != nil {
-		_u.SetMessagesDispatchModelConfig(*v)
-	}
-	return _u
-}
-
-// SetModelsListConfig sets the "models_list_config" field.
-func (_u *GroupUpdateOne) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpdateOne {
-	_u.mutation.SetModelsListConfig(v)
-	return _u
-}
-
-// SetNillableModelsListConfig sets the "models_list_config" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableModelsListConfig(v *domain.GroupModelsListConfig) *GroupUpdateOne {
-	if v != nil {
-		_u.SetModelsListConfig(*v)
-	}
-	return _u
-}
-
-// SetOpenaiExperimentalPromptEnabled sets the "openai_experimental_prompt_enabled" field.
-func (_u *GroupUpdateOne) SetOpenaiExperimentalPromptEnabled(v bool) *GroupUpdateOne {
-	_u.mutation.SetOpenaiExperimentalPromptEnabled(v)
-	return _u
-}
-
-// SetNillableOpenaiExperimentalPromptEnabled sets the "openai_experimental_prompt_enabled" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableOpenaiExperimentalPromptEnabled(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetOpenaiExperimentalPromptEnabled(*v)
-	}
-	return _u
-}
-
-// SetRpmLimit sets the "rpm_limit" field.
-func (_u *GroupUpdateOne) SetRpmLimit(v int) *GroupUpdateOne {
-	_u.mutation.ResetRpmLimit()
-	_u.mutation.SetRpmLimit(v)
-	return _u
-}
-
-// SetNillableRpmLimit sets the "rpm_limit" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableRpmLimit(v *int) *GroupUpdateOne {
-	if v != nil {
-		_u.SetRpmLimit(*v)
-	}
-	return _u
-}
-
-// AddRpmLimit adds value to the "rpm_limit" field.
-func (_u *GroupUpdateOne) AddRpmLimit(v int) *GroupUpdateOne {
-	_u.mutation.AddRpmLimit(v)
-	return _u
-}
-
-// SetKiroCacheEmulationEnabled sets the "kiro_cache_emulation_enabled" field.
-func (_u *GroupUpdateOne) SetKiroCacheEmulationEnabled(v bool) *GroupUpdateOne {
-	_u.mutation.SetKiroCacheEmulationEnabled(v)
-	return _u
-}
-
-// SetNillableKiroCacheEmulationEnabled sets the "kiro_cache_emulation_enabled" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableKiroCacheEmulationEnabled(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetKiroCacheEmulationEnabled(*v)
-	}
-	return _u
-}
-
-// SetKiroAutoStickyEnabled sets the "kiro_auto_sticky_enabled" field.
-func (_u *GroupUpdateOne) SetKiroAutoStickyEnabled(v bool) *GroupUpdateOne {
-	_u.mutation.SetKiroAutoStickyEnabled(v)
-	return _u
-}
-
-// SetNillableKiroAutoStickyEnabled sets the "kiro_auto_sticky_enabled" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableKiroAutoStickyEnabled(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetKiroAutoStickyEnabled(*v)
-	}
-	return _u
-}
-
-// SetKiroStickySessionTTLSeconds sets the "kiro_sticky_session_ttl_seconds" field.
-func (_u *GroupUpdateOne) SetKiroStickySessionTTLSeconds(v int) *GroupUpdateOne {
-	_u.mutation.ResetKiroStickySessionTTLSeconds()
-	_u.mutation.SetKiroStickySessionTTLSeconds(v)
-	return _u
-}
-
-// SetNillableKiroStickySessionTTLSeconds sets the "kiro_sticky_session_ttl_seconds" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableKiroStickySessionTTLSeconds(v *int) *GroupUpdateOne {
-	if v != nil {
-		_u.SetKiroStickySessionTTLSeconds(*v)
-	}
-	return _u
-}
-
-// AddKiroStickySessionTTLSeconds adds value to the "kiro_sticky_session_ttl_seconds" field.
-func (_u *GroupUpdateOne) AddKiroStickySessionTTLSeconds(v int) *GroupUpdateOne {
-	_u.mutation.AddKiroStickySessionTTLSeconds(v)
-	return _u
-}
-
-// SetKiroCacheEmulationRatio sets the "kiro_cache_emulation_ratio" field.
-func (_u *GroupUpdateOne) SetKiroCacheEmulationRatio(v float64) *GroupUpdateOne {
-	_u.mutation.ResetKiroCacheEmulationRatio()
-	_u.mutation.SetKiroCacheEmulationRatio(v)
-	return _u
-}
-
-// SetNillableKiroCacheEmulationRatio sets the "kiro_cache_emulation_ratio" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableKiroCacheEmulationRatio(v *float64) *GroupUpdateOne {
-	if v != nil {
-		_u.SetKiroCacheEmulationRatio(*v)
-	}
-	return _u
-}
-
-// AddKiroCacheEmulationRatio adds value to the "kiro_cache_emulation_ratio" field.
-func (_u *GroupUpdateOne) AddKiroCacheEmulationRatio(v float64) *GroupUpdateOne {
-	_u.mutation.AddKiroCacheEmulationRatio(v)
-	return _u
-}
-
-// SetKiroEndpointMode sets the "kiro_endpoint_mode" field.
-func (_u *GroupUpdateOne) SetKiroEndpointMode(v string) *GroupUpdateOne {
-	_u.mutation.SetKiroEndpointMode(v)
-	return _u
-}
-
-// SetNillableKiroEndpointMode sets the "kiro_endpoint_mode" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableKiroEndpointMode(v *string) *GroupUpdateOne {
-	if v != nil {
-		_u.SetKiroEndpointMode(*v)
-	}
-	return _u
-}
-
-// SetPeakRateEnabled sets the "peak_rate_enabled" field.
-func (_u *GroupUpdateOne) SetPeakRateEnabled(v bool) *GroupUpdateOne {
-	_u.mutation.SetPeakRateEnabled(v)
-	return _u
-}
-
-// SetNillablePeakRateEnabled sets the "peak_rate_enabled" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillablePeakRateEnabled(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetPeakRateEnabled(*v)
-	}
-	return _u
-}
-
-// SetPeakStart sets the "peak_start" field.
-func (_u *GroupUpdateOne) SetPeakStart(v string) *GroupUpdateOne {
-	_u.mutation.SetPeakStart(v)
-	return _u
-}
-
-// SetNillablePeakStart sets the "peak_start" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillablePeakStart(v *string) *GroupUpdateOne {
-	if v != nil {
-		_u.SetPeakStart(*v)
-	}
-	return _u
-}
-
-// SetPeakEnd sets the "peak_end" field.
-func (_u *GroupUpdateOne) SetPeakEnd(v string) *GroupUpdateOne {
-	_u.mutation.SetPeakEnd(v)
-	return _u
-}
-
-// SetNillablePeakEnd sets the "peak_end" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillablePeakEnd(v *string) *GroupUpdateOne {
-	if v != nil {
-		_u.SetPeakEnd(*v)
-	}
-	return _u
-}
-
-// SetPeakRateMultiplier sets the "peak_rate_multiplier" field.
-func (_u *GroupUpdateOne) SetPeakRateMultiplier(v float64) *GroupUpdateOne {
-	_u.mutation.ResetPeakRateMultiplier()
-	_u.mutation.SetPeakRateMultiplier(v)
-	return _u
-}
-
-// SetNillablePeakRateMultiplier sets the "peak_rate_multiplier" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillablePeakRateMultiplier(v *float64) *GroupUpdateOne {
-	if v != nil {
-		_u.SetPeakRateMultiplier(*v)
-	}
-	return _u
-}
-
-// AddPeakRateMultiplier adds value to the "peak_rate_multiplier" field.
-func (_u *GroupUpdateOne) AddPeakRateMultiplier(v float64) *GroupUpdateOne {
-	_u.mutation.AddPeakRateMultiplier(v)
-	return _u
-}
-
 // SetAllowBatchImageGeneration sets the "allow_batch_image_generation" field.
 func (_u *GroupUpdateOne) SetAllowBatchImageGeneration(v bool) *GroupUpdateOne {
 	_u.mutation.SetAllowBatchImageGeneration(v)
@@ -3215,6 +3120,18 @@ func (_u *GroupUpdateOne) ClearVideoPrice1080p() *GroupUpdateOne {
 	return _u
 }
 
+// SetVideoModelPrices sets the "video_model_prices" field.
+func (_u *GroupUpdateOne) SetVideoModelPrices(v map[string]map[string]float64) *GroupUpdateOne {
+	_u.mutation.SetVideoModelPrices(v)
+	return _u
+}
+
+// ClearVideoModelPrices clears the value of the "video_model_prices" field.
+func (_u *GroupUpdateOne) ClearVideoModelPrices() *GroupUpdateOne {
+	_u.mutation.ClearVideoModelPrices()
+	return _u
+}
+
 // SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
 func (_u *GroupUpdateOne) SetWebSearchPricePerCall(v float64) *GroupUpdateOne {
 	_u.mutation.ResetWebSearchPricePerCall()
@@ -3239,6 +3156,617 @@ func (_u *GroupUpdateOne) AddWebSearchPricePerCall(v float64) *GroupUpdateOne {
 // ClearWebSearchPricePerCall clears the value of the "web_search_price_per_call" field.
 func (_u *GroupUpdateOne) ClearWebSearchPricePerCall() *GroupUpdateOne {
 	_u.mutation.ClearWebSearchPricePerCall()
+	return _u
+}
+
+// SetSearchPricePer1k sets the "search_price_per_1k" field.
+func (_u *GroupUpdateOne) SetSearchPricePer1k(v float64) *GroupUpdateOne {
+	_u.mutation.ResetSearchPricePer1k()
+	_u.mutation.SetSearchPricePer1k(v)
+	return _u
+}
+
+// SetNillableSearchPricePer1k sets the "search_price_per_1k" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableSearchPricePer1k(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetSearchPricePer1k(*v)
+	}
+	return _u
+}
+
+// AddSearchPricePer1k adds value to the "search_price_per_1k" field.
+func (_u *GroupUpdateOne) AddSearchPricePer1k(v float64) *GroupUpdateOne {
+	_u.mutation.AddSearchPricePer1k(v)
+	return _u
+}
+
+// ClearSearchPricePer1k clears the value of the "search_price_per_1k" field.
+func (_u *GroupUpdateOne) ClearSearchPricePer1k() *GroupUpdateOne {
+	_u.mutation.ClearSearchPricePer1k()
+	return _u
+}
+
+// SetAudioRealtimePricePerMin sets the "audio_realtime_price_per_min" field.
+func (_u *GroupUpdateOne) SetAudioRealtimePricePerMin(v float64) *GroupUpdateOne {
+	_u.mutation.ResetAudioRealtimePricePerMin()
+	_u.mutation.SetAudioRealtimePricePerMin(v)
+	return _u
+}
+
+// SetNillableAudioRealtimePricePerMin sets the "audio_realtime_price_per_min" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableAudioRealtimePricePerMin(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetAudioRealtimePricePerMin(*v)
+	}
+	return _u
+}
+
+// AddAudioRealtimePricePerMin adds value to the "audio_realtime_price_per_min" field.
+func (_u *GroupUpdateOne) AddAudioRealtimePricePerMin(v float64) *GroupUpdateOne {
+	_u.mutation.AddAudioRealtimePricePerMin(v)
+	return _u
+}
+
+// ClearAudioRealtimePricePerMin clears the value of the "audio_realtime_price_per_min" field.
+func (_u *GroupUpdateOne) ClearAudioRealtimePricePerMin() *GroupUpdateOne {
+	_u.mutation.ClearAudioRealtimePricePerMin()
+	return _u
+}
+
+// SetAudioTtsPricePerMillionChars sets the "audio_tts_price_per_million_chars" field.
+func (_u *GroupUpdateOne) SetAudioTtsPricePerMillionChars(v float64) *GroupUpdateOne {
+	_u.mutation.ResetAudioTtsPricePerMillionChars()
+	_u.mutation.SetAudioTtsPricePerMillionChars(v)
+	return _u
+}
+
+// SetNillableAudioTtsPricePerMillionChars sets the "audio_tts_price_per_million_chars" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableAudioTtsPricePerMillionChars(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetAudioTtsPricePerMillionChars(*v)
+	}
+	return _u
+}
+
+// AddAudioTtsPricePerMillionChars adds value to the "audio_tts_price_per_million_chars" field.
+func (_u *GroupUpdateOne) AddAudioTtsPricePerMillionChars(v float64) *GroupUpdateOne {
+	_u.mutation.AddAudioTtsPricePerMillionChars(v)
+	return _u
+}
+
+// ClearAudioTtsPricePerMillionChars clears the value of the "audio_tts_price_per_million_chars" field.
+func (_u *GroupUpdateOne) ClearAudioTtsPricePerMillionChars() *GroupUpdateOne {
+	_u.mutation.ClearAudioTtsPricePerMillionChars()
+	return _u
+}
+
+// SetAudioSttPricePerHour sets the "audio_stt_price_per_hour" field.
+func (_u *GroupUpdateOne) SetAudioSttPricePerHour(v float64) *GroupUpdateOne {
+	_u.mutation.ResetAudioSttPricePerHour()
+	_u.mutation.SetAudioSttPricePerHour(v)
+	return _u
+}
+
+// SetNillableAudioSttPricePerHour sets the "audio_stt_price_per_hour" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableAudioSttPricePerHour(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetAudioSttPricePerHour(*v)
+	}
+	return _u
+}
+
+// AddAudioSttPricePerHour adds value to the "audio_stt_price_per_hour" field.
+func (_u *GroupUpdateOne) AddAudioSttPricePerHour(v float64) *GroupUpdateOne {
+	_u.mutation.AddAudioSttPricePerHour(v)
+	return _u
+}
+
+// ClearAudioSttPricePerHour clears the value of the "audio_stt_price_per_hour" field.
+func (_u *GroupUpdateOne) ClearAudioSttPricePerHour() *GroupUpdateOne {
+	_u.mutation.ClearAudioSttPricePerHour()
+	return _u
+}
+
+// SetClaudeCodeOnly sets the "claude_code_only" field.
+func (_u *GroupUpdateOne) SetClaudeCodeOnly(v bool) *GroupUpdateOne {
+	_u.mutation.SetClaudeCodeOnly(v)
+	return _u
+}
+
+// SetNillableClaudeCodeOnly sets the "claude_code_only" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableClaudeCodeOnly(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetClaudeCodeOnly(*v)
+	}
+	return _u
+}
+
+// SetFallbackGroupID sets the "fallback_group_id" field.
+func (_u *GroupUpdateOne) SetFallbackGroupID(v int64) *GroupUpdateOne {
+	_u.mutation.ResetFallbackGroupID()
+	_u.mutation.SetFallbackGroupID(v)
+	return _u
+}
+
+// SetNillableFallbackGroupID sets the "fallback_group_id" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableFallbackGroupID(v *int64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetFallbackGroupID(*v)
+	}
+	return _u
+}
+
+// AddFallbackGroupID adds value to the "fallback_group_id" field.
+func (_u *GroupUpdateOne) AddFallbackGroupID(v int64) *GroupUpdateOne {
+	_u.mutation.AddFallbackGroupID(v)
+	return _u
+}
+
+// ClearFallbackGroupID clears the value of the "fallback_group_id" field.
+func (_u *GroupUpdateOne) ClearFallbackGroupID() *GroupUpdateOne {
+	_u.mutation.ClearFallbackGroupID()
+	return _u
+}
+
+// SetFallbackGroupIDOnInvalidRequest sets the "fallback_group_id_on_invalid_request" field.
+func (_u *GroupUpdateOne) SetFallbackGroupIDOnInvalidRequest(v int64) *GroupUpdateOne {
+	_u.mutation.ResetFallbackGroupIDOnInvalidRequest()
+	_u.mutation.SetFallbackGroupIDOnInvalidRequest(v)
+	return _u
+}
+
+// SetNillableFallbackGroupIDOnInvalidRequest sets the "fallback_group_id_on_invalid_request" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableFallbackGroupIDOnInvalidRequest(v *int64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetFallbackGroupIDOnInvalidRequest(*v)
+	}
+	return _u
+}
+
+// AddFallbackGroupIDOnInvalidRequest adds value to the "fallback_group_id_on_invalid_request" field.
+func (_u *GroupUpdateOne) AddFallbackGroupIDOnInvalidRequest(v int64) *GroupUpdateOne {
+	_u.mutation.AddFallbackGroupIDOnInvalidRequest(v)
+	return _u
+}
+
+// ClearFallbackGroupIDOnInvalidRequest clears the value of the "fallback_group_id_on_invalid_request" field.
+func (_u *GroupUpdateOne) ClearFallbackGroupIDOnInvalidRequest() *GroupUpdateOne {
+	_u.mutation.ClearFallbackGroupIDOnInvalidRequest()
+	return _u
+}
+
+// SetModelRouting sets the "model_routing" field.
+func (_u *GroupUpdateOne) SetModelRouting(v map[string][]int64) *GroupUpdateOne {
+	_u.mutation.SetModelRouting(v)
+	return _u
+}
+
+// ClearModelRouting clears the value of the "model_routing" field.
+func (_u *GroupUpdateOne) ClearModelRouting() *GroupUpdateOne {
+	_u.mutation.ClearModelRouting()
+	return _u
+}
+
+// SetModelRoutingEnabled sets the "model_routing_enabled" field.
+func (_u *GroupUpdateOne) SetModelRoutingEnabled(v bool) *GroupUpdateOne {
+	_u.mutation.SetModelRoutingEnabled(v)
+	return _u
+}
+
+// SetNillableModelRoutingEnabled sets the "model_routing_enabled" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableModelRoutingEnabled(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetModelRoutingEnabled(*v)
+	}
+	return _u
+}
+
+// SetMcpXMLInject sets the "mcp_xml_inject" field.
+func (_u *GroupUpdateOne) SetMcpXMLInject(v bool) *GroupUpdateOne {
+	_u.mutation.SetMcpXMLInject(v)
+	return _u
+}
+
+// SetNillableMcpXMLInject sets the "mcp_xml_inject" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableMcpXMLInject(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetMcpXMLInject(*v)
+	}
+	return _u
+}
+
+// SetSupportedModelScopes sets the "supported_model_scopes" field.
+func (_u *GroupUpdateOne) SetSupportedModelScopes(v []string) *GroupUpdateOne {
+	_u.mutation.SetSupportedModelScopes(v)
+	return _u
+}
+
+// AppendSupportedModelScopes appends value to the "supported_model_scopes" field.
+func (_u *GroupUpdateOne) AppendSupportedModelScopes(v []string) *GroupUpdateOne {
+	_u.mutation.AppendSupportedModelScopes(v)
+	return _u
+}
+
+// SetSortOrder sets the "sort_order" field.
+func (_u *GroupUpdateOne) SetSortOrder(v int) *GroupUpdateOne {
+	_u.mutation.ResetSortOrder()
+	_u.mutation.SetSortOrder(v)
+	return _u
+}
+
+// SetNillableSortOrder sets the "sort_order" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableSortOrder(v *int) *GroupUpdateOne {
+	if v != nil {
+		_u.SetSortOrder(*v)
+	}
+	return _u
+}
+
+// AddSortOrder adds value to the "sort_order" field.
+func (_u *GroupUpdateOne) AddSortOrder(v int) *GroupUpdateOne {
+	_u.mutation.AddSortOrder(v)
+	return _u
+}
+
+// SetAllowMessagesDispatch sets the "allow_messages_dispatch" field.
+func (_u *GroupUpdateOne) SetAllowMessagesDispatch(v bool) *GroupUpdateOne {
+	_u.mutation.SetAllowMessagesDispatch(v)
+	return _u
+}
+
+// SetNillableAllowMessagesDispatch sets the "allow_messages_dispatch" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableAllowMessagesDispatch(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetAllowMessagesDispatch(*v)
+	}
+	return _u
+}
+
+// SetAllowLive sets the "allow_live" field.
+func (_u *GroupUpdateOne) SetAllowLive(v bool) *GroupUpdateOne {
+	_u.mutation.SetAllowLive(v)
+	return _u
+}
+
+// SetNillableAllowLive sets the "allow_live" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableAllowLive(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetAllowLive(*v)
+	}
+	return _u
+}
+
+// SetRequireOauthOnly sets the "require_oauth_only" field.
+func (_u *GroupUpdateOne) SetRequireOauthOnly(v bool) *GroupUpdateOne {
+	_u.mutation.SetRequireOauthOnly(v)
+	return _u
+}
+
+// SetNillableRequireOauthOnly sets the "require_oauth_only" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableRequireOauthOnly(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetRequireOauthOnly(*v)
+	}
+	return _u
+}
+
+// SetRequirePrivacySet sets the "require_privacy_set" field.
+func (_u *GroupUpdateOne) SetRequirePrivacySet(v bool) *GroupUpdateOne {
+	_u.mutation.SetRequirePrivacySet(v)
+	return _u
+}
+
+// SetNillableRequirePrivacySet sets the "require_privacy_set" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableRequirePrivacySet(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetRequirePrivacySet(*v)
+	}
+	return _u
+}
+
+// SetDefaultMappedModel sets the "default_mapped_model" field.
+func (_u *GroupUpdateOne) SetDefaultMappedModel(v string) *GroupUpdateOne {
+	_u.mutation.SetDefaultMappedModel(v)
+	return _u
+}
+
+// SetNillableDefaultMappedModel sets the "default_mapped_model" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableDefaultMappedModel(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetDefaultMappedModel(*v)
+	}
+	return _u
+}
+
+// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
+func (_u *GroupUpdateOne) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
+	_u.mutation.SetMessagesDispatchModelConfig(v)
+	return _u
+}
+
+// SetNillableMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
+	if v != nil {
+		_u.SetMessagesDispatchModelConfig(*v)
+	}
+	return _u
+}
+
+// SetModelsListConfig sets the "models_list_config" field.
+func (_u *GroupUpdateOne) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpdateOne {
+	_u.mutation.SetModelsListConfig(v)
+	return _u
+}
+
+// SetNillableModelsListConfig sets the "models_list_config" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableModelsListConfig(v *domain.GroupModelsListConfig) *GroupUpdateOne {
+	if v != nil {
+		_u.SetModelsListConfig(*v)
+	}
+	return _u
+}
+
+// SetOpenaiExperimentalPromptEnabled sets the "openai_experimental_prompt_enabled" field.
+func (_u *GroupUpdateOne) SetOpenaiExperimentalPromptEnabled(v bool) *GroupUpdateOne {
+	_u.mutation.SetOpenaiExperimentalPromptEnabled(v)
+	return _u
+}
+
+// SetNillableOpenaiExperimentalPromptEnabled sets the "openai_experimental_prompt_enabled" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableOpenaiExperimentalPromptEnabled(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetOpenaiExperimentalPromptEnabled(*v)
+	}
+	return _u
+}
+
+// SetRpmLimit sets the "rpm_limit" field.
+func (_u *GroupUpdateOne) SetRpmLimit(v int) *GroupUpdateOne {
+	_u.mutation.ResetRpmLimit()
+	_u.mutation.SetRpmLimit(v)
+	return _u
+}
+
+// SetNillableRpmLimit sets the "rpm_limit" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableRpmLimit(v *int) *GroupUpdateOne {
+	if v != nil {
+		_u.SetRpmLimit(*v)
+	}
+	return _u
+}
+
+// AddRpmLimit adds value to the "rpm_limit" field.
+func (_u *GroupUpdateOne) AddRpmLimit(v int) *GroupUpdateOne {
+	_u.mutation.AddRpmLimit(v)
+	return _u
+}
+
+// SetMaxReasoningEffort sets the "max_reasoning_effort" field.
+func (_u *GroupUpdateOne) SetMaxReasoningEffort(v string) *GroupUpdateOne {
+	_u.mutation.SetMaxReasoningEffort(v)
+	return _u
+}
+
+// SetNillableMaxReasoningEffort sets the "max_reasoning_effort" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableMaxReasoningEffort(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetMaxReasoningEffort(*v)
+	}
+	return _u
+}
+
+// SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
+func (_u *GroupUpdateOne) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpdateOne {
+	_u.mutation.SetReasoningEffortMappings(v)
+	return _u
+}
+
+// AppendReasoningEffortMappings appends value to the "reasoning_effort_mappings" field.
+func (_u *GroupUpdateOne) AppendReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpdateOne {
+	_u.mutation.AppendReasoningEffortMappings(v)
+	return _u
+}
+
+// SetProfitControlEnabled sets the "profit_control_enabled" field.
+func (_u *GroupUpdateOne) SetProfitControlEnabled(v bool) *GroupUpdateOne {
+	_u.mutation.SetProfitControlEnabled(v)
+	return _u
+}
+
+// SetNillableProfitControlEnabled sets the "profit_control_enabled" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableProfitControlEnabled(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetProfitControlEnabled(*v)
+	}
+	return _u
+}
+
+// SetProfitMinMargin sets the "profit_min_margin" field.
+func (_u *GroupUpdateOne) SetProfitMinMargin(v float64) *GroupUpdateOne {
+	_u.mutation.ResetProfitMinMargin()
+	_u.mutation.SetProfitMinMargin(v)
+	return _u
+}
+
+// SetNillableProfitMinMargin sets the "profit_min_margin" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableProfitMinMargin(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetProfitMinMargin(*v)
+	}
+	return _u
+}
+
+// AddProfitMinMargin adds value to the "profit_min_margin" field.
+func (_u *GroupUpdateOne) AddProfitMinMargin(v float64) *GroupUpdateOne {
+	_u.mutation.AddProfitMinMargin(v)
+	return _u
+}
+
+// SetProfitSafetyBuffer sets the "profit_safety_buffer" field.
+func (_u *GroupUpdateOne) SetProfitSafetyBuffer(v float64) *GroupUpdateOne {
+	_u.mutation.ResetProfitSafetyBuffer()
+	_u.mutation.SetProfitSafetyBuffer(v)
+	return _u
+}
+
+// SetNillableProfitSafetyBuffer sets the "profit_safety_buffer" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableProfitSafetyBuffer(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetProfitSafetyBuffer(*v)
+	}
+	return _u
+}
+
+// AddProfitSafetyBuffer adds value to the "profit_safety_buffer" field.
+func (_u *GroupUpdateOne) AddProfitSafetyBuffer(v float64) *GroupUpdateOne {
+	_u.mutation.AddProfitSafetyBuffer(v)
+	return _u
+}
+
+// SetKiroCacheEmulationEnabled sets the "kiro_cache_emulation_enabled" field.
+func (_u *GroupUpdateOne) SetKiroCacheEmulationEnabled(v bool) *GroupUpdateOne {
+	_u.mutation.SetKiroCacheEmulationEnabled(v)
+	return _u
+}
+
+// SetNillableKiroCacheEmulationEnabled sets the "kiro_cache_emulation_enabled" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableKiroCacheEmulationEnabled(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetKiroCacheEmulationEnabled(*v)
+	}
+	return _u
+}
+
+// SetKiroAutoStickyEnabled sets the "kiro_auto_sticky_enabled" field.
+func (_u *GroupUpdateOne) SetKiroAutoStickyEnabled(v bool) *GroupUpdateOne {
+	_u.mutation.SetKiroAutoStickyEnabled(v)
+	return _u
+}
+
+// SetNillableKiroAutoStickyEnabled sets the "kiro_auto_sticky_enabled" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableKiroAutoStickyEnabled(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetKiroAutoStickyEnabled(*v)
+	}
+	return _u
+}
+
+// SetKiroStickySessionTTLSeconds sets the "kiro_sticky_session_ttl_seconds" field.
+func (_u *GroupUpdateOne) SetKiroStickySessionTTLSeconds(v int) *GroupUpdateOne {
+	_u.mutation.ResetKiroStickySessionTTLSeconds()
+	_u.mutation.SetKiroStickySessionTTLSeconds(v)
+	return _u
+}
+
+// SetNillableKiroStickySessionTTLSeconds sets the "kiro_sticky_session_ttl_seconds" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableKiroStickySessionTTLSeconds(v *int) *GroupUpdateOne {
+	if v != nil {
+		_u.SetKiroStickySessionTTLSeconds(*v)
+	}
+	return _u
+}
+
+// AddKiroStickySessionTTLSeconds adds value to the "kiro_sticky_session_ttl_seconds" field.
+func (_u *GroupUpdateOne) AddKiroStickySessionTTLSeconds(v int) *GroupUpdateOne {
+	_u.mutation.AddKiroStickySessionTTLSeconds(v)
+	return _u
+}
+
+// SetKiroCacheEmulationRatio sets the "kiro_cache_emulation_ratio" field.
+func (_u *GroupUpdateOne) SetKiroCacheEmulationRatio(v float64) *GroupUpdateOne {
+	_u.mutation.ResetKiroCacheEmulationRatio()
+	_u.mutation.SetKiroCacheEmulationRatio(v)
+	return _u
+}
+
+// SetNillableKiroCacheEmulationRatio sets the "kiro_cache_emulation_ratio" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableKiroCacheEmulationRatio(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetKiroCacheEmulationRatio(*v)
+	}
+	return _u
+}
+
+// AddKiroCacheEmulationRatio adds value to the "kiro_cache_emulation_ratio" field.
+func (_u *GroupUpdateOne) AddKiroCacheEmulationRatio(v float64) *GroupUpdateOne {
+	_u.mutation.AddKiroCacheEmulationRatio(v)
+	return _u
+}
+
+// SetKiroEndpointMode sets the "kiro_endpoint_mode" field.
+func (_u *GroupUpdateOne) SetKiroEndpointMode(v string) *GroupUpdateOne {
+	_u.mutation.SetKiroEndpointMode(v)
+	return _u
+}
+
+// SetNillableKiroEndpointMode sets the "kiro_endpoint_mode" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableKiroEndpointMode(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetKiroEndpointMode(*v)
+	}
+	return _u
+}
+
+// SetPeakRateEnabled sets the "peak_rate_enabled" field.
+func (_u *GroupUpdateOne) SetPeakRateEnabled(v bool) *GroupUpdateOne {
+	_u.mutation.SetPeakRateEnabled(v)
+	return _u
+}
+
+// SetNillablePeakRateEnabled sets the "peak_rate_enabled" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillablePeakRateEnabled(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetPeakRateEnabled(*v)
+	}
+	return _u
+}
+
+// SetPeakStart sets the "peak_start" field.
+func (_u *GroupUpdateOne) SetPeakStart(v string) *GroupUpdateOne {
+	_u.mutation.SetPeakStart(v)
+	return _u
+}
+
+// SetNillablePeakStart sets the "peak_start" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillablePeakStart(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetPeakStart(*v)
+	}
+	return _u
+}
+
+// SetPeakEnd sets the "peak_end" field.
+func (_u *GroupUpdateOne) SetPeakEnd(v string) *GroupUpdateOne {
+	_u.mutation.SetPeakEnd(v)
+	return _u
+}
+
+// SetNillablePeakEnd sets the "peak_end" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillablePeakEnd(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetPeakEnd(*v)
+	}
+	return _u
+}
+
+// SetPeakRateMultiplier sets the "peak_rate_multiplier" field.
+func (_u *GroupUpdateOne) SetPeakRateMultiplier(v float64) *GroupUpdateOne {
+	_u.mutation.ResetPeakRateMultiplier()
+	_u.mutation.SetPeakRateMultiplier(v)
+	return _u
+}
+
+// SetNillablePeakRateMultiplier sets the "peak_rate_multiplier" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillablePeakRateMultiplier(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetPeakRateMultiplier(*v)
+	}
+	return _u
+}
+
+// AddPeakRateMultiplier adds value to the "peak_rate_multiplier" field.
+func (_u *GroupUpdateOne) AddPeakRateMultiplier(v float64) *GroupUpdateOne {
+	_u.mutation.AddPeakRateMultiplier(v)
 	return _u
 }
 
@@ -3622,9 +4150,34 @@ func (_u *GroupUpdateOne) check() error {
 			return &ValidationError{Name: "subscription_type", err: fmt.Errorf(`ent: validator failed for field "Group.subscription_type": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.SearchPricePer1k(); ok {
+		if err := group.SearchPricePer1kValidator(v); err != nil {
+			return &ValidationError{Name: "search_price_per_1k", err: fmt.Errorf(`ent: validator failed for field "Group.search_price_per_1k": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.AudioRealtimePricePerMin(); ok {
+		if err := group.AudioRealtimePricePerMinValidator(v); err != nil {
+			return &ValidationError{Name: "audio_realtime_price_per_min", err: fmt.Errorf(`ent: validator failed for field "Group.audio_realtime_price_per_min": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.AudioTtsPricePerMillionChars(); ok {
+		if err := group.AudioTtsPricePerMillionCharsValidator(v); err != nil {
+			return &ValidationError{Name: "audio_tts_price_per_million_chars", err: fmt.Errorf(`ent: validator failed for field "Group.audio_tts_price_per_million_chars": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.AudioSttPricePerHour(); ok {
+		if err := group.AudioSttPricePerHourValidator(v); err != nil {
+			return &ValidationError{Name: "audio_stt_price_per_hour", err: fmt.Errorf(`ent: validator failed for field "Group.audio_stt_price_per_hour": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.DefaultMappedModel(); ok {
 		if err := group.DefaultMappedModelValidator(v); err != nil {
 			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.MaxReasoningEffort(); ok {
+		if err := group.MaxReasoningEffortValidator(v); err != nil {
+			return &ValidationError{Name: "max_reasoning_effort", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.KiroEndpointMode(); ok {
@@ -3803,116 +4356,6 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if _u.mutation.ImagePrice4kCleared() {
 		_spec.ClearField(group.FieldImagePrice4k, field.TypeFloat64)
 	}
-	if value, ok := _u.mutation.ClaudeCodeOnly(); ok {
-		_spec.SetField(group.FieldClaudeCodeOnly, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.FallbackGroupID(); ok {
-		_spec.SetField(group.FieldFallbackGroupID, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedFallbackGroupID(); ok {
-		_spec.AddField(group.FieldFallbackGroupID, field.TypeInt64, value)
-	}
-	if _u.mutation.FallbackGroupIDCleared() {
-		_spec.ClearField(group.FieldFallbackGroupID, field.TypeInt64)
-	}
-	if value, ok := _u.mutation.FallbackGroupIDOnInvalidRequest(); ok {
-		_spec.SetField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64, value)
-	}
-	if value, ok := _u.mutation.AddedFallbackGroupIDOnInvalidRequest(); ok {
-		_spec.AddField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64, value)
-	}
-	if _u.mutation.FallbackGroupIDOnInvalidRequestCleared() {
-		_spec.ClearField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64)
-	}
-	if value, ok := _u.mutation.ModelRouting(); ok {
-		_spec.SetField(group.FieldModelRouting, field.TypeJSON, value)
-	}
-	if _u.mutation.ModelRoutingCleared() {
-		_spec.ClearField(group.FieldModelRouting, field.TypeJSON)
-	}
-	if value, ok := _u.mutation.ModelRoutingEnabled(); ok {
-		_spec.SetField(group.FieldModelRoutingEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.McpXMLInject(); ok {
-		_spec.SetField(group.FieldMcpXMLInject, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.SupportedModelScopes(); ok {
-		_spec.SetField(group.FieldSupportedModelScopes, field.TypeJSON, value)
-	}
-	if value, ok := _u.mutation.AppendedSupportedModelScopes(); ok {
-		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, group.FieldSupportedModelScopes, value)
-		})
-	}
-	if value, ok := _u.mutation.SortOrder(); ok {
-		_spec.SetField(group.FieldSortOrder, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedSortOrder(); ok {
-		_spec.AddField(group.FieldSortOrder, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AllowMessagesDispatch(); ok {
-		_spec.SetField(group.FieldAllowMessagesDispatch, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.RequireOauthOnly(); ok {
-		_spec.SetField(group.FieldRequireOauthOnly, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.RequirePrivacySet(); ok {
-		_spec.SetField(group.FieldRequirePrivacySet, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.DefaultMappedModel(); ok {
-		_spec.SetField(group.FieldDefaultMappedModel, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.MessagesDispatchModelConfig(); ok {
-		_spec.SetField(group.FieldMessagesDispatchModelConfig, field.TypeJSON, value)
-	}
-	if value, ok := _u.mutation.ModelsListConfig(); ok {
-		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
-	}
-	if value, ok := _u.mutation.OpenaiExperimentalPromptEnabled(); ok {
-		_spec.SetField(group.FieldOpenaiExperimentalPromptEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.RpmLimit(); ok {
-		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedRpmLimit(); ok {
-		_spec.AddField(group.FieldRpmLimit, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.KiroCacheEmulationEnabled(); ok {
-		_spec.SetField(group.FieldKiroCacheEmulationEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.KiroAutoStickyEnabled(); ok {
-		_spec.SetField(group.FieldKiroAutoStickyEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.KiroStickySessionTTLSeconds(); ok {
-		_spec.SetField(group.FieldKiroStickySessionTTLSeconds, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedKiroStickySessionTTLSeconds(); ok {
-		_spec.AddField(group.FieldKiroStickySessionTTLSeconds, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.KiroCacheEmulationRatio(); ok {
-		_spec.SetField(group.FieldKiroCacheEmulationRatio, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedKiroCacheEmulationRatio(); ok {
-		_spec.AddField(group.FieldKiroCacheEmulationRatio, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.KiroEndpointMode(); ok {
-		_spec.SetField(group.FieldKiroEndpointMode, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.PeakRateEnabled(); ok {
-		_spec.SetField(group.FieldPeakRateEnabled, field.TypeBool, value)
-	}
-	if value, ok := _u.mutation.PeakStart(); ok {
-		_spec.SetField(group.FieldPeakStart, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.PeakEnd(); ok {
-		_spec.SetField(group.FieldPeakEnd, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.PeakRateMultiplier(); ok {
-		_spec.SetField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedPeakRateMultiplier(); ok {
-		_spec.AddField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
-	}
 	if value, ok := _u.mutation.AllowBatchImageGeneration(); ok {
 		_spec.SetField(group.FieldAllowBatchImageGeneration, field.TypeBool, value)
 	}
@@ -3964,6 +4407,12 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if _u.mutation.VideoPrice1080pCleared() {
 		_spec.ClearField(group.FieldVideoPrice1080p, field.TypeFloat64)
 	}
+	if value, ok := _u.mutation.VideoModelPrices(); ok {
+		_spec.SetField(group.FieldVideoModelPrices, field.TypeJSON, value)
+	}
+	if _u.mutation.VideoModelPricesCleared() {
+		_spec.ClearField(group.FieldVideoModelPrices, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.WebSearchPricePerCall(); ok {
 		_spec.SetField(group.FieldWebSearchPricePerCall, field.TypeFloat64, value)
 	}
@@ -3972,6 +4421,181 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if _u.mutation.WebSearchPricePerCallCleared() {
 		_spec.ClearField(group.FieldWebSearchPricePerCall, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.SearchPricePer1k(); ok {
+		_spec.SetField(group.FieldSearchPricePer1k, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedSearchPricePer1k(); ok {
+		_spec.AddField(group.FieldSearchPricePer1k, field.TypeFloat64, value)
+	}
+	if _u.mutation.SearchPricePer1kCleared() {
+		_spec.ClearField(group.FieldSearchPricePer1k, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.AudioRealtimePricePerMin(); ok {
+		_spec.SetField(group.FieldAudioRealtimePricePerMin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedAudioRealtimePricePerMin(); ok {
+		_spec.AddField(group.FieldAudioRealtimePricePerMin, field.TypeFloat64, value)
+	}
+	if _u.mutation.AudioRealtimePricePerMinCleared() {
+		_spec.ClearField(group.FieldAudioRealtimePricePerMin, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.AudioTtsPricePerMillionChars(); ok {
+		_spec.SetField(group.FieldAudioTtsPricePerMillionChars, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedAudioTtsPricePerMillionChars(); ok {
+		_spec.AddField(group.FieldAudioTtsPricePerMillionChars, field.TypeFloat64, value)
+	}
+	if _u.mutation.AudioTtsPricePerMillionCharsCleared() {
+		_spec.ClearField(group.FieldAudioTtsPricePerMillionChars, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.AudioSttPricePerHour(); ok {
+		_spec.SetField(group.FieldAudioSttPricePerHour, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedAudioSttPricePerHour(); ok {
+		_spec.AddField(group.FieldAudioSttPricePerHour, field.TypeFloat64, value)
+	}
+	if _u.mutation.AudioSttPricePerHourCleared() {
+		_spec.ClearField(group.FieldAudioSttPricePerHour, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.ClaudeCodeOnly(); ok {
+		_spec.SetField(group.FieldClaudeCodeOnly, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.FallbackGroupID(); ok {
+		_spec.SetField(group.FieldFallbackGroupID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedFallbackGroupID(); ok {
+		_spec.AddField(group.FieldFallbackGroupID, field.TypeInt64, value)
+	}
+	if _u.mutation.FallbackGroupIDCleared() {
+		_spec.ClearField(group.FieldFallbackGroupID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.FallbackGroupIDOnInvalidRequest(); ok {
+		_spec.SetField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedFallbackGroupIDOnInvalidRequest(); ok {
+		_spec.AddField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64, value)
+	}
+	if _u.mutation.FallbackGroupIDOnInvalidRequestCleared() {
+		_spec.ClearField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.ModelRouting(); ok {
+		_spec.SetField(group.FieldModelRouting, field.TypeJSON, value)
+	}
+	if _u.mutation.ModelRoutingCleared() {
+		_spec.ClearField(group.FieldModelRouting, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.ModelRoutingEnabled(); ok {
+		_spec.SetField(group.FieldModelRoutingEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.McpXMLInject(); ok {
+		_spec.SetField(group.FieldMcpXMLInject, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SupportedModelScopes(); ok {
+		_spec.SetField(group.FieldSupportedModelScopes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedSupportedModelScopes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldSupportedModelScopes, value)
+		})
+	}
+	if value, ok := _u.mutation.SortOrder(); ok {
+		_spec.SetField(group.FieldSortOrder, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSortOrder(); ok {
+		_spec.AddField(group.FieldSortOrder, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AllowMessagesDispatch(); ok {
+		_spec.SetField(group.FieldAllowMessagesDispatch, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.AllowLive(); ok {
+		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RequireOauthOnly(); ok {
+		_spec.SetField(group.FieldRequireOauthOnly, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RequirePrivacySet(); ok {
+		_spec.SetField(group.FieldRequirePrivacySet, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.DefaultMappedModel(); ok {
+		_spec.SetField(group.FieldDefaultMappedModel, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.MessagesDispatchModelConfig(); ok {
+		_spec.SetField(group.FieldMessagesDispatchModelConfig, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.ModelsListConfig(); ok {
+		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.OpenaiExperimentalPromptEnabled(); ok {
+		_spec.SetField(group.FieldOpenaiExperimentalPromptEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.RpmLimit(); ok {
+		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRpmLimit(); ok {
+		_spec.AddField(group.FieldRpmLimit, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.MaxReasoningEffort(); ok {
+		_spec.SetField(group.FieldMaxReasoningEffort, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ReasoningEffortMappings(); ok {
+		_spec.SetField(group.FieldReasoningEffortMappings, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedReasoningEffortMappings(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldReasoningEffortMappings, value)
+		})
+	}
+	if value, ok := _u.mutation.ProfitControlEnabled(); ok {
+		_spec.SetField(group.FieldProfitControlEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ProfitMinMargin(); ok {
+		_spec.SetField(group.FieldProfitMinMargin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedProfitMinMargin(); ok {
+		_spec.AddField(group.FieldProfitMinMargin, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ProfitSafetyBuffer(); ok {
+		_spec.SetField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedProfitSafetyBuffer(); ok {
+		_spec.AddField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.KiroCacheEmulationEnabled(); ok {
+		_spec.SetField(group.FieldKiroCacheEmulationEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.KiroAutoStickyEnabled(); ok {
+		_spec.SetField(group.FieldKiroAutoStickyEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.KiroStickySessionTTLSeconds(); ok {
+		_spec.SetField(group.FieldKiroStickySessionTTLSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedKiroStickySessionTTLSeconds(); ok {
+		_spec.AddField(group.FieldKiroStickySessionTTLSeconds, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.KiroCacheEmulationRatio(); ok {
+		_spec.SetField(group.FieldKiroCacheEmulationRatio, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedKiroCacheEmulationRatio(); ok {
+		_spec.AddField(group.FieldKiroCacheEmulationRatio, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.KiroEndpointMode(); ok {
+		_spec.SetField(group.FieldKiroEndpointMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PeakRateEnabled(); ok {
+		_spec.SetField(group.FieldPeakRateEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.PeakStart(); ok {
+		_spec.SetField(group.FieldPeakStart, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PeakEnd(); ok {
+		_spec.SetField(group.FieldPeakEnd, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PeakRateMultiplier(); ok {
+		_spec.SetField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedPeakRateMultiplier(); ok {
+		_spec.AddField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{

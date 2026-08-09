@@ -373,12 +373,12 @@ WHERE id = $1`
 		strings.TrimSpace(input.Status),
 		nullTime(input.FinishedAt),
 		input.DurationMs,
-		nullBool(input.Success),
+		opsRetryNullBool(input.Success),
 		nullInt(input.HTTPStatusCode),
 		opsNullString(input.UpstreamRequestID),
 		nullInt64(input.UsedAccountID),
 		opsNullString(input.ResponsePreview),
-		nullBool(input.ResponseTruncated),
+		opsRetryNullBool(input.ResponseTruncated),
 		opsNullString(input.ResultRequestID),
 		nullInt64(input.ResultErrorID),
 		opsNullString(input.ErrorMessage),
@@ -386,7 +386,7 @@ WHERE id = $1`
 	return err
 }
 
-func nullBool(v *bool) sql.NullBool {
+func opsRetryNullBool(v *bool) sql.NullBool {
 	if v == nil {
 		return sql.NullBool{}
 	}

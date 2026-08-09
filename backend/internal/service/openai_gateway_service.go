@@ -22,6 +22,7 @@ import (
 	"ikik-api/internal/pkg/ip"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/openai"
+	"ikik-api/internal/platform/liveattestation"
 	"ikik-api/internal/util/responseheaders"
 )
 
@@ -35,7 +36,8 @@ const (
 	// 与真实 Codex CLI 的 User-Agent 结构对齐：
 	// {originator}/{version} ({OS} {OS_version}; {arch}) {terminal}
 	// 旧值 "codex_cli_rs/0.125.0" 缺少 OS/架构/终端后缀，易被上游指纹识别为非官方客户端。
-	codexCLIUserAgent = "codex_cli_rs/0.144.1 (Ubuntu 22.4.0; x86_64) xterm-256color"
+	codexCLIUserAgent       = "codex_cli_rs/0.144.1 (Ubuntu 22.4.0; x86_64) xterm-256color"
+	codexCLIUserAgentSuffix = " (Ubuntu 22.4.0; x86_64) xterm-256color"
 	// codex_cli_only 拒绝时单个请求头日志长度上限（字符）
 	codexCLIOnlyHeaderValueMaxBytes = 256
 
@@ -216,6 +218,14 @@ type OpenAIUsage struct {
 	KiroCredits              float64
 }
 
+// AudioUsage carries normalized billing units for Grok Voice requests.
+// DurationOrUnits is million characters for TTS, hours for STT, and minutes
+// for realtime sessions.
+type AudioUsage struct {
+	Mode            string
+	DurationOrUnits float64
+}
+
 // OpenAIForwardResult represents the result of forwarding
 type OpenAIForwardResult struct {
 	RequestID  string
@@ -230,6 +240,10 @@ type OpenAIForwardResult struct {
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.
 	// Empty when no mapping was applied (requested model was used as-is).
 	UpstreamModel string
+	// UpstreamResponseModel is the model declared by the successful upstream
+	// response before any client-facing rewrite or protocol conversion.
+	UpstreamResponseModel         string
+	UpstreamResponseModelConflict bool
 	// UpstreamEndpoint is the actual upstream API path used for this request.
 	// It avoids guessing when one downstream protocol can use multiple upstream endpoints.
 	UpstreamEndpoint string
@@ -262,6 +276,10 @@ type OpenAIForwardResult struct {
 	// WebSearchCalls 是 Codex alpha/search 网页搜索调用次数（每次成功请求为 1）。
 	// 上游不返回 usage 字段，>0 时走按次计费（分组单价 × 次数 × 倍率）。
 	WebSearchCalls int
+	// SearchCount is Grok-native web_search / tool search call count.
+	SearchCount int
+	// AudioUsage carries Voice billing units when present.
+	AudioUsage *AudioUsage
 
 	wsReplayInput       []json.RawMessage
 	wsReplayInputExists bool
@@ -410,6 +428,8 @@ type OpenAIGatewayService struct {
 	settingService        *SettingService
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 	carpoolRepo           CarpoolRepository
+	liveAttestation       liveattestation.Provider
+	liveAttestationCipher SecretEncryptor
 
 	openaiWSPoolOnce               sync.Once
 	openaiWSStateStoreOnce         sync.Once
@@ -505,6 +525,8 @@ func NewOpenAIGatewayService(
 		balanceNotifyService:  balanceNotifyService,
 		settingService:        settingService,
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
+		liveAttestation:       liveattestation.NewProvider(),
+		liveAttestationCipher: newLiveAttestationCipher(cfg),
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
 		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
 		openaiModelTransient:  newOpenAIAccountModelTransientState(openAIModelTransientDefaultMax),

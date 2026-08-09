@@ -15,10 +15,12 @@ func RegisterUserRoutes(
 	jwtAuth middleware.JWTAuthMiddleware,
 	auditLog middleware.AuditLogMiddleware,
 	settingService *service.SettingService,
+	panelRateLimiter *middleware.PanelRateLimiter,
 ) {
 	authenticated := v1.Group("")
 	authenticated.Use(gin.HandlerFunc(jwtAuth))
 	authenticated.Use(middleware.BackendModeUserGuard(settingService))
+	authenticated.Use(panelRateLimiter.Global())
 	// 用户管理面变更类操作入审计（含 TOTP 启用/禁用、step-up 验证、密码修改等安全事件）
 	authenticated.Use(gin.HandlerFunc(auditLog))
 	{
@@ -145,6 +147,18 @@ func RegisterUserRoutes(
 		{
 			monitors.GET("", h.ChannelMonitor.List)
 			monitors.GET("/:id/status", h.ChannelMonitor.GetStatus)
+		}
+
+		monitorV2 := authenticated.Group("/channel-monitor-v2")
+		monitorV2.Use(panelRateLimiter.Heavy())
+		monitorV2.Use(channelMonitorModeV2Guard(settingService))
+		{
+			monitorV2.GET("/dimensions", h.ChannelMonitorV2.Dimensions)
+			monitorV2.GET("/snapshot", h.ChannelMonitorV2.Snapshot)
+			monitorV2.GET("/models", h.ChannelMonitorV2.Models)
+			monitorV2.GET("/matrix", h.ChannelMonitorV2.Matrix)
+			monitorV2.GET("/errors", h.ChannelMonitorV2.Errors)
+			monitorV2.GET("/users", h.ChannelMonitorV2.Users)
 		}
 	}
 }

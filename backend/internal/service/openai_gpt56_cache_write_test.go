@@ -121,9 +121,9 @@ func TestGPT56PricingAndChannelCacheWriteOverride(t *testing.T) {
 
 	pricing, err := svc.GetModelPricing("gpt-5.6-terra")
 	require.NoError(t, err)
-	require.InDelta(t, 2.5e-6, pricing.InputPricePerToken, 1e-15)
-	require.InDelta(t, 3.125e-6, pricing.CacheCreationPricePerToken, 1e-15)
-	require.InDelta(t, 6.25e-6, pricing.CacheCreationPricePerTokenPriority, 1e-15)
+	require.InDelta(t, 2e-6, pricing.InputPricePerToken, 1e-15)
+	require.InDelta(t, 2.5e-6, pricing.CacheCreationPricePerToken, 1e-15)
+	require.InDelta(t, 5e-6, pricing.CacheCreationPricePerTokenPriority, 1e-15)
 	require.Equal(t, openAIGPT54LongContextInputThreshold, pricing.LongContextInputThreshold)
 
 	cost, err := svc.CalculateCostWithServiceTier("gpt-5.6-terra", UsageTokens{
@@ -133,10 +133,10 @@ func TestGPT56PricingAndChannelCacheWriteOverride(t *testing.T) {
 		CacheReadTokens:     20,
 	}, 1, "priority")
 	require.NoError(t, err)
-	require.InDelta(t, 100*5e-6, cost.InputCost, 1e-15)
-	require.InDelta(t, 10*30e-6, cost.OutputCost, 1e-15)
-	require.InDelta(t, 40*6.25e-6, cost.CacheCreationCost, 1e-15)
-	require.InDelta(t, 20*0.5e-6, cost.CacheReadCost, 1e-15)
+	require.InDelta(t, 100*4e-6, cost.InputCost, 1e-15)
+	require.InDelta(t, 10*24e-6, cost.OutputCost, 1e-15)
+	require.InDelta(t, 40*5e-6, cost.CacheCreationCost, 1e-15)
+	require.InDelta(t, 20*0.4e-6, cost.CacheReadCost, 1e-15)
 
 	zero := 0.0
 	overridden, err := svc.GetModelPricingWithChannel("gpt-5.6-terra", &ChannelModelPricing{CacheWritePrice: &zero})
@@ -147,7 +147,7 @@ func TestGPT56PricingAndChannelCacheWriteOverride(t *testing.T) {
 
 	baseAgain, err := svc.GetModelPricing("gpt-5.6-terra")
 	require.NoError(t, err)
-	require.InDelta(t, 3.125e-6, baseAgain.CacheCreationPricePerToken, 1e-15)
+	require.InDelta(t, 2.5e-6, baseAgain.CacheCreationPricePerToken, 1e-15)
 }
 
 func TestOpenAIUsageNestedZeroOverridesTopLevelCacheAliases(t *testing.T) {

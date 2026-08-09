@@ -284,9 +284,10 @@ func (s *openAIAccountRuntimeStats) size() int {
 }
 
 type defaultOpenAIAccountScheduler struct {
-	service *OpenAIGatewayService
-	metrics openAIAccountSchedulerMetrics
-	stats   *openAIAccountRuntimeStats
+	service                *OpenAIGatewayService
+	metrics                openAIAccountSchedulerMetrics
+	stats                  *openAIAccountRuntimeStats
+	grokFreeQuotaGateCache sync.Map
 }
 
 type openAISelectionProbeBudget struct {

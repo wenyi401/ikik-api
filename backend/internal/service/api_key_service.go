@@ -1010,6 +1010,21 @@ func (s *APIKeyService) GetUserGroupRates(ctx context.Context, userID int64) (ma
 	return rates, nil
 }
 
+// GetUserAllowedGroupIDSet returns the exclusive groups explicitly visible to
+// a user. It intentionally does not apply subscription validity checks because
+// model plaza is a discoverability surface rather than an authorization gate.
+func (s *APIKeyService) GetUserAllowedGroupIDSet(ctx context.Context, userID int64) (map[int64]struct{}, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get user: %w", err)
+	}
+	allowed := make(map[int64]struct{}, len(user.AllowedGroups))
+	for _, id := range user.AllowedGroups {
+		allowed[id] = struct{}{}
+	}
+	return allowed, nil
+}
+
 // CheckAPIKeyQuotaAndExpiry checks if the API key is valid for use (not expired, quota not exhausted)
 // Returns nil if valid, error if invalid
 func (s *APIKeyService) CheckAPIKeyQuotaAndExpiry(apiKey *APIKey) error {

@@ -22,6 +22,7 @@ import (
 	"ikik-api/internal/config"
 	pkghttputil "ikik-api/internal/pkg/httputil"
 	"ikik-api/internal/pkg/pagination"
+	"ikik-api/internal/pkg/xai"
 	"ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
 )
@@ -642,6 +643,13 @@ func TestResolveOpenAIMessagesDispatchMappedModel(t *testing.T) {
 	})
 
 	t.Run("grok_group_maps_claude_cli_model_to_grok_default", func(t *testing.T) {
+		original := xai.RuntimeModelMappingOptions()
+		t.Cleanup(func() { xai.SetRuntimeModelMappingOptions(original) })
+		xai.SetRuntimeModelMappingOptions(xai.ModelMappingOptions{
+			DefaultText:          "grok-4.5",
+			EnableCrossClientMap: true,
+		})
+
 		apiKey := &service.APIKey{
 			Group: &service.Group{
 				Platform: service.PlatformGrok,
@@ -1260,6 +1268,7 @@ func TestOpenAIResponsesWebSocket_ContentModerationBlocksFirstFrame(t *testing.T
 	moderationSvc := service.NewContentModerationService(
 		settingRepo,
 		repo,
+		nil,
 		nil,
 		nil,
 		nil,

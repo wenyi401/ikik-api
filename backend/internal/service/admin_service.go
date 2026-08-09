@@ -233,16 +233,19 @@ type CreateGroupInput struct {
 	VideoRateIndependent         bool
 	VideoRateMultiplier          *float64
 	// 高峰时段倍率配置（PeakRateMultiplier 为 nil 时按 1.0 处理）
-	PeakRateEnabled    bool
-	PeakStart          string
-	PeakEnd            string
-	PeakRateMultiplier *float64
-	ImagePrice1K       *float64
-	ImagePrice2K       *float64
-	ImagePrice4K       *float64
-	VideoPrice480P     *float64
-	VideoPrice720P     *float64
-	VideoPrice1080P    *float64
+	PeakRateEnabled      bool
+	PeakStart            string
+	PeakEnd              string
+	PeakRateMultiplier   *float64
+	ProfitControlEnabled bool
+	ProfitMinMargin      *float64
+	ProfitSafetyBuffer   *float64
+	ImagePrice1K         *float64
+	ImagePrice2K         *float64
+	ImagePrice4K         *float64
+	VideoPrice480P       *float64
+	VideoPrice720P       *float64
+	VideoPrice1080P      *float64
 	// Codex alpha/search 网页搜索单次价格（USD/次，仅 openai 平台使用）；nil/负数按默认价 0.01 处理
 	WebSearchPricePerCall *float64
 	ClaudeCodeOnly        bool   // 仅允许 Claude Code 客户端
@@ -265,6 +268,10 @@ type CreateGroupInput struct {
 	OpenAIExperimentalPromptEnabled bool
 	// RPMLimit 分组 RPM 上限（0 = 不限制）
 	RPMLimit int
+	// MaxReasoningEffort OpenAI/Codex 请求的推理强度上限，空字符串表示不限制。
+	MaxReasoningEffort string
+	// ReasoningEffortMappings OpenAI/Codex 推理强度精确映射。
+	ReasoningEffortMappings []ReasoningEffortMapping
 	// 从指定分组复制账号（创建分组后在同一事务内绑定）
 	CopyAccountsFromGroupIDs []int64
 }
@@ -292,16 +299,19 @@ type UpdateGroupInput struct {
 	VideoRateIndependent         *bool
 	VideoRateMultiplier          *float64
 	// 高峰时段倍率配置（nil 表示不修改）
-	PeakRateEnabled    *bool
-	PeakStart          *string
-	PeakEnd            *string
-	PeakRateMultiplier *float64
-	ImagePrice1K       *float64
-	ImagePrice2K       *float64
-	ImagePrice4K       *float64
-	VideoPrice480P     *float64
-	VideoPrice720P     *float64
-	VideoPrice1080P    *float64
+	PeakRateEnabled      *bool
+	PeakStart            *string
+	PeakEnd              *string
+	PeakRateMultiplier   *float64
+	ProfitControlEnabled *bool
+	ProfitMinMargin      *float64
+	ProfitSafetyBuffer   *float64
+	ImagePrice1K         *float64
+	ImagePrice2K         *float64
+	ImagePrice4K         *float64
+	VideoPrice480P       *float64
+	VideoPrice720P       *float64
+	VideoPrice1080P      *float64
 	// Codex alpha/search 网页搜索单次价格（USD/次）；nil 表示不修改，负数表示清除回默认价 0.01
 	WebSearchPricePerCall *float64
 	ClaudeCodeOnly        *bool  // 仅允许 Claude Code 客户端
@@ -324,6 +334,10 @@ type UpdateGroupInput struct {
 	OpenAIExperimentalPromptEnabled *bool
 	// RPMLimit 分组 RPM 上限（0 = 不限制），nil 表示未提供不改动。
 	RPMLimit *int
+	// MaxReasoningEffort 空字符串表示清除上限；nil 表示未提供不改动。
+	MaxReasoningEffort *string
+	// ReasoningEffortMappings nil 表示不修改，空数组表示清空，非空数组表示替换。
+	ReasoningEffortMappings *[]ReasoningEffortMapping
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64
 }
@@ -385,6 +399,8 @@ type UpdateAccountInput struct {
 	GroupIDs              *[]int64
 	ExpiresAt             *int64
 	AutoPauseOnExpired    *bool
+	ProbeEnabled          *bool
+	RateSyncEnabled       *bool
 	SkipMixedChannelCheck bool // 跳过混合渠道检查（用户已确认风险）
 }
 

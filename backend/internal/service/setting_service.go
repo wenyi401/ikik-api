@@ -5,12 +5,76 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 
 	"golang.org/x/sync/singleflight"
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/xai"
 )
+
+const (
+	GrokDefaultBaseURLModeAPI     = "api"
+	GrokDefaultBaseURLModeUSEast1 = "us-east-1"
+	GrokDefaultBaseURLModeUSWest2 = "us-west-2"
+	GrokDefaultBaseURLModeEUWest1 = "eu-west-1"
+	GrokDefaultBaseURLModeCLI     = "cli"
+)
+
+func normalizeGrokDefaultBaseURLMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case GrokDefaultBaseURLModeAPI, GrokDefaultBaseURLModeUSEast1,
+		GrokDefaultBaseURLModeUSWest2, GrokDefaultBaseURLModeEUWest1,
+		GrokDefaultBaseURLModeCLI:
+		return strings.ToLower(strings.TrimSpace(mode))
+	default:
+		return GrokDefaultBaseURLModeCLI
+	}
+}
+
+func GrokBaseURLForMode(mode string) string {
+	switch normalizeGrokDefaultBaseURLMode(mode) {
+	case GrokDefaultBaseURLModeAPI:
+		return xai.DefaultBaseURL
+	case GrokDefaultBaseURLModeUSEast1:
+		return xai.DefaultUSEast1BaseURL
+	case GrokDefaultBaseURLModeUSWest2:
+		return xai.DefaultUSWest2BaseURL
+	case GrokDefaultBaseURLModeEUWest1:
+		return xai.DefaultEUWest1BaseURL
+	default:
+		return xai.DefaultCLIBaseURL
+	}
+}
+
+func (s *SettingService) GetGrokDefaultBaseURLMode(ctx context.Context) string {
+	if s == nil || s.settingRepo == nil {
+		return GrokDefaultBaseURLModeCLI
+	}
+	dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayForwardingDBTimeout)
+	defer cancel()
+	raw, err := s.settingRepo.GetValue(dbCtx, SettingKeyGrokDefaultBaseURLMode)
+	if err != nil {
+		return GrokDefaultBaseURLModeCLI
+	}
+	return normalizeGrokDefaultBaseURLMode(raw)
+}
+
+func (s *SettingService) GetGrokDefaultBaseURL(ctx context.Context) string {
+	return GrokBaseURLForMode(s.GetGrokDefaultBaseURLMode(ctx))
+}
+
+func (s *SettingService) ResolveGrokBaseURL(ctx context.Context, account *Account) string {
+	defaultURL := xai.DefaultCLIBaseURL
+	if s != nil {
+		defaultURL = s.GetGrokDefaultBaseURL(ctx)
+	}
+	if account == nil {
+		return defaultURL
+	}
+	return account.GetGrokBaseURLOr(defaultURL)
+}
 
 var (
 	ErrRegistrationDisabled   = infraerrors.Forbidden("REGISTRATION_DISABLED", "registration is currently disabled")
@@ -57,10 +121,14 @@ type SettingService struct {
 	antigravityUAVersionSF        singleflight.Group
 	openAICodexUACache            atomic.Value // *cachedOpenAICodexUserAgent
 	openAICodexUASF               singleflight.Group
+	openAICodexVersionCache       atomic.Value // *cachedOpenAICodexClientVersion
+	openAICodexVersionSF          singleflight.Group
 	openAIExperimentalPromptCache atomic.Value // *cachedOpenAIExperimentalPromptSettings
 	openAIExperimentalPromptSF    singleflight.Group
 	codexRestrictionPolicyCache   atomic.Value // *cachedCodexRestrictionPolicy
 	codexRestrictionPolicySF      singleflight.Group
+	panelRateLimitCache           atomic.Value // *cachedPanelRateLimitSettings
+	panelRateLimitSF              singleflight.Group
 
 	cyberSessionBlockRuntimeCache atomic.Value // *cachedCyberSessionBlockRuntime
 	cyberSessionBlockRuntimeSF    singleflight.Group

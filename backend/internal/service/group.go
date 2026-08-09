@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 type OpenAIMessagesDispatchModelConfig = domain.OpenAIMessagesDispatchModelConfig
 type GroupModelsListConfig = domain.GroupModelsListConfig
+type ReasoningEffortMapping = domain.ReasoningEffortMapping
 
 type Group struct {
 	ID             int64
@@ -57,9 +59,15 @@ type Group struct {
 	VideoPrice480P               *float64
 	VideoPrice720P               *float64
 	VideoPrice1080P              *float64
+	// VideoModelPrices optionally overrides video pricing per model family and resolution.
+	VideoModelPrices map[string]map[string]float64
 	// Codex alpha/search 网页搜索单次价格（USD/次，仅 openai 平台使用）；
 	// nil 表示使用默认价 defaultWebSearchPricePerCall（官方 $10/1000 次）。
-	WebSearchPricePerCall *float64
+	WebSearchPricePerCall        *float64
+	SearchPricePer1k             *float64
+	AudioRealtimePricePerMin     *float64
+	AudioTTSPricePerMillionChars *float64
+	AudioSTTPricePerHour         *float64
 
 	// Claude Code 客户端限制
 	ClaudeCodeOnly  bool
@@ -85,6 +93,7 @@ type Group struct {
 
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
 	AllowMessagesDispatch           bool
+	AllowLive                       bool
 	RequireOAuthOnly                bool // 仅允许非 apikey 类型账号关联（OpenAI/Antigravity/Anthropic/Gemini）
 	RequirePrivacySet               bool // 调度时仅允许 privacy 已成功设置的账号（OpenAI/Antigravity/Anthropic/Gemini）
 	DefaultMappedModel              string
@@ -95,6 +104,15 @@ type Group struct {
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）。
 	// 一旦设置即接管该分组用户的限流（覆盖用户级 rpm_limit），可被 user-group rpm_override 进一步覆盖。
 	RPMLimit int
+
+	// MaxReasoningEffort limits the effective OpenAI/Codex reasoning effort.
+	MaxReasoningEffort      string
+	ReasoningEffortMappings []ReasoningEffortMapping
+
+	// Profit control limits account admission by the effective downstream rate.
+	ProfitControlEnabled bool
+	ProfitMinMargin      float64
+	ProfitSafetyBuffer   float64
 
 	KiroCacheEmulationEnabled   bool
 	KiroAutoStickyEnabled       bool
@@ -160,6 +178,38 @@ func (g *Group) GetVideoPrice(resolution string) *float64 {
 	default:
 		return g.VideoPrice480P
 	}
+}
+
+// GetVideoPriceForModel prefers model-family pricing and falls back to the
+// legacy resolution-level prices.
+func (g *Group) GetVideoPriceForModel(model, resolution string) *float64 {
+	if g == nil {
+		return nil
+	}
+	if price := LookupVideoModelPrice(g.VideoModelPrices, model, resolution); price != nil {
+		return price
+	}
+	return g.GetVideoPrice(resolution)
+}
+
+// VideoPriceConfig returns the normalized video pricing configuration.
+func (g *Group) VideoPriceConfig() *VideoPriceConfig {
+	if g == nil {
+		return nil
+	}
+	return &VideoPriceConfig{
+		Price480P:   g.VideoPrice480P,
+		Price720P:   g.VideoPrice720P,
+		Price1080P:  g.VideoPrice1080P,
+		ModelPrices: NormalizeVideoModelPrices(g.VideoModelPrices),
+	}
+}
+
+func (g *Group) GetSearchPricePer1k() *float64 {
+	if g == nil {
+		return nil
+	}
+	return g.SearchPricePer1k
 }
 
 // IsGroupContextValid reports whether a group from context has the fields required for routing decisions.
@@ -324,6 +374,62 @@ func NormalizePeakRateConfig(subscriptionType string, enabled bool, start, end s
 		}
 	}
 	return enabled, start, end, multiplier
+}
+
+func validProfitControlRatio(v float64) bool {
+	return !math.IsNaN(v) && !math.IsInf(v, 0) && v >= 0 && v < 1
+}
+
+// NormalizeGroupPlatform keeps request validation consistent with CreateGroup,
+// where an omitted platform defaults to Anthropic.
+func NormalizeGroupPlatform(platform string) string {
+	if platform == "" {
+		return PlatformAnthropic
+	}
+	return platform
+}
+
+func ValidateProfitControlConfig(platform string, enabled bool, minMargin, safetyBuffer float64) error {
+	if !enabled {
+		return nil
+	}
+	if !profitControlPlatformSupported(platform) {
+		return errors.New("利润控制仅支持 openai、anthropic、gemini、grok、antigravity 平台分组")
+	}
+	if !validProfitControlRatio(minMargin) {
+		return fmt.Errorf("profit_min_margin 应为 [0,1) 的小数，got %v", minMargin)
+	}
+	if !validProfitControlRatio(safetyBuffer) {
+		return fmt.Errorf("profit_safety_buffer 应为 [0,1) 的小数，got %v", safetyBuffer)
+	}
+	if minMargin+safetyBuffer >= 1 {
+		return errors.New("profit_min_margin 与 profit_safety_buffer 之和必须小于 1，否则将排除全部账号")
+	}
+	return nil
+}
+
+func NormalizeProfitControlConfig(platform string, enabled bool, minMargin, safetyBuffer float64) (bool, float64, float64) {
+	if !profitControlPlatformSupported(platform) {
+		return false, 0, 0
+	}
+	if !enabled {
+		if !validProfitControlRatio(minMargin) {
+			minMargin = 0
+		}
+		if !validProfitControlRatio(safetyBuffer) {
+			safetyBuffer = 0
+		}
+	}
+	return enabled, minMargin, safetyBuffer
+}
+
+func profitControlPlatformSupported(platform string) bool {
+	switch platform {
+	case PlatformOpenAI, PlatformAnthropic, PlatformGemini, PlatformGrok, PlatformAntigravity:
+		return true
+	default:
+		return false
+	}
 }
 
 // computePeakAwareMultipliers 把"基础 token 倍率 base"（已含系统/分组/用户级倍率，但不含高峰）

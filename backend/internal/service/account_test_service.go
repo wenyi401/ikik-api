@@ -73,9 +73,16 @@ type AccountTestService struct {
 	antigravityGatewayService *AntigravityGatewayService
 	httpUpstream              HTTPUpstream
 	cfg                       *config.Config
+	settingService            *SettingService
 	tlsFPProfileService       *TLSFingerprintProfileService
 	agentIdentityTaskMu       sync.Mutex
 	agentIdentityWS           agentIdentityWSConnectionInvalidator
+}
+
+func (s *AccountTestService) SetSettingService(settingService *SettingService) {
+	if s != nil {
+		s.settingService = settingService
+	}
 }
 
 // NewAccountTestService creates a new AccountTestService

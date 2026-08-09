@@ -290,7 +290,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
 		accountReleaseFunc, acquired := h.acquireResponsesAccountSlot(c, currentAPIKey.GroupID, sessionHash, selection, parsed.Stream, &streamStarted, reqLog)
-		if !acquired {
+		if acquired != openAISlotAcquireOK {
 			return
 		}
 

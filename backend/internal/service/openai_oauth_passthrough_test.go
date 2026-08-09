@@ -414,7 +414,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_StreamKeepsToolNameAndBodyNormali
 
 	// 2) only auth is replaced; inbound auth/cookie are not forwarded
 	require.Equal(t, "Bearer oauth-token", upstream.lastReq.Header.Get("Authorization"))
-	require.Equal(t, "codex_cli_rs/0.1.0", upstream.lastReq.Header.Get("User-Agent"))
+	require.Equal(t, codexCLIUserAgent, upstream.lastReq.Header.Get("User-Agent"))
 	require.Empty(t, upstream.lastReq.Header.Get("Cookie"))
 	require.Empty(t, upstream.lastReq.Header.Get("X-Api-Key"))
 	require.Empty(t, upstream.lastReq.Header.Get("X-Goog-Api-Key"))
@@ -472,7 +472,10 @@ func TestOpenAIGatewayService_OAuthPassthrough_NamespaceRequestAndStreamResponse
 	account := &Account{
 		ID: 123, Name: "acc", Platform: PlatformOpenAI, Type: AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"},
-		Extra:       map[string]any{"openai_passthrough": true}, Status: StatusActive, Schedulable: true, RateMultiplier: f64p(1),
+		Extra: map[string]any{
+			"openai_passthrough":                  true,
+			"openai_responses_flatten_namespaces": true,
+		}, Status: StatusActive, Schedulable: true, RateMultiplier: f64p(1),
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -523,6 +526,7 @@ func TestOpenAIGatewayService_NativeOAuth_NamespaceRequestAndStreamResponse(t *t
 	account := &Account{
 		ID: 124, Name: "native", Platform: PlatformOpenAI, Type: AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"},
+		Extra:       map[string]any{"openai_responses_flatten_namespaces": true},
 		Status:      StatusActive, Schedulable: true, RateMultiplier: f64p(1),
 	}
 
@@ -608,7 +612,10 @@ func TestOpenAIGatewayService_OAuthPassthrough_NamespaceCollisionReturnsBadReque
 	account := &Account{
 		ID: 123, Name: "acc", Platform: PlatformOpenAI, Type: AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"},
-		Extra:       map[string]any{"openai_passthrough": true}, Status: StatusActive, Schedulable: true, RateMultiplier: f64p(1),
+		Extra: map[string]any{
+			"openai_passthrough":                  true,
+			"openai_responses_flatten_namespaces": true,
+		}, Status: StatusActive, Schedulable: true, RateMultiplier: f64p(1),
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)

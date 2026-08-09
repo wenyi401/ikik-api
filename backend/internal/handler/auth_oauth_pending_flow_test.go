@@ -3077,7 +3077,7 @@ func (r *oauthPendingFlowUserRepo) GetFirstAdmin(context.Context) (*service.User
 	panic("unexpected GetFirstAdmin call")
 }
 
-func (r *oauthPendingFlowUserRepo) Update(ctx context.Context, user *service.User) error {
+func (r *oauthPendingFlowUserRepo) Update(ctx context.Context, user *service.User, _ service.UserUpdateFields) error {
 	entity, err := r.client.User.UpdateOneID(user.ID).
 		SetEmail(user.Email).
 		SetUsername(user.Username).
@@ -3230,6 +3230,14 @@ func (r *oauthPendingFlowUserRepo) DeductBalance(context.Context, int64, float64
 	panic("unexpected DeductBalance call")
 }
 
+func (r *oauthPendingFlowUserRepo) AdjustBalance(context.Context, int64, float64) (service.BalanceChange, error) {
+	panic("unexpected AdjustBalance call")
+}
+
+func (r *oauthPendingFlowUserRepo) SetBalance(context.Context, int64, float64) (service.BalanceChange, error) {
+	panic("unexpected SetBalance call")
+}
+
 func (r *oauthPendingFlowUserRepo) UpdateConcurrency(context.Context, int64, int) error {
 	panic("unexpected UpdateConcurrency call")
 }
@@ -3256,6 +3264,31 @@ func (r *oauthPendingFlowUserRepo) GetLatestUsedAtByUserID(context.Context, int6
 func (r *oauthPendingFlowUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	count, err := r.client.User.Query().Where(dbuser.EmailEQ(email)).Count(ctx)
 	return count > 0, err
+}
+
+func (r *oauthPendingFlowUserRepo) ExistsByEmailAlias(ctx context.Context, email string) (bool, error) {
+	identity := service.NormalizeEmailForAliasDedup(email)
+	emails, err := r.client.User.Query().Select(dbuser.FieldEmail).Strings(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, candidate := range emails {
+		if service.NormalizeEmailForAliasDedup(candidate) == identity {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (r *oauthPendingFlowUserRepo) CreateWithEmailAliasGuard(ctx context.Context, user *service.User) error {
+	exists, err := r.ExistsByEmailAlias(ctx, user.Email)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return service.ErrEmailExists
+	}
+	return r.Create(ctx, user)
 }
 
 func (r *oauthPendingFlowUserRepo) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {

@@ -67,6 +67,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		settingKeyForwardedClientIPModeV2:                   "true",
 		SettingKeySiteName:                                  "ikik-api",
 		SettingKeySiteLogo:                                  "",
+		SettingKeyCompactHomeEnabled:                        "false",
 		SettingKeyPurchaseSubscriptionEnabled:               "false",
 		SettingKeyPurchaseSubscriptionURL:                   "",
 		SettingKeyTableDefaultPageSize:                      "20",
@@ -185,10 +186,15 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 
 		// Channel monitor defaults (enabled, 60s)
 		SettingKeyChannelMonitorEnabled:                "true",
+		SettingKeyChannelMonitorMode:                   ChannelMonitorModeV1,
 		SettingKeyChannelMonitorDefaultIntervalSeconds: "60",
+		SettingKeyChannelMonitorHideThroughput:         "true",
 
 		// Available channels feature (default disabled; opt-in)
 		SettingKeyAvailableChannelsEnabled:                  "false",
+		SettingKeyModelPlazaEnabled:                         "false",
+		SettingKeyModelPlazaRequireAuth:                     "false",
+		SettingKeyModelPlazaDescription:                     "",
 		SettingKeyFreeModelsEnabled:                         "false",
 		SettingKeyAutoModelSettings:                         DefaultAutoModelSettingsJSON(),
 		SettingKeyHomeStatsGroupID:                          "0",
@@ -307,46 +313,61 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		}
 	}
 	result := &SystemSettings{
-		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
-		EmailVerifyEnabled:               emailVerifyEnabled,
-		RegistrationEmailSuffixWhitelist: ParseRegistrationEmailSuffixWhitelist(settings[SettingKeyRegistrationEmailSuffixWhitelist]),
-		PromoCodeEnabled:                 settings[SettingKeyPromoCodeEnabled] != "false", // 默认启用
-		PasswordResetEnabled:             emailVerifyEnabled && settings[SettingKeyPasswordResetEnabled] == "true",
-		FrontendURL:                      settings[SettingKeyFrontendURL],
-		InvitationCodeEnabled:            settings[SettingKeyInvitationCodeEnabled] == "true",
-		TotpEnabled:                      settings[SettingKeyTotpEnabled] == "true",
-		SessionBindingEnabled:            settings[SettingKeySessionBindingEnabled] == "true", // 默认关闭
-		StepUpEnabled:                    settings[SettingKeyStepUpEnabled] == "true",         // 默认关闭
-		AuditLogRetentionDays:            parseAuditLogRetentionDays(settings[SettingKeyAuditLogRetentionDays]),
-		LoginAgreementEnabled:            settings[SettingKeyLoginAgreementEnabled] == "true",
-		LoginAgreementMode:               normalizeLoginAgreementMode(settings[SettingKeyLoginAgreementMode]),
-		LoginAgreementUpdatedAt:          loginAgreementUpdatedAt,
-		LoginAgreementDocuments:          loginAgreementDocuments,
-		SMTPHost:                         settings[SettingKeySMTPHost],
-		SMTPUsername:                     settings[SettingKeySMTPUsername],
-		SMTPFrom:                         settings[SettingKeySMTPFrom],
-		SMTPFromName:                     settings[SettingKeySMTPFromName],
-		SMTPUseTLS:                       settings[SettingKeySMTPUseTLS] == "true",
-		SMTPPasswordConfigured:           settings[SettingKeySMTPPassword] != "",
-		TurnstileEnabled:                 settings[SettingKeyTurnstileEnabled] == "true",
-		TurnstileSiteKey:                 settings[SettingKeyTurnstileSiteKey],
-		TurnstileSecretKeyConfigured:     settings[SettingKeyTurnstileSecretKey] != "",
-		APIKeyACLTrustForwardedIP:        apiKeyACLTrustForwardedIP,
-		ForwardedClientIPHeaders:         forwardedClientIPHeaders,
-		SiteName:                         s.getStringOrDefault(settings, SettingKeySiteName, "ikik-api"),
-		SiteLogo:                         settings[SettingKeySiteLogo],
-		SiteSubtitle:                     s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
-		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
-		ContactInfo:                      settings[SettingKeyContactInfo],
-		DocURL:                           settings[SettingKeyDocURL],
-		HomeContent:                      settings[SettingKeyHomeContent],
-		HomeStatsGroupID:                 parseNonNegativeSettingInt64(settings[SettingKeyHomeStatsGroupID]),
-		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
-		PurchaseSubscriptionEnabled:      settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
-		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
-		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],
-		CustomEndpoints:                  settings[SettingKeyCustomEndpoints],
-		BackendModeEnabled:               settings[SettingKeyBackendModeEnabled] == "true",
+		RegistrationEnabled:                    settings[SettingKeyRegistrationEnabled] == "true",
+		EmailVerifyEnabled:                     emailVerifyEnabled,
+		RegistrationEmailSuffixWhitelist:       ParseRegistrationEmailSuffixWhitelist(settings[SettingKeyRegistrationEmailSuffixWhitelist]),
+		RegistrationEmailDomainQuotaEnabled:    settings[SettingKeyRegistrationEmailDomainQuotaEnabled] == "true",
+		PromoCodeEnabled:                       settings[SettingKeyPromoCodeEnabled] != "false", // 默认启用
+		PasswordResetEnabled:                   emailVerifyEnabled && settings[SettingKeyPasswordResetEnabled] == "true",
+		FrontendURL:                            settings[SettingKeyFrontendURL],
+		InvitationCodeEnabled:                  settings[SettingKeyInvitationCodeEnabled] == "true",
+		TotpEnabled:                            settings[SettingKeyTotpEnabled] == "true",
+		PasskeyEnabled:                         s.passkeySettingEnabled(settings),
+		SessionBindingEnabled:                  settings[SettingKeySessionBindingEnabled] == "true", // 默认关闭
+		StepUpEnabled:                          settings[SettingKeyStepUpEnabled] == "true",         // 默认关闭
+		AuditLogRetentionDays:                  parseAuditLogRetentionDays(settings[SettingKeyAuditLogRetentionDays]),
+		LoginAgreementEnabled:                  settings[SettingKeyLoginAgreementEnabled] == "true",
+		LoginAgreementMode:                     normalizeLoginAgreementMode(settings[SettingKeyLoginAgreementMode]),
+		LoginAgreementUpdatedAt:                loginAgreementUpdatedAt,
+		LoginAgreementDocuments:                loginAgreementDocuments,
+		SMTPHost:                               settings[SettingKeySMTPHost],
+		SMTPUsername:                           settings[SettingKeySMTPUsername],
+		SMTPFrom:                               settings[SettingKeySMTPFrom],
+		SMTPFromName:                           settings[SettingKeySMTPFromName],
+		SMTPUseTLS:                             settings[SettingKeySMTPUseTLS] == "true",
+		SMTPPasswordConfigured:                 settings[SettingKeySMTPPassword] != "",
+		TurnstileEnabled:                       settings[SettingKeyTurnstileEnabled] == "true",
+		TurnstileSiteKey:                       settings[SettingKeyTurnstileSiteKey],
+		TurnstileSecretKeyConfigured:           settings[SettingKeyTurnstileSecretKey] != "",
+		TencentCaptchaEnabled:                  settings[SettingKeyTencentCaptchaEnabled] == "true",
+		TencentCaptchaAppID:                    settings[SettingKeyTencentCaptchaAppID],
+		TencentCaptchaAppSecretKeyConfigured:   settings[SettingKeyTencentCaptchaAppSecretKey] != "",
+		TencentCaptchaCloudSecretIDConfigured:  settings[SettingKeyTencentCaptchaCloudSecretID] != "",
+		TencentCaptchaCloudSecretKeyConfigured: settings[SettingKeyTencentCaptchaCloudSecretKey] != "",
+		TencentCaptchaRegion:                   normalizeTencentCaptchaRegion(settings[SettingKeyTencentCaptchaRegion]),
+		AliyunCaptchaEnabled:                   settings[SettingKeyAliyunCaptchaEnabled] == "true",
+		AliyunCaptchaAccessKeyID:               settings[SettingKeyAliyunCaptchaAccessKeyID],
+		AliyunCaptchaAccessKeySecretConfigured: settings[SettingKeyAliyunCaptchaAccessKeySecret] != "",
+		AliyunCaptchaSceneID:                   settings[SettingKeyAliyunCaptchaSceneID],
+		AliyunCaptchaPrefix:                    settings[SettingKeyAliyunCaptchaPrefix],
+		AliyunCaptchaRegion:                    normalizeAliyunCaptchaRegion(settings[SettingKeyAliyunCaptchaRegion]),
+		APIKeyACLTrustForwardedIP:              apiKeyACLTrustForwardedIP,
+		ForwardedClientIPHeaders:               forwardedClientIPHeaders,
+		SiteName:                               s.getStringOrDefault(settings, SettingKeySiteName, "ikik-api"),
+		SiteLogo:                               settings[SettingKeySiteLogo],
+		SiteSubtitle:                           s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
+		APIBaseURL:                             settings[SettingKeyAPIBaseURL],
+		ContactInfo:                            settings[SettingKeyContactInfo],
+		DocURL:                                 settings[SettingKeyDocURL],
+		HomeContent:                            settings[SettingKeyHomeContent],
+		CompactHomeEnabled:                     settings[SettingKeyCompactHomeEnabled] == "true",
+		HomeStatsGroupID:                       parseNonNegativeSettingInt64(settings[SettingKeyHomeStatsGroupID]),
+		HideCcsImportButton:                    settings[SettingKeyHideCcsImportButton] == "true",
+		PurchaseSubscriptionEnabled:            settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
+		PurchaseSubscriptionURL:                strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
+		CustomMenuItems:                        settings[SettingKeyCustomMenuItems],
+		CustomEndpoints:                        settings[SettingKeyCustomEndpoints],
+		BackendModeEnabled:                     settings[SettingKeyBackendModeEnabled] == "true",
 	}
 	result.TableDefaultPageSize, result.TablePageSizeOptions = parseTablePreferences(
 		settings[SettingKeyTableDefaultPageSize],
@@ -417,6 +438,10 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	// 敏感信息直接返回，方便测试连接时使用
 	result.SMTPPassword = settings[SettingKeySMTPPassword]
 	result.TurnstileSecretKey = settings[SettingKeyTurnstileSecretKey]
+	result.TencentCaptchaAppSecretKey = settings[SettingKeyTencentCaptchaAppSecretKey]
+	result.TencentCaptchaCloudSecretID = settings[SettingKeyTencentCaptchaCloudSecretID]
+	result.TencentCaptchaCloudSecretKey = settings[SettingKeyTencentCaptchaCloudSecretKey]
+	result.AliyunCaptchaAccessKeySecret = settings[SettingKeyAliyunCaptchaAccessKeySecret]
 
 	// LinuxDo Connect 设置：
 	// - 兼容 config.yaml/env（避免老部署因为未迁移到数据库设置而被意外关闭）
@@ -787,12 +812,25 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 
 	// Channel monitor feature (default: enabled, 60s)
 	result.ChannelMonitorEnabled = !isFalseSettingValue(settings[SettingKeyChannelMonitorEnabled])
+	result.ChannelMonitorMode = normalizeChannelMonitorMode(settings[SettingKeyChannelMonitorMode])
 	result.ChannelMonitorDefaultIntervalSeconds = parseChannelMonitorInterval(
 		settings[SettingKeyChannelMonitorDefaultIntervalSeconds],
 	)
+	result.ChannelMonitorHideThroughput = !isFalseSettingValue(settings[SettingKeyChannelMonitorHideThroughput])
+
+	// Grok defaults are applied only to accounts without an explicit mapping or base URL.
+	result.GrokDefaultTextModel = strings.TrimSpace(settings[SettingKeyGrokDefaultTextModel])
+	if result.GrokDefaultTextModel == "" {
+		result.GrokDefaultTextModel = "grok-4.5"
+	}
+	result.GrokCrossClientModelMapEnabled = !isFalseSettingValue(settings[SettingKeyGrokCrossClientModelMapEnabled])
+	result.GrokDefaultBaseURLMode = normalizeGrokDefaultBaseURLMode(settings[SettingKeyGrokDefaultBaseURLMode])
 
 	// Available channels feature (default: disabled; strict true)
 	result.AvailableChannelsEnabled = settings[SettingKeyAvailableChannelsEnabled] == "true"
+	result.ModelPlazaEnabled = settings[SettingKeyModelPlazaEnabled] == "true"
+	result.ModelPlazaRequireAuth = settings[SettingKeyModelPlazaRequireAuth] == "true"
+	result.ModelPlazaDescription = settings[SettingKeyModelPlazaDescription]
 	result.FreeModelsEnabled = settings[SettingKeyFreeModelsEnabled] == "true"
 	result.AutoModelSettings = ParseAutoModelSettings(settings[SettingKeyAutoModelSettings])
 	result.CarpoolEnabled = settings[SettingKeyCarpoolEnabled] == "true"
@@ -936,6 +974,14 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 			slog.Warn("[Setting] parseSettings: unmarshal default_platform_quotas failed", "error", err)
 		} else {
 			result.DefaultPlatformQuotas = parsed
+		}
+	}
+	result.AccountSchedulingThresholds = defaultAccountSchedulingThresholds()
+	if raw := strings.TrimSpace(settings[SettingKeyAccountSchedulingThresholds]); raw != "" {
+		if thresholds, err := parseAccountSchedulingThresholdsSetting(raw); err != nil {
+			slog.Warn("[Setting] parseSettings: unmarshal account_scheduling_thresholds failed", "error", err)
+		} else {
+			result.AccountSchedulingThresholds = thresholds
 		}
 	}
 

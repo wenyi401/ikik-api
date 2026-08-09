@@ -110,6 +110,9 @@ type CreateGroupRequest struct {
 	PeakStart                       string   `json:"peak_start"`
 	PeakEnd                         string   `json:"peak_end"`
 	PeakRateMultiplier              *float64 `json:"peak_rate_multiplier"`
+	ProfitControlEnabled            bool     `json:"profit_control_enabled"`
+	ProfitMinMargin                 *float64 `json:"profit_min_margin"`
+	ProfitSafetyBuffer              *float64 `json:"profit_safety_buffer"`
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
 	ImagePrice2K                    *float64 `json:"image_price_2k"`
 	ImagePrice4K                    *float64 `json:"image_price_4k"`
@@ -136,6 +139,10 @@ type CreateGroupRequest struct {
 	OpenAIExperimentalPromptEnabled bool                                      `json:"openai_experimental_prompt_enabled"`
 	// 分组 RPM 上限（0 = 不限制）
 	RPMLimit int `json:"rpm_limit"`
+	// OpenAI/Codex 请求推理强度上限，空字符串表示不限制。
+	MaxReasoningEffort string `json:"max_reasoning_effort"`
+	// OpenAI/Codex 推理强度精确映射。
+	ReasoningEffortMappings []service.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
 	// 从指定分组复制账号（创建后自动绑定）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
 }
@@ -167,6 +174,9 @@ type UpdateGroupRequest struct {
 	PeakStart                       *string  `json:"peak_start"`
 	PeakEnd                         *string  `json:"peak_end"`
 	PeakRateMultiplier              *float64 `json:"peak_rate_multiplier"`
+	ProfitControlEnabled            *bool    `json:"profit_control_enabled"`
+	ProfitMinMargin                 *float64 `json:"profit_min_margin"`
+	ProfitSafetyBuffer              *float64 `json:"profit_safety_buffer"`
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
 	ImagePrice2K                    *float64 `json:"image_price_2k"`
 	ImagePrice4K                    *float64 `json:"image_price_4k"`
@@ -193,6 +203,10 @@ type UpdateGroupRequest struct {
 	OpenAIExperimentalPromptEnabled *bool                                      `json:"openai_experimental_prompt_enabled"`
 	// 分组 RPM 上限（0 = 不限制）；nil 表示未提供不改动
 	RPMLimit *int `json:"rpm_limit"`
+	// OpenAI/Codex 请求推理强度上限；空字符串清除，nil 不修改。
+	MaxReasoningEffort *string `json:"max_reasoning_effort"`
+	// nil 不修改，空数组清空，非空数组替换。
+	ReasoningEffortMappings *[]service.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
 }
@@ -464,6 +478,10 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	if err := service.ValidateProfitControlConfig(service.NormalizeGroupPlatform(req.Platform), req.ProfitControlEnabled, float64ValueOrDefault(req.ProfitMinMargin, 0), float64ValueOrDefault(req.ProfitSafetyBuffer, 0)); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 
 	group, err := h.adminService.CreateGroup(c.Request.Context(), &service.CreateGroupInput{
 		Name:                            req.Name,
@@ -489,6 +507,9 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		PeakStart:                       req.PeakStart,
 		PeakEnd:                         req.PeakEnd,
 		PeakRateMultiplier:              req.PeakRateMultiplier,
+		ProfitControlEnabled:            req.ProfitControlEnabled,
+		ProfitMinMargin:                 req.ProfitMinMargin,
+		ProfitSafetyBuffer:              req.ProfitSafetyBuffer,
 		ImagePrice1K:                    req.ImagePrice1K,
 		ImagePrice2K:                    req.ImagePrice2K,
 		ImagePrice4K:                    req.ImagePrice4K,
@@ -511,6 +532,8 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		ModelsListConfig:                req.ModelsListConfig,
 		OpenAIExperimentalPromptEnabled: req.OpenAIExperimentalPromptEnabled,
 		RPMLimit:                        req.RPMLimit,
+		MaxReasoningEffort:              req.MaxReasoningEffort,
+		ReasoningEffortMappings:         req.ReasoningEffortMappings,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {
@@ -608,6 +631,9 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		PeakStart:                       req.PeakStart,
 		PeakEnd:                         req.PeakEnd,
 		PeakRateMultiplier:              req.PeakRateMultiplier,
+		ProfitControlEnabled:            req.ProfitControlEnabled,
+		ProfitMinMargin:                 req.ProfitMinMargin,
+		ProfitSafetyBuffer:              req.ProfitSafetyBuffer,
 		ImagePrice1K:                    req.ImagePrice1K,
 		ImagePrice2K:                    req.ImagePrice2K,
 		ImagePrice4K:                    req.ImagePrice4K,
@@ -630,6 +656,8 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		ModelsListConfig:                req.ModelsListConfig,
 		OpenAIExperimentalPromptEnabled: req.OpenAIExperimentalPromptEnabled,
 		RPMLimit:                        req.RPMLimit,
+		MaxReasoningEffort:              req.MaxReasoningEffort,
+		ReasoningEffortMappings:         req.ReasoningEffortMappings,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {

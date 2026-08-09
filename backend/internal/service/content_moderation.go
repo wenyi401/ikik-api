@@ -21,6 +21,7 @@ import (
 	"time"
 
 	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/httpclient"
 	"ikik-api/internal/pkg/pagination"
 )
 
@@ -203,6 +204,7 @@ type ContentModerationConfig struct {
 	ModerationProvider   string                              `json:"moderation_provider"`
 	BaseURL              string                              `json:"base_url"`
 	Model                string                              `json:"model"`
+	ProxyID              *int64                              `json:"proxy_id,omitempty"`
 	ClassifierGroupID    int64                               `json:"classifier_group_id,omitempty"`
 	ClassifierModels     []string                            `json:"classifier_models,omitempty"`
 	ClassifierPrompt     string                              `json:"classifier_prompt,omitempty"`
@@ -242,6 +244,7 @@ type ContentModerationConfigView struct {
 	ModerationProvider          string                                        `json:"moderation_provider"`
 	BaseURL                     string                                        `json:"base_url"`
 	Model                       string                                        `json:"model"`
+	ProxyID                     *int64                                        `json:"proxy_id"`
 	ClassifierGroupID           int64                                         `json:"classifier_group_id"`
 	ClassifierModels            []string                                      `json:"classifier_models"`
 	ClassifierPrompt            string                                        `json:"classifier_prompt"`
@@ -322,8 +325,10 @@ type TestContentModerationAPIKeysInput struct {
 	AliyunEndpoint     string   `json:"aliyun_endpoint"`
 	AliyunService      string   `json:"aliyun_service"`
 	TimeoutMS          int      `json:"timeout_ms"`
-	Prompt             string   `json:"prompt"`
-	Images             []string `json:"images"`
+	// ProxyID nil means use the saved proxy; <=0 forces a direct test; >0 selects a proxy.
+	ProxyID *int64   `json:"proxy_id"`
+	Prompt  string   `json:"prompt"`
+	Images  []string `json:"images"`
 }
 
 type TestContentModerationAPIKeysResult struct {
@@ -344,11 +349,13 @@ type ContentModerationTestAuditResult struct {
 }
 
 type UpdateContentModerationConfigInput struct {
-	Enabled              *bool                                `json:"enabled"`
-	Mode                 *string                              `json:"mode"`
-	ModerationProvider   *string                              `json:"moderation_provider"`
-	BaseURL              *string                              `json:"base_url"`
-	Model                *string                              `json:"model"`
+	Enabled            *bool   `json:"enabled"`
+	Mode               *string `json:"mode"`
+	ModerationProvider *string `json:"moderation_provider"`
+	BaseURL            *string `json:"base_url"`
+	Model              *string `json:"model"`
+	// ProxyID nil leaves the configuration unchanged; <=0 clears it; >0 selects a proxy.
+	ProxyID              *int64                               `json:"proxy_id"`
 	ClassifierGroupID    *int64                               `json:"classifier_group_id"`
 	ClassifierModels     *[]string                            `json:"classifier_models"`
 	ClassifierPrompt     *string                              `json:"classifier_prompt"`
@@ -594,6 +601,7 @@ type ContentModerationService struct {
 	hashCache                ContentModerationHashCache
 	groupRepo                GroupRepository
 	userRepo                 UserRepository
+	proxyRepo                ProxyRepository
 	authCacheInvalidator     APIKeyAuthCacheInvalidator
 	emailService             *EmailService
 	classifierGatewayMu      sync.RWMutex
@@ -623,6 +631,7 @@ type ContentModerationService struct {
 	adaptiveOverviewMu       sync.Mutex
 	adaptiveOverview         *ContentModerationRiskOverview
 	adaptiveOverviewExpiry   time.Time
+	moderationProxyCache     atomic.Pointer[moderationProxyURLCacheEntry]
 }
 
 func (s *ContentModerationService) SetClassifierGateway(gateway ContentModerationClassifierGateway) {
@@ -679,6 +688,7 @@ func NewContentModerationService(
 	hashCache ContentModerationHashCache,
 	groupRepo GroupRepository,
 	userRepo UserRepository,
+	proxyRepo ProxyRepository,
 	authCacheInvalidator APIKeyAuthCacheInvalidator,
 	emailService *EmailService,
 ) *ContentModerationService {
@@ -688,6 +698,7 @@ func NewContentModerationService(
 		hashCache:            hashCache,
 		groupRepo:            groupRepo,
 		userRepo:             userRepo,
+		proxyRepo:            proxyRepo,
 		authCacheInvalidator: authCacheInvalidator,
 		emailService:         emailService,
 		httpClient:           &http.Client{},
@@ -732,6 +743,14 @@ func (s *ContentModerationService) UpdateConfig(ctx context.Context, input Updat
 	}
 	if input.Model != nil {
 		cfg.Model = strings.TrimSpace(*input.Model)
+	}
+	if input.ProxyID != nil {
+		if *input.ProxyID > 0 {
+			id := *input.ProxyID
+			cfg.ProxyID = &id
+		} else {
+			cfg.ProxyID = nil
+		}
 	}
 	if input.ClassifierGroupID != nil {
 		cfg.ClassifierGroupID = *input.ClassifierGroupID
@@ -860,6 +879,8 @@ func (s *ContentModerationService) UpdateConfig(ctx context.Context, input Updat
 	if err := s.settingRepo.Set(ctx, SettingKeyContentModerationConfig, string(raw)); err != nil {
 		return nil, fmt.Errorf("save content moderation config: %w", err)
 	}
+	// Apply a newly selected proxy immediately instead of retaining a stale URL cache entry.
+	s.moderationProxyCache.Store(nil)
 	return s.configView(cfg), nil
 }
 
@@ -906,6 +927,14 @@ func (s *ContentModerationService) TestAPIKeys(ctx context.Context, input TestCo
 	}
 	if input.TimeoutMS > 0 {
 		cfg.TimeoutMS = input.TimeoutMS
+	}
+	if input.ProxyID != nil {
+		if *input.ProxyID > 0 {
+			id := *input.ProxyID
+			cfg.ProxyID = &id
+		} else {
+			cfg.ProxyID = nil
+		}
 	}
 	cfg.normalize()
 	testInput, imageCount, err := buildModerationTestInput(input.Prompt, input.Images)
@@ -1574,7 +1603,7 @@ func (s *ContentModerationService) UnbanUser(ctx context.Context, userID int64) 
 	}
 	if user.Status != StatusActive {
 		user.Status = StatusActive
-		if err := s.userRepo.Update(ctx, user); err != nil {
+		if err := s.userRepo.Update(ctx, user, UserUpdateFields{Status: true}); err != nil {
 			return nil, fmt.Errorf("update content moderation unban user: %w", err)
 		}
 	}
@@ -1784,6 +1813,14 @@ func (s *ContentModerationService) validateConfig(ctx context.Context, cfg *Cont
 			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_BASE_URL", "OpenAI Base URL 无效")
 		}
 	}
+	if cfg.ProxyID != nil {
+		if s.proxyRepo == nil {
+			return infraerrors.ServiceUnavailable("CONTENT_MODERATION_PROXY_REPOSITORY_UNAVAILABLE", "内容审计代理校验不可用")
+		}
+		if _, err := s.proxyRepo.GetByID(ctx, *cfg.ProxyID); err != nil {
+			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_PROXY", fmt.Sprintf("代理服务器不存在: %d", *cfg.ProxyID))
+		}
+	}
 	if cfg.ModerationProvider == ContentModerationProviderModelClassifier && cfg.ClassifierGroupID > 0 {
 		if len(cfg.ClassifierModels) == 0 {
 			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_CLASSIFIER_MODELS", "at least one classifier model is required")
@@ -1952,9 +1989,9 @@ func (s *ContentModerationService) callModerationOnceWithInput(ctx context.Conte
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := s.httpClient
-	if client == nil {
-		client = http.DefaultClient
+	client, err := s.moderationHTTPClient(ctx, cfg)
+	if err != nil {
+		return nil, err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -1977,6 +2014,72 @@ func (s *ContentModerationService) callModerationOnceWithInput(ctx context.Conte
 		return nil, errors.New("moderation api returned empty results")
 	}
 	return &out.Results[0], nil
+}
+
+// moderationProxyURLCacheEntry caches a proxy URL for the hot moderation path.
+type moderationProxyURLCacheEntry struct {
+	proxyID   int64
+	url       string
+	expiresAt time.Time
+}
+
+const contentModerationProxyURLCacheTTL = time.Minute
+
+// moderationHTTPClient returns a direct client when no proxy is configured.
+// A configured proxy must resolve and build successfully; requests never fall
+// back to direct egress because that could expose the server IP.
+func (s *ContentModerationService) moderationHTTPClient(ctx context.Context, cfg *ContentModerationConfig) (*http.Client, error) {
+	if cfg == nil || cfg.ProxyID == nil {
+		if s.httpClient == nil {
+			return http.DefaultClient, nil
+		}
+		return s.httpClient, nil
+	}
+	proxyURL, err := s.resolveModerationProxyURL(ctx, *cfg.ProxyID)
+	if err != nil {
+		return nil, err
+	}
+	client, err := httpclient.GetClient(httpclient.Options{ProxyURL: proxyURL})
+	if err != nil {
+		return nil, fmt.Errorf("build moderation proxy client: %w", err)
+	}
+	return client, nil
+}
+
+func (s *ContentModerationService) resolveModerationProxyURL(ctx context.Context, proxyID int64) (string, error) {
+	now := time.Now()
+	previous := s.moderationProxyCache.Load()
+	if previous != nil && previous.proxyID == proxyID && now.Before(previous.expiresAt) {
+		return previous.url, nil
+	}
+	if s.proxyRepo == nil {
+		return "", errors.New("moderation proxy repository unavailable")
+	}
+	proxy, err := s.proxyRepo.GetByID(ctx, proxyID)
+	if err != nil {
+		return "", fmt.Errorf("resolve moderation proxy %d: %w", proxyID, err)
+	}
+	if !proxy.IsActive() || proxy.IsExpired(now) {
+		slog.Warn("content_moderation.proxy_not_active",
+			"proxy_id", proxyID,
+			"proxy_name", proxy.Name,
+			"status", proxy.Status,
+			"expired", proxy.IsExpired(now))
+	}
+	proxyURL := proxy.URL()
+	if previous == nil || previous.proxyID != proxyID || previous.url != proxyURL {
+		// Proxy URLs can contain credentials, so only log the address.
+		slog.Info("content_moderation.proxy_enabled",
+			"proxy_id", proxyID,
+			"proxy_name", proxy.Name,
+			"proxy_addr", fmt.Sprintf("%s://%s:%d", proxy.Protocol, proxy.Host, proxy.Port))
+	}
+	s.moderationProxyCache.Store(&moderationProxyURLCacheEntry{
+		proxyID:   proxyID,
+		url:       proxyURL,
+		expiresAt: now.Add(contentModerationProxyURLCacheTTL),
+	})
+	return proxyURL, nil
 }
 
 func (s *ContentModerationService) buildLog(input ContentModerationCheckInput, cfg *ContentModerationConfig, action string, flagged bool, highestCategory string, highestScore float64, scores map[string]float64, text string, latency *int, queueDelay *int, errText string) *ContentModerationLog {
@@ -2063,7 +2166,7 @@ func (s *ContentModerationService) applyFlaggedAccountSideEffects(ctx context.Co
 		}
 		if user.Status != StatusDisabled {
 			user.Status = StatusDisabled
-			if err := s.userRepo.Update(ctx, user); err != nil {
+			if err := s.userRepo.Update(ctx, user, UserUpdateFields{Status: true}); err != nil {
 				slog.Warn("content_moderation.ban_update_user_failed", "user_id", *log.UserID, "error", err)
 				return false
 			}
@@ -2216,6 +2319,7 @@ func cloneContentModerationConfig(cfg *ContentModerationConfig) *ContentModerati
 		return nil
 	}
 	clone := *cfg
+	clone.ProxyID = cloneInt64Ptr(cfg.ProxyID)
 	clone.APIKeys = append([]string(nil), cfg.APIKeys...)
 	clone.ClassifierModels = append([]string(nil), cfg.ClassifierModels...)
 	clone.GroupIDs = append([]int64(nil), cfg.GroupIDs...)
@@ -2252,6 +2356,9 @@ func (cfg *ContentModerationConfig) normalize() {
 		cfg.Model = defaultContentModerationModel
 	}
 	cfg.Model = strings.TrimSpace(cfg.Model)
+	if cfg.ProxyID != nil && *cfg.ProxyID <= 0 {
+		cfg.ProxyID = nil
+	}
 	cfg.ClassifierModels = normalizeContentModerationClassifierModels(cfg.ClassifierModels)
 	if cfg.ModerationProvider == ContentModerationProviderModelClassifier {
 		if len(cfg.ClassifierModels) == 0 && cfg.Model != "" {
@@ -2557,6 +2664,7 @@ func (s *ContentModerationService) configView(cfg *ContentModerationConfig) *Con
 		ModerationProvider:          cfg.ModerationProvider,
 		BaseURL:                     cfg.BaseURL,
 		Model:                       cfg.Model,
+		ProxyID:                     cloneInt64Ptr(cfg.ProxyID),
 		ClassifierGroupID:           cfg.ClassifierGroupID,
 		ClassifierModels:            append([]string(nil), cfg.ClassifierModels...),
 		ClassifierPrompt:            cfg.ClassifierPrompt,

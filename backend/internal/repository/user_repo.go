@@ -45,6 +45,24 @@ func newUserRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *userRepos
 }
 
 func (r *userRepository) Create(ctx context.Context, userIn *service.User) error {
+	return r.create(ctx, userIn, false, "")
+}
+
+// CreateWithEmailAliasGuard serializes registrations for the same mailbox
+// identity so aliases and Gmail dot variants cannot race past the unique index.
+func (r *userRepository) CreateWithEmailAliasGuard(ctx context.Context, userIn *service.User) error {
+	return r.create(ctx, userIn, true, "")
+}
+
+func (r *userRepository) CountUsersByEmailDomain(ctx context.Context, domain string) (int, error) {
+	return countUsersByEmailDomainWithClient(ctx, clientFromContext(ctx, r.client), domain)
+}
+
+func (r *userRepository) CreateWithEmailAliasGuardAndDomainLimit(ctx context.Context, userIn *service.User, domain string) error {
+	return r.create(ctx, userIn, true, normalizeEmailDomain(domain))
+}
+
+func (r *userRepository) create(ctx context.Context, userIn *service.User, guardEmailAlias bool, domainLimit string) error {
 	if userIn == nil {
 		return nil
 	}
@@ -71,19 +89,45 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		}
 	}
 
+	lockKeys := []string{normalizedEmailUniquenessLockKey(userIn.Email)}
+	if guardEmailAlias {
+		lockKeys = append(lockKeys, emailAliasUniquenessLockKey(userIn.Email))
+	}
+	if domainLimit != "" {
+		lockKeys = append(lockKeys, registrationEmailDomainLockKey(domainLimit))
+	}
 	releaseEmailLock, err := lockRepositoryScopedKeys(
 		txCtx,
 		txClient,
 		txAwareSQLExecutor(txCtx, r.sql, r.client),
-		normalizedEmailUniquenessLockKey(userIn.Email),
+		lockKeys...,
 	)
 	if err != nil {
 		return err
 	}
 	defer releaseEmailLock()
 
+	if domainLimit != "" {
+		count, err := countUsersByEmailDomainWithClient(txCtx, txClient, domainLimit)
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			return service.ErrEmailDomainRegistrationLimit
+		}
+	}
+
 	if err := ensureNormalizedEmailAvailableWithClient(txCtx, txClient, 0, userIn.Email); err != nil {
 		return err
+	}
+	if guardEmailAlias {
+		aliasExists, err := existsByEmailAliasWithClient(txCtx, txClient, userIn.Email)
+		if err != nil {
+			return err
+		}
+		if aliasExists {
+			return service.ErrEmailExists
+		}
 	}
 
 	created, err := txClient.User.Create().
@@ -211,8 +255,11 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*service
 	return out, nil
 }
 
-func (r *userRepository) Update(ctx context.Context, userIn *service.User) error {
+func (r *userRepository) Update(ctx context.Context, userIn *service.User, fields service.UserUpdateFields) error {
 	if userIn == nil {
+		return nil
+	}
+	if fields.IsEmpty() {
 		return nil
 	}
 
@@ -237,19 +284,21 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 		}
 	}
 
-	releaseEmailLock, err := lockRepositoryScopedKeys(
-		txCtx,
-		txClient,
-		txAwareSQLExecutor(txCtx, r.sql, r.client),
-		normalizedEmailUniquenessLockKey(userIn.Email),
-	)
-	if err != nil {
-		return err
-	}
-	defer releaseEmailLock()
+	if fields.Email {
+		releaseEmailLock, err := lockRepositoryScopedKeys(
+			txCtx,
+			txClient,
+			txAwareSQLExecutor(txCtx, r.sql, r.client),
+			normalizedEmailUniquenessLockKey(userIn.Email),
+		)
+		if err != nil {
+			return err
+		}
+		defer releaseEmailLock()
 
-	if err := ensureNormalizedEmailAvailableWithClient(txCtx, txClient, userIn.ID, userIn.Email); err != nil {
-		return err
+		if err := ensureNormalizedEmailAvailableWithClient(txCtx, txClient, userIn.ID, userIn.Email); err != nil {
+			return err
+		}
 	}
 
 	existing, err := clientFromContext(txCtx, txClient).User.Get(txCtx, userIn.ID)
@@ -258,47 +307,81 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 	}
 	oldEmail := existing.Email
 
-	updateOp := txClient.User.UpdateOneID(userIn.ID).
-		SetEmail(userIn.Email).
-		SetUsername(userIn.Username).
-		SetNotes(userIn.Notes).
-		SetPasswordHash(userIn.PasswordHash).
-		SetRole(userIn.Role).
-		SetBalance(userIn.Balance).
-		SetConcurrency(userIn.Concurrency).
-		SetStatus(userIn.Status).
-		SetDeveloperAPIEnabled(userIn.DeveloperAPIEnabled).
-		SetOnboardingMode(normalizeOnboardingMode(userIn.OnboardingMode)).
-		SetShareCardText(userIn.ShareCardText).
-		SetShareCardTextColor(normalizeShareCardTextColor(userIn.ShareCardTextColor)).
-		SetBalanceNotifyEnabled(userIn.BalanceNotifyEnabled).
-		SetBalanceNotifyThresholdType(userIn.BalanceNotifyThresholdType).
-		SetNillableBalanceNotifyThreshold(userIn.BalanceNotifyThreshold).
-		SetBalanceNotifyExtraEmails(marshalExtraEmails(userIn.BalanceNotifyExtraEmails)).
-		SetTotalRecharged(userIn.TotalRecharged).
-		SetRpmLimit(userIn.RPMLimit)
-	if userIn.SignupSource != "" {
+	updateOp := txClient.User.UpdateOneID(userIn.ID)
+	if fields.Email {
+		updateOp = updateOp.SetEmail(userIn.Email)
+	}
+	if fields.Username {
+		updateOp = updateOp.SetUsername(userIn.Username)
+	}
+	if fields.Notes {
+		updateOp = updateOp.SetNotes(userIn.Notes)
+	}
+	if fields.PasswordHash {
+		updateOp = updateOp.SetPasswordHash(userIn.PasswordHash)
+	}
+	if fields.Role {
+		updateOp = updateOp.SetRole(userIn.Role)
+	}
+	if fields.Concurrency {
+		updateOp = updateOp.SetConcurrency(userIn.Concurrency)
+	}
+	if fields.RPMLimit {
+		updateOp = updateOp.SetRpmLimit(userIn.RPMLimit)
+	}
+	if fields.Status {
+		updateOp = updateOp.SetStatus(userIn.Status)
+	}
+	if fields.DeveloperAPIEnabled {
+		updateOp = updateOp.SetDeveloperAPIEnabled(userIn.DeveloperAPIEnabled)
+	}
+	if fields.OpenAIExperimentalPromptUnlocked {
+		updateOp = updateOp.SetOpenaiExperimentalPromptUnlocked(userIn.OpenAIExperimentalPromptUnlocked)
+	}
+	if fields.OnboardingMode {
+		updateOp = updateOp.SetOnboardingMode(normalizeOnboardingMode(userIn.OnboardingMode))
+	}
+	if fields.ShareCardText {
+		updateOp = updateOp.SetShareCardText(userIn.ShareCardText)
+	}
+	if fields.ShareCardTextColor {
+		updateOp = updateOp.SetShareCardTextColor(normalizeShareCardTextColor(userIn.ShareCardTextColor))
+	}
+	if fields.BalanceNotifySettings {
+		updateOp = updateOp.
+			SetBalanceNotifyEnabled(userIn.BalanceNotifyEnabled).
+			SetBalanceNotifyThresholdType(userIn.BalanceNotifyThresholdType).
+			SetNillableBalanceNotifyThreshold(userIn.BalanceNotifyThreshold)
+		if userIn.BalanceNotifyThreshold == nil {
+			updateOp = updateOp.ClearBalanceNotifyThreshold()
+		}
+	}
+	if fields.BalanceNotifyExtraEmails {
+		updateOp = updateOp.SetBalanceNotifyExtraEmails(marshalExtraEmails(userIn.BalanceNotifyExtraEmails))
+	}
+	if fields.SignupSource && userIn.SignupSource != "" {
 		updateOp = updateOp.SetSignupSource(userIn.SignupSource)
 	}
-	if userIn.LastLoginAt != nil {
+	if fields.LastLoginAt && userIn.LastLoginAt != nil {
 		updateOp = updateOp.SetLastLoginAt(*userIn.LastLoginAt)
 	}
-	if userIn.LastActiveAt != nil {
+	if fields.LastActiveAt && userIn.LastActiveAt != nil {
 		updateOp = updateOp.SetLastActiveAt(*userIn.LastActiveAt)
-	}
-	if userIn.BalanceNotifyThreshold == nil {
-		updateOp = updateOp.ClearBalanceNotifyThreshold()
 	}
 	updated, err := updateOp.Save(txCtx)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrUserNotFound, service.ErrEmailExists)
 	}
 
-	if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, updated.ID, userIn.AllowedGroups); err != nil {
-		return err
+	if fields.AllowedGroups {
+		if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, updated.ID, userIn.AllowedGroups); err != nil {
+			return err
+		}
 	}
-	if err := r.syncUserBlockedGroupsWithClient(txCtx, txClient, updated.ID, userIn.BlockedGroups); err != nil {
-		return err
+	if fields.BlockedGroups {
+		if err := r.syncUserBlockedGroupsWithClient(txCtx, txClient, updated.ID, userIn.BlockedGroups); err != nil {
+			return err
+		}
 	}
 	if err := replaceEmailAuthIdentityWithClient(txCtx, txClient, updated.ID, oldEmail, updated.Email, "user_repo_update"); err != nil {
 		return err
@@ -857,6 +940,102 @@ func (r *userRepository) DeductBalance(ctx context.Context, id int64, amount flo
 	return nil
 }
 
+// AdjustBalance atomically adds delta to a balance and refuses negative results.
+// Keeping the read and write in one statement prevents concurrent billing writes
+// from being overwritten by an administrator adjustment based on a stale snapshot.
+func (r *userRepository) AdjustBalance(ctx context.Context, id int64, delta float64) (service.BalanceChange, error) {
+	const updateSQL = `
+		UPDATE users
+		SET balance = balance + $1, updated_at = NOW()
+		WHERE id = $2 AND deleted_at IS NULL AND balance + $1 >= 0
+		RETURNING balance - $1, balance
+	`
+	change, ok, err := scanBalanceChange(ctx, clientFromContext(ctx, r.client), updateSQL, delta, id)
+	if err != nil {
+		return service.BalanceChange{}, err
+	}
+	if ok {
+		return change, nil
+	}
+
+	current, err := r.currentBalance(ctx, id)
+	if err != nil {
+		return service.BalanceChange{}, err
+	}
+	return service.BalanceChange{Old: current, New: current + delta}, service.ErrBalanceNegative
+}
+
+// SetBalance atomically replaces a balance and returns its previous value.
+func (r *userRepository) SetBalance(ctx context.Context, id int64, value float64) (service.BalanceChange, error) {
+	if value < 0 {
+		current, err := r.currentBalance(ctx, id)
+		if err != nil {
+			return service.BalanceChange{}, err
+		}
+		return service.BalanceChange{Old: current, New: value}, service.ErrBalanceNegative
+	}
+	const updateSQL = `
+		UPDATE users AS u
+		SET balance = $1, updated_at = NOW()
+		FROM (SELECT id, balance FROM users WHERE id = $2 AND deleted_at IS NULL) AS prev
+		WHERE u.id = prev.id AND u.deleted_at IS NULL
+		RETURNING prev.balance, u.balance
+	`
+	change, ok, err := scanBalanceChange(ctx, clientFromContext(ctx, r.client), updateSQL, value, id)
+	if err != nil {
+		return service.BalanceChange{}, err
+	}
+	if !ok {
+		return service.BalanceChange{}, service.ErrUserNotFound
+	}
+	return change, nil
+}
+
+func (r *userRepository) currentBalance(ctx context.Context, id int64) (balance float64, err error) {
+	rows, err := clientFromContext(ctx, r.client).QueryContext(ctx,
+		`SELECT balance FROM users WHERE id = $1 AND deleted_at IS NULL`, id)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+	if !rows.Next() {
+		if rowsErr := rows.Err(); rowsErr != nil {
+			return 0, rowsErr
+		}
+		return 0, service.ErrUserNotFound
+	}
+	if err := rows.Scan(&balance); err != nil {
+		return 0, err
+	}
+	return balance, rows.Err()
+}
+
+func scanBalanceChange(ctx context.Context, client *dbent.Client, query string, args ...any) (change service.BalanceChange, ok bool, err error) {
+	rows, err := client.QueryContext(ctx, query, args...)
+	if err != nil {
+		return service.BalanceChange{}, false, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+	if !rows.Next() {
+		if rowsErr := rows.Err(); rowsErr != nil {
+			return service.BalanceChange{}, false, rowsErr
+		}
+		return service.BalanceChange{}, false, nil
+	}
+	if err := rows.Scan(&change.Old, &change.New); err != nil {
+		return service.BalanceChange{}, false, err
+	}
+	return change, true, rows.Err()
+}
+
 func (r *userRepository) UpdateConcurrency(ctx context.Context, id int64, amount int) error {
 	client := clientFromContext(ctx, r.client)
 	n, err := client.User.Update().Where(dbuser.IDEQ(id)).AddConcurrency(amount).Save(ctx)
@@ -958,6 +1137,10 @@ func (r *userRepository) ExistsByEmail(ctx context.Context, email string) (bool,
 	return r.client.User.Query().Where(userEmailLookupPredicate(email)).Exist(ctx)
 }
 
+func (r *userRepository) ExistsByEmailAlias(ctx context.Context, email string) (bool, error) {
+	return existsByEmailAliasWithClient(ctx, clientFromContext(ctx, r.client), email)
+}
+
 func ensureNormalizedEmailAvailableWithClient(ctx context.Context, client *dbent.Client, userID int64, email string) error {
 	client = clientFromContext(ctx, client)
 	if client == nil {
@@ -1003,6 +1186,119 @@ func normalizedEmailUniquenessLockKey(email string) string {
 		return ""
 	}
 	return "users:normalized-email:" + normalized
+}
+
+const emailAliasCandidateLimit = 50
+
+func existsByEmailAliasWithClient(ctx context.Context, client *dbent.Client, email string) (bool, error) {
+	client = clientFromContext(ctx, client)
+	if client == nil {
+		return false, nil
+	}
+	probes := service.EmailAliasDedupProbes(email)
+	if len(probes) == 0 {
+		return false, nil
+	}
+	predicates := make([]predicate.User, 0, 2*len(probes))
+	for _, probe := range probes {
+		predicates = append(predicates,
+			dotStrippedEmailEQ(probe.Local+"@"+probe.Domain),
+			dotStrippedEmailLike(escapeLikeWildcards(probe.Local)+"+%@"+escapeLikeWildcards(probe.Domain)),
+		)
+	}
+	candidates, err := client.User.Query().
+		Where(dbuser.Or(predicates...)).
+		Limit(emailAliasCandidateLimit).
+		Select(dbuser.FieldEmail).
+		Strings(ctx)
+	if err != nil {
+		return false, err
+	}
+	identity := service.NormalizeEmailForAliasDedup(email)
+	for _, candidate := range candidates {
+		if service.NormalizeEmailForAliasDedup(candidate) == identity {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func dotStrippedEmailExpr(builder *entsql.Builder, selector *entsql.Selector) *entsql.Builder {
+	return builder.WriteString("REPLACE(LOWER(TRIM(").
+		Ident(selector.C(dbuser.FieldEmail)).
+		WriteString(")), '.', '')")
+}
+
+func dotStrippedEmailEQ(value string) predicate.User {
+	return predicate.User(func(selector *entsql.Selector) {
+		selector.Where(entsql.P(func(builder *entsql.Builder) {
+			dotStrippedEmailExpr(builder, selector).WriteString(" = ").Arg(value)
+		}))
+	})
+}
+
+func dotStrippedEmailLike(pattern string) predicate.User {
+	return predicate.User(func(selector *entsql.Selector) {
+		selector.Where(entsql.P(func(builder *entsql.Builder) {
+			dotStrippedEmailExpr(builder, selector).WriteString(" LIKE ").Arg(pattern).WriteString(` ESCAPE '\'`)
+		}))
+	})
+}
+
+var likeWildcardEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+
+func escapeLikeWildcards(value string) string {
+	return likeWildcardEscaper.Replace(value)
+}
+
+func registrationEmailDomainLockKey(domain string) string {
+	domain = normalizeEmailDomain(domain)
+	if domain == "" {
+		return ""
+	}
+	return "users:registration-email-domain:" + domain
+}
+
+func normalizeEmailDomain(domain string) string {
+	return service.NormalizeRegistrationEmailDomain(domain)
+}
+
+func countUsersByEmailDomainWithClient(ctx context.Context, client *dbent.Client, domain string) (int, error) {
+	client = clientFromContext(ctx, client)
+	domain = normalizeEmailDomain(domain)
+	if client == nil || domain == "" {
+		return 0, nil
+	}
+	return client.User.Query().Where(userEmailDomainPredicate(domain)).Count(ctx)
+}
+
+func userEmailDomainPredicate(domain string) predicate.User {
+	domain = normalizeEmailDomain(domain)
+	escapedDomain := escapeLikeWildcards(domain)
+	exactPattern := "%@" + escapedDomain
+	subdomainPattern := "%@%." + escapedDomain
+	return predicate.User(func(selector *entsql.Selector) {
+		selector.Where(entsql.P(func(builder *entsql.Builder) {
+			builder.WriteString("(RTRIM(LOWER(TRIM(").
+				Ident(selector.C(dbuser.FieldEmail)).
+				WriteString(")), '.') LIKE ").
+				Arg(exactPattern).
+				WriteString(` ESCAPE '\' OR RTRIM(LOWER(TRIM(`).
+				Ident(selector.C(dbuser.FieldEmail)).
+				WriteString(")), '.') LIKE ").
+				Arg(subdomainPattern).
+				WriteString(` ESCAPE '\'`).
+				WriteString(")")
+		}))
+	})
+}
+
+func emailAliasUniquenessLockKey(email string) string {
+	identity := service.NormalizeEmailForAliasDedup(email)
+	if identity == "" {
+		return ""
+	}
+	return "users:email-alias-identity:" + identity
 }
 
 func (r *userRepository) AddGroupToAllowedGroups(ctx context.Context, userID int64, groupID int64) error {

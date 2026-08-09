@@ -153,7 +153,10 @@ func convertResponsesInputToAnthropic(instructions string, inputRaw json.RawMess
 			if outputContent == "" {
 				outputContent = "(empty)"
 			}
-			contentJSON, _ := json.Marshal(outputContent)
+			contentJSON, err := convertResponsesToolOutputToAnthropicContent(item.outputRaw, outputContent)
+			if err != nil {
+				return nil, nil, err
+			}
 			block := AnthropicContentBlock{
 				Type:      "tool_result",
 				ToolUseID: fromResponsesCallIDToAnthropic(item.CallID),
@@ -240,6 +243,51 @@ func convertResponsesInputToAnthropic(instructions string, inputRaw json.RawMess
 	}
 
 	return system, messages, nil
+}
+
+// convertResponsesToolOutputToAnthropicContent keeps text-only tool results as
+// Anthropic's compact string form, while preserving images as content blocks.
+func convertResponsesToolOutputToAnthropicContent(raw json.RawMessage, fallback string) (json.RawMessage, error) {
+	raw = json.RawMessage(strings.TrimSpace(string(raw)))
+	if len(raw) == 0 || string(raw) == "null" {
+		return json.Marshal(fallback)
+	}
+
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		var nested json.RawMessage
+		if json.Unmarshal([]byte(text), &nested) == nil {
+			return convertResponsesToolOutputToAnthropicContent(nested, text)
+		}
+		return json.Marshal(text)
+	}
+
+	var parts []ResponsesContentPart
+	if err := json.Unmarshal(raw, &parts); err != nil {
+		return json.Marshal(string(raw))
+	}
+
+	var blocks []AnthropicContentBlock
+	var texts []string
+	for _, part := range parts {
+		switch part.Type {
+		case "input_text", "output_text", "text":
+			if part.Text != "" {
+				texts = append(texts, part.Text)
+			}
+		case "input_image":
+			if source := dataURIToAnthropicImageSource(part.ImageURL); source != nil {
+				blocks = append(blocks, AnthropicContentBlock{Type: "image", Source: source})
+			}
+		}
+	}
+	if len(blocks) == 0 {
+		return json.Marshal(strings.Join(texts, "\n\n"))
+	}
+	for _, item := range texts {
+		blocks = append([]AnthropicContentBlock{{Type: "text", Text: item}}, blocks...)
+	}
+	return json.Marshal(blocks)
 }
 
 // normalizeAnthropicToolPairing rebuilds the message sequence so it satisfies

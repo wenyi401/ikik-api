@@ -5,30 +5,6 @@ import (
 	"strings"
 )
 
-func (item *ResponsesInputItem) UnmarshalJSON(data []byte) error {
-	type alias ResponsesInputItem
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return err
-	}
-	arguments := fields["arguments"]
-	output := fields["output"]
-	delete(fields, "arguments")
-	delete(fields, "output")
-	baseJSON, err := json.Marshal(fields)
-	if err != nil {
-		return err
-	}
-	var base alias
-	if err := json.Unmarshal(baseJSON, &base); err != nil {
-		return err
-	}
-	*item = ResponsesInputItem(base)
-	item.Arguments = decodeFlexibleResponsesString(arguments, false)
-	item.Output = decodeFlexibleResponsesString(output, true)
-	return nil
-}
-
 func decodeFlexibleResponsesString(raw json.RawMessage, output bool) string {
 	trimmed := json.RawMessage(strings.TrimSpace(string(raw)))
 	if len(trimmed) == 0 || string(trimmed) == "null" {

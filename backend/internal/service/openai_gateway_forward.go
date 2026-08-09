@@ -68,12 +68,24 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	// 仅允许 WS 入站请求走 WS 上游，避免出现 HTTP -> WS 协议混用。
 	wsDecision = resolveOpenAIWSDecisionByClientTransport(wsDecision, GetOpenAIClientTransport(c))
 	passthroughEnabled := account.IsOpenAIPassthroughEnabled()
-	if shouldFlattenOpenAIResponsesNamespaces(account, wsDecision.Transport, passthroughEnabled) {
+	compactPath := isOpenAIResponsesCompactPath(c)
+	if shouldFlattenOpenAIResponsesNamespaces(account, wsDecision.Transport, passthroughEnabled, compactPath) {
 		body, err = flattenOpenAIResponsesNamespaces(c, body)
 		if err != nil {
 			setOpsUpstreamError(c, http.StatusBadRequest, err.Error(), "")
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{
 				"type": "invalid_request_error", "message": err.Error(), "param": "tools",
+			}})
+			return nil, err
+		}
+	}
+	if shouldStripOpenAIResponsesInputNamespaces(account, wsDecision.Transport, passthroughEnabled) {
+		keepToolCallNamespaces := shouldKeepOpenAIResponsesToolCallNamespaces(account, wsDecision.Transport, passthroughEnabled, compactPath)
+		body, err = stripOpenAIResponsesInputNamespaces(body, keepToolCallNamespaces)
+		if err != nil {
+			setOpsUpstreamError(c, http.StatusBadRequest, err.Error(), "")
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{
+				"type": "invalid_request_error", "message": err.Error(), "param": "input",
 			}})
 			return nil, err
 		}
@@ -964,6 +976,16 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 		return forwardResult, nil
 	}
+}
+
+func (s *OpenAIGatewayService) codexIdentityOverrideUA(account *Account) string {
+	if s != nil && s.cfg != nil && s.cfg.Gateway.ForceCodexCLI {
+		return ""
+	}
+	if account == nil {
+		return ""
+	}
+	return account.GetOpenAIUserAgent()
 }
 
 func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token string, isStream bool, promptCacheKey string, isCodexCLI bool) (*http.Request, error) {

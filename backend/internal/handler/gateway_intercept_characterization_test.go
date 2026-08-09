@@ -236,7 +236,7 @@ func passCharModerationService(t *testing.T, moderationBaseURL string) *service.
 		service.SettingKeyRiskControlEnabled:      "true",
 		service.SettingKeyContentModerationConfig: string(cfgJSON),
 	}}
-	return service.NewContentModerationService(settingRepo, &passCharModerationRepo{}, nil, nil, nil, nil, nil)
+	return service.NewContentModerationService(settingRepo, &passCharModerationRepo{}, nil, nil, nil, nil, nil, nil)
 }
 
 // passCharRequireWarmupMock 断言响应为预热拦截 mock（请求被放行并完成）。

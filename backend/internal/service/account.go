@@ -6,6 +6,7 @@ import (
 	"errors"
 	"hash/fnv"
 	"log/slog"
+	"net/url"
 	"reflect"
 	"sort"
 	"strconv"
@@ -102,6 +103,7 @@ const (
 	OpenAIEndpointCapabilityChatCompletions OpenAIEndpointCapability = "chat_completions"
 	OpenAIEndpointCapabilityEmbeddings      OpenAIEndpointCapability = "embeddings"
 	OpenAIEndpointCapabilityAlphaSearch     OpenAIEndpointCapability = "alpha_search"
+	OpenAIEndpointCapabilityLive            OpenAIEndpointCapability = "live"
 	// OpenAIEndpointCapabilityGrokMediaGeneration keeps image/video generation
 	// away from Grok accounts that are explicitly disabled or whose billing
 	// entitlement probe was forbidden. Video status lookups intentionally do not
@@ -1318,25 +1320,47 @@ func (a *Account) GetOpenAIRefreshToken() string {
 // traffic (OAuth authorization and token refresh) always uses the official
 // auth endpoints regardless of this value.
 func (a *Account) GetGrokBaseURL() string {
-	if !a.IsGrok() {
+	if a == nil || !a.IsGrok() {
 		return ""
 	}
-	baseURL := strings.TrimSpace(a.GetCredential("base_url"))
 	if a.IsGrokOAuth() {
-		// Operators switch subscription traffic between the official CLI
-		// gateway, the official/regional API hosts and third-party relays
-		// (individual endpoints go down from time to time), so a stored
-		// value is always honored as-is. Only empty or unparseable values
-		// fall back to the default CLI gateway.
-		if baseURL == "" || !xai.IsParseableBaseURL(baseURL) {
-			return xai.DefaultCLIBaseURL
-		}
-		return baseURL
+		return a.GetGrokBaseURLOr(xai.DefaultCLIBaseURL)
 	}
+	baseURL := strings.TrimSpace(a.GetCredential("base_url"))
 	if baseURL != "" {
 		return baseURL
 	}
 	return xai.DefaultBaseURL
+}
+
+// GetGrokBaseURLOr resolves an explicit account endpoint, falling back to the supplied default.
+func (a *Account) GetGrokBaseURLOr(defaultBaseURL string) string {
+	if a == nil || !a.IsGrok() {
+		return ""
+	}
+	defaultBaseURL = strings.TrimRight(strings.TrimSpace(defaultBaseURL), "/")
+	if defaultBaseURL == "" {
+		if a.IsGrokOAuth() {
+			defaultBaseURL = xai.DefaultCLIBaseURL
+		} else {
+			defaultBaseURL = xai.DefaultBaseURL
+		}
+	}
+	baseURL := strings.TrimSpace(a.GetCredential("base_url"))
+	if baseURL == "" {
+		return defaultBaseURL
+	}
+	if !a.IsGrokOAuth() {
+		return baseURL
+	}
+	if validated, err := xai.ValidateTrustedBaseURL(baseURL); err == nil {
+		return validated
+	}
+	if parsed, err := url.Parse(baseURL); err == nil && parsed.Scheme != "" && parsed.Host != "" &&
+		parsed.User == nil && parsed.RawQuery == "" && parsed.Fragment == "" {
+		return strings.TrimRight(baseURL, "/")
+	}
+	return defaultBaseURL
 }
 
 // GetGrokMediaBaseURL selects the upstream used by Grok Imagine APIs.
@@ -1470,6 +1494,9 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	}
 	switch capability {
 	case OpenAIEndpointCapabilityChatCompletions:
+	case OpenAIEndpointCapabilityLive:
+		return a.Platform == PlatformOpenAI && a.Type == AccountTypeOAuth &&
+			!a.IsOpenAIPersonalAccessToken() && !a.IsOpenAIAgentIdentity()
 	case OpenAIEndpointCapabilityResponses:
 		// Responses 支持状态由 accounts.extra 的自动探测标记决定，而非
 		// credentials 能力集。已探测确认不支持 /v1/responses 的 APIKey 上游
@@ -1851,6 +1878,16 @@ func (a *Account) IsOpenAIWSForceHTTPEnabled() bool {
 		return false
 	}
 	enabled, ok := a.Extra["openai_ws_force_http"].(bool)
+	return ok && enabled
+}
+
+// IsOpenAIResponsesFlattenNamespacesEnabled enables the compatibility fallback
+// for OpenAI-compatible upstreams that do not understand Codex namespaces.
+func (a *Account) IsOpenAIResponsesFlattenNamespacesEnabled() bool {
+	if a == nil || !a.IsOpenAI() || a.Extra == nil {
+		return false
+	}
+	enabled, ok := a.Extra["openai_responses_flatten_namespaces"].(bool)
 	return ok && enabled
 }
 

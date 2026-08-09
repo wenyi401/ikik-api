@@ -31,6 +31,7 @@ import (
 	"ikik-api/internal/pkg/proxyutil"
 	"ikik-api/internal/pkg/servertiming"
 	"ikik-api/internal/pkg/tlsfingerprint"
+	"ikik-api/internal/pkg/xai"
 	"ikik-api/internal/service"
 	"ikik-api/internal/util/urlvalidator"
 )
@@ -81,7 +82,7 @@ const (
 	// allowing operators to bump it without waiting for an ikik-api release.
 	grokCLIProxyHost       = "cli-chat-proxy.grok.com"
 	grokOfficialAPIHost    = "api.x.ai"
-	grokCLIStableVersion   = "0.2.93"
+	grokCLIStableVersion   = "0.2.114"
 	grokCLIVersionOverride = "XAI_GROK_CLI_VERSION"
 	grokFallbackBodyLimit  = 64 << 10
 )
@@ -453,14 +454,15 @@ func applyGrokCLIProxyHeaders(req *http.Request) {
 	if !isSupportedGrokCLIVersion(version) {
 		version = grokCLIStableVersion
 	}
-	req.Header.Set("X-XAI-Token-Auth", "xai-grok-cli")
+	req.Header.Set("X-XAI-Token-Auth", xai.CLITokenAuth)
 	req.Header.Set("x-grok-client-version", version)
-	req.Header.Set("User-Agent", "xai-grok-workspace/"+version)
+	req.Header.Set("x-grok-client-identifier", xai.CLIClientIdentifier)
+	req.Header.Set("User-Agent", xai.CLIUserAgent(version))
 }
 
 func isSupportedGrokCLIVersion(version string) bool {
 	canonical := "v" + version
-	minimum := "v" + grokCLIStableVersion
+	minimum := "v" + xai.CLIClientVersion
 	return semver.IsValid(canonical) &&
 		semver.Canonical(canonical) == canonical &&
 		semver.Compare(canonical, minimum) >= 0

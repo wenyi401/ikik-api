@@ -25751,39 +25751,6 @@ type GroupMutation struct {
 	addimage_price_2k                       *float64
 	image_price_4k                          *float64
 	addimage_price_4k                       *float64
-	claude_code_only                        *bool
-	fallback_group_id                       *int64
-	addfallback_group_id                    *int64
-	fallback_group_id_on_invalid_request    *int64
-	addfallback_group_id_on_invalid_request *int64
-	model_routing                           *map[string][]int64
-	model_routing_enabled                   *bool
-	mcp_xml_inject                          *bool
-	supported_model_scopes                  *[]string
-	appendsupported_model_scopes            []string
-	sort_order                              *int
-	addsort_order                           *int
-	allow_messages_dispatch                 *bool
-	require_oauth_only                      *bool
-	require_privacy_set                     *bool
-	default_mapped_model                    *string
-	messages_dispatch_model_config          *domain.OpenAIMessagesDispatchModelConfig
-	models_list_config                      *domain.GroupModelsListConfig
-	openai_experimental_prompt_enabled      *bool
-	rpm_limit                               *int
-	addrpm_limit                            *int
-	kiro_cache_emulation_enabled            *bool
-	kiro_auto_sticky_enabled                *bool
-	kiro_sticky_session_ttl_seconds         *int
-	addkiro_sticky_session_ttl_seconds      *int
-	kiro_cache_emulation_ratio              *float64
-	addkiro_cache_emulation_ratio           *float64
-	kiro_endpoint_mode                      *string
-	peak_rate_enabled                       *bool
-	peak_start                              *string
-	peak_end                                *string
-	peak_rate_multiplier                    *float64
-	addpeak_rate_multiplier                 *float64
 	allow_batch_image_generation            *bool
 	batch_image_discount_multiplier         *float64
 	addbatch_image_discount_multiplier      *float64
@@ -25798,8 +25765,59 @@ type GroupMutation struct {
 	addvideo_price_720p                     *float64
 	video_price_1080p                       *float64
 	addvideo_price_1080p                    *float64
+	video_model_prices                      *map[string]map[string]float64
 	web_search_price_per_call               *float64
 	addweb_search_price_per_call            *float64
+	search_price_per_1k                     *float64
+	addsearch_price_per_1k                  *float64
+	audio_realtime_price_per_min            *float64
+	addaudio_realtime_price_per_min         *float64
+	audio_tts_price_per_million_chars       *float64
+	addaudio_tts_price_per_million_chars    *float64
+	audio_stt_price_per_hour                *float64
+	addaudio_stt_price_per_hour             *float64
+	claude_code_only                        *bool
+	fallback_group_id                       *int64
+	addfallback_group_id                    *int64
+	fallback_group_id_on_invalid_request    *int64
+	addfallback_group_id_on_invalid_request *int64
+	model_routing                           *map[string][]int64
+	model_routing_enabled                   *bool
+	mcp_xml_inject                          *bool
+	supported_model_scopes                  *[]string
+	appendsupported_model_scopes            []string
+	sort_order                              *int
+	addsort_order                           *int
+	allow_messages_dispatch                 *bool
+	allow_live                              *bool
+	require_oauth_only                      *bool
+	require_privacy_set                     *bool
+	default_mapped_model                    *string
+	messages_dispatch_model_config          *domain.OpenAIMessagesDispatchModelConfig
+	models_list_config                      *domain.GroupModelsListConfig
+	openai_experimental_prompt_enabled      *bool
+	rpm_limit                               *int
+	addrpm_limit                            *int
+	max_reasoning_effort                    *string
+	reasoning_effort_mappings               *[]domain.ReasoningEffortMapping
+	appendreasoning_effort_mappings         []domain.ReasoningEffortMapping
+	profit_control_enabled                  *bool
+	profit_min_margin                       *float64
+	addprofit_min_margin                    *float64
+	profit_safety_buffer                    *float64
+	addprofit_safety_buffer                 *float64
+	kiro_cache_emulation_enabled            *bool
+	kiro_auto_sticky_enabled                *bool
+	kiro_sticky_session_ttl_seconds         *int
+	addkiro_sticky_session_ttl_seconds      *int
+	kiro_cache_emulation_ratio              *float64
+	addkiro_cache_emulation_ratio           *float64
+	kiro_endpoint_mode                      *string
+	peak_rate_enabled                       *bool
+	peak_start                              *string
+	peak_end                                *string
+	peak_rate_multiplier                    *float64
+	addpeak_rate_multiplier                 *float64
 	clearedFields                           map[string]struct{}
 	api_keys                                map[int64]struct{}
 	removedapi_keys                         map[int64]struct{}
@@ -27165,1102 +27183,6 @@ func (m *GroupMutation) ResetImagePrice4k() {
 	delete(m.clearedFields, group.FieldImagePrice4k)
 }
 
-// SetClaudeCodeOnly sets the "claude_code_only" field.
-func (m *GroupMutation) SetClaudeCodeOnly(b bool) {
-	m.claude_code_only = &b
-}
-
-// ClaudeCodeOnly returns the value of the "claude_code_only" field in the mutation.
-func (m *GroupMutation) ClaudeCodeOnly() (r bool, exists bool) {
-	v := m.claude_code_only
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldClaudeCodeOnly returns the old "claude_code_only" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldClaudeCodeOnly(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldClaudeCodeOnly is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldClaudeCodeOnly requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldClaudeCodeOnly: %w", err)
-	}
-	return oldValue.ClaudeCodeOnly, nil
-}
-
-// ResetClaudeCodeOnly resets all changes to the "claude_code_only" field.
-func (m *GroupMutation) ResetClaudeCodeOnly() {
-	m.claude_code_only = nil
-}
-
-// SetFallbackGroupID sets the "fallback_group_id" field.
-func (m *GroupMutation) SetFallbackGroupID(i int64) {
-	m.fallback_group_id = &i
-	m.addfallback_group_id = nil
-}
-
-// FallbackGroupID returns the value of the "fallback_group_id" field in the mutation.
-func (m *GroupMutation) FallbackGroupID() (r int64, exists bool) {
-	v := m.fallback_group_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldFallbackGroupID returns the old "fallback_group_id" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldFallbackGroupID(ctx context.Context) (v *int64, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldFallbackGroupID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldFallbackGroupID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldFallbackGroupID: %w", err)
-	}
-	return oldValue.FallbackGroupID, nil
-}
-
-// AddFallbackGroupID adds i to the "fallback_group_id" field.
-func (m *GroupMutation) AddFallbackGroupID(i int64) {
-	if m.addfallback_group_id != nil {
-		*m.addfallback_group_id += i
-	} else {
-		m.addfallback_group_id = &i
-	}
-}
-
-// AddedFallbackGroupID returns the value that was added to the "fallback_group_id" field in this mutation.
-func (m *GroupMutation) AddedFallbackGroupID() (r int64, exists bool) {
-	v := m.addfallback_group_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ClearFallbackGroupID clears the value of the "fallback_group_id" field.
-func (m *GroupMutation) ClearFallbackGroupID() {
-	m.fallback_group_id = nil
-	m.addfallback_group_id = nil
-	m.clearedFields[group.FieldFallbackGroupID] = struct{}{}
-}
-
-// FallbackGroupIDCleared returns if the "fallback_group_id" field was cleared in this mutation.
-func (m *GroupMutation) FallbackGroupIDCleared() bool {
-	_, ok := m.clearedFields[group.FieldFallbackGroupID]
-	return ok
-}
-
-// ResetFallbackGroupID resets all changes to the "fallback_group_id" field.
-func (m *GroupMutation) ResetFallbackGroupID() {
-	m.fallback_group_id = nil
-	m.addfallback_group_id = nil
-	delete(m.clearedFields, group.FieldFallbackGroupID)
-}
-
-// SetFallbackGroupIDOnInvalidRequest sets the "fallback_group_id_on_invalid_request" field.
-func (m *GroupMutation) SetFallbackGroupIDOnInvalidRequest(i int64) {
-	m.fallback_group_id_on_invalid_request = &i
-	m.addfallback_group_id_on_invalid_request = nil
-}
-
-// FallbackGroupIDOnInvalidRequest returns the value of the "fallback_group_id_on_invalid_request" field in the mutation.
-func (m *GroupMutation) FallbackGroupIDOnInvalidRequest() (r int64, exists bool) {
-	v := m.fallback_group_id_on_invalid_request
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldFallbackGroupIDOnInvalidRequest returns the old "fallback_group_id_on_invalid_request" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldFallbackGroupIDOnInvalidRequest(ctx context.Context) (v *int64, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldFallbackGroupIDOnInvalidRequest is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldFallbackGroupIDOnInvalidRequest requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldFallbackGroupIDOnInvalidRequest: %w", err)
-	}
-	return oldValue.FallbackGroupIDOnInvalidRequest, nil
-}
-
-// AddFallbackGroupIDOnInvalidRequest adds i to the "fallback_group_id_on_invalid_request" field.
-func (m *GroupMutation) AddFallbackGroupIDOnInvalidRequest(i int64) {
-	if m.addfallback_group_id_on_invalid_request != nil {
-		*m.addfallback_group_id_on_invalid_request += i
-	} else {
-		m.addfallback_group_id_on_invalid_request = &i
-	}
-}
-
-// AddedFallbackGroupIDOnInvalidRequest returns the value that was added to the "fallback_group_id_on_invalid_request" field in this mutation.
-func (m *GroupMutation) AddedFallbackGroupIDOnInvalidRequest() (r int64, exists bool) {
-	v := m.addfallback_group_id_on_invalid_request
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ClearFallbackGroupIDOnInvalidRequest clears the value of the "fallback_group_id_on_invalid_request" field.
-func (m *GroupMutation) ClearFallbackGroupIDOnInvalidRequest() {
-	m.fallback_group_id_on_invalid_request = nil
-	m.addfallback_group_id_on_invalid_request = nil
-	m.clearedFields[group.FieldFallbackGroupIDOnInvalidRequest] = struct{}{}
-}
-
-// FallbackGroupIDOnInvalidRequestCleared returns if the "fallback_group_id_on_invalid_request" field was cleared in this mutation.
-func (m *GroupMutation) FallbackGroupIDOnInvalidRequestCleared() bool {
-	_, ok := m.clearedFields[group.FieldFallbackGroupIDOnInvalidRequest]
-	return ok
-}
-
-// ResetFallbackGroupIDOnInvalidRequest resets all changes to the "fallback_group_id_on_invalid_request" field.
-func (m *GroupMutation) ResetFallbackGroupIDOnInvalidRequest() {
-	m.fallback_group_id_on_invalid_request = nil
-	m.addfallback_group_id_on_invalid_request = nil
-	delete(m.clearedFields, group.FieldFallbackGroupIDOnInvalidRequest)
-}
-
-// SetModelRouting sets the "model_routing" field.
-func (m *GroupMutation) SetModelRouting(value map[string][]int64) {
-	m.model_routing = &value
-}
-
-// ModelRouting returns the value of the "model_routing" field in the mutation.
-func (m *GroupMutation) ModelRouting() (r map[string][]int64, exists bool) {
-	v := m.model_routing
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldModelRouting returns the old "model_routing" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldModelRouting(ctx context.Context) (v map[string][]int64, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldModelRouting is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldModelRouting requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldModelRouting: %w", err)
-	}
-	return oldValue.ModelRouting, nil
-}
-
-// ClearModelRouting clears the value of the "model_routing" field.
-func (m *GroupMutation) ClearModelRouting() {
-	m.model_routing = nil
-	m.clearedFields[group.FieldModelRouting] = struct{}{}
-}
-
-// ModelRoutingCleared returns if the "model_routing" field was cleared in this mutation.
-func (m *GroupMutation) ModelRoutingCleared() bool {
-	_, ok := m.clearedFields[group.FieldModelRouting]
-	return ok
-}
-
-// ResetModelRouting resets all changes to the "model_routing" field.
-func (m *GroupMutation) ResetModelRouting() {
-	m.model_routing = nil
-	delete(m.clearedFields, group.FieldModelRouting)
-}
-
-// SetModelRoutingEnabled sets the "model_routing_enabled" field.
-func (m *GroupMutation) SetModelRoutingEnabled(b bool) {
-	m.model_routing_enabled = &b
-}
-
-// ModelRoutingEnabled returns the value of the "model_routing_enabled" field in the mutation.
-func (m *GroupMutation) ModelRoutingEnabled() (r bool, exists bool) {
-	v := m.model_routing_enabled
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldModelRoutingEnabled returns the old "model_routing_enabled" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldModelRoutingEnabled(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldModelRoutingEnabled is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldModelRoutingEnabled requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldModelRoutingEnabled: %w", err)
-	}
-	return oldValue.ModelRoutingEnabled, nil
-}
-
-// ResetModelRoutingEnabled resets all changes to the "model_routing_enabled" field.
-func (m *GroupMutation) ResetModelRoutingEnabled() {
-	m.model_routing_enabled = nil
-}
-
-// SetMcpXMLInject sets the "mcp_xml_inject" field.
-func (m *GroupMutation) SetMcpXMLInject(b bool) {
-	m.mcp_xml_inject = &b
-}
-
-// McpXMLInject returns the value of the "mcp_xml_inject" field in the mutation.
-func (m *GroupMutation) McpXMLInject() (r bool, exists bool) {
-	v := m.mcp_xml_inject
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldMcpXMLInject returns the old "mcp_xml_inject" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldMcpXMLInject(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldMcpXMLInject is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldMcpXMLInject requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldMcpXMLInject: %w", err)
-	}
-	return oldValue.McpXMLInject, nil
-}
-
-// ResetMcpXMLInject resets all changes to the "mcp_xml_inject" field.
-func (m *GroupMutation) ResetMcpXMLInject() {
-	m.mcp_xml_inject = nil
-}
-
-// SetSupportedModelScopes sets the "supported_model_scopes" field.
-func (m *GroupMutation) SetSupportedModelScopes(s []string) {
-	m.supported_model_scopes = &s
-	m.appendsupported_model_scopes = nil
-}
-
-// SupportedModelScopes returns the value of the "supported_model_scopes" field in the mutation.
-func (m *GroupMutation) SupportedModelScopes() (r []string, exists bool) {
-	v := m.supported_model_scopes
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldSupportedModelScopes returns the old "supported_model_scopes" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldSupportedModelScopes(ctx context.Context) (v []string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldSupportedModelScopes is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldSupportedModelScopes requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldSupportedModelScopes: %w", err)
-	}
-	return oldValue.SupportedModelScopes, nil
-}
-
-// AppendSupportedModelScopes adds s to the "supported_model_scopes" field.
-func (m *GroupMutation) AppendSupportedModelScopes(s []string) {
-	m.appendsupported_model_scopes = append(m.appendsupported_model_scopes, s...)
-}
-
-// AppendedSupportedModelScopes returns the list of values that were appended to the "supported_model_scopes" field in this mutation.
-func (m *GroupMutation) AppendedSupportedModelScopes() ([]string, bool) {
-	if len(m.appendsupported_model_scopes) == 0 {
-		return nil, false
-	}
-	return m.appendsupported_model_scopes, true
-}
-
-// ResetSupportedModelScopes resets all changes to the "supported_model_scopes" field.
-func (m *GroupMutation) ResetSupportedModelScopes() {
-	m.supported_model_scopes = nil
-	m.appendsupported_model_scopes = nil
-}
-
-// SetSortOrder sets the "sort_order" field.
-func (m *GroupMutation) SetSortOrder(i int) {
-	m.sort_order = &i
-	m.addsort_order = nil
-}
-
-// SortOrder returns the value of the "sort_order" field in the mutation.
-func (m *GroupMutation) SortOrder() (r int, exists bool) {
-	v := m.sort_order
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldSortOrder returns the old "sort_order" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldSortOrder(ctx context.Context) (v int, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldSortOrder is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldSortOrder requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldSortOrder: %w", err)
-	}
-	return oldValue.SortOrder, nil
-}
-
-// AddSortOrder adds i to the "sort_order" field.
-func (m *GroupMutation) AddSortOrder(i int) {
-	if m.addsort_order != nil {
-		*m.addsort_order += i
-	} else {
-		m.addsort_order = &i
-	}
-}
-
-// AddedSortOrder returns the value that was added to the "sort_order" field in this mutation.
-func (m *GroupMutation) AddedSortOrder() (r int, exists bool) {
-	v := m.addsort_order
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetSortOrder resets all changes to the "sort_order" field.
-func (m *GroupMutation) ResetSortOrder() {
-	m.sort_order = nil
-	m.addsort_order = nil
-}
-
-// SetAllowMessagesDispatch sets the "allow_messages_dispatch" field.
-func (m *GroupMutation) SetAllowMessagesDispatch(b bool) {
-	m.allow_messages_dispatch = &b
-}
-
-// AllowMessagesDispatch returns the value of the "allow_messages_dispatch" field in the mutation.
-func (m *GroupMutation) AllowMessagesDispatch() (r bool, exists bool) {
-	v := m.allow_messages_dispatch
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldAllowMessagesDispatch returns the old "allow_messages_dispatch" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldAllowMessagesDispatch(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldAllowMessagesDispatch is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldAllowMessagesDispatch requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldAllowMessagesDispatch: %w", err)
-	}
-	return oldValue.AllowMessagesDispatch, nil
-}
-
-// ResetAllowMessagesDispatch resets all changes to the "allow_messages_dispatch" field.
-func (m *GroupMutation) ResetAllowMessagesDispatch() {
-	m.allow_messages_dispatch = nil
-}
-
-// SetRequireOauthOnly sets the "require_oauth_only" field.
-func (m *GroupMutation) SetRequireOauthOnly(b bool) {
-	m.require_oauth_only = &b
-}
-
-// RequireOauthOnly returns the value of the "require_oauth_only" field in the mutation.
-func (m *GroupMutation) RequireOauthOnly() (r bool, exists bool) {
-	v := m.require_oauth_only
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldRequireOauthOnly returns the old "require_oauth_only" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldRequireOauthOnly(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldRequireOauthOnly is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldRequireOauthOnly requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldRequireOauthOnly: %w", err)
-	}
-	return oldValue.RequireOauthOnly, nil
-}
-
-// ResetRequireOauthOnly resets all changes to the "require_oauth_only" field.
-func (m *GroupMutation) ResetRequireOauthOnly() {
-	m.require_oauth_only = nil
-}
-
-// SetRequirePrivacySet sets the "require_privacy_set" field.
-func (m *GroupMutation) SetRequirePrivacySet(b bool) {
-	m.require_privacy_set = &b
-}
-
-// RequirePrivacySet returns the value of the "require_privacy_set" field in the mutation.
-func (m *GroupMutation) RequirePrivacySet() (r bool, exists bool) {
-	v := m.require_privacy_set
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldRequirePrivacySet returns the old "require_privacy_set" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldRequirePrivacySet(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldRequirePrivacySet is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldRequirePrivacySet requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldRequirePrivacySet: %w", err)
-	}
-	return oldValue.RequirePrivacySet, nil
-}
-
-// ResetRequirePrivacySet resets all changes to the "require_privacy_set" field.
-func (m *GroupMutation) ResetRequirePrivacySet() {
-	m.require_privacy_set = nil
-}
-
-// SetDefaultMappedModel sets the "default_mapped_model" field.
-func (m *GroupMutation) SetDefaultMappedModel(s string) {
-	m.default_mapped_model = &s
-}
-
-// DefaultMappedModel returns the value of the "default_mapped_model" field in the mutation.
-func (m *GroupMutation) DefaultMappedModel() (r string, exists bool) {
-	v := m.default_mapped_model
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldDefaultMappedModel returns the old "default_mapped_model" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldDefaultMappedModel(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldDefaultMappedModel is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldDefaultMappedModel requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldDefaultMappedModel: %w", err)
-	}
-	return oldValue.DefaultMappedModel, nil
-}
-
-// ResetDefaultMappedModel resets all changes to the "default_mapped_model" field.
-func (m *GroupMutation) ResetDefaultMappedModel() {
-	m.default_mapped_model = nil
-}
-
-// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (m *GroupMutation) SetMessagesDispatchModelConfig(damdmc domain.OpenAIMessagesDispatchModelConfig) {
-	m.messages_dispatch_model_config = &damdmc
-}
-
-// MessagesDispatchModelConfig returns the value of the "messages_dispatch_model_config" field in the mutation.
-func (m *GroupMutation) MessagesDispatchModelConfig() (r domain.OpenAIMessagesDispatchModelConfig, exists bool) {
-	v := m.messages_dispatch_model_config
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldMessagesDispatchModelConfig returns the old "messages_dispatch_model_config" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldMessagesDispatchModelConfig(ctx context.Context) (v domain.OpenAIMessagesDispatchModelConfig, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldMessagesDispatchModelConfig is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldMessagesDispatchModelConfig requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldMessagesDispatchModelConfig: %w", err)
-	}
-	return oldValue.MessagesDispatchModelConfig, nil
-}
-
-// ResetMessagesDispatchModelConfig resets all changes to the "messages_dispatch_model_config" field.
-func (m *GroupMutation) ResetMessagesDispatchModelConfig() {
-	m.messages_dispatch_model_config = nil
-}
-
-// SetModelsListConfig sets the "models_list_config" field.
-func (m *GroupMutation) SetModelsListConfig(dmlc domain.GroupModelsListConfig) {
-	m.models_list_config = &dmlc
-}
-
-// ModelsListConfig returns the value of the "models_list_config" field in the mutation.
-func (m *GroupMutation) ModelsListConfig() (r domain.GroupModelsListConfig, exists bool) {
-	v := m.models_list_config
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldModelsListConfig returns the old "models_list_config" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldModelsListConfig(ctx context.Context) (v domain.GroupModelsListConfig, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldModelsListConfig is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldModelsListConfig requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldModelsListConfig: %w", err)
-	}
-	return oldValue.ModelsListConfig, nil
-}
-
-// ResetModelsListConfig resets all changes to the "models_list_config" field.
-func (m *GroupMutation) ResetModelsListConfig() {
-	m.models_list_config = nil
-}
-
-// SetOpenaiExperimentalPromptEnabled sets the "openai_experimental_prompt_enabled" field.
-func (m *GroupMutation) SetOpenaiExperimentalPromptEnabled(b bool) {
-	m.openai_experimental_prompt_enabled = &b
-}
-
-// OpenaiExperimentalPromptEnabled returns the value of the "openai_experimental_prompt_enabled" field in the mutation.
-func (m *GroupMutation) OpenaiExperimentalPromptEnabled() (r bool, exists bool) {
-	v := m.openai_experimental_prompt_enabled
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldOpenaiExperimentalPromptEnabled returns the old "openai_experimental_prompt_enabled" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldOpenaiExperimentalPromptEnabled(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldOpenaiExperimentalPromptEnabled is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldOpenaiExperimentalPromptEnabled requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldOpenaiExperimentalPromptEnabled: %w", err)
-	}
-	return oldValue.OpenaiExperimentalPromptEnabled, nil
-}
-
-// ResetOpenaiExperimentalPromptEnabled resets all changes to the "openai_experimental_prompt_enabled" field.
-func (m *GroupMutation) ResetOpenaiExperimentalPromptEnabled() {
-	m.openai_experimental_prompt_enabled = nil
-}
-
-// SetRpmLimit sets the "rpm_limit" field.
-func (m *GroupMutation) SetRpmLimit(i int) {
-	m.rpm_limit = &i
-	m.addrpm_limit = nil
-}
-
-// RpmLimit returns the value of the "rpm_limit" field in the mutation.
-func (m *GroupMutation) RpmLimit() (r int, exists bool) {
-	v := m.rpm_limit
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldRpmLimit returns the old "rpm_limit" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldRpmLimit(ctx context.Context) (v int, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldRpmLimit is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldRpmLimit requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldRpmLimit: %w", err)
-	}
-	return oldValue.RpmLimit, nil
-}
-
-// AddRpmLimit adds i to the "rpm_limit" field.
-func (m *GroupMutation) AddRpmLimit(i int) {
-	if m.addrpm_limit != nil {
-		*m.addrpm_limit += i
-	} else {
-		m.addrpm_limit = &i
-	}
-}
-
-// AddedRpmLimit returns the value that was added to the "rpm_limit" field in this mutation.
-func (m *GroupMutation) AddedRpmLimit() (r int, exists bool) {
-	v := m.addrpm_limit
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetRpmLimit resets all changes to the "rpm_limit" field.
-func (m *GroupMutation) ResetRpmLimit() {
-	m.rpm_limit = nil
-	m.addrpm_limit = nil
-}
-
-// SetKiroCacheEmulationEnabled sets the "kiro_cache_emulation_enabled" field.
-func (m *GroupMutation) SetKiroCacheEmulationEnabled(b bool) {
-	m.kiro_cache_emulation_enabled = &b
-}
-
-// KiroCacheEmulationEnabled returns the value of the "kiro_cache_emulation_enabled" field in the mutation.
-func (m *GroupMutation) KiroCacheEmulationEnabled() (r bool, exists bool) {
-	v := m.kiro_cache_emulation_enabled
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldKiroCacheEmulationEnabled returns the old "kiro_cache_emulation_enabled" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldKiroCacheEmulationEnabled(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldKiroCacheEmulationEnabled is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldKiroCacheEmulationEnabled requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldKiroCacheEmulationEnabled: %w", err)
-	}
-	return oldValue.KiroCacheEmulationEnabled, nil
-}
-
-// ResetKiroCacheEmulationEnabled resets all changes to the "kiro_cache_emulation_enabled" field.
-func (m *GroupMutation) ResetKiroCacheEmulationEnabled() {
-	m.kiro_cache_emulation_enabled = nil
-}
-
-// SetKiroAutoStickyEnabled sets the "kiro_auto_sticky_enabled" field.
-func (m *GroupMutation) SetKiroAutoStickyEnabled(b bool) {
-	m.kiro_auto_sticky_enabled = &b
-}
-
-// KiroAutoStickyEnabled returns the value of the "kiro_auto_sticky_enabled" field in the mutation.
-func (m *GroupMutation) KiroAutoStickyEnabled() (r bool, exists bool) {
-	v := m.kiro_auto_sticky_enabled
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldKiroAutoStickyEnabled returns the old "kiro_auto_sticky_enabled" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldKiroAutoStickyEnabled(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldKiroAutoStickyEnabled is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldKiroAutoStickyEnabled requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldKiroAutoStickyEnabled: %w", err)
-	}
-	return oldValue.KiroAutoStickyEnabled, nil
-}
-
-// ResetKiroAutoStickyEnabled resets all changes to the "kiro_auto_sticky_enabled" field.
-func (m *GroupMutation) ResetKiroAutoStickyEnabled() {
-	m.kiro_auto_sticky_enabled = nil
-}
-
-// SetKiroStickySessionTTLSeconds sets the "kiro_sticky_session_ttl_seconds" field.
-func (m *GroupMutation) SetKiroStickySessionTTLSeconds(i int) {
-	m.kiro_sticky_session_ttl_seconds = &i
-	m.addkiro_sticky_session_ttl_seconds = nil
-}
-
-// KiroStickySessionTTLSeconds returns the value of the "kiro_sticky_session_ttl_seconds" field in the mutation.
-func (m *GroupMutation) KiroStickySessionTTLSeconds() (r int, exists bool) {
-	v := m.kiro_sticky_session_ttl_seconds
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldKiroStickySessionTTLSeconds returns the old "kiro_sticky_session_ttl_seconds" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldKiroStickySessionTTLSeconds(ctx context.Context) (v int, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldKiroStickySessionTTLSeconds is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldKiroStickySessionTTLSeconds requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldKiroStickySessionTTLSeconds: %w", err)
-	}
-	return oldValue.KiroStickySessionTTLSeconds, nil
-}
-
-// AddKiroStickySessionTTLSeconds adds i to the "kiro_sticky_session_ttl_seconds" field.
-func (m *GroupMutation) AddKiroStickySessionTTLSeconds(i int) {
-	if m.addkiro_sticky_session_ttl_seconds != nil {
-		*m.addkiro_sticky_session_ttl_seconds += i
-	} else {
-		m.addkiro_sticky_session_ttl_seconds = &i
-	}
-}
-
-// AddedKiroStickySessionTTLSeconds returns the value that was added to the "kiro_sticky_session_ttl_seconds" field in this mutation.
-func (m *GroupMutation) AddedKiroStickySessionTTLSeconds() (r int, exists bool) {
-	v := m.addkiro_sticky_session_ttl_seconds
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetKiroStickySessionTTLSeconds resets all changes to the "kiro_sticky_session_ttl_seconds" field.
-func (m *GroupMutation) ResetKiroStickySessionTTLSeconds() {
-	m.kiro_sticky_session_ttl_seconds = nil
-	m.addkiro_sticky_session_ttl_seconds = nil
-}
-
-// SetKiroCacheEmulationRatio sets the "kiro_cache_emulation_ratio" field.
-func (m *GroupMutation) SetKiroCacheEmulationRatio(f float64) {
-	m.kiro_cache_emulation_ratio = &f
-	m.addkiro_cache_emulation_ratio = nil
-}
-
-// KiroCacheEmulationRatio returns the value of the "kiro_cache_emulation_ratio" field in the mutation.
-func (m *GroupMutation) KiroCacheEmulationRatio() (r float64, exists bool) {
-	v := m.kiro_cache_emulation_ratio
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldKiroCacheEmulationRatio returns the old "kiro_cache_emulation_ratio" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldKiroCacheEmulationRatio(ctx context.Context) (v float64, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldKiroCacheEmulationRatio is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldKiroCacheEmulationRatio requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldKiroCacheEmulationRatio: %w", err)
-	}
-	return oldValue.KiroCacheEmulationRatio, nil
-}
-
-// AddKiroCacheEmulationRatio adds f to the "kiro_cache_emulation_ratio" field.
-func (m *GroupMutation) AddKiroCacheEmulationRatio(f float64) {
-	if m.addkiro_cache_emulation_ratio != nil {
-		*m.addkiro_cache_emulation_ratio += f
-	} else {
-		m.addkiro_cache_emulation_ratio = &f
-	}
-}
-
-// AddedKiroCacheEmulationRatio returns the value that was added to the "kiro_cache_emulation_ratio" field in this mutation.
-func (m *GroupMutation) AddedKiroCacheEmulationRatio() (r float64, exists bool) {
-	v := m.addkiro_cache_emulation_ratio
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetKiroCacheEmulationRatio resets all changes to the "kiro_cache_emulation_ratio" field.
-func (m *GroupMutation) ResetKiroCacheEmulationRatio() {
-	m.kiro_cache_emulation_ratio = nil
-	m.addkiro_cache_emulation_ratio = nil
-}
-
-// SetKiroEndpointMode sets the "kiro_endpoint_mode" field.
-func (m *GroupMutation) SetKiroEndpointMode(s string) {
-	m.kiro_endpoint_mode = &s
-}
-
-// KiroEndpointMode returns the value of the "kiro_endpoint_mode" field in the mutation.
-func (m *GroupMutation) KiroEndpointMode() (r string, exists bool) {
-	v := m.kiro_endpoint_mode
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldKiroEndpointMode returns the old "kiro_endpoint_mode" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldKiroEndpointMode(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldKiroEndpointMode is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldKiroEndpointMode requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldKiroEndpointMode: %w", err)
-	}
-	return oldValue.KiroEndpointMode, nil
-}
-
-// ResetKiroEndpointMode resets all changes to the "kiro_endpoint_mode" field.
-func (m *GroupMutation) ResetKiroEndpointMode() {
-	m.kiro_endpoint_mode = nil
-}
-
-// SetPeakRateEnabled sets the "peak_rate_enabled" field.
-func (m *GroupMutation) SetPeakRateEnabled(b bool) {
-	m.peak_rate_enabled = &b
-}
-
-// PeakRateEnabled returns the value of the "peak_rate_enabled" field in the mutation.
-func (m *GroupMutation) PeakRateEnabled() (r bool, exists bool) {
-	v := m.peak_rate_enabled
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldPeakRateEnabled returns the old "peak_rate_enabled" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldPeakRateEnabled(ctx context.Context) (v bool, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldPeakRateEnabled is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldPeakRateEnabled requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldPeakRateEnabled: %w", err)
-	}
-	return oldValue.PeakRateEnabled, nil
-}
-
-// ResetPeakRateEnabled resets all changes to the "peak_rate_enabled" field.
-func (m *GroupMutation) ResetPeakRateEnabled() {
-	m.peak_rate_enabled = nil
-}
-
-// SetPeakStart sets the "peak_start" field.
-func (m *GroupMutation) SetPeakStart(s string) {
-	m.peak_start = &s
-}
-
-// PeakStart returns the value of the "peak_start" field in the mutation.
-func (m *GroupMutation) PeakStart() (r string, exists bool) {
-	v := m.peak_start
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldPeakStart returns the old "peak_start" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldPeakStart(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldPeakStart is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldPeakStart requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldPeakStart: %w", err)
-	}
-	return oldValue.PeakStart, nil
-}
-
-// ResetPeakStart resets all changes to the "peak_start" field.
-func (m *GroupMutation) ResetPeakStart() {
-	m.peak_start = nil
-}
-
-// SetPeakEnd sets the "peak_end" field.
-func (m *GroupMutation) SetPeakEnd(s string) {
-	m.peak_end = &s
-}
-
-// PeakEnd returns the value of the "peak_end" field in the mutation.
-func (m *GroupMutation) PeakEnd() (r string, exists bool) {
-	v := m.peak_end
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldPeakEnd returns the old "peak_end" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldPeakEnd(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldPeakEnd is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldPeakEnd requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldPeakEnd: %w", err)
-	}
-	return oldValue.PeakEnd, nil
-}
-
-// ResetPeakEnd resets all changes to the "peak_end" field.
-func (m *GroupMutation) ResetPeakEnd() {
-	m.peak_end = nil
-}
-
-// SetPeakRateMultiplier sets the "peak_rate_multiplier" field.
-func (m *GroupMutation) SetPeakRateMultiplier(f float64) {
-	m.peak_rate_multiplier = &f
-	m.addpeak_rate_multiplier = nil
-}
-
-// PeakRateMultiplier returns the value of the "peak_rate_multiplier" field in the mutation.
-func (m *GroupMutation) PeakRateMultiplier() (r float64, exists bool) {
-	v := m.peak_rate_multiplier
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldPeakRateMultiplier returns the old "peak_rate_multiplier" field's value of the Group entity.
-// If the Group object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldPeakRateMultiplier(ctx context.Context) (v float64, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldPeakRateMultiplier is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldPeakRateMultiplier requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldPeakRateMultiplier: %w", err)
-	}
-	return oldValue.PeakRateMultiplier, nil
-}
-
-// AddPeakRateMultiplier adds f to the "peak_rate_multiplier" field.
-func (m *GroupMutation) AddPeakRateMultiplier(f float64) {
-	if m.addpeak_rate_multiplier != nil {
-		*m.addpeak_rate_multiplier += f
-	} else {
-		m.addpeak_rate_multiplier = &f
-	}
-}
-
-// AddedPeakRateMultiplier returns the value that was added to the "peak_rate_multiplier" field in this mutation.
-func (m *GroupMutation) AddedPeakRateMultiplier() (r float64, exists bool) {
-	v := m.addpeak_rate_multiplier
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetPeakRateMultiplier resets all changes to the "peak_rate_multiplier" field.
-func (m *GroupMutation) ResetPeakRateMultiplier() {
-	m.peak_rate_multiplier = nil
-	m.addpeak_rate_multiplier = nil
-}
-
 // SetAllowBatchImageGeneration sets the "allow_batch_image_generation" field.
 func (m *GroupMutation) SetAllowBatchImageGeneration(b bool) {
 	m.allow_batch_image_generation = &b
@@ -28711,6 +27633,55 @@ func (m *GroupMutation) ResetVideoPrice1080p() {
 	delete(m.clearedFields, group.FieldVideoPrice1080p)
 }
 
+// SetVideoModelPrices sets the "video_model_prices" field.
+func (m *GroupMutation) SetVideoModelPrices(value map[string]map[string]float64) {
+	m.video_model_prices = &value
+}
+
+// VideoModelPrices returns the value of the "video_model_prices" field in the mutation.
+func (m *GroupMutation) VideoModelPrices() (r map[string]map[string]float64, exists bool) {
+	v := m.video_model_prices
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVideoModelPrices returns the old "video_model_prices" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldVideoModelPrices(ctx context.Context) (v map[string]map[string]float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVideoModelPrices is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVideoModelPrices requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVideoModelPrices: %w", err)
+	}
+	return oldValue.VideoModelPrices, nil
+}
+
+// ClearVideoModelPrices clears the value of the "video_model_prices" field.
+func (m *GroupMutation) ClearVideoModelPrices() {
+	m.video_model_prices = nil
+	m.clearedFields[group.FieldVideoModelPrices] = struct{}{}
+}
+
+// VideoModelPricesCleared returns if the "video_model_prices" field was cleared in this mutation.
+func (m *GroupMutation) VideoModelPricesCleared() bool {
+	_, ok := m.clearedFields[group.FieldVideoModelPrices]
+	return ok
+}
+
+// ResetVideoModelPrices resets all changes to the "video_model_prices" field.
+func (m *GroupMutation) ResetVideoModelPrices() {
+	m.video_model_prices = nil
+	delete(m.clearedFields, group.FieldVideoModelPrices)
+}
+
 // SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
 func (m *GroupMutation) SetWebSearchPricePerCall(f float64) {
 	m.web_search_price_per_call = &f
@@ -28779,6 +27750,1653 @@ func (m *GroupMutation) ResetWebSearchPricePerCall() {
 	m.web_search_price_per_call = nil
 	m.addweb_search_price_per_call = nil
 	delete(m.clearedFields, group.FieldWebSearchPricePerCall)
+}
+
+// SetSearchPricePer1k sets the "search_price_per_1k" field.
+func (m *GroupMutation) SetSearchPricePer1k(f float64) {
+	m.search_price_per_1k = &f
+	m.addsearch_price_per_1k = nil
+}
+
+// SearchPricePer1k returns the value of the "search_price_per_1k" field in the mutation.
+func (m *GroupMutation) SearchPricePer1k() (r float64, exists bool) {
+	v := m.search_price_per_1k
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSearchPricePer1k returns the old "search_price_per_1k" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldSearchPricePer1k(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSearchPricePer1k is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSearchPricePer1k requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSearchPricePer1k: %w", err)
+	}
+	return oldValue.SearchPricePer1k, nil
+}
+
+// AddSearchPricePer1k adds f to the "search_price_per_1k" field.
+func (m *GroupMutation) AddSearchPricePer1k(f float64) {
+	if m.addsearch_price_per_1k != nil {
+		*m.addsearch_price_per_1k += f
+	} else {
+		m.addsearch_price_per_1k = &f
+	}
+}
+
+// AddedSearchPricePer1k returns the value that was added to the "search_price_per_1k" field in this mutation.
+func (m *GroupMutation) AddedSearchPricePer1k() (r float64, exists bool) {
+	v := m.addsearch_price_per_1k
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearSearchPricePer1k clears the value of the "search_price_per_1k" field.
+func (m *GroupMutation) ClearSearchPricePer1k() {
+	m.search_price_per_1k = nil
+	m.addsearch_price_per_1k = nil
+	m.clearedFields[group.FieldSearchPricePer1k] = struct{}{}
+}
+
+// SearchPricePer1kCleared returns if the "search_price_per_1k" field was cleared in this mutation.
+func (m *GroupMutation) SearchPricePer1kCleared() bool {
+	_, ok := m.clearedFields[group.FieldSearchPricePer1k]
+	return ok
+}
+
+// ResetSearchPricePer1k resets all changes to the "search_price_per_1k" field.
+func (m *GroupMutation) ResetSearchPricePer1k() {
+	m.search_price_per_1k = nil
+	m.addsearch_price_per_1k = nil
+	delete(m.clearedFields, group.FieldSearchPricePer1k)
+}
+
+// SetAudioRealtimePricePerMin sets the "audio_realtime_price_per_min" field.
+func (m *GroupMutation) SetAudioRealtimePricePerMin(f float64) {
+	m.audio_realtime_price_per_min = &f
+	m.addaudio_realtime_price_per_min = nil
+}
+
+// AudioRealtimePricePerMin returns the value of the "audio_realtime_price_per_min" field in the mutation.
+func (m *GroupMutation) AudioRealtimePricePerMin() (r float64, exists bool) {
+	v := m.audio_realtime_price_per_min
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAudioRealtimePricePerMin returns the old "audio_realtime_price_per_min" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldAudioRealtimePricePerMin(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAudioRealtimePricePerMin is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAudioRealtimePricePerMin requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAudioRealtimePricePerMin: %w", err)
+	}
+	return oldValue.AudioRealtimePricePerMin, nil
+}
+
+// AddAudioRealtimePricePerMin adds f to the "audio_realtime_price_per_min" field.
+func (m *GroupMutation) AddAudioRealtimePricePerMin(f float64) {
+	if m.addaudio_realtime_price_per_min != nil {
+		*m.addaudio_realtime_price_per_min += f
+	} else {
+		m.addaudio_realtime_price_per_min = &f
+	}
+}
+
+// AddedAudioRealtimePricePerMin returns the value that was added to the "audio_realtime_price_per_min" field in this mutation.
+func (m *GroupMutation) AddedAudioRealtimePricePerMin() (r float64, exists bool) {
+	v := m.addaudio_realtime_price_per_min
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAudioRealtimePricePerMin clears the value of the "audio_realtime_price_per_min" field.
+func (m *GroupMutation) ClearAudioRealtimePricePerMin() {
+	m.audio_realtime_price_per_min = nil
+	m.addaudio_realtime_price_per_min = nil
+	m.clearedFields[group.FieldAudioRealtimePricePerMin] = struct{}{}
+}
+
+// AudioRealtimePricePerMinCleared returns if the "audio_realtime_price_per_min" field was cleared in this mutation.
+func (m *GroupMutation) AudioRealtimePricePerMinCleared() bool {
+	_, ok := m.clearedFields[group.FieldAudioRealtimePricePerMin]
+	return ok
+}
+
+// ResetAudioRealtimePricePerMin resets all changes to the "audio_realtime_price_per_min" field.
+func (m *GroupMutation) ResetAudioRealtimePricePerMin() {
+	m.audio_realtime_price_per_min = nil
+	m.addaudio_realtime_price_per_min = nil
+	delete(m.clearedFields, group.FieldAudioRealtimePricePerMin)
+}
+
+// SetAudioTtsPricePerMillionChars sets the "audio_tts_price_per_million_chars" field.
+func (m *GroupMutation) SetAudioTtsPricePerMillionChars(f float64) {
+	m.audio_tts_price_per_million_chars = &f
+	m.addaudio_tts_price_per_million_chars = nil
+}
+
+// AudioTtsPricePerMillionChars returns the value of the "audio_tts_price_per_million_chars" field in the mutation.
+func (m *GroupMutation) AudioTtsPricePerMillionChars() (r float64, exists bool) {
+	v := m.audio_tts_price_per_million_chars
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAudioTtsPricePerMillionChars returns the old "audio_tts_price_per_million_chars" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldAudioTtsPricePerMillionChars(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAudioTtsPricePerMillionChars is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAudioTtsPricePerMillionChars requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAudioTtsPricePerMillionChars: %w", err)
+	}
+	return oldValue.AudioTtsPricePerMillionChars, nil
+}
+
+// AddAudioTtsPricePerMillionChars adds f to the "audio_tts_price_per_million_chars" field.
+func (m *GroupMutation) AddAudioTtsPricePerMillionChars(f float64) {
+	if m.addaudio_tts_price_per_million_chars != nil {
+		*m.addaudio_tts_price_per_million_chars += f
+	} else {
+		m.addaudio_tts_price_per_million_chars = &f
+	}
+}
+
+// AddedAudioTtsPricePerMillionChars returns the value that was added to the "audio_tts_price_per_million_chars" field in this mutation.
+func (m *GroupMutation) AddedAudioTtsPricePerMillionChars() (r float64, exists bool) {
+	v := m.addaudio_tts_price_per_million_chars
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAudioTtsPricePerMillionChars clears the value of the "audio_tts_price_per_million_chars" field.
+func (m *GroupMutation) ClearAudioTtsPricePerMillionChars() {
+	m.audio_tts_price_per_million_chars = nil
+	m.addaudio_tts_price_per_million_chars = nil
+	m.clearedFields[group.FieldAudioTtsPricePerMillionChars] = struct{}{}
+}
+
+// AudioTtsPricePerMillionCharsCleared returns if the "audio_tts_price_per_million_chars" field was cleared in this mutation.
+func (m *GroupMutation) AudioTtsPricePerMillionCharsCleared() bool {
+	_, ok := m.clearedFields[group.FieldAudioTtsPricePerMillionChars]
+	return ok
+}
+
+// ResetAudioTtsPricePerMillionChars resets all changes to the "audio_tts_price_per_million_chars" field.
+func (m *GroupMutation) ResetAudioTtsPricePerMillionChars() {
+	m.audio_tts_price_per_million_chars = nil
+	m.addaudio_tts_price_per_million_chars = nil
+	delete(m.clearedFields, group.FieldAudioTtsPricePerMillionChars)
+}
+
+// SetAudioSttPricePerHour sets the "audio_stt_price_per_hour" field.
+func (m *GroupMutation) SetAudioSttPricePerHour(f float64) {
+	m.audio_stt_price_per_hour = &f
+	m.addaudio_stt_price_per_hour = nil
+}
+
+// AudioSttPricePerHour returns the value of the "audio_stt_price_per_hour" field in the mutation.
+func (m *GroupMutation) AudioSttPricePerHour() (r float64, exists bool) {
+	v := m.audio_stt_price_per_hour
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAudioSttPricePerHour returns the old "audio_stt_price_per_hour" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldAudioSttPricePerHour(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAudioSttPricePerHour is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAudioSttPricePerHour requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAudioSttPricePerHour: %w", err)
+	}
+	return oldValue.AudioSttPricePerHour, nil
+}
+
+// AddAudioSttPricePerHour adds f to the "audio_stt_price_per_hour" field.
+func (m *GroupMutation) AddAudioSttPricePerHour(f float64) {
+	if m.addaudio_stt_price_per_hour != nil {
+		*m.addaudio_stt_price_per_hour += f
+	} else {
+		m.addaudio_stt_price_per_hour = &f
+	}
+}
+
+// AddedAudioSttPricePerHour returns the value that was added to the "audio_stt_price_per_hour" field in this mutation.
+func (m *GroupMutation) AddedAudioSttPricePerHour() (r float64, exists bool) {
+	v := m.addaudio_stt_price_per_hour
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAudioSttPricePerHour clears the value of the "audio_stt_price_per_hour" field.
+func (m *GroupMutation) ClearAudioSttPricePerHour() {
+	m.audio_stt_price_per_hour = nil
+	m.addaudio_stt_price_per_hour = nil
+	m.clearedFields[group.FieldAudioSttPricePerHour] = struct{}{}
+}
+
+// AudioSttPricePerHourCleared returns if the "audio_stt_price_per_hour" field was cleared in this mutation.
+func (m *GroupMutation) AudioSttPricePerHourCleared() bool {
+	_, ok := m.clearedFields[group.FieldAudioSttPricePerHour]
+	return ok
+}
+
+// ResetAudioSttPricePerHour resets all changes to the "audio_stt_price_per_hour" field.
+func (m *GroupMutation) ResetAudioSttPricePerHour() {
+	m.audio_stt_price_per_hour = nil
+	m.addaudio_stt_price_per_hour = nil
+	delete(m.clearedFields, group.FieldAudioSttPricePerHour)
+}
+
+// SetClaudeCodeOnly sets the "claude_code_only" field.
+func (m *GroupMutation) SetClaudeCodeOnly(b bool) {
+	m.claude_code_only = &b
+}
+
+// ClaudeCodeOnly returns the value of the "claude_code_only" field in the mutation.
+func (m *GroupMutation) ClaudeCodeOnly() (r bool, exists bool) {
+	v := m.claude_code_only
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaudeCodeOnly returns the old "claude_code_only" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldClaudeCodeOnly(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaudeCodeOnly is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaudeCodeOnly requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaudeCodeOnly: %w", err)
+	}
+	return oldValue.ClaudeCodeOnly, nil
+}
+
+// ResetClaudeCodeOnly resets all changes to the "claude_code_only" field.
+func (m *GroupMutation) ResetClaudeCodeOnly() {
+	m.claude_code_only = nil
+}
+
+// SetFallbackGroupID sets the "fallback_group_id" field.
+func (m *GroupMutation) SetFallbackGroupID(i int64) {
+	m.fallback_group_id = &i
+	m.addfallback_group_id = nil
+}
+
+// FallbackGroupID returns the value of the "fallback_group_id" field in the mutation.
+func (m *GroupMutation) FallbackGroupID() (r int64, exists bool) {
+	v := m.fallback_group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFallbackGroupID returns the old "fallback_group_id" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldFallbackGroupID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFallbackGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFallbackGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFallbackGroupID: %w", err)
+	}
+	return oldValue.FallbackGroupID, nil
+}
+
+// AddFallbackGroupID adds i to the "fallback_group_id" field.
+func (m *GroupMutation) AddFallbackGroupID(i int64) {
+	if m.addfallback_group_id != nil {
+		*m.addfallback_group_id += i
+	} else {
+		m.addfallback_group_id = &i
+	}
+}
+
+// AddedFallbackGroupID returns the value that was added to the "fallback_group_id" field in this mutation.
+func (m *GroupMutation) AddedFallbackGroupID() (r int64, exists bool) {
+	v := m.addfallback_group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearFallbackGroupID clears the value of the "fallback_group_id" field.
+func (m *GroupMutation) ClearFallbackGroupID() {
+	m.fallback_group_id = nil
+	m.addfallback_group_id = nil
+	m.clearedFields[group.FieldFallbackGroupID] = struct{}{}
+}
+
+// FallbackGroupIDCleared returns if the "fallback_group_id" field was cleared in this mutation.
+func (m *GroupMutation) FallbackGroupIDCleared() bool {
+	_, ok := m.clearedFields[group.FieldFallbackGroupID]
+	return ok
+}
+
+// ResetFallbackGroupID resets all changes to the "fallback_group_id" field.
+func (m *GroupMutation) ResetFallbackGroupID() {
+	m.fallback_group_id = nil
+	m.addfallback_group_id = nil
+	delete(m.clearedFields, group.FieldFallbackGroupID)
+}
+
+// SetFallbackGroupIDOnInvalidRequest sets the "fallback_group_id_on_invalid_request" field.
+func (m *GroupMutation) SetFallbackGroupIDOnInvalidRequest(i int64) {
+	m.fallback_group_id_on_invalid_request = &i
+	m.addfallback_group_id_on_invalid_request = nil
+}
+
+// FallbackGroupIDOnInvalidRequest returns the value of the "fallback_group_id_on_invalid_request" field in the mutation.
+func (m *GroupMutation) FallbackGroupIDOnInvalidRequest() (r int64, exists bool) {
+	v := m.fallback_group_id_on_invalid_request
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFallbackGroupIDOnInvalidRequest returns the old "fallback_group_id_on_invalid_request" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldFallbackGroupIDOnInvalidRequest(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFallbackGroupIDOnInvalidRequest is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFallbackGroupIDOnInvalidRequest requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFallbackGroupIDOnInvalidRequest: %w", err)
+	}
+	return oldValue.FallbackGroupIDOnInvalidRequest, nil
+}
+
+// AddFallbackGroupIDOnInvalidRequest adds i to the "fallback_group_id_on_invalid_request" field.
+func (m *GroupMutation) AddFallbackGroupIDOnInvalidRequest(i int64) {
+	if m.addfallback_group_id_on_invalid_request != nil {
+		*m.addfallback_group_id_on_invalid_request += i
+	} else {
+		m.addfallback_group_id_on_invalid_request = &i
+	}
+}
+
+// AddedFallbackGroupIDOnInvalidRequest returns the value that was added to the "fallback_group_id_on_invalid_request" field in this mutation.
+func (m *GroupMutation) AddedFallbackGroupIDOnInvalidRequest() (r int64, exists bool) {
+	v := m.addfallback_group_id_on_invalid_request
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearFallbackGroupIDOnInvalidRequest clears the value of the "fallback_group_id_on_invalid_request" field.
+func (m *GroupMutation) ClearFallbackGroupIDOnInvalidRequest() {
+	m.fallback_group_id_on_invalid_request = nil
+	m.addfallback_group_id_on_invalid_request = nil
+	m.clearedFields[group.FieldFallbackGroupIDOnInvalidRequest] = struct{}{}
+}
+
+// FallbackGroupIDOnInvalidRequestCleared returns if the "fallback_group_id_on_invalid_request" field was cleared in this mutation.
+func (m *GroupMutation) FallbackGroupIDOnInvalidRequestCleared() bool {
+	_, ok := m.clearedFields[group.FieldFallbackGroupIDOnInvalidRequest]
+	return ok
+}
+
+// ResetFallbackGroupIDOnInvalidRequest resets all changes to the "fallback_group_id_on_invalid_request" field.
+func (m *GroupMutation) ResetFallbackGroupIDOnInvalidRequest() {
+	m.fallback_group_id_on_invalid_request = nil
+	m.addfallback_group_id_on_invalid_request = nil
+	delete(m.clearedFields, group.FieldFallbackGroupIDOnInvalidRequest)
+}
+
+// SetModelRouting sets the "model_routing" field.
+func (m *GroupMutation) SetModelRouting(value map[string][]int64) {
+	m.model_routing = &value
+}
+
+// ModelRouting returns the value of the "model_routing" field in the mutation.
+func (m *GroupMutation) ModelRouting() (r map[string][]int64, exists bool) {
+	v := m.model_routing
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModelRouting returns the old "model_routing" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldModelRouting(ctx context.Context) (v map[string][]int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModelRouting is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModelRouting requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModelRouting: %w", err)
+	}
+	return oldValue.ModelRouting, nil
+}
+
+// ClearModelRouting clears the value of the "model_routing" field.
+func (m *GroupMutation) ClearModelRouting() {
+	m.model_routing = nil
+	m.clearedFields[group.FieldModelRouting] = struct{}{}
+}
+
+// ModelRoutingCleared returns if the "model_routing" field was cleared in this mutation.
+func (m *GroupMutation) ModelRoutingCleared() bool {
+	_, ok := m.clearedFields[group.FieldModelRouting]
+	return ok
+}
+
+// ResetModelRouting resets all changes to the "model_routing" field.
+func (m *GroupMutation) ResetModelRouting() {
+	m.model_routing = nil
+	delete(m.clearedFields, group.FieldModelRouting)
+}
+
+// SetModelRoutingEnabled sets the "model_routing_enabled" field.
+func (m *GroupMutation) SetModelRoutingEnabled(b bool) {
+	m.model_routing_enabled = &b
+}
+
+// ModelRoutingEnabled returns the value of the "model_routing_enabled" field in the mutation.
+func (m *GroupMutation) ModelRoutingEnabled() (r bool, exists bool) {
+	v := m.model_routing_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModelRoutingEnabled returns the old "model_routing_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldModelRoutingEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModelRoutingEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModelRoutingEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModelRoutingEnabled: %w", err)
+	}
+	return oldValue.ModelRoutingEnabled, nil
+}
+
+// ResetModelRoutingEnabled resets all changes to the "model_routing_enabled" field.
+func (m *GroupMutation) ResetModelRoutingEnabled() {
+	m.model_routing_enabled = nil
+}
+
+// SetMcpXMLInject sets the "mcp_xml_inject" field.
+func (m *GroupMutation) SetMcpXMLInject(b bool) {
+	m.mcp_xml_inject = &b
+}
+
+// McpXMLInject returns the value of the "mcp_xml_inject" field in the mutation.
+func (m *GroupMutation) McpXMLInject() (r bool, exists bool) {
+	v := m.mcp_xml_inject
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMcpXMLInject returns the old "mcp_xml_inject" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldMcpXMLInject(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMcpXMLInject is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMcpXMLInject requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMcpXMLInject: %w", err)
+	}
+	return oldValue.McpXMLInject, nil
+}
+
+// ResetMcpXMLInject resets all changes to the "mcp_xml_inject" field.
+func (m *GroupMutation) ResetMcpXMLInject() {
+	m.mcp_xml_inject = nil
+}
+
+// SetSupportedModelScopes sets the "supported_model_scopes" field.
+func (m *GroupMutation) SetSupportedModelScopes(s []string) {
+	m.supported_model_scopes = &s
+	m.appendsupported_model_scopes = nil
+}
+
+// SupportedModelScopes returns the value of the "supported_model_scopes" field in the mutation.
+func (m *GroupMutation) SupportedModelScopes() (r []string, exists bool) {
+	v := m.supported_model_scopes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSupportedModelScopes returns the old "supported_model_scopes" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldSupportedModelScopes(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSupportedModelScopes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSupportedModelScopes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSupportedModelScopes: %w", err)
+	}
+	return oldValue.SupportedModelScopes, nil
+}
+
+// AppendSupportedModelScopes adds s to the "supported_model_scopes" field.
+func (m *GroupMutation) AppendSupportedModelScopes(s []string) {
+	m.appendsupported_model_scopes = append(m.appendsupported_model_scopes, s...)
+}
+
+// AppendedSupportedModelScopes returns the list of values that were appended to the "supported_model_scopes" field in this mutation.
+func (m *GroupMutation) AppendedSupportedModelScopes() ([]string, bool) {
+	if len(m.appendsupported_model_scopes) == 0 {
+		return nil, false
+	}
+	return m.appendsupported_model_scopes, true
+}
+
+// ResetSupportedModelScopes resets all changes to the "supported_model_scopes" field.
+func (m *GroupMutation) ResetSupportedModelScopes() {
+	m.supported_model_scopes = nil
+	m.appendsupported_model_scopes = nil
+}
+
+// SetSortOrder sets the "sort_order" field.
+func (m *GroupMutation) SetSortOrder(i int) {
+	m.sort_order = &i
+	m.addsort_order = nil
+}
+
+// SortOrder returns the value of the "sort_order" field in the mutation.
+func (m *GroupMutation) SortOrder() (r int, exists bool) {
+	v := m.sort_order
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSortOrder returns the old "sort_order" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldSortOrder(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSortOrder is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSortOrder requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSortOrder: %w", err)
+	}
+	return oldValue.SortOrder, nil
+}
+
+// AddSortOrder adds i to the "sort_order" field.
+func (m *GroupMutation) AddSortOrder(i int) {
+	if m.addsort_order != nil {
+		*m.addsort_order += i
+	} else {
+		m.addsort_order = &i
+	}
+}
+
+// AddedSortOrder returns the value that was added to the "sort_order" field in this mutation.
+func (m *GroupMutation) AddedSortOrder() (r int, exists bool) {
+	v := m.addsort_order
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSortOrder resets all changes to the "sort_order" field.
+func (m *GroupMutation) ResetSortOrder() {
+	m.sort_order = nil
+	m.addsort_order = nil
+}
+
+// SetAllowMessagesDispatch sets the "allow_messages_dispatch" field.
+func (m *GroupMutation) SetAllowMessagesDispatch(b bool) {
+	m.allow_messages_dispatch = &b
+}
+
+// AllowMessagesDispatch returns the value of the "allow_messages_dispatch" field in the mutation.
+func (m *GroupMutation) AllowMessagesDispatch() (r bool, exists bool) {
+	v := m.allow_messages_dispatch
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAllowMessagesDispatch returns the old "allow_messages_dispatch" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldAllowMessagesDispatch(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAllowMessagesDispatch is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAllowMessagesDispatch requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAllowMessagesDispatch: %w", err)
+	}
+	return oldValue.AllowMessagesDispatch, nil
+}
+
+// ResetAllowMessagesDispatch resets all changes to the "allow_messages_dispatch" field.
+func (m *GroupMutation) ResetAllowMessagesDispatch() {
+	m.allow_messages_dispatch = nil
+}
+
+// SetAllowLive sets the "allow_live" field.
+func (m *GroupMutation) SetAllowLive(b bool) {
+	m.allow_live = &b
+}
+
+// AllowLive returns the value of the "allow_live" field in the mutation.
+func (m *GroupMutation) AllowLive() (r bool, exists bool) {
+	v := m.allow_live
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAllowLive returns the old "allow_live" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldAllowLive(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAllowLive is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAllowLive requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAllowLive: %w", err)
+	}
+	return oldValue.AllowLive, nil
+}
+
+// ResetAllowLive resets all changes to the "allow_live" field.
+func (m *GroupMutation) ResetAllowLive() {
+	m.allow_live = nil
+}
+
+// SetRequireOauthOnly sets the "require_oauth_only" field.
+func (m *GroupMutation) SetRequireOauthOnly(b bool) {
+	m.require_oauth_only = &b
+}
+
+// RequireOauthOnly returns the value of the "require_oauth_only" field in the mutation.
+func (m *GroupMutation) RequireOauthOnly() (r bool, exists bool) {
+	v := m.require_oauth_only
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequireOauthOnly returns the old "require_oauth_only" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldRequireOauthOnly(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequireOauthOnly is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequireOauthOnly requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequireOauthOnly: %w", err)
+	}
+	return oldValue.RequireOauthOnly, nil
+}
+
+// ResetRequireOauthOnly resets all changes to the "require_oauth_only" field.
+func (m *GroupMutation) ResetRequireOauthOnly() {
+	m.require_oauth_only = nil
+}
+
+// SetRequirePrivacySet sets the "require_privacy_set" field.
+func (m *GroupMutation) SetRequirePrivacySet(b bool) {
+	m.require_privacy_set = &b
+}
+
+// RequirePrivacySet returns the value of the "require_privacy_set" field in the mutation.
+func (m *GroupMutation) RequirePrivacySet() (r bool, exists bool) {
+	v := m.require_privacy_set
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequirePrivacySet returns the old "require_privacy_set" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldRequirePrivacySet(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequirePrivacySet is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequirePrivacySet requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequirePrivacySet: %w", err)
+	}
+	return oldValue.RequirePrivacySet, nil
+}
+
+// ResetRequirePrivacySet resets all changes to the "require_privacy_set" field.
+func (m *GroupMutation) ResetRequirePrivacySet() {
+	m.require_privacy_set = nil
+}
+
+// SetDefaultMappedModel sets the "default_mapped_model" field.
+func (m *GroupMutation) SetDefaultMappedModel(s string) {
+	m.default_mapped_model = &s
+}
+
+// DefaultMappedModel returns the value of the "default_mapped_model" field in the mutation.
+func (m *GroupMutation) DefaultMappedModel() (r string, exists bool) {
+	v := m.default_mapped_model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDefaultMappedModel returns the old "default_mapped_model" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldDefaultMappedModel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDefaultMappedModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDefaultMappedModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDefaultMappedModel: %w", err)
+	}
+	return oldValue.DefaultMappedModel, nil
+}
+
+// ResetDefaultMappedModel resets all changes to the "default_mapped_model" field.
+func (m *GroupMutation) ResetDefaultMappedModel() {
+	m.default_mapped_model = nil
+}
+
+// SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
+func (m *GroupMutation) SetMessagesDispatchModelConfig(damdmc domain.OpenAIMessagesDispatchModelConfig) {
+	m.messages_dispatch_model_config = &damdmc
+}
+
+// MessagesDispatchModelConfig returns the value of the "messages_dispatch_model_config" field in the mutation.
+func (m *GroupMutation) MessagesDispatchModelConfig() (r domain.OpenAIMessagesDispatchModelConfig, exists bool) {
+	v := m.messages_dispatch_model_config
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMessagesDispatchModelConfig returns the old "messages_dispatch_model_config" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldMessagesDispatchModelConfig(ctx context.Context) (v domain.OpenAIMessagesDispatchModelConfig, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMessagesDispatchModelConfig is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMessagesDispatchModelConfig requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMessagesDispatchModelConfig: %w", err)
+	}
+	return oldValue.MessagesDispatchModelConfig, nil
+}
+
+// ResetMessagesDispatchModelConfig resets all changes to the "messages_dispatch_model_config" field.
+func (m *GroupMutation) ResetMessagesDispatchModelConfig() {
+	m.messages_dispatch_model_config = nil
+}
+
+// SetModelsListConfig sets the "models_list_config" field.
+func (m *GroupMutation) SetModelsListConfig(dmlc domain.GroupModelsListConfig) {
+	m.models_list_config = &dmlc
+}
+
+// ModelsListConfig returns the value of the "models_list_config" field in the mutation.
+func (m *GroupMutation) ModelsListConfig() (r domain.GroupModelsListConfig, exists bool) {
+	v := m.models_list_config
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModelsListConfig returns the old "models_list_config" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldModelsListConfig(ctx context.Context) (v domain.GroupModelsListConfig, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModelsListConfig is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModelsListConfig requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModelsListConfig: %w", err)
+	}
+	return oldValue.ModelsListConfig, nil
+}
+
+// ResetModelsListConfig resets all changes to the "models_list_config" field.
+func (m *GroupMutation) ResetModelsListConfig() {
+	m.models_list_config = nil
+}
+
+// SetOpenaiExperimentalPromptEnabled sets the "openai_experimental_prompt_enabled" field.
+func (m *GroupMutation) SetOpenaiExperimentalPromptEnabled(b bool) {
+	m.openai_experimental_prompt_enabled = &b
+}
+
+// OpenaiExperimentalPromptEnabled returns the value of the "openai_experimental_prompt_enabled" field in the mutation.
+func (m *GroupMutation) OpenaiExperimentalPromptEnabled() (r bool, exists bool) {
+	v := m.openai_experimental_prompt_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOpenaiExperimentalPromptEnabled returns the old "openai_experimental_prompt_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldOpenaiExperimentalPromptEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOpenaiExperimentalPromptEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOpenaiExperimentalPromptEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOpenaiExperimentalPromptEnabled: %w", err)
+	}
+	return oldValue.OpenaiExperimentalPromptEnabled, nil
+}
+
+// ResetOpenaiExperimentalPromptEnabled resets all changes to the "openai_experimental_prompt_enabled" field.
+func (m *GroupMutation) ResetOpenaiExperimentalPromptEnabled() {
+	m.openai_experimental_prompt_enabled = nil
+}
+
+// SetRpmLimit sets the "rpm_limit" field.
+func (m *GroupMutation) SetRpmLimit(i int) {
+	m.rpm_limit = &i
+	m.addrpm_limit = nil
+}
+
+// RpmLimit returns the value of the "rpm_limit" field in the mutation.
+func (m *GroupMutation) RpmLimit() (r int, exists bool) {
+	v := m.rpm_limit
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRpmLimit returns the old "rpm_limit" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldRpmLimit(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRpmLimit is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRpmLimit requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRpmLimit: %w", err)
+	}
+	return oldValue.RpmLimit, nil
+}
+
+// AddRpmLimit adds i to the "rpm_limit" field.
+func (m *GroupMutation) AddRpmLimit(i int) {
+	if m.addrpm_limit != nil {
+		*m.addrpm_limit += i
+	} else {
+		m.addrpm_limit = &i
+	}
+}
+
+// AddedRpmLimit returns the value that was added to the "rpm_limit" field in this mutation.
+func (m *GroupMutation) AddedRpmLimit() (r int, exists bool) {
+	v := m.addrpm_limit
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRpmLimit resets all changes to the "rpm_limit" field.
+func (m *GroupMutation) ResetRpmLimit() {
+	m.rpm_limit = nil
+	m.addrpm_limit = nil
+}
+
+// SetMaxReasoningEffort sets the "max_reasoning_effort" field.
+func (m *GroupMutation) SetMaxReasoningEffort(s string) {
+	m.max_reasoning_effort = &s
+}
+
+// MaxReasoningEffort returns the value of the "max_reasoning_effort" field in the mutation.
+func (m *GroupMutation) MaxReasoningEffort() (r string, exists bool) {
+	v := m.max_reasoning_effort
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaxReasoningEffort returns the old "max_reasoning_effort" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldMaxReasoningEffort(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaxReasoningEffort is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaxReasoningEffort requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaxReasoningEffort: %w", err)
+	}
+	return oldValue.MaxReasoningEffort, nil
+}
+
+// ResetMaxReasoningEffort resets all changes to the "max_reasoning_effort" field.
+func (m *GroupMutation) ResetMaxReasoningEffort() {
+	m.max_reasoning_effort = nil
+}
+
+// SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
+func (m *GroupMutation) SetReasoningEffortMappings(dem []domain.ReasoningEffortMapping) {
+	m.reasoning_effort_mappings = &dem
+	m.appendreasoning_effort_mappings = nil
+}
+
+// ReasoningEffortMappings returns the value of the "reasoning_effort_mappings" field in the mutation.
+func (m *GroupMutation) ReasoningEffortMappings() (r []domain.ReasoningEffortMapping, exists bool) {
+	v := m.reasoning_effort_mappings
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReasoningEffortMappings returns the old "reasoning_effort_mappings" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldReasoningEffortMappings(ctx context.Context) (v []domain.ReasoningEffortMapping, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReasoningEffortMappings is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReasoningEffortMappings requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReasoningEffortMappings: %w", err)
+	}
+	return oldValue.ReasoningEffortMappings, nil
+}
+
+// AppendReasoningEffortMappings adds dem to the "reasoning_effort_mappings" field.
+func (m *GroupMutation) AppendReasoningEffortMappings(dem []domain.ReasoningEffortMapping) {
+	m.appendreasoning_effort_mappings = append(m.appendreasoning_effort_mappings, dem...)
+}
+
+// AppendedReasoningEffortMappings returns the list of values that were appended to the "reasoning_effort_mappings" field in this mutation.
+func (m *GroupMutation) AppendedReasoningEffortMappings() ([]domain.ReasoningEffortMapping, bool) {
+	if len(m.appendreasoning_effort_mappings) == 0 {
+		return nil, false
+	}
+	return m.appendreasoning_effort_mappings, true
+}
+
+// ResetReasoningEffortMappings resets all changes to the "reasoning_effort_mappings" field.
+func (m *GroupMutation) ResetReasoningEffortMappings() {
+	m.reasoning_effort_mappings = nil
+	m.appendreasoning_effort_mappings = nil
+}
+
+// SetProfitControlEnabled sets the "profit_control_enabled" field.
+func (m *GroupMutation) SetProfitControlEnabled(b bool) {
+	m.profit_control_enabled = &b
+}
+
+// ProfitControlEnabled returns the value of the "profit_control_enabled" field in the mutation.
+func (m *GroupMutation) ProfitControlEnabled() (r bool, exists bool) {
+	v := m.profit_control_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProfitControlEnabled returns the old "profit_control_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldProfitControlEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProfitControlEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProfitControlEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProfitControlEnabled: %w", err)
+	}
+	return oldValue.ProfitControlEnabled, nil
+}
+
+// ResetProfitControlEnabled resets all changes to the "profit_control_enabled" field.
+func (m *GroupMutation) ResetProfitControlEnabled() {
+	m.profit_control_enabled = nil
+}
+
+// SetProfitMinMargin sets the "profit_min_margin" field.
+func (m *GroupMutation) SetProfitMinMargin(f float64) {
+	m.profit_min_margin = &f
+	m.addprofit_min_margin = nil
+}
+
+// ProfitMinMargin returns the value of the "profit_min_margin" field in the mutation.
+func (m *GroupMutation) ProfitMinMargin() (r float64, exists bool) {
+	v := m.profit_min_margin
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProfitMinMargin returns the old "profit_min_margin" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldProfitMinMargin(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProfitMinMargin is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProfitMinMargin requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProfitMinMargin: %w", err)
+	}
+	return oldValue.ProfitMinMargin, nil
+}
+
+// AddProfitMinMargin adds f to the "profit_min_margin" field.
+func (m *GroupMutation) AddProfitMinMargin(f float64) {
+	if m.addprofit_min_margin != nil {
+		*m.addprofit_min_margin += f
+	} else {
+		m.addprofit_min_margin = &f
+	}
+}
+
+// AddedProfitMinMargin returns the value that was added to the "profit_min_margin" field in this mutation.
+func (m *GroupMutation) AddedProfitMinMargin() (r float64, exists bool) {
+	v := m.addprofit_min_margin
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetProfitMinMargin resets all changes to the "profit_min_margin" field.
+func (m *GroupMutation) ResetProfitMinMargin() {
+	m.profit_min_margin = nil
+	m.addprofit_min_margin = nil
+}
+
+// SetProfitSafetyBuffer sets the "profit_safety_buffer" field.
+func (m *GroupMutation) SetProfitSafetyBuffer(f float64) {
+	m.profit_safety_buffer = &f
+	m.addprofit_safety_buffer = nil
+}
+
+// ProfitSafetyBuffer returns the value of the "profit_safety_buffer" field in the mutation.
+func (m *GroupMutation) ProfitSafetyBuffer() (r float64, exists bool) {
+	v := m.profit_safety_buffer
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProfitSafetyBuffer returns the old "profit_safety_buffer" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldProfitSafetyBuffer(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProfitSafetyBuffer is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProfitSafetyBuffer requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProfitSafetyBuffer: %w", err)
+	}
+	return oldValue.ProfitSafetyBuffer, nil
+}
+
+// AddProfitSafetyBuffer adds f to the "profit_safety_buffer" field.
+func (m *GroupMutation) AddProfitSafetyBuffer(f float64) {
+	if m.addprofit_safety_buffer != nil {
+		*m.addprofit_safety_buffer += f
+	} else {
+		m.addprofit_safety_buffer = &f
+	}
+}
+
+// AddedProfitSafetyBuffer returns the value that was added to the "profit_safety_buffer" field in this mutation.
+func (m *GroupMutation) AddedProfitSafetyBuffer() (r float64, exists bool) {
+	v := m.addprofit_safety_buffer
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetProfitSafetyBuffer resets all changes to the "profit_safety_buffer" field.
+func (m *GroupMutation) ResetProfitSafetyBuffer() {
+	m.profit_safety_buffer = nil
+	m.addprofit_safety_buffer = nil
+}
+
+// SetKiroCacheEmulationEnabled sets the "kiro_cache_emulation_enabled" field.
+func (m *GroupMutation) SetKiroCacheEmulationEnabled(b bool) {
+	m.kiro_cache_emulation_enabled = &b
+}
+
+// KiroCacheEmulationEnabled returns the value of the "kiro_cache_emulation_enabled" field in the mutation.
+func (m *GroupMutation) KiroCacheEmulationEnabled() (r bool, exists bool) {
+	v := m.kiro_cache_emulation_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKiroCacheEmulationEnabled returns the old "kiro_cache_emulation_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldKiroCacheEmulationEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKiroCacheEmulationEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKiroCacheEmulationEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKiroCacheEmulationEnabled: %w", err)
+	}
+	return oldValue.KiroCacheEmulationEnabled, nil
+}
+
+// ResetKiroCacheEmulationEnabled resets all changes to the "kiro_cache_emulation_enabled" field.
+func (m *GroupMutation) ResetKiroCacheEmulationEnabled() {
+	m.kiro_cache_emulation_enabled = nil
+}
+
+// SetKiroAutoStickyEnabled sets the "kiro_auto_sticky_enabled" field.
+func (m *GroupMutation) SetKiroAutoStickyEnabled(b bool) {
+	m.kiro_auto_sticky_enabled = &b
+}
+
+// KiroAutoStickyEnabled returns the value of the "kiro_auto_sticky_enabled" field in the mutation.
+func (m *GroupMutation) KiroAutoStickyEnabled() (r bool, exists bool) {
+	v := m.kiro_auto_sticky_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKiroAutoStickyEnabled returns the old "kiro_auto_sticky_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldKiroAutoStickyEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKiroAutoStickyEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKiroAutoStickyEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKiroAutoStickyEnabled: %w", err)
+	}
+	return oldValue.KiroAutoStickyEnabled, nil
+}
+
+// ResetKiroAutoStickyEnabled resets all changes to the "kiro_auto_sticky_enabled" field.
+func (m *GroupMutation) ResetKiroAutoStickyEnabled() {
+	m.kiro_auto_sticky_enabled = nil
+}
+
+// SetKiroStickySessionTTLSeconds sets the "kiro_sticky_session_ttl_seconds" field.
+func (m *GroupMutation) SetKiroStickySessionTTLSeconds(i int) {
+	m.kiro_sticky_session_ttl_seconds = &i
+	m.addkiro_sticky_session_ttl_seconds = nil
+}
+
+// KiroStickySessionTTLSeconds returns the value of the "kiro_sticky_session_ttl_seconds" field in the mutation.
+func (m *GroupMutation) KiroStickySessionTTLSeconds() (r int, exists bool) {
+	v := m.kiro_sticky_session_ttl_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKiroStickySessionTTLSeconds returns the old "kiro_sticky_session_ttl_seconds" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldKiroStickySessionTTLSeconds(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKiroStickySessionTTLSeconds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKiroStickySessionTTLSeconds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKiroStickySessionTTLSeconds: %w", err)
+	}
+	return oldValue.KiroStickySessionTTLSeconds, nil
+}
+
+// AddKiroStickySessionTTLSeconds adds i to the "kiro_sticky_session_ttl_seconds" field.
+func (m *GroupMutation) AddKiroStickySessionTTLSeconds(i int) {
+	if m.addkiro_sticky_session_ttl_seconds != nil {
+		*m.addkiro_sticky_session_ttl_seconds += i
+	} else {
+		m.addkiro_sticky_session_ttl_seconds = &i
+	}
+}
+
+// AddedKiroStickySessionTTLSeconds returns the value that was added to the "kiro_sticky_session_ttl_seconds" field in this mutation.
+func (m *GroupMutation) AddedKiroStickySessionTTLSeconds() (r int, exists bool) {
+	v := m.addkiro_sticky_session_ttl_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetKiroStickySessionTTLSeconds resets all changes to the "kiro_sticky_session_ttl_seconds" field.
+func (m *GroupMutation) ResetKiroStickySessionTTLSeconds() {
+	m.kiro_sticky_session_ttl_seconds = nil
+	m.addkiro_sticky_session_ttl_seconds = nil
+}
+
+// SetKiroCacheEmulationRatio sets the "kiro_cache_emulation_ratio" field.
+func (m *GroupMutation) SetKiroCacheEmulationRatio(f float64) {
+	m.kiro_cache_emulation_ratio = &f
+	m.addkiro_cache_emulation_ratio = nil
+}
+
+// KiroCacheEmulationRatio returns the value of the "kiro_cache_emulation_ratio" field in the mutation.
+func (m *GroupMutation) KiroCacheEmulationRatio() (r float64, exists bool) {
+	v := m.kiro_cache_emulation_ratio
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKiroCacheEmulationRatio returns the old "kiro_cache_emulation_ratio" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldKiroCacheEmulationRatio(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKiroCacheEmulationRatio is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKiroCacheEmulationRatio requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKiroCacheEmulationRatio: %w", err)
+	}
+	return oldValue.KiroCacheEmulationRatio, nil
+}
+
+// AddKiroCacheEmulationRatio adds f to the "kiro_cache_emulation_ratio" field.
+func (m *GroupMutation) AddKiroCacheEmulationRatio(f float64) {
+	if m.addkiro_cache_emulation_ratio != nil {
+		*m.addkiro_cache_emulation_ratio += f
+	} else {
+		m.addkiro_cache_emulation_ratio = &f
+	}
+}
+
+// AddedKiroCacheEmulationRatio returns the value that was added to the "kiro_cache_emulation_ratio" field in this mutation.
+func (m *GroupMutation) AddedKiroCacheEmulationRatio() (r float64, exists bool) {
+	v := m.addkiro_cache_emulation_ratio
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetKiroCacheEmulationRatio resets all changes to the "kiro_cache_emulation_ratio" field.
+func (m *GroupMutation) ResetKiroCacheEmulationRatio() {
+	m.kiro_cache_emulation_ratio = nil
+	m.addkiro_cache_emulation_ratio = nil
+}
+
+// SetKiroEndpointMode sets the "kiro_endpoint_mode" field.
+func (m *GroupMutation) SetKiroEndpointMode(s string) {
+	m.kiro_endpoint_mode = &s
+}
+
+// KiroEndpointMode returns the value of the "kiro_endpoint_mode" field in the mutation.
+func (m *GroupMutation) KiroEndpointMode() (r string, exists bool) {
+	v := m.kiro_endpoint_mode
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldKiroEndpointMode returns the old "kiro_endpoint_mode" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldKiroEndpointMode(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldKiroEndpointMode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldKiroEndpointMode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldKiroEndpointMode: %w", err)
+	}
+	return oldValue.KiroEndpointMode, nil
+}
+
+// ResetKiroEndpointMode resets all changes to the "kiro_endpoint_mode" field.
+func (m *GroupMutation) ResetKiroEndpointMode() {
+	m.kiro_endpoint_mode = nil
+}
+
+// SetPeakRateEnabled sets the "peak_rate_enabled" field.
+func (m *GroupMutation) SetPeakRateEnabled(b bool) {
+	m.peak_rate_enabled = &b
+}
+
+// PeakRateEnabled returns the value of the "peak_rate_enabled" field in the mutation.
+func (m *GroupMutation) PeakRateEnabled() (r bool, exists bool) {
+	v := m.peak_rate_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPeakRateEnabled returns the old "peak_rate_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldPeakRateEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPeakRateEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPeakRateEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPeakRateEnabled: %w", err)
+	}
+	return oldValue.PeakRateEnabled, nil
+}
+
+// ResetPeakRateEnabled resets all changes to the "peak_rate_enabled" field.
+func (m *GroupMutation) ResetPeakRateEnabled() {
+	m.peak_rate_enabled = nil
+}
+
+// SetPeakStart sets the "peak_start" field.
+func (m *GroupMutation) SetPeakStart(s string) {
+	m.peak_start = &s
+}
+
+// PeakStart returns the value of the "peak_start" field in the mutation.
+func (m *GroupMutation) PeakStart() (r string, exists bool) {
+	v := m.peak_start
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPeakStart returns the old "peak_start" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldPeakStart(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPeakStart is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPeakStart requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPeakStart: %w", err)
+	}
+	return oldValue.PeakStart, nil
+}
+
+// ResetPeakStart resets all changes to the "peak_start" field.
+func (m *GroupMutation) ResetPeakStart() {
+	m.peak_start = nil
+}
+
+// SetPeakEnd sets the "peak_end" field.
+func (m *GroupMutation) SetPeakEnd(s string) {
+	m.peak_end = &s
+}
+
+// PeakEnd returns the value of the "peak_end" field in the mutation.
+func (m *GroupMutation) PeakEnd() (r string, exists bool) {
+	v := m.peak_end
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPeakEnd returns the old "peak_end" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldPeakEnd(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPeakEnd is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPeakEnd requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPeakEnd: %w", err)
+	}
+	return oldValue.PeakEnd, nil
+}
+
+// ResetPeakEnd resets all changes to the "peak_end" field.
+func (m *GroupMutation) ResetPeakEnd() {
+	m.peak_end = nil
+}
+
+// SetPeakRateMultiplier sets the "peak_rate_multiplier" field.
+func (m *GroupMutation) SetPeakRateMultiplier(f float64) {
+	m.peak_rate_multiplier = &f
+	m.addpeak_rate_multiplier = nil
+}
+
+// PeakRateMultiplier returns the value of the "peak_rate_multiplier" field in the mutation.
+func (m *GroupMutation) PeakRateMultiplier() (r float64, exists bool) {
+	v := m.peak_rate_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPeakRateMultiplier returns the old "peak_rate_multiplier" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldPeakRateMultiplier(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPeakRateMultiplier is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPeakRateMultiplier requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPeakRateMultiplier: %w", err)
+	}
+	return oldValue.PeakRateMultiplier, nil
+}
+
+// AddPeakRateMultiplier adds f to the "peak_rate_multiplier" field.
+func (m *GroupMutation) AddPeakRateMultiplier(f float64) {
+	if m.addpeak_rate_multiplier != nil {
+		*m.addpeak_rate_multiplier += f
+	} else {
+		m.addpeak_rate_multiplier = &f
+	}
+}
+
+// AddedPeakRateMultiplier returns the value that was added to the "peak_rate_multiplier" field in this mutation.
+func (m *GroupMutation) AddedPeakRateMultiplier() (r float64, exists bool) {
+	v := m.addpeak_rate_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPeakRateMultiplier resets all changes to the "peak_rate_multiplier" field.
+func (m *GroupMutation) ResetPeakRateMultiplier() {
+	m.peak_rate_multiplier = nil
+	m.addpeak_rate_multiplier = nil
 }
 
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by ids.
@@ -29247,7 +29865,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 59)
+	fields := make([]string, 0, 70)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -29323,6 +29941,48 @@ func (m *GroupMutation) Fields() []string {
 	if m.image_price_4k != nil {
 		fields = append(fields, group.FieldImagePrice4k)
 	}
+	if m.allow_batch_image_generation != nil {
+		fields = append(fields, group.FieldAllowBatchImageGeneration)
+	}
+	if m.batch_image_discount_multiplier != nil {
+		fields = append(fields, group.FieldBatchImageDiscountMultiplier)
+	}
+	if m.batch_image_hold_multiplier != nil {
+		fields = append(fields, group.FieldBatchImageHoldMultiplier)
+	}
+	if m.video_rate_independent != nil {
+		fields = append(fields, group.FieldVideoRateIndependent)
+	}
+	if m.video_rate_multiplier != nil {
+		fields = append(fields, group.FieldVideoRateMultiplier)
+	}
+	if m.video_price_480p != nil {
+		fields = append(fields, group.FieldVideoPrice480p)
+	}
+	if m.video_price_720p != nil {
+		fields = append(fields, group.FieldVideoPrice720p)
+	}
+	if m.video_price_1080p != nil {
+		fields = append(fields, group.FieldVideoPrice1080p)
+	}
+	if m.video_model_prices != nil {
+		fields = append(fields, group.FieldVideoModelPrices)
+	}
+	if m.web_search_price_per_call != nil {
+		fields = append(fields, group.FieldWebSearchPricePerCall)
+	}
+	if m.search_price_per_1k != nil {
+		fields = append(fields, group.FieldSearchPricePer1k)
+	}
+	if m.audio_realtime_price_per_min != nil {
+		fields = append(fields, group.FieldAudioRealtimePricePerMin)
+	}
+	if m.audio_tts_price_per_million_chars != nil {
+		fields = append(fields, group.FieldAudioTtsPricePerMillionChars)
+	}
+	if m.audio_stt_price_per_hour != nil {
+		fields = append(fields, group.FieldAudioSttPricePerHour)
+	}
 	if m.claude_code_only != nil {
 		fields = append(fields, group.FieldClaudeCodeOnly)
 	}
@@ -29350,6 +30010,9 @@ func (m *GroupMutation) Fields() []string {
 	if m.allow_messages_dispatch != nil {
 		fields = append(fields, group.FieldAllowMessagesDispatch)
 	}
+	if m.allow_live != nil {
+		fields = append(fields, group.FieldAllowLive)
+	}
 	if m.require_oauth_only != nil {
 		fields = append(fields, group.FieldRequireOauthOnly)
 	}
@@ -29370,6 +30033,21 @@ func (m *GroupMutation) Fields() []string {
 	}
 	if m.rpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
+	}
+	if m.max_reasoning_effort != nil {
+		fields = append(fields, group.FieldMaxReasoningEffort)
+	}
+	if m.reasoning_effort_mappings != nil {
+		fields = append(fields, group.FieldReasoningEffortMappings)
+	}
+	if m.profit_control_enabled != nil {
+		fields = append(fields, group.FieldProfitControlEnabled)
+	}
+	if m.profit_min_margin != nil {
+		fields = append(fields, group.FieldProfitMinMargin)
+	}
+	if m.profit_safety_buffer != nil {
+		fields = append(fields, group.FieldProfitSafetyBuffer)
 	}
 	if m.kiro_cache_emulation_enabled != nil {
 		fields = append(fields, group.FieldKiroCacheEmulationEnabled)
@@ -29397,33 +30075,6 @@ func (m *GroupMutation) Fields() []string {
 	}
 	if m.peak_rate_multiplier != nil {
 		fields = append(fields, group.FieldPeakRateMultiplier)
-	}
-	if m.allow_batch_image_generation != nil {
-		fields = append(fields, group.FieldAllowBatchImageGeneration)
-	}
-	if m.batch_image_discount_multiplier != nil {
-		fields = append(fields, group.FieldBatchImageDiscountMultiplier)
-	}
-	if m.batch_image_hold_multiplier != nil {
-		fields = append(fields, group.FieldBatchImageHoldMultiplier)
-	}
-	if m.video_rate_independent != nil {
-		fields = append(fields, group.FieldVideoRateIndependent)
-	}
-	if m.video_rate_multiplier != nil {
-		fields = append(fields, group.FieldVideoRateMultiplier)
-	}
-	if m.video_price_480p != nil {
-		fields = append(fields, group.FieldVideoPrice480p)
-	}
-	if m.video_price_720p != nil {
-		fields = append(fields, group.FieldVideoPrice720p)
-	}
-	if m.video_price_1080p != nil {
-		fields = append(fields, group.FieldVideoPrice1080p)
-	}
-	if m.web_search_price_per_call != nil {
-		fields = append(fields, group.FieldWebSearchPricePerCall)
 	}
 	return fields
 }
@@ -29483,6 +30134,34 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.ImagePrice2k()
 	case group.FieldImagePrice4k:
 		return m.ImagePrice4k()
+	case group.FieldAllowBatchImageGeneration:
+		return m.AllowBatchImageGeneration()
+	case group.FieldBatchImageDiscountMultiplier:
+		return m.BatchImageDiscountMultiplier()
+	case group.FieldBatchImageHoldMultiplier:
+		return m.BatchImageHoldMultiplier()
+	case group.FieldVideoRateIndependent:
+		return m.VideoRateIndependent()
+	case group.FieldVideoRateMultiplier:
+		return m.VideoRateMultiplier()
+	case group.FieldVideoPrice480p:
+		return m.VideoPrice480p()
+	case group.FieldVideoPrice720p:
+		return m.VideoPrice720p()
+	case group.FieldVideoPrice1080p:
+		return m.VideoPrice1080p()
+	case group.FieldVideoModelPrices:
+		return m.VideoModelPrices()
+	case group.FieldWebSearchPricePerCall:
+		return m.WebSearchPricePerCall()
+	case group.FieldSearchPricePer1k:
+		return m.SearchPricePer1k()
+	case group.FieldAudioRealtimePricePerMin:
+		return m.AudioRealtimePricePerMin()
+	case group.FieldAudioTtsPricePerMillionChars:
+		return m.AudioTtsPricePerMillionChars()
+	case group.FieldAudioSttPricePerHour:
+		return m.AudioSttPricePerHour()
 	case group.FieldClaudeCodeOnly:
 		return m.ClaudeCodeOnly()
 	case group.FieldFallbackGroupID:
@@ -29501,6 +30180,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.SortOrder()
 	case group.FieldAllowMessagesDispatch:
 		return m.AllowMessagesDispatch()
+	case group.FieldAllowLive:
+		return m.AllowLive()
 	case group.FieldRequireOauthOnly:
 		return m.RequireOauthOnly()
 	case group.FieldRequirePrivacySet:
@@ -29515,6 +30196,16 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.OpenaiExperimentalPromptEnabled()
 	case group.FieldRpmLimit:
 		return m.RpmLimit()
+	case group.FieldMaxReasoningEffort:
+		return m.MaxReasoningEffort()
+	case group.FieldReasoningEffortMappings:
+		return m.ReasoningEffortMappings()
+	case group.FieldProfitControlEnabled:
+		return m.ProfitControlEnabled()
+	case group.FieldProfitMinMargin:
+		return m.ProfitMinMargin()
+	case group.FieldProfitSafetyBuffer:
+		return m.ProfitSafetyBuffer()
 	case group.FieldKiroCacheEmulationEnabled:
 		return m.KiroCacheEmulationEnabled()
 	case group.FieldKiroAutoStickyEnabled:
@@ -29533,24 +30224,6 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.PeakEnd()
 	case group.FieldPeakRateMultiplier:
 		return m.PeakRateMultiplier()
-	case group.FieldAllowBatchImageGeneration:
-		return m.AllowBatchImageGeneration()
-	case group.FieldBatchImageDiscountMultiplier:
-		return m.BatchImageDiscountMultiplier()
-	case group.FieldBatchImageHoldMultiplier:
-		return m.BatchImageHoldMultiplier()
-	case group.FieldVideoRateIndependent:
-		return m.VideoRateIndependent()
-	case group.FieldVideoRateMultiplier:
-		return m.VideoRateMultiplier()
-	case group.FieldVideoPrice480p:
-		return m.VideoPrice480p()
-	case group.FieldVideoPrice720p:
-		return m.VideoPrice720p()
-	case group.FieldVideoPrice1080p:
-		return m.VideoPrice1080p()
-	case group.FieldWebSearchPricePerCall:
-		return m.WebSearchPricePerCall()
 	}
 	return nil, false
 }
@@ -29610,6 +30283,34 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldImagePrice2k(ctx)
 	case group.FieldImagePrice4k:
 		return m.OldImagePrice4k(ctx)
+	case group.FieldAllowBatchImageGeneration:
+		return m.OldAllowBatchImageGeneration(ctx)
+	case group.FieldBatchImageDiscountMultiplier:
+		return m.OldBatchImageDiscountMultiplier(ctx)
+	case group.FieldBatchImageHoldMultiplier:
+		return m.OldBatchImageHoldMultiplier(ctx)
+	case group.FieldVideoRateIndependent:
+		return m.OldVideoRateIndependent(ctx)
+	case group.FieldVideoRateMultiplier:
+		return m.OldVideoRateMultiplier(ctx)
+	case group.FieldVideoPrice480p:
+		return m.OldVideoPrice480p(ctx)
+	case group.FieldVideoPrice720p:
+		return m.OldVideoPrice720p(ctx)
+	case group.FieldVideoPrice1080p:
+		return m.OldVideoPrice1080p(ctx)
+	case group.FieldVideoModelPrices:
+		return m.OldVideoModelPrices(ctx)
+	case group.FieldWebSearchPricePerCall:
+		return m.OldWebSearchPricePerCall(ctx)
+	case group.FieldSearchPricePer1k:
+		return m.OldSearchPricePer1k(ctx)
+	case group.FieldAudioRealtimePricePerMin:
+		return m.OldAudioRealtimePricePerMin(ctx)
+	case group.FieldAudioTtsPricePerMillionChars:
+		return m.OldAudioTtsPricePerMillionChars(ctx)
+	case group.FieldAudioSttPricePerHour:
+		return m.OldAudioSttPricePerHour(ctx)
 	case group.FieldClaudeCodeOnly:
 		return m.OldClaudeCodeOnly(ctx)
 	case group.FieldFallbackGroupID:
@@ -29628,6 +30329,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldSortOrder(ctx)
 	case group.FieldAllowMessagesDispatch:
 		return m.OldAllowMessagesDispatch(ctx)
+	case group.FieldAllowLive:
+		return m.OldAllowLive(ctx)
 	case group.FieldRequireOauthOnly:
 		return m.OldRequireOauthOnly(ctx)
 	case group.FieldRequirePrivacySet:
@@ -29642,6 +30345,16 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldOpenaiExperimentalPromptEnabled(ctx)
 	case group.FieldRpmLimit:
 		return m.OldRpmLimit(ctx)
+	case group.FieldMaxReasoningEffort:
+		return m.OldMaxReasoningEffort(ctx)
+	case group.FieldReasoningEffortMappings:
+		return m.OldReasoningEffortMappings(ctx)
+	case group.FieldProfitControlEnabled:
+		return m.OldProfitControlEnabled(ctx)
+	case group.FieldProfitMinMargin:
+		return m.OldProfitMinMargin(ctx)
+	case group.FieldProfitSafetyBuffer:
+		return m.OldProfitSafetyBuffer(ctx)
 	case group.FieldKiroCacheEmulationEnabled:
 		return m.OldKiroCacheEmulationEnabled(ctx)
 	case group.FieldKiroAutoStickyEnabled:
@@ -29660,24 +30373,6 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldPeakEnd(ctx)
 	case group.FieldPeakRateMultiplier:
 		return m.OldPeakRateMultiplier(ctx)
-	case group.FieldAllowBatchImageGeneration:
-		return m.OldAllowBatchImageGeneration(ctx)
-	case group.FieldBatchImageDiscountMultiplier:
-		return m.OldBatchImageDiscountMultiplier(ctx)
-	case group.FieldBatchImageHoldMultiplier:
-		return m.OldBatchImageHoldMultiplier(ctx)
-	case group.FieldVideoRateIndependent:
-		return m.OldVideoRateIndependent(ctx)
-	case group.FieldVideoRateMultiplier:
-		return m.OldVideoRateMultiplier(ctx)
-	case group.FieldVideoPrice480p:
-		return m.OldVideoPrice480p(ctx)
-	case group.FieldVideoPrice720p:
-		return m.OldVideoPrice720p(ctx)
-	case group.FieldVideoPrice1080p:
-		return m.OldVideoPrice1080p(ctx)
-	case group.FieldWebSearchPricePerCall:
-		return m.OldWebSearchPricePerCall(ctx)
 	}
 	return nil, fmt.Errorf("unknown Group field %s", name)
 }
@@ -29862,6 +30557,104 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetImagePrice4k(v)
 		return nil
+	case group.FieldAllowBatchImageGeneration:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAllowBatchImageGeneration(v)
+		return nil
+	case group.FieldBatchImageDiscountMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBatchImageDiscountMultiplier(v)
+		return nil
+	case group.FieldBatchImageHoldMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBatchImageHoldMultiplier(v)
+		return nil
+	case group.FieldVideoRateIndependent:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVideoRateIndependent(v)
+		return nil
+	case group.FieldVideoRateMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVideoRateMultiplier(v)
+		return nil
+	case group.FieldVideoPrice480p:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVideoPrice480p(v)
+		return nil
+	case group.FieldVideoPrice720p:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVideoPrice720p(v)
+		return nil
+	case group.FieldVideoPrice1080p:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVideoPrice1080p(v)
+		return nil
+	case group.FieldVideoModelPrices:
+		v, ok := value.(map[string]map[string]float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVideoModelPrices(v)
+		return nil
+	case group.FieldWebSearchPricePerCall:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWebSearchPricePerCall(v)
+		return nil
+	case group.FieldSearchPricePer1k:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSearchPricePer1k(v)
+		return nil
+	case group.FieldAudioRealtimePricePerMin:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAudioRealtimePricePerMin(v)
+		return nil
+	case group.FieldAudioTtsPricePerMillionChars:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAudioTtsPricePerMillionChars(v)
+		return nil
+	case group.FieldAudioSttPricePerHour:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAudioSttPricePerHour(v)
+		return nil
 	case group.FieldClaudeCodeOnly:
 		v, ok := value.(bool)
 		if !ok {
@@ -29925,6 +30718,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetAllowMessagesDispatch(v)
 		return nil
+	case group.FieldAllowLive:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAllowLive(v)
+		return nil
 	case group.FieldRequireOauthOnly:
 		v, ok := value.(bool)
 		if !ok {
@@ -29973,6 +30773,41 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetRpmLimit(v)
+		return nil
+	case group.FieldMaxReasoningEffort:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxReasoningEffort(v)
+		return nil
+	case group.FieldReasoningEffortMappings:
+		v, ok := value.([]domain.ReasoningEffortMapping)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReasoningEffortMappings(v)
+		return nil
+	case group.FieldProfitControlEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProfitControlEnabled(v)
+		return nil
+	case group.FieldProfitMinMargin:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProfitMinMargin(v)
+		return nil
+	case group.FieldProfitSafetyBuffer:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProfitSafetyBuffer(v)
 		return nil
 	case group.FieldKiroCacheEmulationEnabled:
 		v, ok := value.(bool)
@@ -30037,69 +30872,6 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetPeakRateMultiplier(v)
 		return nil
-	case group.FieldAllowBatchImageGeneration:
-		v, ok := value.(bool)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetAllowBatchImageGeneration(v)
-		return nil
-	case group.FieldBatchImageDiscountMultiplier:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetBatchImageDiscountMultiplier(v)
-		return nil
-	case group.FieldBatchImageHoldMultiplier:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetBatchImageHoldMultiplier(v)
-		return nil
-	case group.FieldVideoRateIndependent:
-		v, ok := value.(bool)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetVideoRateIndependent(v)
-		return nil
-	case group.FieldVideoRateMultiplier:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetVideoRateMultiplier(v)
-		return nil
-	case group.FieldVideoPrice480p:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetVideoPrice480p(v)
-		return nil
-	case group.FieldVideoPrice720p:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetVideoPrice720p(v)
-		return nil
-	case group.FieldVideoPrice1080p:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetVideoPrice1080p(v)
-		return nil
-	case group.FieldWebSearchPricePerCall:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetWebSearchPricePerCall(v)
-		return nil
 	}
 	return fmt.Errorf("unknown Group field %s", name)
 }
@@ -30138,27 +30910,6 @@ func (m *GroupMutation) AddedFields() []string {
 	if m.addimage_price_4k != nil {
 		fields = append(fields, group.FieldImagePrice4k)
 	}
-	if m.addfallback_group_id != nil {
-		fields = append(fields, group.FieldFallbackGroupID)
-	}
-	if m.addfallback_group_id_on_invalid_request != nil {
-		fields = append(fields, group.FieldFallbackGroupIDOnInvalidRequest)
-	}
-	if m.addsort_order != nil {
-		fields = append(fields, group.FieldSortOrder)
-	}
-	if m.addrpm_limit != nil {
-		fields = append(fields, group.FieldRpmLimit)
-	}
-	if m.addkiro_sticky_session_ttl_seconds != nil {
-		fields = append(fields, group.FieldKiroStickySessionTTLSeconds)
-	}
-	if m.addkiro_cache_emulation_ratio != nil {
-		fields = append(fields, group.FieldKiroCacheEmulationRatio)
-	}
-	if m.addpeak_rate_multiplier != nil {
-		fields = append(fields, group.FieldPeakRateMultiplier)
-	}
 	if m.addbatch_image_discount_multiplier != nil {
 		fields = append(fields, group.FieldBatchImageDiscountMultiplier)
 	}
@@ -30179,6 +30930,45 @@ func (m *GroupMutation) AddedFields() []string {
 	}
 	if m.addweb_search_price_per_call != nil {
 		fields = append(fields, group.FieldWebSearchPricePerCall)
+	}
+	if m.addsearch_price_per_1k != nil {
+		fields = append(fields, group.FieldSearchPricePer1k)
+	}
+	if m.addaudio_realtime_price_per_min != nil {
+		fields = append(fields, group.FieldAudioRealtimePricePerMin)
+	}
+	if m.addaudio_tts_price_per_million_chars != nil {
+		fields = append(fields, group.FieldAudioTtsPricePerMillionChars)
+	}
+	if m.addaudio_stt_price_per_hour != nil {
+		fields = append(fields, group.FieldAudioSttPricePerHour)
+	}
+	if m.addfallback_group_id != nil {
+		fields = append(fields, group.FieldFallbackGroupID)
+	}
+	if m.addfallback_group_id_on_invalid_request != nil {
+		fields = append(fields, group.FieldFallbackGroupIDOnInvalidRequest)
+	}
+	if m.addsort_order != nil {
+		fields = append(fields, group.FieldSortOrder)
+	}
+	if m.addrpm_limit != nil {
+		fields = append(fields, group.FieldRpmLimit)
+	}
+	if m.addprofit_min_margin != nil {
+		fields = append(fields, group.FieldProfitMinMargin)
+	}
+	if m.addprofit_safety_buffer != nil {
+		fields = append(fields, group.FieldProfitSafetyBuffer)
+	}
+	if m.addkiro_sticky_session_ttl_seconds != nil {
+		fields = append(fields, group.FieldKiroStickySessionTTLSeconds)
+	}
+	if m.addkiro_cache_emulation_ratio != nil {
+		fields = append(fields, group.FieldKiroCacheEmulationRatio)
+	}
+	if m.addpeak_rate_multiplier != nil {
+		fields = append(fields, group.FieldPeakRateMultiplier)
 	}
 	return fields
 }
@@ -30208,20 +30998,6 @@ func (m *GroupMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedImagePrice2k()
 	case group.FieldImagePrice4k:
 		return m.AddedImagePrice4k()
-	case group.FieldFallbackGroupID:
-		return m.AddedFallbackGroupID()
-	case group.FieldFallbackGroupIDOnInvalidRequest:
-		return m.AddedFallbackGroupIDOnInvalidRequest()
-	case group.FieldSortOrder:
-		return m.AddedSortOrder()
-	case group.FieldRpmLimit:
-		return m.AddedRpmLimit()
-	case group.FieldKiroStickySessionTTLSeconds:
-		return m.AddedKiroStickySessionTTLSeconds()
-	case group.FieldKiroCacheEmulationRatio:
-		return m.AddedKiroCacheEmulationRatio()
-	case group.FieldPeakRateMultiplier:
-		return m.AddedPeakRateMultiplier()
 	case group.FieldBatchImageDiscountMultiplier:
 		return m.AddedBatchImageDiscountMultiplier()
 	case group.FieldBatchImageHoldMultiplier:
@@ -30236,6 +31012,32 @@ func (m *GroupMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedVideoPrice1080p()
 	case group.FieldWebSearchPricePerCall:
 		return m.AddedWebSearchPricePerCall()
+	case group.FieldSearchPricePer1k:
+		return m.AddedSearchPricePer1k()
+	case group.FieldAudioRealtimePricePerMin:
+		return m.AddedAudioRealtimePricePerMin()
+	case group.FieldAudioTtsPricePerMillionChars:
+		return m.AddedAudioTtsPricePerMillionChars()
+	case group.FieldAudioSttPricePerHour:
+		return m.AddedAudioSttPricePerHour()
+	case group.FieldFallbackGroupID:
+		return m.AddedFallbackGroupID()
+	case group.FieldFallbackGroupIDOnInvalidRequest:
+		return m.AddedFallbackGroupIDOnInvalidRequest()
+	case group.FieldSortOrder:
+		return m.AddedSortOrder()
+	case group.FieldRpmLimit:
+		return m.AddedRpmLimit()
+	case group.FieldProfitMinMargin:
+		return m.AddedProfitMinMargin()
+	case group.FieldProfitSafetyBuffer:
+		return m.AddedProfitSafetyBuffer()
+	case group.FieldKiroStickySessionTTLSeconds:
+		return m.AddedKiroStickySessionTTLSeconds()
+	case group.FieldKiroCacheEmulationRatio:
+		return m.AddedKiroCacheEmulationRatio()
+	case group.FieldPeakRateMultiplier:
+		return m.AddedPeakRateMultiplier()
 	}
 	return nil, false
 }
@@ -30315,55 +31117,6 @@ func (m *GroupMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddImagePrice4k(v)
 		return nil
-	case group.FieldFallbackGroupID:
-		v, ok := value.(int64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddFallbackGroupID(v)
-		return nil
-	case group.FieldFallbackGroupIDOnInvalidRequest:
-		v, ok := value.(int64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddFallbackGroupIDOnInvalidRequest(v)
-		return nil
-	case group.FieldSortOrder:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddSortOrder(v)
-		return nil
-	case group.FieldRpmLimit:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddRpmLimit(v)
-		return nil
-	case group.FieldKiroStickySessionTTLSeconds:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddKiroStickySessionTTLSeconds(v)
-		return nil
-	case group.FieldKiroCacheEmulationRatio:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddKiroCacheEmulationRatio(v)
-		return nil
-	case group.FieldPeakRateMultiplier:
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddPeakRateMultiplier(v)
-		return nil
 	case group.FieldBatchImageDiscountMultiplier:
 		v, ok := value.(float64)
 		if !ok {
@@ -30413,6 +31166,97 @@ func (m *GroupMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddWebSearchPricePerCall(v)
 		return nil
+	case group.FieldSearchPricePer1k:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSearchPricePer1k(v)
+		return nil
+	case group.FieldAudioRealtimePricePerMin:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAudioRealtimePricePerMin(v)
+		return nil
+	case group.FieldAudioTtsPricePerMillionChars:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAudioTtsPricePerMillionChars(v)
+		return nil
+	case group.FieldAudioSttPricePerHour:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAudioSttPricePerHour(v)
+		return nil
+	case group.FieldFallbackGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddFallbackGroupID(v)
+		return nil
+	case group.FieldFallbackGroupIDOnInvalidRequest:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddFallbackGroupIDOnInvalidRequest(v)
+		return nil
+	case group.FieldSortOrder:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSortOrder(v)
+		return nil
+	case group.FieldRpmLimit:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRpmLimit(v)
+		return nil
+	case group.FieldProfitMinMargin:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddProfitMinMargin(v)
+		return nil
+	case group.FieldProfitSafetyBuffer:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddProfitSafetyBuffer(v)
+		return nil
+	case group.FieldKiroStickySessionTTLSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddKiroStickySessionTTLSeconds(v)
+		return nil
+	case group.FieldKiroCacheEmulationRatio:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddKiroCacheEmulationRatio(v)
+		return nil
+	case group.FieldPeakRateMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPeakRateMultiplier(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Group numeric field %s", name)
 }
@@ -30451,15 +31295,6 @@ func (m *GroupMutation) ClearedFields() []string {
 	if m.FieldCleared(group.FieldImagePrice4k) {
 		fields = append(fields, group.FieldImagePrice4k)
 	}
-	if m.FieldCleared(group.FieldFallbackGroupID) {
-		fields = append(fields, group.FieldFallbackGroupID)
-	}
-	if m.FieldCleared(group.FieldFallbackGroupIDOnInvalidRequest) {
-		fields = append(fields, group.FieldFallbackGroupIDOnInvalidRequest)
-	}
-	if m.FieldCleared(group.FieldModelRouting) {
-		fields = append(fields, group.FieldModelRouting)
-	}
 	if m.FieldCleared(group.FieldVideoPrice480p) {
 		fields = append(fields, group.FieldVideoPrice480p)
 	}
@@ -30469,8 +31304,32 @@ func (m *GroupMutation) ClearedFields() []string {
 	if m.FieldCleared(group.FieldVideoPrice1080p) {
 		fields = append(fields, group.FieldVideoPrice1080p)
 	}
+	if m.FieldCleared(group.FieldVideoModelPrices) {
+		fields = append(fields, group.FieldVideoModelPrices)
+	}
 	if m.FieldCleared(group.FieldWebSearchPricePerCall) {
 		fields = append(fields, group.FieldWebSearchPricePerCall)
+	}
+	if m.FieldCleared(group.FieldSearchPricePer1k) {
+		fields = append(fields, group.FieldSearchPricePer1k)
+	}
+	if m.FieldCleared(group.FieldAudioRealtimePricePerMin) {
+		fields = append(fields, group.FieldAudioRealtimePricePerMin)
+	}
+	if m.FieldCleared(group.FieldAudioTtsPricePerMillionChars) {
+		fields = append(fields, group.FieldAudioTtsPricePerMillionChars)
+	}
+	if m.FieldCleared(group.FieldAudioSttPricePerHour) {
+		fields = append(fields, group.FieldAudioSttPricePerHour)
+	}
+	if m.FieldCleared(group.FieldFallbackGroupID) {
+		fields = append(fields, group.FieldFallbackGroupID)
+	}
+	if m.FieldCleared(group.FieldFallbackGroupIDOnInvalidRequest) {
+		fields = append(fields, group.FieldFallbackGroupIDOnInvalidRequest)
+	}
+	if m.FieldCleared(group.FieldModelRouting) {
+		fields = append(fields, group.FieldModelRouting)
 	}
 	return fields
 }
@@ -30516,15 +31375,6 @@ func (m *GroupMutation) ClearField(name string) error {
 	case group.FieldImagePrice4k:
 		m.ClearImagePrice4k()
 		return nil
-	case group.FieldFallbackGroupID:
-		m.ClearFallbackGroupID()
-		return nil
-	case group.FieldFallbackGroupIDOnInvalidRequest:
-		m.ClearFallbackGroupIDOnInvalidRequest()
-		return nil
-	case group.FieldModelRouting:
-		m.ClearModelRouting()
-		return nil
 	case group.FieldVideoPrice480p:
 		m.ClearVideoPrice480p()
 		return nil
@@ -30534,8 +31384,32 @@ func (m *GroupMutation) ClearField(name string) error {
 	case group.FieldVideoPrice1080p:
 		m.ClearVideoPrice1080p()
 		return nil
+	case group.FieldVideoModelPrices:
+		m.ClearVideoModelPrices()
+		return nil
 	case group.FieldWebSearchPricePerCall:
 		m.ClearWebSearchPricePerCall()
+		return nil
+	case group.FieldSearchPricePer1k:
+		m.ClearSearchPricePer1k()
+		return nil
+	case group.FieldAudioRealtimePricePerMin:
+		m.ClearAudioRealtimePricePerMin()
+		return nil
+	case group.FieldAudioTtsPricePerMillionChars:
+		m.ClearAudioTtsPricePerMillionChars()
+		return nil
+	case group.FieldAudioSttPricePerHour:
+		m.ClearAudioSttPricePerHour()
+		return nil
+	case group.FieldFallbackGroupID:
+		m.ClearFallbackGroupID()
+		return nil
+	case group.FieldFallbackGroupIDOnInvalidRequest:
+		m.ClearFallbackGroupIDOnInvalidRequest()
+		return nil
+	case group.FieldModelRouting:
+		m.ClearModelRouting()
 		return nil
 	}
 	return fmt.Errorf("unknown Group nullable field %s", name)
@@ -30620,6 +31494,48 @@ func (m *GroupMutation) ResetField(name string) error {
 	case group.FieldImagePrice4k:
 		m.ResetImagePrice4k()
 		return nil
+	case group.FieldAllowBatchImageGeneration:
+		m.ResetAllowBatchImageGeneration()
+		return nil
+	case group.FieldBatchImageDiscountMultiplier:
+		m.ResetBatchImageDiscountMultiplier()
+		return nil
+	case group.FieldBatchImageHoldMultiplier:
+		m.ResetBatchImageHoldMultiplier()
+		return nil
+	case group.FieldVideoRateIndependent:
+		m.ResetVideoRateIndependent()
+		return nil
+	case group.FieldVideoRateMultiplier:
+		m.ResetVideoRateMultiplier()
+		return nil
+	case group.FieldVideoPrice480p:
+		m.ResetVideoPrice480p()
+		return nil
+	case group.FieldVideoPrice720p:
+		m.ResetVideoPrice720p()
+		return nil
+	case group.FieldVideoPrice1080p:
+		m.ResetVideoPrice1080p()
+		return nil
+	case group.FieldVideoModelPrices:
+		m.ResetVideoModelPrices()
+		return nil
+	case group.FieldWebSearchPricePerCall:
+		m.ResetWebSearchPricePerCall()
+		return nil
+	case group.FieldSearchPricePer1k:
+		m.ResetSearchPricePer1k()
+		return nil
+	case group.FieldAudioRealtimePricePerMin:
+		m.ResetAudioRealtimePricePerMin()
+		return nil
+	case group.FieldAudioTtsPricePerMillionChars:
+		m.ResetAudioTtsPricePerMillionChars()
+		return nil
+	case group.FieldAudioSttPricePerHour:
+		m.ResetAudioSttPricePerHour()
+		return nil
 	case group.FieldClaudeCodeOnly:
 		m.ResetClaudeCodeOnly()
 		return nil
@@ -30647,6 +31563,9 @@ func (m *GroupMutation) ResetField(name string) error {
 	case group.FieldAllowMessagesDispatch:
 		m.ResetAllowMessagesDispatch()
 		return nil
+	case group.FieldAllowLive:
+		m.ResetAllowLive()
+		return nil
 	case group.FieldRequireOauthOnly:
 		m.ResetRequireOauthOnly()
 		return nil
@@ -30667,6 +31586,21 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldRpmLimit:
 		m.ResetRpmLimit()
+		return nil
+	case group.FieldMaxReasoningEffort:
+		m.ResetMaxReasoningEffort()
+		return nil
+	case group.FieldReasoningEffortMappings:
+		m.ResetReasoningEffortMappings()
+		return nil
+	case group.FieldProfitControlEnabled:
+		m.ResetProfitControlEnabled()
+		return nil
+	case group.FieldProfitMinMargin:
+		m.ResetProfitMinMargin()
+		return nil
+	case group.FieldProfitSafetyBuffer:
+		m.ResetProfitSafetyBuffer()
 		return nil
 	case group.FieldKiroCacheEmulationEnabled:
 		m.ResetKiroCacheEmulationEnabled()
@@ -30694,33 +31628,6 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldPeakRateMultiplier:
 		m.ResetPeakRateMultiplier()
-		return nil
-	case group.FieldAllowBatchImageGeneration:
-		m.ResetAllowBatchImageGeneration()
-		return nil
-	case group.FieldBatchImageDiscountMultiplier:
-		m.ResetBatchImageDiscountMultiplier()
-		return nil
-	case group.FieldBatchImageHoldMultiplier:
-		m.ResetBatchImageHoldMultiplier()
-		return nil
-	case group.FieldVideoRateIndependent:
-		m.ResetVideoRateIndependent()
-		return nil
-	case group.FieldVideoRateMultiplier:
-		m.ResetVideoRateMultiplier()
-		return nil
-	case group.FieldVideoPrice480p:
-		m.ResetVideoPrice480p()
-		return nil
-	case group.FieldVideoPrice720p:
-		m.ResetVideoPrice720p()
-		return nil
-	case group.FieldVideoPrice1080p:
-		m.ResetVideoPrice1080p()
-		return nil
-	case group.FieldWebSearchPricePerCall:
-		m.ResetWebSearchPricePerCall()
 		return nil
 	}
 	return fmt.Errorf("unknown Group field %s", name)
@@ -56875,6 +57782,8 @@ type UsageLogMutation struct {
 	model                        *string
 	requested_model              *string
 	upstream_model               *string
+	upstream_response_model      *string
+	upstream_model_mismatch      *bool
 	channel_id                   *int64
 	addchannel_id                *int64
 	model_mapping_chain          *string
@@ -57322,6 +58231,104 @@ func (m *UsageLogMutation) UpstreamModelCleared() bool {
 func (m *UsageLogMutation) ResetUpstreamModel() {
 	m.upstream_model = nil
 	delete(m.clearedFields, usagelog.FieldUpstreamModel)
+}
+
+// SetUpstreamResponseModel sets the "upstream_response_model" field.
+func (m *UsageLogMutation) SetUpstreamResponseModel(s string) {
+	m.upstream_response_model = &s
+}
+
+// UpstreamResponseModel returns the value of the "upstream_response_model" field in the mutation.
+func (m *UsageLogMutation) UpstreamResponseModel() (r string, exists bool) {
+	v := m.upstream_response_model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamResponseModel returns the old "upstream_response_model" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldUpstreamResponseModel(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamResponseModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamResponseModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamResponseModel: %w", err)
+	}
+	return oldValue.UpstreamResponseModel, nil
+}
+
+// ClearUpstreamResponseModel clears the value of the "upstream_response_model" field.
+func (m *UsageLogMutation) ClearUpstreamResponseModel() {
+	m.upstream_response_model = nil
+	m.clearedFields[usagelog.FieldUpstreamResponseModel] = struct{}{}
+}
+
+// UpstreamResponseModelCleared returns if the "upstream_response_model" field was cleared in this mutation.
+func (m *UsageLogMutation) UpstreamResponseModelCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldUpstreamResponseModel]
+	return ok
+}
+
+// ResetUpstreamResponseModel resets all changes to the "upstream_response_model" field.
+func (m *UsageLogMutation) ResetUpstreamResponseModel() {
+	m.upstream_response_model = nil
+	delete(m.clearedFields, usagelog.FieldUpstreamResponseModel)
+}
+
+// SetUpstreamModelMismatch sets the "upstream_model_mismatch" field.
+func (m *UsageLogMutation) SetUpstreamModelMismatch(b bool) {
+	m.upstream_model_mismatch = &b
+}
+
+// UpstreamModelMismatch returns the value of the "upstream_model_mismatch" field in the mutation.
+func (m *UsageLogMutation) UpstreamModelMismatch() (r bool, exists bool) {
+	v := m.upstream_model_mismatch
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamModelMismatch returns the old "upstream_model_mismatch" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldUpstreamModelMismatch(ctx context.Context) (v *bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamModelMismatch is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamModelMismatch requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamModelMismatch: %w", err)
+	}
+	return oldValue.UpstreamModelMismatch, nil
+}
+
+// ClearUpstreamModelMismatch clears the value of the "upstream_model_mismatch" field.
+func (m *UsageLogMutation) ClearUpstreamModelMismatch() {
+	m.upstream_model_mismatch = nil
+	m.clearedFields[usagelog.FieldUpstreamModelMismatch] = struct{}{}
+}
+
+// UpstreamModelMismatchCleared returns if the "upstream_model_mismatch" field was cleared in this mutation.
+func (m *UsageLogMutation) UpstreamModelMismatchCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldUpstreamModelMismatch]
+	return ok
+}
+
+// ResetUpstreamModelMismatch resets all changes to the "upstream_model_mismatch" field.
+func (m *UsageLogMutation) ResetUpstreamModelMismatch() {
+	m.upstream_model_mismatch = nil
+	delete(m.clearedFields, usagelog.FieldUpstreamModelMismatch)
 }
 
 // SetChannelID sets the "channel_id" field.
@@ -59520,7 +60527,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 45)
+	fields := make([]string, 0, 47)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -59541,6 +60548,12 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.upstream_model != nil {
 		fields = append(fields, usagelog.FieldUpstreamModel)
+	}
+	if m.upstream_response_model != nil {
+		fields = append(fields, usagelog.FieldUpstreamResponseModel)
+	}
+	if m.upstream_model_mismatch != nil {
+		fields = append(fields, usagelog.FieldUpstreamModelMismatch)
 	}
 	if m.channel_id != nil {
 		fields = append(fields, usagelog.FieldChannelID)
@@ -59678,6 +60691,10 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.RequestedModel()
 	case usagelog.FieldUpstreamModel:
 		return m.UpstreamModel()
+	case usagelog.FieldUpstreamResponseModel:
+		return m.UpstreamResponseModel()
+	case usagelog.FieldUpstreamModelMismatch:
+		return m.UpstreamModelMismatch()
 	case usagelog.FieldChannelID:
 		return m.ChannelID()
 	case usagelog.FieldModelMappingChain:
@@ -59777,6 +60794,10 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldRequestedModel(ctx)
 	case usagelog.FieldUpstreamModel:
 		return m.OldUpstreamModel(ctx)
+	case usagelog.FieldUpstreamResponseModel:
+		return m.OldUpstreamResponseModel(ctx)
+	case usagelog.FieldUpstreamModelMismatch:
+		return m.OldUpstreamModelMismatch(ctx)
 	case usagelog.FieldChannelID:
 		return m.OldChannelID(ctx)
 	case usagelog.FieldModelMappingChain:
@@ -59910,6 +60931,20 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUpstreamModel(v)
+		return nil
+	case usagelog.FieldUpstreamResponseModel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamResponseModel(v)
+		return nil
+	case usagelog.FieldUpstreamModelMismatch:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamModelMismatch(v)
 		return nil
 	case usagelog.FieldChannelID:
 		v, ok := value.(int64)
@@ -60468,6 +61503,12 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldUpstreamModel) {
 		fields = append(fields, usagelog.FieldUpstreamModel)
 	}
+	if m.FieldCleared(usagelog.FieldUpstreamResponseModel) {
+		fields = append(fields, usagelog.FieldUpstreamResponseModel)
+	}
+	if m.FieldCleared(usagelog.FieldUpstreamModelMismatch) {
+		fields = append(fields, usagelog.FieldUpstreamModelMismatch)
+	}
 	if m.FieldCleared(usagelog.FieldChannelID) {
 		fields = append(fields, usagelog.FieldChannelID)
 	}
@@ -60541,6 +61582,12 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldUpstreamModel:
 		m.ClearUpstreamModel()
+		return nil
+	case usagelog.FieldUpstreamResponseModel:
+		m.ClearUpstreamResponseModel()
+		return nil
+	case usagelog.FieldUpstreamModelMismatch:
+		m.ClearUpstreamModelMismatch()
 		return nil
 	case usagelog.FieldChannelID:
 		m.ClearChannelID()
@@ -60624,6 +61671,12 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldUpstreamModel:
 		m.ResetUpstreamModel()
+		return nil
+	case usagelog.FieldUpstreamResponseModel:
+		m.ResetUpstreamResponseModel()
+		return nil
+	case usagelog.FieldUpstreamModelMismatch:
+		m.ResetUpstreamModelMismatch()
 		return nil
 	case usagelog.FieldChannelID:
 		m.ResetChannelID()

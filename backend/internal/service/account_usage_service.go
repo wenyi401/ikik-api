@@ -210,6 +210,7 @@ type UsageInfo struct {
 	UpdatedAt          *time.Time     `json:"updated_at,omitempty"`           // 更新时间
 	FiveHour           *UsageProgress `json:"five_hour"`                      // 5小时窗口
 	SevenDay           *UsageProgress `json:"seven_day,omitempty"`            // 7天窗口
+	ThirtyDay          *UsageProgress `json:"thirty_day,omitempty"`           // 30天窗口
 	SevenDaySonnet     *UsageProgress `json:"seven_day_sonnet,omitempty"`     // 7天Sonnet窗口
 	SevenDayFable      *UsageProgress `json:"seven_day_fable,omitempty"`      // 7天Fable窗口（响应头 7d_oi）
 	GeminiSharedDaily  *UsageProgress `json:"gemini_shared_daily,omitempty"`  // Gemini shared pool RPD (Google One / Code Assist)
@@ -373,6 +374,17 @@ func NewAccountUsageService(
 	}
 }
 
+func supportsAnthropicPassiveUsage(account *Account) bool {
+	return account != nil && account.IsAnthropicOAuthOrSetupToken()
+}
+
+func batchUsageErrorMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
 // GetUsage 获取账号使用量
 // OAuth账号: 调用Anthropic API获取真实数据（需要profile scope），API响应缓存10分钟，窗口统计缓存1分钟
 // Setup Token账号: 根据session_window推算5h窗口，7d数据不可用（没有profile scope）
@@ -513,6 +525,74 @@ func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, for
 
 	// API Key账号不支持usage查询
 	return nil, fmt.Errorf("account type %s does not support usage query", account.Type)
+}
+
+// GetUsageBatch retrieves usage for multiple accounts without letting one
+// upstream failure abort the entire batch. Anthropic OAuth accounts use their
+// passive snapshot path; all other account types retain the existing probe path.
+func (s *AccountUsageService) GetUsageBatch(ctx context.Context, accountIDs []int64, force bool) (map[int64]*UsageInfo, map[int64]string, error) {
+	uniqueIDs := make([]int64, 0, len(accountIDs))
+	seen := make(map[int64]struct{}, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if accountID <= 0 {
+			continue
+		}
+		if _, exists := seen[accountID]; exists {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		uniqueIDs = append(uniqueIDs, accountID)
+	}
+
+	usageByAccount := make(map[int64]*UsageInfo, len(uniqueIDs))
+	errorsByAccount := make(map[int64]string)
+	if len(uniqueIDs) == 0 {
+		return usageByAccount, errorsByAccount, nil
+	}
+
+	accounts, err := s.accountRepo.GetByIDs(ctx, uniqueIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("get accounts failed: %w", err)
+	}
+	accountsByID := make(map[int64]*Account, len(accounts))
+	for _, account := range accounts {
+		if account != nil {
+			accountsByID[account.ID] = account
+		}
+	}
+
+	var mu sync.Mutex
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(6)
+	for _, accountID := range uniqueIDs {
+		id := accountID
+		account := accountsByID[id]
+		if account == nil {
+			errorsByAccount[id] = ErrAccountNotFound.Error()
+			continue
+		}
+		group.Go(func() error {
+			var usage *UsageInfo
+			var usageErr error
+			if supportsAnthropicPassiveUsage(account) {
+				usage, usageErr = s.GetPassiveUsage(groupCtx, id)
+			} else {
+				usage, usageErr = s.GetUsage(groupCtx, id, force)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if usageErr != nil {
+				errorsByAccount[id] = batchUsageErrorMessage(usageErr)
+				return nil
+			}
+			usageByAccount[id] = usage
+			return nil
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return nil, nil, err
+	}
+	return usageByAccount, errorsByAccount, nil
 }
 
 // GetPassiveUsage 从 Account.Extra 中的被动采样数据构建 UsageInfo，不调用外部 API。

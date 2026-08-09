@@ -128,11 +128,13 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		return nil, fmt.Errorf("marshal registration email suffix whitelist: %w", err)
 	}
 	updates[SettingKeyRegistrationEmailSuffixWhitelist] = string(registrationEmailSuffixWhitelistJSON)
+	updates[SettingKeyRegistrationEmailDomainQuotaEnabled] = strconv.FormatBool(settings.RegistrationEmailDomainQuotaEnabled)
 	updates[SettingKeyPromoCodeEnabled] = strconv.FormatBool(settings.PromoCodeEnabled)
 	updates[SettingKeyPasswordResetEnabled] = strconv.FormatBool(settings.PasswordResetEnabled)
 	updates[SettingKeyFrontendURL] = settings.FrontendURL
 	updates[SettingKeyInvitationCodeEnabled] = strconv.FormatBool(settings.InvitationCodeEnabled)
 	updates[SettingKeyTotpEnabled] = strconv.FormatBool(settings.TotpEnabled)
+	updates[SettingKeyPasskeyEnabled] = strconv.FormatBool(settings.PasskeyEnabled)
 	updates[SettingKeySessionBindingEnabled] = strconv.FormatBool(settings.SessionBindingEnabled)
 	updates[SettingKeyStepUpEnabled] = strconv.FormatBool(settings.StepUpEnabled)
 	updates[SettingKeyAuditLogRetentionDays] = strconv.Itoa(settings.AuditLogRetentionDays)
@@ -167,6 +169,26 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	if settings.TurnstileSecretKey != "" {
 		updates[SettingKeyTurnstileSecretKey] = settings.TurnstileSecretKey
 	}
+	updates[SettingKeyTencentCaptchaEnabled] = strconv.FormatBool(settings.TencentCaptchaEnabled)
+	updates[SettingKeyTencentCaptchaAppID] = settings.TencentCaptchaAppID
+	if settings.TencentCaptchaAppSecretKey != "" {
+		updates[SettingKeyTencentCaptchaAppSecretKey] = settings.TencentCaptchaAppSecretKey
+	}
+	if settings.TencentCaptchaCloudSecretID != "" {
+		updates[SettingKeyTencentCaptchaCloudSecretID] = settings.TencentCaptchaCloudSecretID
+	}
+	if settings.TencentCaptchaCloudSecretKey != "" {
+		updates[SettingKeyTencentCaptchaCloudSecretKey] = settings.TencentCaptchaCloudSecretKey
+	}
+	updates[SettingKeyTencentCaptchaRegion] = normalizeTencentCaptchaRegion(settings.TencentCaptchaRegion)
+	updates[SettingKeyAliyunCaptchaEnabled] = strconv.FormatBool(settings.AliyunCaptchaEnabled)
+	updates[SettingKeyAliyunCaptchaAccessKeyID] = settings.AliyunCaptchaAccessKeyID
+	if settings.AliyunCaptchaAccessKeySecret != "" {
+		updates[SettingKeyAliyunCaptchaAccessKeySecret] = settings.AliyunCaptchaAccessKeySecret
+	}
+	updates[SettingKeyAliyunCaptchaSceneID] = settings.AliyunCaptchaSceneID
+	updates[SettingKeyAliyunCaptchaPrefix] = settings.AliyunCaptchaPrefix
+	updates[SettingKeyAliyunCaptchaRegion] = normalizeAliyunCaptchaRegion(settings.AliyunCaptchaRegion)
 	updates[SettingKeyAPIKeyACLTrustForwardedIP] = strconv.FormatBool(settings.APIKeyACLTrustForwardedIP)
 	forwardedClientIPHeadersJSON, err := json.Marshal(settings.ForwardedClientIPHeaders)
 	if err != nil {
@@ -278,6 +300,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyContactInfo] = settings.ContactInfo
 	updates[SettingKeyDocURL] = settings.DocURL
 	updates[SettingKeyHomeContent] = settings.HomeContent
+	updates[SettingKeyCompactHomeEnabled] = strconv.FormatBool(settings.CompactHomeEnabled)
 	updates[SettingKeyHomeStatsGroupID] = strconv.FormatInt(settings.HomeStatsGroupID, 10)
 	updates[SettingKeyHideCcsImportButton] = strconv.FormatBool(settings.HideCcsImportButton)
 	updates[SettingKeyPurchaseSubscriptionEnabled] = strconv.FormatBool(settings.PurchaseSubscriptionEnabled)
@@ -348,6 +371,9 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyFallbackModelOpenAI] = settings.FallbackModelOpenAI
 	updates[SettingKeyFallbackModelGemini] = settings.FallbackModelGemini
 	updates[SettingKeyFallbackModelAntigravity] = settings.FallbackModelAntigravity
+	updates[SettingKeyGrokDefaultTextModel] = settings.GrokDefaultTextModel
+	updates[SettingKeyGrokCrossClientModelMapEnabled] = strconv.FormatBool(settings.GrokCrossClientModelMapEnabled)
+	updates[SettingKeyGrokDefaultBaseURLMode] = normalizeGrokDefaultBaseURLMode(settings.GrokDefaultBaseURLMode)
 
 	// Identity patch configuration (Claude -> Gemini)
 	updates[SettingKeyEnableIdentityPatch] = strconv.FormatBool(settings.EnableIdentityPatch)
@@ -363,12 +389,17 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 
 	// Channel monitor feature switch
 	updates[SettingKeyChannelMonitorEnabled] = strconv.FormatBool(settings.ChannelMonitorEnabled)
+	updates[SettingKeyChannelMonitorMode] = normalizeChannelMonitorMode(settings.ChannelMonitorMode)
 	if v := clampChannelMonitorInterval(settings.ChannelMonitorDefaultIntervalSeconds); v > 0 {
 		updates[SettingKeyChannelMonitorDefaultIntervalSeconds] = strconv.Itoa(v)
 	}
+	updates[SettingKeyChannelMonitorHideThroughput] = strconv.FormatBool(settings.ChannelMonitorHideThroughput)
 
 	// Available channels feature switch
 	updates[SettingKeyAvailableChannelsEnabled] = strconv.FormatBool(settings.AvailableChannelsEnabled)
+	updates[SettingKeyModelPlazaEnabled] = strconv.FormatBool(settings.ModelPlazaEnabled)
+	updates[SettingKeyModelPlazaRequireAuth] = strconv.FormatBool(settings.ModelPlazaRequireAuth)
+	updates[SettingKeyModelPlazaDescription] = settings.ModelPlazaDescription
 	updates[SettingKeyFreeModelsEnabled] = strconv.FormatBool(settings.FreeModelsEnabled)
 	settings.AutoModelSettings = NormalizeAutoModelSettings(settings.AutoModelSettings)
 	autoModelSettingsJSON, err := json.Marshal(settings.AutoModelSettings)
@@ -482,10 +513,86 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		}
 		updates[SettingKeyDefaultPlatformQuotas] = string(blob)
 	}
+	if settings.AccountSchedulingThresholds != nil {
+		normalized, err := validateAndNormalizeAccountSchedulingThresholds(settings.AccountSchedulingThresholds)
+		if err != nil {
+			return nil, err
+		}
+		blob, err := json.Marshal(normalized)
+		if err != nil {
+			return nil, fmt.Errorf("marshal account scheduling thresholds: %w", err)
+		}
+		updates[SettingKeyAccountSchedulingThresholds] = string(blob)
+	}
 
 	updates[SettingKeyAllowUserViewErrorRequests] = strconv.FormatBool(settings.AllowUserViewErrorRequests)
 
 	return updates, nil
+}
+
+func defaultAccountSchedulingThresholds() map[string]int {
+	return map[string]int{
+		PlatformOpenAI:    100,
+		PlatformAnthropic: 100,
+		PlatformGrok:      100,
+	}
+}
+
+func validateAndNormalizeAccountSchedulingThresholds(input map[string]int) (map[string]int, error) {
+	normalized := defaultAccountSchedulingThresholds()
+	for platform, value := range input {
+		allowed := false
+		for _, item := range AllowedSchedulingThresholdPlatforms {
+			if item == platform {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return nil, infraerrors.BadRequest("INVALID_ACCOUNT_SCHEDULING_THRESHOLDS", fmt.Sprintf("unknown platform %q", platform))
+		}
+		if value < 1 || value > 100 {
+			return nil, infraerrors.BadRequest("INVALID_ACCOUNT_SCHEDULING_THRESHOLDS", "platform scheduling threshold must be between 1 and 100")
+		}
+		normalized[platform] = value
+	}
+	return normalized, nil
+}
+
+func parseAccountSchedulingThresholdsSetting(raw string) (map[string]int, error) {
+	thresholds := defaultAccountSchedulingThresholds()
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return thresholds, nil
+	}
+	parsed := map[string]int{}
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return thresholds, err
+	}
+	for _, platform := range AllowedSchedulingThresholdPlatforms {
+		if value, ok := parsed[platform]; ok {
+			thresholds[platform] = boundedIntOrDefault(value, 1, 100, 100)
+		}
+	}
+	return thresholds, nil
+}
+
+func boundedIntOrDefault(value, minValue, maxValue, defaultValue int) int {
+	if value < minValue || value > maxValue {
+		return defaultValue
+	}
+	return value
+}
+
+func cloneAccountSchedulingThresholds(input map[string]int) map[string]int {
+	if len(input) == 0 {
+		return defaultAccountSchedulingThresholds()
+	}
+	cloned := make(map[string]int, len(input))
+	for key, value := range input {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 // validateDefaultPlatformQuotaMap 校验 platform quota map 的合法性：
@@ -644,6 +751,19 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 			settings:  cached.settings,
 			expiresAt: 0,
 		})
+	}
+	accountSchedulingThresholdsSF.Forget(SettingKeyAccountSchedulingThresholds)
+	if settings.AccountSchedulingThresholds != nil {
+		normalized, err := validateAndNormalizeAccountSchedulingThresholds(settings.AccountSchedulingThresholds)
+		if err != nil {
+			normalized = defaultAccountSchedulingThresholds()
+		}
+		accountSchedulingThresholdsCache.Store(&cachedAccountSchedulingThresholds{
+			thresholds: cloneAccountSchedulingThresholds(normalized),
+			expiresAt:  time.Now().Add(accountSchedulingThresholdsCacheTTL).UnixNano(),
+		})
+	} else {
+		accountSchedulingThresholdsCache.Store(&cachedAccountSchedulingThresholds{})
 	}
 	if s.cfg != nil {
 		s.cfg.SetForwardedClientIPSettings(settings.APIKeyACLTrustForwardedIP, settings.ForwardedClientIPHeaders)

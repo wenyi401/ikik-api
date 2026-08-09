@@ -56,6 +56,20 @@ func (r stubOpenAIAccountRepo) GetByID(ctx context.Context, id int64) (*Account,
 	return nil, errors.New("account not found")
 }
 
+func (r stubOpenAIAccountRepo) GetByIDs(ctx context.Context, ids []int64) ([]*Account, error) {
+	accounts := make([]*Account, 0, len(ids))
+	for _, id := range ids {
+		for i := range r.accounts {
+			if r.accounts[i].ID == id {
+				account := r.accounts[i]
+				accounts = append(accounts, &account)
+				break
+			}
+		}
+	}
+	return accounts, nil
+}
+
 func (r stubOpenAIAccountRepo) ListSchedulableByGroupIDAndPlatform(ctx context.Context, groupID int64, platform string) ([]Account, error) {
 	var result []Account
 	for _, acc := range r.accounts {
@@ -464,6 +478,22 @@ func (c *stubGatewayCache) DeleteSessionAccountID(ctx context.Context, groupID i
 	}
 	c.deletedSessions[sessionHash]++
 	delete(c.sessionBindings, sessionHash)
+	return nil
+}
+
+func (c *stubGatewayCache) SetGrokVideoPendingBilling(context.Context, string, []byte, time.Duration) error {
+	return nil
+}
+
+func (c *stubGatewayCache) GetGrokVideoPendingBilling(context.Context, string) ([]byte, error) {
+	return nil, nil
+}
+
+func (c *stubGatewayCache) ClaimGrokVideoBilled(context.Context, string, time.Duration) (bool, error) {
+	return true, nil
+}
+
+func (c *stubGatewayCache) ReleaseGrokVideoBilled(context.Context, string) error {
 	return nil
 }
 
@@ -2771,6 +2801,8 @@ func TestOpenAIBuildUpstreamRequestPreservesCompactPathForAPIKeyBaseURL(t *testi
 
 func TestOpenAIBuildUpstreamRequestOAuthOfficialClientOriginatorCompatibility(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	SetCodexIdentityEnforcementEnabled(false)
+	t.Cleanup(func() { SetCodexIdentityEnforcementEnabled(true) })
 
 	// 上游要求 originator 与最终 User-Agent 首段配套（issue #3901）：
 	// originator 一律由最终 UA 推导；推导不出官方身份时整体回退默认 Codex CLI 身份。
@@ -2790,12 +2822,12 @@ func TestOpenAIBuildUpstreamRequestOAuthOfficialClientOriginatorCompatibility(t 
 			wantUA:         "codex_vscode/0.140.2 (Mac OS X 14.0; arm64) vscode (codex_vscode; 0.140.2)",
 		},
 		{
-			// 降载桶身份改写为 CLI 身份，只替换身份段、保留版本/OS/架构/终端指纹。
-			name:           "load-shed originator normalized to cli identity",
+			// 关闭强制统一时，官方 TUI 身份只需与 UA 首段配对，不应被重写。
+			name:           "official tui ua stays paired without enforcement",
 			userAgent:      "codex-tui/0.140.2 (Mac OS X 14.0; arm64) iTerm (codex-tui; 0.140.2)",
 			originator:     "codex-tui",
-			wantOriginator: "codex_cli_rs",
-			wantUA:         "codex_cli_rs/0.140.2 (Mac OS X 14.0; arm64) iTerm",
+			wantOriginator: "codex-tui",
+			wantUA:         "codex-tui/0.140.2 (Mac OS X 14.0; arm64) iTerm (codex-tui; 0.140.2)",
 		},
 		{name: "official originator without ua falls back to default identity", originator: "codex_vscode", wantOriginator: "codex_cli_rs", wantUA: codexCLIUserAgent},
 		{name: "third-party ua masked to default identity", userAgent: "luna/1.2.0", wantOriginator: "codex_cli_rs", wantUA: codexCLIUserAgent},

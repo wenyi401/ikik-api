@@ -960,7 +960,13 @@ func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool 
 }
 
 func openAIStreamFailedEventRetryableOnSameAccount(account *Account, payload []byte, message string) bool {
-	if account == nil || !account.IsPoolMode() {
+	if account == nil {
+		return false
+	}
+	if isOpenAIUpstreamCapacityShedEvent(payload) {
+		return true
+	}
+	if !account.IsPoolMode() {
 		return false
 	}
 	semanticStatus := openAIStreamFailedEventSemanticStatus(payload, message)
@@ -1048,6 +1054,7 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 		ResponseBody:           body,
 		ResponseHeaders:        headers,
 		RetryableOnSameAccount: openAIStreamFailedEventRetryableOnSameAccount(account, payload, message),
+		RequestScopedTransient: isOpenAIUpstreamCapacityShedEvent(payload),
 	}
 }
 

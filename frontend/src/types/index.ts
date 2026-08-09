@@ -178,6 +178,16 @@ export interface LoginRequest {
   login_agreement_revision?: string
 }
 
+export interface TencentCaptchaRequestProof {
+  tencent_captcha_ticket: string
+  tencent_captcha_randstr: string
+}
+
+// Action-triggered captcha proof used by OAuth and passkey entry points.
+export interface ActionCaptchaRequestProof extends Partial<TencentCaptchaRequestProof> {
+  turnstile_token?: string
+}
+
 export interface RegisterRequest {
   email: string
   password: string
@@ -592,6 +602,11 @@ export interface OpenAIMessagesDispatchModelConfig {
   exact_model_mappings?: Record<string, string>
 }
 
+export interface ReasoningEffortMapping {
+  from: string
+  to: string
+}
+
 export interface ModelsListConfig {
   enabled: boolean
   models: string[]
@@ -661,6 +676,8 @@ export interface Group {
   required_account_level?: Exclude<AccountLevel, 'unknown'> | ''
   rate_multiplier: number
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
+  max_reasoning_effort?: string
+  reasoning_effort_mappings?: ReasoningEffortMapping[]
   is_exclusive: boolean
   is_shared_pool: boolean
   status: 'active' | 'inactive'
@@ -845,6 +862,8 @@ export interface CreateGroupRequest {
   model_routing?: Record<string, number[]> | null
   model_routing_enabled?: boolean
   rpm_limit?: number
+  max_reasoning_effort?: string
+  reasoning_effort_mappings?: ReasoningEffortMapping[]
   require_oauth_only?: boolean
   require_privacy_set?: boolean
   // 从指定分组复制账号
@@ -885,6 +904,8 @@ export interface UpdateGroupRequest {
   model_routing?: Record<string, number[]> | null
   model_routing_enabled?: boolean
   rpm_limit?: number
+  max_reasoning_effort?: string
+  reasoning_effort_mappings?: ReasoningEffortMapping[]
   require_oauth_only?: boolean
   require_privacy_set?: boolean
   copy_accounts_from_group_ids?: number[]
@@ -1012,6 +1033,9 @@ export interface TempUnschedulableState {
   matched_keyword: string
   rule_index: number
   error_message: string
+  trigger_count?: number
+  trigger_threshold?: number
+  trigger_window_minutes?: number
 }
 
 export interface TempUnschedulableStatus {

@@ -17,7 +17,7 @@ func TestOpenAIStreamTransientErrorDoesNotStartClientOutput(t *testing.T) {
 	))
 }
 
-func TestSanitizeOpenAICapacityShedErrorCodeForClient(t *testing.T) {
+func TestSanitizeOpenAICapacityShedErrorCodeForClientStreamFrames(t *testing.T) {
 	for _, payload := range []string{
 		`{"type":"error","error":{"code":"server_is_overloaded","message":"overloaded"}}`,
 		`{"type":"response.failed","response":{"error":{"code":"slow_down","message":"slow down"}}}`,

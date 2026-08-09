@@ -29,9 +29,13 @@ type OpenAIRecordUsageInput struct {
 	UpstreamEndpoint   string
 	UserAgent          string // 请求的 User-Agent
 	IPAddress          string // 请求的客户端 IP 地址
+	SessionID          string // 客户端显式会话标识，仅用于用量行关联
 	RequestPayloadHash string
 	APIKeyService      APIKeyQuotaUpdater
 	QuotaPlatform      string // user×platform quota platform resolved by the handler before async billing.
+	// PricingAt freezes peak-period pricing at request admission. A zero value
+	// preserves the historical record-time calculation for legacy paths.
+	PricingAt time.Time
 	// CyberBlocked 为 true 时把该用量行标记为 cyber（request_type=cyber），计费逻辑不变。
 	CyberBlocked bool
 	ChannelUsageFields
@@ -110,6 +114,13 @@ func (s *OpenAIGatewayService) ResolveUserGroupRateMultiplier(ctx context.Contex
 	return resolver.Resolve(ctx, userID, groupID, groupDefaultMultiplier)
 }
 
+func openAIUsagePricingAt(input *OpenAIRecordUsageInput) time.Time {
+	if input != nil && !input.PricingAt.IsZero() {
+		return input.PricingAt
+	}
+	return timezone.Now()
+}
+
 // RecordUsage records usage and deducts balance
 func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRecordUsageInput) error {
 	if input == nil {
@@ -159,7 +170,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。高峰因子按请求时刻现算，
 	// 不并入上面的 Resolve，以免污染 user:group 倍率缓存。
 	baseMultiplier := multiplier
-	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, baseMultiplier, timezone.Now())
+	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, baseMultiplier, openAIUsagePricingAt(input))
 	videoMultiplier := resolveVideoRateMultiplier(apiKey, baseMultiplier)
 
 	var cost *CostBreakdown
@@ -332,6 +343,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if input.IPAddress != "" {
 		usageLog.IPAddress = &input.IPAddress
 	}
+	usageLog.SessionID = optionalTrimmedStringPtr(input.SessionID)
 
 	if apiKey.GroupID != nil {
 		usageLog.GroupID = apiKey.GroupID
@@ -567,13 +579,13 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 	resolution := NormalizeVideoBillingResolutionOrDefault(result.VideoResolution)
 	durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
 	groupConfig := videoPriceConfigFromAPIKey(apiKey)
-	if apiKeyHasConfiguredVideoPrice(apiKey, resolution) {
+	if apiKeyHasConfiguredVideoPrice(apiKey, billingModel, resolution) {
 		return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier)
 	}
 	if refreshed := s.apiKeyWithFreshGroupMediaPricing(ctx, apiKey); refreshed != apiKey {
 		apiKey = refreshed
 		groupConfig = videoPriceConfigFromAPIKey(apiKey)
-		if apiKeyHasConfiguredVideoPrice(apiKey, resolution) {
+		if apiKeyHasConfiguredVideoPrice(apiKey, billingModel, resolution) {
 			return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier)
 		}
 	}

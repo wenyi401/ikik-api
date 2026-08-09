@@ -242,7 +242,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
 		accountReleaseFunc, acquired := h.acquireResponsesAccountSlot(c, currentAPIKey.GroupID, sessionHash, selection, reqStream, &streamStarted, reqLog)
-		if !acquired {
+		if acquired != openAISlotAcquireOK {
 			return
 		}
 

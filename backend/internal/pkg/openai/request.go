@@ -259,6 +259,67 @@ func canonicalizeCodexOriginator(name string) string {
 // 也是身份归一化的目标身份。
 const CodexCLIOriginator = "codex_cli_rs"
 
+// CodexDefaultOriginator is the gateway default Codex TUI identity.
+const CodexDefaultOriginator = "codex-tui"
+
+// CodexUserAgentVersion extracts the complete version segment from a Codex UA.
+func CodexUserAgentVersion(userAgent string) string {
+	ua := strings.TrimSpace(userAgent)
+	slash := strings.IndexByte(ua, '/')
+	if slash <= 0 {
+		return ""
+	}
+	rest := ua[slash+1:]
+	if space := strings.IndexByte(rest, ' '); space >= 0 {
+		rest = rest[:space]
+	}
+	return strings.TrimSpace(rest)
+}
+
+// SetCodexUserAgentVersion updates the version declaration while preserving
+// the client, platform, and terminal fingerprint portions of the UA.
+func SetCodexUserAgentVersion(userAgent, version string) string {
+	ua := strings.TrimSpace(userAgent)
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return ""
+	}
+	slash := strings.IndexByte(ua, '/')
+	if slash <= 0 || strings.TrimSpace(ua[:slash]) == "" {
+		return ""
+	}
+	rest := ua[slash+1:]
+	if strings.TrimSpace(rest) == "" {
+		return ""
+	}
+	tail := ""
+	if space := strings.IndexByte(rest, ' '); space >= 0 {
+		tail = rest[space:]
+	}
+	return rewriteCodexUATrailerVersion(ua[:slash]+"/"+version+tail, version)
+}
+
+func rewriteCodexUATrailerVersion(ua, version string) string {
+	open := strings.LastIndex(ua, "(")
+	if open < 0 {
+		return ua
+	}
+	closeOffset := strings.Index(ua[open+1:], ")")
+	if closeOffset < 0 {
+		return ua
+	}
+	inner := ua[open+1 : open+1+closeOffset]
+	semi := strings.Index(inner, ";")
+	if semi < 0 {
+		return ua
+	}
+	name := strings.TrimSpace(inner[:semi])
+	if name == "" || !IsCodexOfficialClientOriginator(name) {
+		return ua
+	}
+	return ua[:open+1] + name + "; " + version + ua[open+1+closeOffset:]
+}
+
 // codexLoadShedOriginators：上游 /backend-api/codex 按 originator 分桶调度容量，命中降载桶的
 // 请求即使 HTTP 200 也会立刻推 SSE `event: error`（code=server_is_overloaded）并以
 // response.failed 收尾。2026-07-29 起 codex-tui 被观测到落入降载桶：同账号、同请求体、同 UA，

@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"ikik-api/internal/pkg/apicompat"
 )
 
@@ -16,14 +19,42 @@ const openAIResponsesNamespaceNamesContextKey = "openai_responses_namespace_name
 // （openai_ws_forwarder_v2）原样转发上游事件、不经 HTTP 回程还原，摊平后的
 // 平名无法还原会破坏客户端工具匹配，因此实际走 WSv2 分支的请求保持 namespace
 // 原样。透传账号先于 WSv2 分支经 HTTP 转发返回，仍需摊平。
-func shouldFlattenOpenAIResponsesNamespaces(account *Account, transport OpenAIUpstreamTransport, passthroughEnabled bool) bool {
-	if account == nil || account.Type != AccountTypeOAuth {
+func shouldFlattenOpenAIResponsesNamespaces(account *Account, transport OpenAIUpstreamTransport, passthroughEnabled bool, compactPath bool) bool {
+	if account == nil || !account.IsOpenAIOAuth() {
+		return false
+	}
+	if !compactPath && !account.IsOpenAIResponsesFlattenNamespacesEnabled() {
 		return false
 	}
 	if transport == OpenAIUpstreamTransportResponsesWebsocketV2 && !passthroughEnabled {
 		return false
 	}
 	return true
+}
+
+func shouldStripOpenAIResponsesInputNamespaces(account *Account, transport OpenAIUpstreamTransport, passthroughEnabled bool) bool {
+	if account == nil || (!account.IsOpenAIOAuth() && !account.IsOpenAIApiKey()) {
+		return false
+	}
+	return transport != OpenAIUpstreamTransportResponsesWebsocketV2 || passthroughEnabled
+}
+
+func shouldKeepOpenAIResponsesToolCallNamespaces(account *Account, transport OpenAIUpstreamTransport, passthroughEnabled bool, compactPath bool) bool {
+	if account == nil || !account.IsOpenAIOAuth() || compactPath {
+		return false
+	}
+	return !shouldFlattenOpenAIResponsesNamespaces(account, transport, passthroughEnabled, compactPath)
+}
+
+var openAIResponsesToolCallItemTypes = map[string]bool{
+	"function_call":    true,
+	"tool_call":        true,
+	"custom_tool_call": true,
+	"mcp_tool_call":    true,
+}
+
+func isOpenAIResponsesToolCallItemType(itemType string) bool {
+	return openAIResponsesToolCallItemTypes[strings.ToLower(strings.TrimSpace(itemType))]
 }
 
 func flattenOpenAIResponsesNamespaces(c *gin.Context, body []byte) ([]byte, error) {
@@ -49,9 +80,66 @@ func flattenOpenAIResponsesNamespaces(c *gin.Context, body []byte) ([]byte, erro
 	return rebuilt, nil
 }
 
+// stripOpenAIResponsesInputNamespaces only changes direct input array items.
+// It preserves arbitrary precision JSON values by reusing raw item payloads.
+func stripOpenAIResponsesInputNamespaces(body []byte, keepToolCallNamespaces bool) ([]byte, error) {
+	if !bytes.Contains(body, []byte(`"namespace"`)) {
+		return body, nil
+	}
+	input := gjson.GetBytes(body, "input")
+	if !input.IsArray() {
+		return body, nil
+	}
+
+	var rebuilt bytes.Buffer
+	rebuilt.Grow(len(input.Raw))
+	_ = rebuilt.WriteByte('[')
+	changed := false
+	first := true
+	var stripErr error
+	input.ForEach(func(_, item gjson.Result) bool {
+		if !first {
+			_ = rebuilt.WriteByte(',')
+		}
+		first = false
+		itemBody := []byte(item.Raw)
+		if item.IsObject() && item.Get("namespace").Exists() &&
+			(!keepToolCallNamespaces || !isOpenAIResponsesToolCallItemType(item.Get("type").String())) {
+			itemBody, stripErr = sjson.DeleteBytes(itemBody, "namespace")
+			if stripErr != nil {
+				return false
+			}
+			changed = true
+		}
+		_, _ = rebuilt.Write(itemBody)
+		return true
+	})
+	_ = rebuilt.WriteByte(']')
+	if stripErr != nil {
+		return body, fmt.Errorf("delete OpenAI input namespace: %w", stripErr)
+	}
+	if !changed {
+		return body, nil
+	}
+	stripped, err := sjson.SetRawBytes(body, "input", rebuilt.Bytes())
+	if err != nil {
+		return body, fmt.Errorf("replace OpenAI input after namespace deletion: %w", err)
+	}
+	return stripped, nil
+}
+
 func setOpenAIResponsesNamespaceNames(c *gin.Context, names map[string]apicompat.ResponsesNamespaceName) {
 	if c != nil && len(names) > 0 {
 		c.Set(openAIResponsesNamespaceNamesContextKey, names)
+	}
+}
+
+func clearOpenAIResponsesNamespaceNames(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	if _, exists := c.Get(openAIResponsesNamespaceNamesContextKey); exists {
+		c.Set(openAIResponsesNamespaceNamesContextKey, map[string]apicompat.ResponsesNamespaceName(nil))
 	}
 }
 

@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
+	"go.uber.org/zap"
 	pkghttputil "ikik-api/internal/pkg/httputil"
 	"ikik-api/internal/pkg/ip"
 	"ikik-api/internal/pkg/logger"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
-	"go.uber.org/zap"
 )
 
 // Embeddings handles the OpenAI-compatible Embeddings API.
@@ -166,7 +166,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
 		accountReleaseFunc, accountAcquired := h.acquireResponsesAccountSlot(c, apiKey.GroupID, "", selection, false, &streamStarted, reqLog)
-		if !accountAcquired {
+		if accountAcquired != openAISlotAcquireOK {
 			return
 		}
 

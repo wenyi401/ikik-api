@@ -6,6 +6,7 @@ import { accountsAPI } from '@/api/accounts'
 export type AddMethod = 'oauth' | 'setup-token'
 export type AuthInputMethod =
   | 'manual'
+	| 'email_password'
   | 'cookie'
   | 'refresh_token'
   | 'mobile_refresh_token'

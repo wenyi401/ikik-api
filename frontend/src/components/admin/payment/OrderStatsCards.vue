@@ -2,12 +2,14 @@
   <UiMetricStrip class="payment-summary" :style="{ '--metric-columns': 4 }">
     <UiMetric
       :label="t('payment.admin.todayRevenue')"
-      :value="`$${formatMoney(stats.today_amount)}`"
+      :value="formatAmounts(stats.today_amount)"
+      :title="formatAmounts(stats.today_amount)"
       :detail="`${stats.today_count} ${t('payment.admin.entries')}`"
     />
     <UiMetric
       :label="t('payment.admin.totalRevenue')"
-      :value="`$${formatMoney(stats.total_amount)}`"
+      :value="formatAmounts(stats.total_amount)"
+      :title="formatAmounts(stats.total_amount)"
       :detail="`${stats.total_count} ${t('payment.admin.entries')}`"
     />
     <UiMetric
@@ -16,14 +18,15 @@
     />
     <UiMetric
       :label="t('payment.admin.avgAmount')"
-      :value="`$${formatMoney(stats.avg_amount)}`"
+      :value="formatAmounts(stats.avg_amount)"
+      :title="formatAmounts(stats.avg_amount)"
     />
   </UiMetricStrip>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import type { DashboardStats } from '@/types/payment'
+import type { CurrencyAmounts, DashboardStats } from '@/types/payment'
 import { UiMetric, UiMetricStrip } from '@/ui'
 
 const { t } = useI18n()
@@ -32,11 +35,25 @@ defineProps<{
   stats: DashboardStats
 }>()
 
-function formatMoney(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value)
+function formatAmounts(amounts: CurrencyAmounts): string {
+  const entries = Object.entries(amounts).sort(([left], [right]) => left.localeCompare(right))
+  if (entries.length === 0) return '-'
+
+  return entries.map(([currency, amount]) => formatMoney(currency, amount)).join(' / ')
+}
+
+function formatMoney(currency: string, amount: number): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+      currencyDisplay: 'code',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount)
+  } catch {
+    return `${currency.toUpperCase()} ${amount.toFixed(2)}`
+  }
 }
 </script>
 

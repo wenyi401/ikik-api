@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"os"
 	"time"
 
 	"github.com/google/wire"
@@ -185,6 +186,7 @@ func ProvideAccountTestService(
 	cfg *config.Config,
 	tlsFPProfileService *TLSFingerprintProfileService,
 	openAIGatewayService *OpenAIGatewayService,
+	settingService *SettingService,
 ) *AccountTestService {
 	service := NewAccountTestService(
 		accountRepo,
@@ -198,6 +200,7 @@ func ProvideAccountTestService(
 	)
 	service.kiroTokenProvider = kiroTokenProvider
 	service.agentIdentityWS = openAIGatewayService
+	service.SetSettingService(settingService)
 	return service
 }
 
@@ -703,6 +706,7 @@ var ProviderSet = wire.NewSet(
 	// Core services
 	NewUserService,
 	NewDeveloperTokenService,
+	NewPasskeyService,
 	ProvideAPIKeyService,
 	ProvideAPIKeyAuthCacheInvalidator,
 	ProvideAuthCacheInvalidationWorker,
@@ -730,7 +734,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(AccountRuntimeBlocker), new(*OpenAIGatewayService)),
 	NewOAuthService,
 	ProvideOpenAIOAuthService,
-	NewGrokOAuthService,
+	ProvideGrokOAuthService,
 	wire.Bind(new(GrokOAuthTokenService), new(*GrokOAuthService)),
 	NewGeminiOAuthService,
 	NewGeminiQuotaService,
@@ -810,6 +814,8 @@ var ProviderSet = wire.NewSet(
 	ProvideBalanceNotifyService,
 	ProvideChannelMonitorService,
 	ProvideChannelMonitorRunner,
+	ProvideChannelMonitorV2Service,
+	ProvideChannelMonitorV2Aggregator,
 	NewChannelMonitorRequestTemplateService,
 	ProvideUserPlatformQuotaUsageFlusher,
 )
@@ -854,8 +860,23 @@ func ProvidePaymentOrderExpiryService(paymentSvc *PaymentService, lockCache Lead
 func ProvideChannelMonitorService(
 	repo ChannelMonitorRepository,
 	encryptor SecretEncryptor,
+	settingService *SettingService,
 ) *ChannelMonitorService {
-	return NewChannelMonitorService(repo, encryptor)
+	svc := NewChannelMonitorService(repo, encryptor)
+	svc.SetRuntimeReader(settingService)
+	return svc
+}
+
+// ProvideGrokOAuthService injects the application config into the Grok OAuth
+// service while keeping NewGrokOAuthService's optional config argument useful
+// for lightweight tests and callers that do not need runtime flags.
+func ProvideGrokOAuthService(
+	proxyRepo ProxyRepository,
+	oauthClient GrokOAuthClient,
+	cfg *config.Config,
+	redisClient *redis.Client,
+) *GrokOAuthService {
+	return NewGrokOAuthService(proxyRepo, oauthClient, cfg).WithRedisSessionStore(redisClient)
 }
 
 // ProvideChannelMonitorRunner 创建并启动渠道监控调度器。
@@ -867,4 +888,21 @@ func ProvideChannelMonitorRunner(svc *ChannelMonitorService, settingService *Set
 	svc.SetScheduler(r)
 	r.Start()
 	return r
+}
+
+// ProvideChannelMonitorV2Service wires settings for user-facing privacy flags.
+func ProvideChannelMonitorV2Service(repo ChannelMonitorV2Repository, settingService *SettingService) *ChannelMonitorV2Service {
+	svc := NewChannelMonitorV2Service(repo)
+	svc.SetRuntimeReader(settingService)
+	return svc
+}
+
+// ProvideChannelMonitorV2Aggregator starts the passive minute-rollup worker.
+func ProvideChannelMonitorV2Aggregator(repo ChannelMonitorV2Repository, db *sql.DB, settingService *SettingService) *ChannelMonitorV2Aggregator {
+	aggregator := NewChannelMonitorV2Aggregator(repo, db, settingService)
+	if os.Getenv("CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR") == "1" {
+		return aggregator
+	}
+	aggregator.Start()
+	return aggregator
 }

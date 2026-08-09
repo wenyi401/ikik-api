@@ -20,21 +20,23 @@ import (
 // UpdateSettingsRequest 更新设置请求
 type UpdateSettingsRequest struct {
 	// 注册设置
-	RegistrationEnabled              bool                         `json:"registration_enabled"`
-	EmailVerifyEnabled               bool                         `json:"email_verify_enabled"`
-	RegistrationEmailSuffixWhitelist []string                     `json:"registration_email_suffix_whitelist"`
-	PromoCodeEnabled                 bool                         `json:"promo_code_enabled"`
-	PasswordResetEnabled             bool                         `json:"password_reset_enabled"`
-	FrontendURL                      string                       `json:"frontend_url"`
-	InvitationCodeEnabled            bool                         `json:"invitation_code_enabled"`
-	TotpEnabled                      bool                         `json:"totp_enabled"`             // TOTP 双因素认证
-	SessionBindingEnabled            *bool                        `json:"session_binding_enabled"`  // 会话 IP/UA 绑定（省略=保持现值）
-	StepUpEnabled                    *bool                        `json:"step_up_enabled"`          // 敏感操作 step-up 2FA（省略=保持现值）
-	AuditLogRetentionDays            int                          `json:"audit_log_retention_days"` // 审计日志保留天数
-	LoginAgreementEnabled            bool                         `json:"login_agreement_enabled"`
-	LoginAgreementMode               string                       `json:"login_agreement_mode"`
-	LoginAgreementUpdatedAt          string                       `json:"login_agreement_updated_at"`
-	LoginAgreementDocuments          []dto.LoginAgreementDocument `json:"login_agreement_documents"`
+	RegistrationEnabled                 bool                         `json:"registration_enabled"`
+	EmailVerifyEnabled                  bool                         `json:"email_verify_enabled"`
+	RegistrationEmailSuffixWhitelist    []string                     `json:"registration_email_suffix_whitelist"`
+	RegistrationEmailDomainQuotaEnabled bool                         `json:"registration_email_domain_quota_enabled"`
+	PromoCodeEnabled                    bool                         `json:"promo_code_enabled"`
+	PasswordResetEnabled                bool                         `json:"password_reset_enabled"`
+	FrontendURL                         string                       `json:"frontend_url"`
+	InvitationCodeEnabled               bool                         `json:"invitation_code_enabled"`
+	TotpEnabled                         bool                         `json:"totp_enabled"` // TOTP 双因素认证
+	PasskeyEnabled                      bool                         `json:"passkey_enabled"`
+	SessionBindingEnabled               *bool                        `json:"session_binding_enabled"`  // 会话 IP/UA 绑定（省略=保持现值）
+	StepUpEnabled                       *bool                        `json:"step_up_enabled"`          // 敏感操作 step-up 2FA（省略=保持现值）
+	AuditLogRetentionDays               int                          `json:"audit_log_retention_days"` // 审计日志保留天数
+	LoginAgreementEnabled               bool                         `json:"login_agreement_enabled"`
+	LoginAgreementMode                  string                       `json:"login_agreement_mode"`
+	LoginAgreementUpdatedAt             string                       `json:"login_agreement_updated_at"`
+	LoginAgreementDocuments             []dto.LoginAgreementDocument `json:"login_agreement_documents"`
 
 	// 邮件服务设置
 	SMTPHost     string `json:"smtp_host"`
@@ -46,9 +48,21 @@ type UpdateSettingsRequest struct {
 	SMTPUseTLS   bool   `json:"smtp_use_tls"`
 
 	// Cloudflare Turnstile 设置
-	TurnstileEnabled   bool   `json:"turnstile_enabled"`
-	TurnstileSiteKey   string `json:"turnstile_site_key"`
-	TurnstileSecretKey string `json:"turnstile_secret_key"`
+	TurnstileEnabled             bool   `json:"turnstile_enabled"`
+	TurnstileSiteKey             string `json:"turnstile_site_key"`
+	TurnstileSecretKey           string `json:"turnstile_secret_key"`
+	TencentCaptchaEnabled        bool   `json:"tencent_captcha_enabled"`
+	TencentCaptchaAppID          string `json:"tencent_captcha_app_id"`
+	TencentCaptchaAppSecretKey   string `json:"tencent_captcha_app_secret_key"`
+	TencentCaptchaCloudSecretID  string `json:"tencent_captcha_cloud_secret_id"`
+	TencentCaptchaCloudSecretKey string `json:"tencent_captcha_cloud_secret_key"`
+	TencentCaptchaRegion         string `json:"tencent_captcha_region"`
+	AliyunCaptchaEnabled         bool   `json:"aliyun_captcha_enabled"`
+	AliyunCaptchaAccessKeyID     string `json:"aliyun_captcha_access_key_id"`
+	AliyunCaptchaAccessKeySecret string `json:"aliyun_captcha_access_key_secret"`
+	AliyunCaptchaSceneID         string `json:"aliyun_captcha_scene_id"`
+	AliyunCaptchaPrefix          string `json:"aliyun_captcha_prefix"`
+	AliyunCaptchaRegion          string `json:"aliyun_captcha_region"`
 
 	// API Key IP 访问控制设置
 	APIKeyACLTrustForwardedIP *bool     `json:"api_key_acl_trust_forwarded_ip"`
@@ -139,6 +153,7 @@ type UpdateSettingsRequest struct {
 	ContactInfo                 string                `json:"contact_info"`
 	DocURL                      string                `json:"doc_url"`
 	HomeContent                 string                `json:"home_content"`
+	CompactHomeEnabled          bool                  `json:"compact_home_enabled"`
 	HomeStatsGroupID            *int64                `json:"home_stats_group_id"`
 	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
@@ -314,11 +329,16 @@ type UpdateSettingsRequest struct {
 	PaymentAlipayMobilePrecreateDeepLink *bool `json:"payment_alipay_mobile_precreate_deep_link"`
 
 	// Channel Monitor feature switch
-	ChannelMonitorEnabled                *bool `json:"channel_monitor_enabled"`
-	ChannelMonitorDefaultIntervalSeconds *int  `json:"channel_monitor_default_interval_seconds"`
+	ChannelMonitorEnabled                *bool   `json:"channel_monitor_enabled"`
+	ChannelMonitorMode                   *string `json:"channel_monitor_mode"`
+	ChannelMonitorDefaultIntervalSeconds *int    `json:"channel_monitor_default_interval_seconds"`
+	ChannelMonitorHideThroughput         *bool   `json:"channel_monitor_hide_throughput"`
 
 	// Available Channels feature switch (user-facing)
 	AvailableChannelsEnabled *bool                  `json:"available_channels_enabled"`
+	ModelPlazaEnabled        *bool                  `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth    *bool                  `json:"model_plaza_require_auth"`
+	ModelPlazaDescription    *string                `json:"model_plaza_description"`
 	AutoModelSettings        *dto.AutoModelSettings `json:"auto_model_settings"`
 	FreeModelsEnabled        *bool                  `json:"free_models_enabled"`
 	CarpoolEnabled           *bool                  `json:"carpool_enabled"`
@@ -1261,31 +1281,45 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		// 系统全局 platform quota 默认值（整体替换语义）
 		DefaultPlatformQuotas: req.DefaultPlatformQuotas,
 
-		RegistrationEnabled:              req.RegistrationEnabled,
-		EmailVerifyEnabled:               req.EmailVerifyEnabled,
-		RegistrationEmailSuffixWhitelist: req.RegistrationEmailSuffixWhitelist,
-		PromoCodeEnabled:                 req.PromoCodeEnabled,
-		PasswordResetEnabled:             req.PasswordResetEnabled,
-		FrontendURL:                      req.FrontendURL,
-		InvitationCodeEnabled:            req.InvitationCodeEnabled,
-		TotpEnabled:                      req.TotpEnabled,
-		SessionBindingEnabled:            sessionBindingEnabled,
-		StepUpEnabled:                    stepUpEnabled,
-		AuditLogRetentionDays:            req.AuditLogRetentionDays,
-		LoginAgreementEnabled:            req.LoginAgreementEnabled,
-		LoginAgreementMode:               loginAgreementMode,
-		LoginAgreementUpdatedAt:          loginAgreementUpdatedAt,
-		LoginAgreementDocuments:          loginAgreementDocuments,
-		SMTPHost:                         req.SMTPHost,
-		SMTPPort:                         req.SMTPPort,
-		SMTPUsername:                     req.SMTPUsername,
-		SMTPPassword:                     req.SMTPPassword,
-		SMTPFrom:                         req.SMTPFrom,
-		SMTPFromName:                     req.SMTPFromName,
-		SMTPUseTLS:                       req.SMTPUseTLS,
-		TurnstileEnabled:                 req.TurnstileEnabled,
-		TurnstileSiteKey:                 req.TurnstileSiteKey,
-		TurnstileSecretKey:               req.TurnstileSecretKey,
+		RegistrationEnabled:                 req.RegistrationEnabled,
+		EmailVerifyEnabled:                  req.EmailVerifyEnabled,
+		RegistrationEmailSuffixWhitelist:    req.RegistrationEmailSuffixWhitelist,
+		RegistrationEmailDomainQuotaEnabled: req.RegistrationEmailDomainQuotaEnabled,
+		PromoCodeEnabled:                    req.PromoCodeEnabled,
+		PasswordResetEnabled:                req.PasswordResetEnabled,
+		FrontendURL:                         req.FrontendURL,
+		InvitationCodeEnabled:               req.InvitationCodeEnabled,
+		TotpEnabled:                         req.TotpEnabled,
+		PasskeyEnabled:                      req.PasskeyEnabled,
+		SessionBindingEnabled:               sessionBindingEnabled,
+		StepUpEnabled:                       stepUpEnabled,
+		AuditLogRetentionDays:               req.AuditLogRetentionDays,
+		LoginAgreementEnabled:               req.LoginAgreementEnabled,
+		LoginAgreementMode:                  loginAgreementMode,
+		LoginAgreementUpdatedAt:             loginAgreementUpdatedAt,
+		LoginAgreementDocuments:             loginAgreementDocuments,
+		SMTPHost:                            req.SMTPHost,
+		SMTPPort:                            req.SMTPPort,
+		SMTPUsername:                        req.SMTPUsername,
+		SMTPPassword:                        req.SMTPPassword,
+		SMTPFrom:                            req.SMTPFrom,
+		SMTPFromName:                        req.SMTPFromName,
+		SMTPUseTLS:                          req.SMTPUseTLS,
+		TurnstileEnabled:                    req.TurnstileEnabled,
+		TurnstileSiteKey:                    req.TurnstileSiteKey,
+		TurnstileSecretKey:                  req.TurnstileSecretKey,
+		TencentCaptchaEnabled:               req.TencentCaptchaEnabled,
+		TencentCaptchaAppID:                 req.TencentCaptchaAppID,
+		TencentCaptchaAppSecretKey:          req.TencentCaptchaAppSecretKey,
+		TencentCaptchaCloudSecretID:         req.TencentCaptchaCloudSecretID,
+		TencentCaptchaCloudSecretKey:        req.TencentCaptchaCloudSecretKey,
+		TencentCaptchaRegion:                req.TencentCaptchaRegion,
+		AliyunCaptchaEnabled:                req.AliyunCaptchaEnabled,
+		AliyunCaptchaAccessKeyID:            req.AliyunCaptchaAccessKeyID,
+		AliyunCaptchaAccessKeySecret:        req.AliyunCaptchaAccessKeySecret,
+		AliyunCaptchaSceneID:                req.AliyunCaptchaSceneID,
+		AliyunCaptchaPrefix:                 req.AliyunCaptchaPrefix,
+		AliyunCaptchaRegion:                 req.AliyunCaptchaRegion,
 		APIKeyACLTrustForwardedIP: func() bool {
 			if req.APIKeyACLTrustForwardedIP != nil {
 				return *req.APIKeyACLTrustForwardedIP
@@ -1368,6 +1402,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ContactInfo:                            req.ContactInfo,
 		DocURL:                                 req.DocURL,
 		HomeContent:                            req.HomeContent,
+		CompactHomeEnabled:                     req.CompactHomeEnabled,
 		HomeStatsGroupID: func() int64 {
 			if req.HomeStatsGroupID != nil {
 				return *req.HomeStatsGroupID
@@ -1678,17 +1713,47 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.ChannelMonitorEnabled
 		}(),
+		ChannelMonitorMode: func() string {
+			if req.ChannelMonitorMode != nil {
+				return *req.ChannelMonitorMode
+			}
+			return previousSettings.ChannelMonitorMode
+		}(),
 		ChannelMonitorDefaultIntervalSeconds: func() int {
 			if req.ChannelMonitorDefaultIntervalSeconds != nil {
 				return *req.ChannelMonitorDefaultIntervalSeconds
 			}
 			return previousSettings.ChannelMonitorDefaultIntervalSeconds
 		}(),
+		ChannelMonitorHideThroughput: func() bool {
+			if req.ChannelMonitorHideThroughput != nil {
+				return *req.ChannelMonitorHideThroughput
+			}
+			return previousSettings.ChannelMonitorHideThroughput
+		}(),
 		AvailableChannelsEnabled: func() bool {
 			if req.AvailableChannelsEnabled != nil {
 				return *req.AvailableChannelsEnabled
 			}
 			return previousSettings.AvailableChannelsEnabled
+		}(),
+		ModelPlazaEnabled: func() bool {
+			if req.ModelPlazaEnabled != nil {
+				return *req.ModelPlazaEnabled
+			}
+			return previousSettings.ModelPlazaEnabled
+		}(),
+		ModelPlazaRequireAuth: func() bool {
+			if req.ModelPlazaRequireAuth != nil {
+				return *req.ModelPlazaRequireAuth
+			}
+			return previousSettings.ModelPlazaRequireAuth
+		}(),
+		ModelPlazaDescription: func() string {
+			if req.ModelPlazaDescription != nil {
+				return *req.ModelPlazaDescription
+			}
+			return previousSettings.ModelPlazaDescription
 		}(),
 		AutoModelSettings: func() service.AutoModelSettings {
 			if req.AutoModelSettings != nil {
@@ -2002,6 +2067,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ContactInfo:                                            updatedSettings.ContactInfo,
 		DocURL:                                                 updatedSettings.DocURL,
 		HomeContent:                                            updatedSettings.HomeContent,
+		CompactHomeEnabled:                                     updatedSettings.CompactHomeEnabled,
 		HomeStatsGroupID:                                       updatedSettings.HomeStatsGroupID,
 		HideCcsImportButton:                                    updatedSettings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:                            updatedSettings.PurchaseSubscriptionEnabled,

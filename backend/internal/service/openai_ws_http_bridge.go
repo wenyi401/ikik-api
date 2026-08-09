@@ -483,12 +483,12 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	return resultWithUsage(), terminalErr
 }
 
-func resolveGrokWSCacheIdentity(c *gin.Context, account *Account, payload []byte, originalModel string) (string, error) {
-	body, err := prepareOpenAIWSHTTPBridgeBody(payload)
+func resolveGrokWSCacheIdentity(c *gin.Context, account *Account, seedPayload, currentPayload []byte, originalModel string) (string, error) {
+	body, err := prepareOpenAIWSHTTPBridgeBody(seedPayload)
 	if err != nil {
 		return "", err
 	}
-	upstreamModel := resolveGrokWSUpstreamModel(account, body, originalModel)
+	upstreamModel := resolveGrokWSUpstreamModel(account, currentPayload, originalModel)
 	body, err = patchGrokResponsesBody(body, upstreamModel)
 	if err != nil {
 		return "", err

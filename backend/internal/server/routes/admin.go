@@ -3,6 +3,7 @@ package routes
 
 import (
 	"ikik-api/internal/handler"
+	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
 
@@ -17,9 +18,13 @@ func RegisterAdminRoutes(
 	auditLog middleware.AuditLogMiddleware,
 	stepUpAuth middleware.StepUpAuthMiddleware,
 	settingService *service.SettingService,
+	panelRateLimiters ...*middleware.PanelRateLimiter,
 ) {
 	admin := v1.Group("/admin")
 	admin.Use(gin.HandlerFunc(adminAuth))
+	if len(panelRateLimiters) > 0 && panelRateLimiters[0] != nil {
+		admin.Use(panelRateLimiters[0].Global())
+	}
 	// 审计中间件挂在认证之后：所有管理面变更类操作 + 敏感读取入审计日志
 	admin.Use(gin.HandlerFunc(auditLog))
 	admin.Use(middleware.AdminComplianceGuard(settingService))
@@ -105,7 +110,8 @@ func RegisterAdminRoutes(
 		registerChannelRoutes(admin, h)
 
 		// 渠道监控
-		registerChannelMonitorRoutes(admin, h)
+		registerChannelMonitorRoutes(admin, h, settingService)
+		registerChannelMonitorV2Routes(admin, h, settingService)
 
 		// 风控中心
 		registerContentModerationRoutes(admin, h)
@@ -417,6 +423,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/batch-update-credentials", h.Admin.Account.BatchUpdateCredentials)
 		accounts.POST("/batch-refresh-tier", h.Admin.Account.BatchRefreshTier)
 		accounts.POST("/bulk-update", h.Admin.Account.BulkUpdate)
+		accounts.POST("/batch-delete", h.Admin.Account.BatchDelete)
 		accounts.POST("/batch-clear-error", h.Admin.Account.BatchClearError)
 		accounts.POST("/batch-refresh", h.Admin.Account.BatchRefresh)
 
@@ -751,8 +758,10 @@ func registerChannelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	}
 }
 
-func registerChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+func registerChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
+	guard := channelMonitorAdminFeatureGuard(settingService)
 	monitors := admin.Group("/channel-monitors")
+	monitors.Use(guard)
 	{
 		monitors.GET("", h.Admin.ChannelMonitor.List)
 		monitors.POST("", h.Admin.ChannelMonitor.Create)
@@ -765,6 +774,7 @@ func registerChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	}
 
 	templates := admin.Group("/channel-monitor-templates")
+	templates.Use(guard)
 	{
 		templates.GET("", h.Admin.ChannelMonitorTemplate.List)
 		templates.POST("", h.Admin.ChannelMonitorTemplate.Create)
@@ -773,6 +783,64 @@ func registerChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		templates.DELETE("/:id", h.Admin.ChannelMonitorTemplate.Delete)
 		templates.GET("/:id/monitors", h.Admin.ChannelMonitorTemplate.AssociatedMonitors)
 		templates.POST("/:id/apply", h.Admin.ChannelMonitorTemplate.Apply)
+	}
+}
+
+func registerChannelMonitorV2Routes(admin *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
+	featureGuard := channelMonitorAdminFeatureGuard(settingService)
+	modeV2Guard := channelMonitorModeV2Guard(settingService)
+	monitor := admin.Group("/channel-monitor-v2")
+	{
+		config := monitor.Group("")
+		config.Use(featureGuard)
+		{
+			config.GET("/config", h.ChannelMonitorV2.GetConfig)
+			config.PUT("/config", h.ChannelMonitorV2.UpdateConfig)
+		}
+		reads := monitor.Group("")
+		reads.Use(modeV2Guard)
+		{
+			reads.GET("/dimensions", h.ChannelMonitorV2.Dimensions)
+			reads.GET("/snapshot", h.ChannelMonitorV2.AdminSnapshot)
+			reads.GET("/models", h.ChannelMonitorV2.AdminModels)
+			reads.GET("/matrix", h.ChannelMonitorV2.AdminMatrix)
+			reads.GET("/errors", h.ChannelMonitorV2.Errors)
+			reads.GET("/users", h.ChannelMonitorV2.AdminUsers)
+		}
+	}
+}
+
+func channelMonitorAdminFeatureGuard(settingService *service.SettingService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if settingService != nil && settingService.GetChannelMonitorRuntime(c.Request.Context()).Enabled {
+			c.Next()
+			return
+		}
+		response.ErrorFrom(c, service.ErrChannelMonitorDisabled)
+		c.Abort()
+	}
+}
+
+// channelMonitorModeV2Guard requires the monitor feature and passive V2 mode.
+func channelMonitorModeV2Guard(settingService *service.SettingService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if settingService == nil {
+			response.ErrorFrom(c, service.ErrChannelMonitorDisabled)
+			c.Abort()
+			return
+		}
+		runtime := settingService.GetChannelMonitorRuntime(c.Request.Context())
+		if !runtime.Enabled {
+			response.ErrorFrom(c, service.ErrChannelMonitorDisabled)
+			c.Abort()
+			return
+		}
+		if !runtime.PassiveAggregationAllowed() {
+			response.ErrorFrom(c, service.ErrChannelMonitorModeMismatch)
+			c.Abort()
+			return
+		}
+		c.Next()
 	}
 }
 

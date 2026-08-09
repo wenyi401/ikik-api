@@ -18,13 +18,13 @@ import (
 	"sync"
 	"time"
 
-	"ikik-api/internal/config"
-	infraerrors "ikik-api/internal/pkg/errors"
-	"ikik-api/internal/pkg/logger"
 	"github.com/google/uuid"
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
+	"ikik-api/internal/config"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/logger"
 )
 
 const (
@@ -313,6 +313,15 @@ func (s *OllamaCloudUsageService) runLoop() {
 			}
 		}
 	}
+}
+
+// scheduleOllamaCloudUsageActivity records an upstream attempt for an Ollama
+// Cloud account; DeferredService coalesces repeated updates.
+func scheduleOllamaCloudUsageActivity(deferred *DeferredService, account *Account) {
+	if deferred == nil || account == nil || !IsOllamaCloudUsageAccount(account) {
+		return
+	}
+	deferred.ScheduleLastUsedUpdate(account.ID)
 }
 
 func (s *OllamaCloudUsageService) GetSettings(ctx context.Context) (*OllamaCloudUsageSettings, error) {

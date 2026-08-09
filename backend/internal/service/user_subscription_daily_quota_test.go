@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/timezone"
 )
 
 type dailyResetTrackingUserSubRepo struct {
@@ -58,7 +59,7 @@ func TestAssignOrExtendSubscription_ExpiredDailyCardStartsNewOneTimeQuota(t *tes
 	require.True(t, renewed.StartsAt.After(oldStart), "重新购买过期订阅时应重置当前周期 StartsAt")
 	require.False(t, renewed.ExpiresAt.After(renewed.StartsAt.AddDate(0, 0, 1)))
 	require.NotNil(t, renewed.DailyWindowStart)
-	require.Equal(t, renewed.StartsAt, *renewed.DailyWindowStart)
+	require.Equal(t, timezone.StartOfDay(renewed.StartsAt), *renewed.DailyWindowStart)
 	require.Equal(t, 0.0, renewed.DailyUsageUSD)
 	require.Equal(t, 0.0, renewed.WeeklyUsageUSD)
 	require.Equal(t, 0.0, renewed.MonthlyUsageUSD)

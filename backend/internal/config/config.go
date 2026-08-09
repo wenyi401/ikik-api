@@ -32,7 +32,7 @@ const (
 
 // DefaultCSPPolicy is the default Content-Security-Policy with nonce support
 // __CSP_NONCE__ will be replaced with actual nonce at request time by the SecurityHeaders middleware
-const DefaultCSPPolicy = "default-src 'self'; script-src 'self' __CSP_NONCE__ https://challenges.cloudflare.com https://static.cloudflareinsights.com https://*.stripe.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https:; frame-src https://challenges.cloudflare.com https://*.stripe.com https://checkout.airwallex.com https://checkout-demo.airwallex.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+const DefaultCSPPolicy = "default-src 'self'; worker-src 'self' blob:; script-src 'self' __CSP_NONCE__ https://challenges.cloudflare.com https://static.cloudflareinsights.com https://turing.captcha.qcloud.com https://turing.captcha.gtimg.com https://ca.turing.captcha.qcloud.com https://global.turing.captcha.gtimg.com https://www.tycaptcha.com https://cloudcache.tencentcs.com https://*.stripe.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; style-src 'self' 'unsafe-inline' https://*.captcha.gtimg.com https://fonts.googleapis.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://turing.captcha.qcloud.com https://www.tycaptcha.com https://rce.tencentrio.com https:; frame-src https://challenges.cloudflare.com https://turing.captcha.qcloud.com https://ca.turing.captcha.qcloud.com https://www.tycaptcha.com https://*.stripe.com https://checkout.airwallex.com https://checkout-demo.airwallex.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 
 // UMQ（用户消息队列）模式常量
 const (
@@ -73,6 +73,7 @@ type Config struct {
 	Ops                     OpsConfig                     `mapstructure:"ops"`
 	JWT                     JWTConfig                     `mapstructure:"jwt"`
 	Totp                    TotpConfig                    `mapstructure:"totp"`
+	WebAuthn                WebAuthnConfig                `mapstructure:"webauthn"`
 	LinuxDo                 LinuxDoConnectConfig          `mapstructure:"linuxdo_connect"`
 	WeChat                  WeChatConnectConfig           `mapstructure:"wechat_connect"`
 	OIDC                    OIDCConnectConfig             `mapstructure:"oidc_connect"`
@@ -688,6 +689,16 @@ type CORSConfig struct {
 	AllowCredentials bool     `mapstructure:"allow_credentials"`
 }
 
+// WebAuthnConfig configures this deployment as a WebAuthn relying party.
+// RPID and RPOrigins are security boundaries and must not be inferred from
+// untrusted request Host or Origin headers.
+type WebAuthnConfig struct {
+	Enabled       bool     `mapstructure:"enabled"`
+	RPDisplayName string   `mapstructure:"rp_display_name"`
+	RPID          string   `mapstructure:"rp_id"`
+	RPOrigins     []string `mapstructure:"rp_origins"`
+}
+
 const MaxForwardedClientIPHeaders = 16
 
 type ForwardedClientIPSettings struct {
@@ -926,6 +937,8 @@ type GatewayConfig struct {
 	OpenAICompactModel string `mapstructure:"openai_compact_model"`
 	// OpenAIWS: OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
 	OpenAIWS GatewayOpenAIWSConfig `mapstructure:"openai_ws"`
+	// Live: ChatGPT Frameless Live 会话配置。
+	Live GatewayLiveConfig `mapstructure:"live"`
 	// OpenAIScheduler: OpenAI 高级调度器粘性逃逸配置
 	OpenAIScheduler GatewayOpenAISchedulerConfig `mapstructure:"openai_scheduler"`
 	// OpenAIHTTP2: OpenAI HTTP 上游协议策略（默认启用 HTTP/2，可按代理能力回退 HTTP/1.1）
@@ -1010,6 +1023,23 @@ type GatewayConfig struct {
 	// UserMessageQueue: 用户消息串行队列配置
 	// 对 role:"user" 的真实用户消息实施账号级串行化 + RPM 自适应延迟
 	UserMessageQueue UserMessageQueueConfig `mapstructure:"user_message_queue"`
+
+	// Grok: Grok/xAI gateway scheduling and free-tier soft-gate settings.
+	Grok GatewayGrokConfig `mapstructure:"grok"`
+}
+
+// GatewayGrokConfig contains the local free-tier scheduling guard settings.
+type GatewayLiveConfig struct {
+	MaxSessionDurationSeconds int `mapstructure:"max_session_duration_seconds"`
+}
+
+type GatewayGrokConfig struct {
+	PasswordAuthEnabled        bool  `mapstructure:"password_auth_enabled"`
+	FreeQuotaSoftGateEnabled   bool  `mapstructure:"free_quota_soft_gate_enabled"`
+	FreeQuotaTokenLimit        int64 `mapstructure:"free_quota_token_limit"`
+	FreeQuotaSoftGatePercent   int   `mapstructure:"free_quota_soft_gate_percent"`
+	FreeQuotaWindowHours       int   `mapstructure:"free_quota_window_hours"`
+	FreeQuotaStatsCacheSeconds int   `mapstructure:"free_quota_stats_cache_seconds"`
 }
 
 // GatewayOpenAIHTTP2Config OpenAI HTTP 上游协议配置。
@@ -1897,6 +1927,10 @@ func setDefaults() {
 	// CORS
 	viper.SetDefault("cors.allowed_origins", []string{})
 	viper.SetDefault("cors.allow_credentials", true)
+	viper.SetDefault("webauthn.enabled", false)
+	viper.SetDefault("webauthn.rp_display_name", "IKIK")
+	viper.SetDefault("webauthn.rp_id", "")
+	viper.SetDefault("webauthn.rp_origins", []string{})
 
 	// Security
 	viper.SetDefault("security.url_allowlist.enabled", false)
@@ -2290,6 +2324,13 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_proxy_stream_circuit.failure_threshold", 2)
 	viper.SetDefault("gateway.openai_proxy_stream_circuit.window_seconds", 60)
 	viper.SetDefault("gateway.openai_proxy_stream_circuit.ttl_seconds", 600)
+	// Grok free-tier local soft gate (scheduler-only; admin quota probes are unaffected).
+	viper.SetDefault("gateway.grok.free_quota_soft_gate_enabled", true)
+	viper.SetDefault("gateway.grok.password_auth_enabled", false)
+	viper.SetDefault("gateway.grok.free_quota_token_limit", int64(500_000))
+	viper.SetDefault("gateway.grok.free_quota_soft_gate_percent", 95)
+	viper.SetDefault("gateway.grok.free_quota_window_hours", 24)
+	viper.SetDefault("gateway.grok.free_quota_stats_cache_seconds", 60)
 	viper.SetDefault("gateway.image_concurrency.enabled", false)
 	viper.SetDefault("gateway.image_concurrency.max_concurrent_requests", 0)
 	viper.SetDefault("gateway.image_concurrency.overflow_mode", ImageConcurrencyOverflowModeReject)
@@ -2632,6 +2673,43 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("server.frontend_url invalid: must not include userinfo")
 		}
 		warnIfInsecureURL("server.frontend_url", c.Server.FrontendURL)
+	}
+	if c.WebAuthn.Enabled {
+		c.WebAuthn.RPDisplayName = strings.TrimSpace(c.WebAuthn.RPDisplayName)
+		c.WebAuthn.RPID = strings.ToLower(strings.TrimSpace(c.WebAuthn.RPID))
+		c.WebAuthn.RPOrigins = normalizeStringSlice(c.WebAuthn.RPOrigins)
+		if c.WebAuthn.RPDisplayName == "" {
+			return fmt.Errorf("webauthn.rp_display_name is required when passkeys are enabled")
+		}
+		if c.WebAuthn.RPID == "" {
+			return fmt.Errorf("webauthn.rp_id is required when passkeys are enabled")
+		}
+		if strings.Contains(c.WebAuthn.RPID, "://") || strings.ContainsAny(c.WebAuthn.RPID, "/:") {
+			return fmt.Errorf("webauthn.rp_id must be a domain without scheme, port, or path")
+		}
+		if len(c.WebAuthn.RPOrigins) == 0 {
+			return fmt.Errorf("webauthn.rp_origins must contain at least one origin when passkeys are enabled")
+		}
+		for i, origin := range c.WebAuthn.RPOrigins {
+			u, err := url.Parse(origin)
+			if err != nil || u.Scheme == "" || u.Host == "" {
+				return fmt.Errorf("webauthn.rp_origins contains invalid origin %q", origin)
+			}
+			if u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" {
+				return fmt.Errorf("webauthn.rp_origins entry %q must not include userinfo, path, query, or fragment", origin)
+			}
+			u.Scheme = strings.ToLower(u.Scheme)
+			u.Host = strings.ToLower(u.Host)
+			host := strings.ToLower(u.Hostname())
+			localDevelopment := host == "localhost" || host == "127.0.0.1" || host == "::1"
+			if u.Scheme != "https" && (u.Scheme != "http" || !localDevelopment) {
+				return fmt.Errorf("webauthn.rp_origins entry %q must use HTTPS (HTTP is allowed only for localhost)", origin)
+			}
+			if host != c.WebAuthn.RPID && !strings.HasSuffix(host, "."+c.WebAuthn.RPID) {
+				return fmt.Errorf("webauthn.rp_origins entry %q is not within relying party ID %q", origin, c.WebAuthn.RPID)
+			}
+			c.WebAuthn.RPOrigins[i] = u.Scheme + "://" + u.Host
+		}
 	}
 	if c.JWT.ExpireHour <= 0 {
 		return fmt.Errorf("jwt.expire_hour must be positive")
@@ -3475,6 +3553,20 @@ func (c *Config) Validate() error {
 	}
 	if c.Concurrency.PingInterval < 5 || c.Concurrency.PingInterval > 30 {
 		return fmt.Errorf("concurrency.ping_interval must be between 5-30 seconds")
+	}
+	if c.Gateway.Grok.FreeQuotaSoftGateEnabled {
+		if c.Gateway.Grok.FreeQuotaTokenLimit <= 0 {
+			return fmt.Errorf("gateway.grok.free_quota_token_limit must be positive")
+		}
+		if c.Gateway.Grok.FreeQuotaSoftGatePercent < 1 || c.Gateway.Grok.FreeQuotaSoftGatePercent > 100 {
+			return fmt.Errorf("gateway.grok.free_quota_soft_gate_percent must be between 1 and 100")
+		}
+		if c.Gateway.Grok.FreeQuotaWindowHours <= 0 {
+			return fmt.Errorf("gateway.grok.free_quota_window_hours must be positive")
+		}
+	}
+	if c.Gateway.Grok.FreeQuotaStatsCacheSeconds < 0 {
+		return fmt.Errorf("gateway.grok.free_quota_stats_cache_seconds must be non-negative")
 	}
 	if err := ValidateDingTalkConfig(c.DingTalk); err != nil {
 		return fmt.Errorf("dingtalk_connect: %w", err)

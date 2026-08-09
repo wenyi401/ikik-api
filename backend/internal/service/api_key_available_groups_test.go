@@ -10,6 +10,7 @@ import (
 )
 
 type apiKeyAvailableGroupsUserRepoStub struct {
+	UserRepository
 	user *User
 }
 
@@ -29,7 +30,7 @@ func (s *apiKeyAvailableGroupsUserRepoStub) GetByEmail(context.Context, string) 
 func (s *apiKeyAvailableGroupsUserRepoStub) GetFirstAdmin(context.Context) (*User, error) {
 	panic("unexpected GetFirstAdmin call")
 }
-func (s *apiKeyAvailableGroupsUserRepoStub) Update(context.Context, *User) error {
+func (s *apiKeyAvailableGroupsUserRepoStub) Update(context.Context, *User, UserUpdateFields) error {
 	panic("unexpected Update call")
 }
 func (s *apiKeyAvailableGroupsUserRepoStub) Delete(context.Context, int64) error {

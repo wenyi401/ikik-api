@@ -34,6 +34,7 @@ import {
 import { Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useDarkMode } from '@/composables/useDarkMode'
+import type { DailyPaymentStats } from '@/types/payment'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
@@ -41,26 +42,38 @@ const { t } = useI18n()
 const isDarkMode = useDarkMode()
 
 const props = defineProps<{
-  data: { date: string; amount: number; count: number }[]
+  data: DailyPaymentStats[]
   loading?: boolean
 }>()
 
+const colors = [
+  ['#10a37f', 'rgba(16, 163, 127, 0.1)'],
+  ['#418fce', 'rgba(65, 143, 206, 0.1)'],
+  ['#d17b2f', 'rgba(209, 123, 47, 0.1)'],
+  ['#a15d84', 'rgba(161, 93, 132, 0.1)'],
+]
+
 const chartData = computed(() => {
   if (!props.data || props.data.length === 0) return null
+  const currencies = [...new Set(props.data.flatMap((day) => Object.keys(day.amount)))].sort()
+
   return {
     labels: props.data.map(d => d.date),
     datasets: [
-      {
-        label: t('payment.admin.revenue'),
-        data: props.data.map(d => d.amount),
-        borderColor: isDarkMode.value ? '#f2f2f2' : '#171717',
-        backgroundColor: isDarkMode.value ? 'rgba(242, 242, 242, 0.06)' : 'rgba(23, 23, 23, 0.05)',
-        fill: true,
-        tension: 0.28,
-        borderWidth: 2,
-        pointRadius: 0,
-        pointHoverRadius: 3,
-      },
+      ...currencies.map((currency, index) => {
+        const [borderColor, backgroundColor] = colors[index % colors.length]
+        return {
+          label: `${currency.toUpperCase()} ${t('payment.admin.revenue')}`,
+          data: props.data.map(day => day.amount[currency] || 0),
+          borderColor,
+          backgroundColor,
+          fill: true,
+          tension: 0.28,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 3,
+        }
+      }),
       {
         label: t('payment.admin.orderCount'),
         data: props.data.map(d => d.count),

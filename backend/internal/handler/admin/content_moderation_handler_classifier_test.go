@@ -57,7 +57,7 @@ func (r *contentModerationHandlerSettingRepo) Delete(_ context.Context, key stri
 func TestContentModerationHandlerPersistsClassifierRoutingFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := &contentModerationHandlerSettingRepo{values: map[string]string{}}
-	svc := service.NewContentModerationService(repo, nil, nil, nil, nil, nil, nil)
+	svc := service.NewContentModerationService(repo, nil, nil, nil, nil, nil, nil, nil)
 	handler := NewContentModerationHandler(svc)
 	router := gin.New()
 	router.PUT("/config", handler.UpdateConfig)

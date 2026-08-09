@@ -140,6 +140,9 @@ func TestCheckErrorPolicy(t *testing.T) {
 				Type:     AccountTypeOAuth,
 				Platform: PlatformAntigravity,
 				Credentials: map[string]any{
+					"model_mapping": map[string]any{
+						"claude-sonnet-4-5": "claude-sonnet-4-5",
+					},
 					"temp_unschedulable_enabled": true,
 					"temp_unschedulable_rules": []any{
 						map[string]any{

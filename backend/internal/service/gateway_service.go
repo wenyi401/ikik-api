@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -21,9 +22,11 @@ import (
 	"github.com/cespare/xxhash/v2"
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"golang.org/x/sync/singleflight"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/logger"
+	"ikik-api/internal/pkg/xai"
 	"ikik-api/internal/util/responseheaders"
 )
 
@@ -444,6 +447,11 @@ var allowedHeaders = map[string]bool{
 	"x-client-request-id":                       true,
 }
 
+// ErrStickySessionNotFound distinguishes a cache miss from an actual cache
+// read failure so profit-controlled sticky binding can preserve an existing
+// binding without masking infrastructure errors.
+var ErrStickySessionNotFound = errors.New("sticky session not found")
+
 // GatewayCache 定义网关服务的缓存操作接口。
 // 提供粘性会话（Sticky Session）的存储、查询、刷新和删除功能。
 //
@@ -462,6 +470,12 @@ type GatewayCache interface {
 	// DeleteSessionAccountID 删除粘性会话绑定，用于账号不可用时主动清理
 	// Delete sticky session binding, used to proactively clean up when account becomes unavailable
 	DeleteSessionAccountID(ctx context.Context, groupID int64, sessionHash string) error
+
+	// Grok async video billing snapshot (create -> status success).
+	SetGrokVideoPendingBilling(ctx context.Context, key string, payload []byte, ttl time.Duration) error
+	GetGrokVideoPendingBilling(ctx context.Context, key string) ([]byte, error)
+	ClaimGrokVideoBilled(ctx context.Context, key string, ttl time.Duration) (bool, error)
+	ReleaseGrokVideoBilled(ctx context.Context, key string) error
 }
 
 // derefGroupID safely dereferences *int64 to int64, returning 0 if nil
@@ -537,6 +551,14 @@ type AccountSelectionResult struct {
 	Acquired    bool
 	ReleaseFunc func()
 	WaitPlan    *AccountWaitPlan // nil means no wait allowed
+	// profitGate carries the gate that was actually active during selection.
+	// Handlers replay it for terminal admission checks outside the scheduler.
+	profitGate *openAIProfitControlGate
+}
+
+// ProfitGateActive reports whether this selection was made under a profit gate.
+func (r *AccountSelectionResult) ProfitGateActive() bool {
+	return r != nil && r.profitGate != nil
 }
 
 // ClaudeUsage 表示Claude API返回的usage信息
@@ -559,12 +581,15 @@ type ForwardResult struct {
 	Model     string
 	// UpstreamModel is the actual upstream model after mapping.
 	// Prefer empty when it is identical to Model; persistence normalizes equal values away as no-op mappings.
-	UpstreamModel    string
-	Stream           bool
-	Duration         time.Duration
-	FirstTokenMs     *int // 首字时间（流式请求）
-	ClientDisconnect bool // 客户端是否在流式传输过程中断开
-	ReasoningEffort  *string
+	UpstreamModel string
+	// UpstreamResponseModel is captured from the successful upstream response.
+	UpstreamResponseModel         string
+	UpstreamResponseModelConflict bool
+	Stream                        bool
+	Duration                      time.Duration
+	FirstTokenMs                  *int // 首字时间（流式请求）
+	ClientDisconnect              bool // 客户端是否在流式传输过程中断开
+	ReasoningEffort               *string
 
 	// 图片生成计费字段（图片生成模型使用）
 	ImageCount         int    // 生成的图片数量
@@ -574,6 +599,8 @@ type ForwardResult struct {
 	ImageOutputSizes   []string
 	ImageSizeSource    string
 	ImageSizeBreakdown map[string]int
+	SearchCount        int
+	AudioUsage         *AudioUsage
 }
 
 // GatewayFailureStage identifies which request stage failed. The zero value is
@@ -616,6 +643,7 @@ type UpstreamFailoverError struct {
 	ResponseHeaders          http.Header // 上游响应头，用于透传 cf-ray/cf-mitigated/content-type 等诊断信息
 	ForceCacheBilling        bool        // Antigravity 粘性会话切换时设为 true
 	RetryableOnSameAccount   bool        // 临时性错误（如 Google 间歇性 400、空响应），应在同一账号上重试 N 次再切换
+	RequestScopedTransient   bool        // 请求级瞬时错误不应改变账号可调度状态
 	SafeToFailoverAfterWrite bool        // 仅写出 SSE 注释等非语义字节时，仍可在同一客户端流中切换账号
 	Stage                    GatewayFailureStage
 	Scope                    GatewayFailureScope
@@ -665,6 +693,9 @@ func (e *sseStreamErrorEventError) Error() string { return "have error in stream
 // 由 handler 层在同账号重试全部用尽、切换账号时调用。
 func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accountID int64, failoverErr *UpstreamFailoverError) {
 	if failoverErr == nil || !failoverErr.RetryableOnSameAccount {
+		return
+	}
+	if failoverErr.RequestScopedTransient {
 		return
 	}
 	// 根据状态码选择封禁策略
@@ -877,6 +908,15 @@ func (s *GatewayService) BindStickySession(ctx context.Context, groupID *int64, 
 		return nil
 	}
 	return s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, accountID, stickySessionTTL)
+}
+
+// bindGatewayStickySessionDuringSelection avoids replacing a healthy binding
+// before the profit-control post-slot admission check has completed.
+func (s *GatewayService) bindGatewayStickySessionDuringSelection(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
+	if gatewayProfitControlGateActive(ctx) {
+		return nil
+	}
+	return s.BindStickySession(ctx, groupID, sessionHash, accountID)
 }
 
 // GetCachedSessionAccountID retrieves the account ID bound to a sticky session.
@@ -1177,6 +1217,70 @@ func (s *GatewayService) getOAuthToken(ctx context.Context, account *Account) (s
 
 // GetAvailableModels returns the list of models available for a group
 // It aggregates model_mapping keys from all schedulable accounts in the group
+// DoGrokNativeResponsesJSON POSTs a non-streaming Responses body to the
+// account's Grok upstream and returns the raw JSON response for web search.
+func (s *GatewayService) DoGrokNativeResponsesJSON(ctx context.Context, account *Account, body []byte) ([]byte, error) {
+	if s == nil || s.httpUpstream == nil {
+		return nil, errors.New("http upstream not configured")
+	}
+	if account == nil {
+		return nil, errors.New("account is required")
+	}
+	if !account.IsGrok() {
+		return nil, errors.New("grok account required")
+	}
+	token, _, err := s.GetAccessToken(ctx, account)
+	if err != nil {
+		return nil, &UpstreamFailoverError{
+			StatusCode: http.StatusUnauthorized,
+			Reason:     GatewayFailureReason("grok_search_token"),
+		}
+	}
+	targetURL, err := buildGrokResponsesURL(account, nil, s.settingService)
+	if err != nil {
+		return nil, err
+	}
+	if json.Valid(body) && strings.TrimSpace(gjson.GetBytes(body, "model").String()) == "" {
+		if patched, patchErr := sjson.SetBytes(body, "model", xai.DefaultTextModel); patchErr == nil {
+			body = patched
+		}
+	}
+	upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("build grok responses request: %w", err)
+	}
+	upstreamReq.Header.Set("Authorization", "Bearer "+token)
+	upstreamReq.Header.Set("Content-Type", "application/json")
+	upstreamReq.Header.Set("Accept", "application/json")
+	upstreamReq.Header.Set("User-Agent", defaultGrokUpstreamUserAgent())
+	applyGrokCLIHeaders(upstreamReq.Header)
+	account.ApplyHeaderOverrides(upstreamReq.Header)
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	if err != nil {
+		return nil, &UpstreamFailoverError{StatusCode: http.StatusBadGateway, Reason: GatewayFailureReason("grok_search_transport")}
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBytes, readErr := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if readErr != nil {
+		return nil, &UpstreamFailoverError{StatusCode: http.StatusBadGateway, Reason: GatewayFailureReason("grok_search_read")}
+	}
+	if resp.StatusCode >= http.StatusBadRequest {
+		message := string(respBytes)
+		if len(message) > 200 {
+			message = message[:200]
+		}
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusPaymentRequired || resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= http.StatusInternalServerError {
+			return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBytes}
+		}
+		return nil, fmt.Errorf("grok upstream %d: %s", resp.StatusCode, message)
+	}
+	return respBytes, nil
+}
+
 func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64, platform string) []string {
 	cacheKey := modelsListCacheKey(groupID, platform)
 	if s.modelsListCache != nil {

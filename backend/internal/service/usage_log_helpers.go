@@ -10,14 +10,12 @@ func optionalTrimmedStringPtr(raw string) *string {
 	return &trimmed
 }
 
-// optionalNonEqualStringPtr returns a pointer to value if it is non-empty and
-// differs from compare; otherwise nil. Used to store upstream_model only when
-// it differs from the requested model.
-func optionalNonEqualStringPtr(value, compare string) *string {
-	if value == "" || value == compare {
+func optionalNonEqualStringPtr(raw, other string) *string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" || trimmed == strings.TrimSpace(other) {
 		return nil
 	}
-	return &value
+	return &trimmed
 }
 
 func forwardResultBillingModel(requestedModel, upstreamModel string) string {

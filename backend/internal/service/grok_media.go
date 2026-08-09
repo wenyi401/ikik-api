@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"ikik-api/internal/config"
 	"ikik-api/internal/util/responseheaders"
 )
 
@@ -292,9 +293,13 @@ func (s *OpenAIGatewayService) BindGrokMediaVideoRequestAccount(
 	if cacheKey == "" || accountID <= 0 {
 		return fmt.Errorf("grok video request binding is invalid")
 	}
-	ttl := openaiStickySessionTTL
+	// A video job can finish after the regular sticky-session TTL. Retain the
+	// account binding for at least as long as its deferred billing snapshot.
+	ttl := grokVideoPendingBillingTTL(s.cfg)
 	if s.cfg != nil && s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds > 0 {
-		ttl = time.Duration(s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second
+		if stickyTTL := time.Duration(s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second; stickyTTL > ttl {
+			ttl = stickyTTL
+		}
 	}
 	return s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), cacheKey, accountID, ttl)
 }
@@ -313,6 +318,193 @@ func (s *OpenAIGatewayService) ResolveGrokMediaVideoRequestAccount(
 		return 0, fmt.Errorf("grok video request binding is invalid")
 	}
 	return s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), cacheKey)
+}
+
+// GrokVideoPendingBilling preserves create-time data until an asynchronous job
+// reaches its official completed state. Status responses may omit pricing fields.
+type GrokVideoPendingBilling struct {
+	Model                string `json:"model"`
+	BillingModel         string `json:"billing_model,omitempty"`
+	UpstreamModel        string `json:"upstream_model,omitempty"`
+	VideoResolution      string `json:"video_resolution,omitempty"`
+	VideoDurationSeconds int    `json:"video_duration_seconds,omitempty"`
+	OriginalModel        string `json:"original_model,omitempty"`
+	CreatedAt            string `json:"created_at,omitempty"`
+}
+
+func GrokVideoPendingCreatedAtNow() string {
+	return time.Now().UTC().Format(time.RFC3339Nano)
+}
+
+// GrokVideoE2EDuration measures create acceptance through completion discovery.
+func GrokVideoE2EDuration(createdAt string, discoveredAt time.Time) time.Duration {
+	createdAt = strings.TrimSpace(createdAt)
+	if createdAt == "" {
+		return 0
+	}
+	if discoveredAt.IsZero() {
+		discoveredAt = time.Now()
+	}
+	created, err := time.Parse(time.RFC3339Nano, createdAt)
+	if err != nil {
+		created, err = time.Parse(time.RFC3339, createdAt)
+		if err != nil {
+			return 0
+		}
+	}
+	duration := discoveredAt.Sub(created)
+	if duration < 0 {
+		return 0
+	}
+	return duration
+}
+
+func grokVideoPendingBillingKey(requestID string, userID, apiKeyID int64) string {
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" || userID <= 0 || apiKeyID <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d:%d:%s", userID, apiKeyID, requestID)
+}
+
+func grokVideoPendingBillingTTL(_ *config.Config) time.Duration { return 24 * time.Hour }
+
+func grokVideoBilledClaimTTL(_ *config.Config) time.Duration { return 48 * time.Hour }
+
+func (s *OpenAIGatewayService) StoreGrokVideoPendingBilling(ctx context.Context, requestID string, userID, apiKeyID int64, pending GrokVideoPendingBilling) error {
+	if s == nil || s.cache == nil {
+		return fmt.Errorf("grok video pending billing cache is unavailable")
+	}
+	key := grokVideoPendingBillingKey(requestID, userID, apiKeyID)
+	if key == "" {
+		return fmt.Errorf("grok video pending billing key is invalid")
+	}
+	pending.Model = strings.TrimSpace(pending.Model)
+	pending.BillingModel = strings.TrimSpace(pending.BillingModel)
+	pending.UpstreamModel = strings.TrimSpace(pending.UpstreamModel)
+	pending.OriginalModel = strings.TrimSpace(pending.OriginalModel)
+	if pending.VideoResolution != "" {
+		pending.VideoResolution = NormalizeVideoBillingResolutionOrDefault(pending.VideoResolution)
+	}
+	if pending.VideoDurationSeconds > 0 {
+		pending.VideoDurationSeconds = NormalizeVideoBillingDurationSecondsOrDefault(pending.VideoDurationSeconds)
+	}
+	if strings.TrimSpace(pending.CreatedAt) == "" {
+		pending.CreatedAt = GrokVideoPendingCreatedAtNow()
+	} else {
+		pending.CreatedAt = strings.TrimSpace(pending.CreatedAt)
+	}
+	payload, err := json.Marshal(pending)
+	if err != nil {
+		return err
+	}
+	return s.cache.SetGrokVideoPendingBilling(ctx, key, payload, grokVideoPendingBillingTTL(s.cfg))
+}
+
+func (s *OpenAIGatewayService) LoadGrokVideoPendingBilling(ctx context.Context, requestID string, userID, apiKeyID int64) (*GrokVideoPendingBilling, error) {
+	if s == nil || s.cache == nil {
+		return nil, fmt.Errorf("grok video pending billing cache is unavailable")
+	}
+	key := grokVideoPendingBillingKey(requestID, userID, apiKeyID)
+	if key == "" {
+		return nil, fmt.Errorf("grok video pending billing key is invalid")
+	}
+	payload, err := s.cache.GetGrokVideoPendingBilling(ctx, key)
+	if err != nil || len(payload) == 0 {
+		return nil, err
+	}
+	var pending GrokVideoPendingBilling
+	if err := json.Unmarshal(payload, &pending); err != nil {
+		return nil, err
+	}
+	return &pending, nil
+}
+
+// ClaimGrokVideoBilling atomically elects one completion poll as the biller.
+func (s *OpenAIGatewayService) ClaimGrokVideoBilling(ctx context.Context, requestID string, userID, apiKeyID int64) (bool, error) {
+	if s == nil || s.cache == nil {
+		return false, fmt.Errorf("grok video billing claim cache is unavailable")
+	}
+	key := grokVideoPendingBillingKey(requestID, userID, apiKeyID)
+	if key == "" {
+		return false, fmt.Errorf("grok video billing claim key is invalid")
+	}
+	return s.cache.ClaimGrokVideoBilled(ctx, key, grokVideoBilledClaimTTL(s.cfg))
+}
+
+func (s *OpenAIGatewayService) ReleaseGrokVideoBilling(ctx context.Context, requestID string, userID, apiKeyID int64) error {
+	if s == nil || s.cache == nil {
+		return fmt.Errorf("grok video billing claim cache is unavailable")
+	}
+	key := grokVideoPendingBillingKey(requestID, userID, apiKeyID)
+	if key == "" {
+		return fmt.Errorf("grok video billing claim key is invalid")
+	}
+	return s.cache.ReleaseGrokVideoBilled(ctx, key)
+}
+
+func StableGrokVideoBillingRequestID(taskRequestID string) string {
+	taskRequestID = strings.TrimSpace(taskRequestID)
+	if taskRequestID == "" || strings.HasPrefix(taskRequestID, "grok-video:") {
+		return taskRequestID
+	}
+	return "grok-video:" + taskRequestID
+}
+
+// IsGrokVideoStatusBillable accepts only the documented xAI completion shape:
+// status=done with a non-empty video.url.
+func IsGrokVideoStatusBillable(statusBody []byte) bool {
+	return len(statusBody) > 0 && gjson.ValidBytes(statusBody) &&
+		strings.EqualFold(strings.TrimSpace(gjson.GetBytes(statusBody, "status").String()), "done") &&
+		strings.TrimSpace(gjson.GetBytes(statusBody, "video.url").String()) != ""
+}
+
+func ExtractGrokVideoBillingFromStatusBody(statusBody []byte, pending *GrokVideoPendingBilling, requestID string) *OpenAIForwardResult {
+	if !IsGrokVideoStatusBillable(statusBody) {
+		return nil
+	}
+	model := strings.TrimSpace(gjson.GetBytes(statusBody, "model").String())
+	durationSeconds := 0
+	if duration := gjson.GetBytes(statusBody, "video.duration"); duration.Exists() && duration.Type == gjson.Number {
+		durationSeconds = int(duration.Int())
+	}
+	billingModel, upstreamModel, resolution := "", "", ""
+	if pending != nil {
+		if model == "" {
+			model = firstNonEmpty(pending.BillingModel, pending.Model, pending.OriginalModel)
+		}
+		billingModel = firstNonEmpty(pending.BillingModel, pending.Model)
+		upstreamModel = pending.UpstreamModel
+		resolution = pending.VideoResolution
+		if durationSeconds <= 0 {
+			durationSeconds = pending.VideoDurationSeconds
+		}
+	}
+	if model == "" {
+		model = "grok-imagine-video"
+	}
+	if billingModel == "" {
+		billingModel = model
+	}
+	if resolution != "" {
+		resolution = NormalizeVideoBillingResolutionOrDefault(resolution)
+	}
+	if durationSeconds > 0 {
+		durationSeconds = NormalizeVideoBillingDurationSecondsOrDefault(durationSeconds)
+	}
+	responseID := extractGrokMediaVideoRequestID(statusBody)
+	if responseID == "" {
+		responseID = strings.TrimSpace(requestID)
+	}
+	return &OpenAIForwardResult{
+		ResponseID:           responseID,
+		Model:                model,
+		BillingModel:         billingModel,
+		UpstreamModel:        upstreamModel,
+		VideoCount:           1,
+		VideoResolution:      resolution,
+		VideoDurationSeconds: durationSeconds,
+	}
 }
 
 func (s *OpenAIGatewayService) ForwardGrokMedia(
@@ -783,6 +975,8 @@ func NormalizeGrokMediaModelForEndpoint(endpoint GrokMediaEndpoint, model string
 type grokMediaUsageMetadata struct {
 	ResponseID           string
 	Usage                OpenAIUsage
+	Model                string
+	BillingModel         string
 	ImageCount           int
 	ImageSize            string
 	ImageInputSize       string
@@ -802,12 +996,20 @@ func grokMediaUsageFromResponse(endpoint GrokMediaEndpoint, requestInfo GrokMedi
 		meta.ImageInputSize = requestInfo.Size
 		meta.ImageOutputSizes = collectOpenAIResponseImageOutputSizesFromJSONBytes(responseBody)
 	case GrokMediaEndpointVideosGenerations, GrokMediaEndpointVideosEdits, GrokMediaEndpointVideosExtensions:
+		// Creation only accepts an asynchronous job. Bill exactly once when a
+		// later status/content read observes the official completed response.
 		meta.ResponseID = extractGrokMediaVideoRequestID(responseBody)
-		meta.VideoCount = 1
 		meta.VideoResolution = requestInfo.Resolution
 		meta.VideoDurationSeconds = requestInfo.DurationSeconds
-		// Keep the legacy media-unit counter populated for existing usage displays.
-		meta.ImageCount = 1
+	case GrokMediaEndpointVideoStatus:
+		if billed := ExtractGrokVideoBillingFromStatusBody(responseBody, nil, ""); billed != nil {
+			meta.ResponseID = billed.ResponseID
+			meta.Model = billed.Model
+			meta.BillingModel = billed.BillingModel
+			meta.VideoCount = billed.VideoCount
+			meta.VideoResolution = billed.VideoResolution
+			meta.VideoDurationSeconds = billed.VideoDurationSeconds
+		}
 	}
 	return meta
 }

@@ -72,6 +72,19 @@ const gatewayForwardingCacheTTL = 60 * time.Second
 const gatewayForwardingErrorTTL = 5 * time.Second
 const gatewayForwardingDBTimeout = 5 * time.Second
 
+// cachedAccountSchedulingThresholds caches platform automatic pause thresholds.
+type cachedAccountSchedulingThresholds struct {
+	thresholds map[string]int
+	expiresAt  int64
+}
+
+var accountSchedulingThresholdsCache atomic.Value // *cachedAccountSchedulingThresholds
+var accountSchedulingThresholdsSF singleflight.Group
+
+const accountSchedulingThresholdsCacheTTL = 60 * time.Second
+const accountSchedulingThresholdsErrorTTL = 5 * time.Second
+const accountSchedulingThresholdsDBTimeout = 5 * time.Second
+
 // cachedAntigravityUserAgentVersion 缓存 Antigravity UA 版本号（进程内缓存，60s TTL）
 type cachedAntigravityUserAgentVersion struct {
 	version   string
@@ -92,6 +105,16 @@ type cachedOpenAICodexUserAgent struct {
 	value     string
 	expiresAt int64 // unix nano
 }
+
+type cachedOpenAICodexClientVersion struct {
+	version   string
+	expiresAt int64
+}
+
+const openAICodexClientVersionCacheTTL = 60 * time.Second
+const openAICodexClientVersionErrorTTL = 5 * time.Second
+const openAICodexClientVersionDBTimeout = 5 * time.Second
+const openAICodexClientVersionSFKey = "openai_codex_client_version"
 
 type cachedOpenAIQuotaAutoPauseSettings struct {
 	settings  OpsOpenAIAccountQuotaAutoPauseSettings
@@ -282,6 +305,69 @@ func (s *SettingService) GetOpenAICodexUserAgent(ctx context.Context) string {
 		return ua
 	}
 	return fallback
+}
+
+// GetOpenAICodexClientVersion returns the effective outbound Codex version.
+func (s *SettingService) GetOpenAICodexClientVersion(ctx context.Context) string {
+	fallback := codexCLIVersion
+	if s == nil || s.settingRepo == nil {
+		return fallback
+	}
+	if cached, ok := s.openAICodexVersionCache.Load().(*cachedOpenAICodexClientVersion); ok && cached != nil && time.Now().UnixNano() < cached.expiresAt {
+		return cached.version
+	}
+	result, _, _ := s.openAICodexVersionSF.Do(openAICodexClientVersionSFKey, func() (any, error) {
+		if cached, ok := s.openAICodexVersionCache.Load().(*cachedOpenAICodexClientVersion); ok && cached != nil && time.Now().UnixNano() < cached.expiresAt {
+			return cached.version, nil
+		}
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), openAICodexClientVersionDBTimeout)
+		defer cancel()
+		values, err := s.settingRepo.GetMultiple(dbCtx, []string{SettingKeyOpenAICodexClientVersion, SettingKeyOpenAICodexClientVersionSynced})
+		if err != nil {
+			slog.Warn("failed to get openai codex client version setting", "error", err)
+			s.openAICodexVersionCache.Store(&cachedOpenAICodexClientVersion{version: fallback, expiresAt: time.Now().Add(openAICodexClientVersionErrorTTL).UnixNano()})
+			return fallback, nil
+		}
+		version := NormalizeCodexClientVersion(values[SettingKeyOpenAICodexClientVersion])
+		if version == "" {
+			version = NormalizeCodexClientVersion(values[SettingKeyOpenAICodexClientVersionSynced])
+		}
+		if version == "" {
+			version = fallback
+		}
+		s.openAICodexVersionCache.Store(&cachedOpenAICodexClientVersion{version: version, expiresAt: time.Now().Add(openAICodexClientVersionCacheTTL).UnixNano()})
+		return version, nil
+	})
+	if version, ok := result.(string); ok && version != "" {
+		return version
+	}
+	return fallback
+}
+
+func (s *SettingService) InvalidateOpenAICodexClientVersionCache() {
+	if s == nil {
+		return
+	}
+	s.openAICodexVersionSF.Forget(openAICodexClientVersionSFKey)
+	s.openAICodexVersionCache.Store((*cachedOpenAICodexClientVersion)(nil))
+}
+
+func (s *SettingService) GetOpenAICodexCanonicalUserAgent(ctx context.Context) string {
+	if s == nil {
+		return codexCLIUserAgent
+	}
+	version := s.GetOpenAICodexClientVersion(ctx)
+	ua := strings.TrimSpace(s.GetOpenAICodexUserAgent(ctx))
+	if ua == "" {
+		return buildCodexCLIUserAgent(version)
+	}
+	if rebuilt := openai.SetCodexUserAgentVersion(ua, version); rebuilt != "" {
+		return rebuilt
+	}
+	return ua
 }
 
 var legacyClaudeCodeCodexWhitelistEntry = openai.AllowedClientEntry{

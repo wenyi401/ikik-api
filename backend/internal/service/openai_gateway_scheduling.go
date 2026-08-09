@@ -19,6 +19,34 @@ import (
 	"ikik-api/internal/pkg/xai"
 )
 
+const (
+	openCodeSessionAffinityHeader = "X-Session-Affinity"
+	openCodeSessionIDHeader       = "X-Session-Id"
+	openCodeNativeSessionHeader   = "X-OpenCode-Session"
+	codeBuddyConversationHeader   = "X-Conversation-ID"
+)
+
+var explicitOpenAIHeaderSessionNames = []string{
+	"session_id",
+	"conversation_id",
+	openCodeSessionAffinityHeader,
+	openCodeSessionIDHeader,
+	openCodeNativeSessionHeader,
+	codeBuddyConversationHeader,
+}
+
+func explicitOpenAIHeaderSessionID(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	for _, header := range explicitOpenAIHeaderSessionNames {
+		if sessionID := strings.TrimSpace(c.GetHeader(header)); sessionID != "" {
+			return sessionID
+		}
+	}
+	return ""
+}
+
 // ExtractSessionID extracts the raw session ID from headers or body without hashing.
 // Used by ForwardAsAnthropic to pass as prompt_cache_key for upstream cache.
 func (s *OpenAIGatewayService) ExtractSessionID(c *gin.Context, body []byte) string {
@@ -30,10 +58,7 @@ func explicitOpenAISessionID(c *gin.Context, body []byte) string {
 		return ""
 	}
 
-	sessionID := strings.TrimSpace(c.GetHeader("session_id"))
-	if sessionID == "" {
-		sessionID = strings.TrimSpace(c.GetHeader("conversation_id"))
-	}
+	sessionID := explicitOpenAIHeaderSessionID(c)
 	if sessionID == "" && len(body) > 0 {
 		sessionID = strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())
 	}
@@ -49,10 +74,7 @@ func explicitOpenAIRequestSessionID(c *gin.Context, body []byte) string {
 		return ""
 	}
 
-	sessionID := strings.TrimSpace(c.GetHeader("session_id"))
-	if sessionID == "" {
-		sessionID = strings.TrimSpace(c.GetHeader("conversation_id"))
-	}
+	sessionID := explicitOpenAIHeaderSessionID(c)
 	if sessionID == "" && isGrokRequestContext(c) {
 		sessionID = strings.TrimSpace(c.GetHeader(grokConversationIDHeader))
 	}
