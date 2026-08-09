@@ -50,6 +50,10 @@ const (
 	// OpenAIImageGenerationIntent 标识 OpenAI 请求会触发生图能力（用于图片能力维度限流）
 	OpenAIImageGenerationIntent Key = "ctx_openai_image_generation_intent"
 
+	// OpenAIImagesEndpoint distinguishes the dedicated /v1/images/* endpoint
+	// from a Responses request that happens to invoke image generation.
+	OpenAIImagesEndpoint Key = "ctx_openai_images_endpoint"
+
 	// Group 认证后的分组信息，由 API Key 认证中间件设置
 	Group Key = "ctx_group"
 

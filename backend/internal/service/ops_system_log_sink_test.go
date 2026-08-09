@@ -249,6 +249,67 @@ func TestOpsSystemLogSink_FlushFailureUpdatesHealth(t *testing.T) {
 	t.Fatalf("write_failed_count not updated")
 }
 
+func TestOpsSystemLogSinkFlushBackoffFor(t *testing.T) {
+	sink := &OpsSystemLogSink{flushBackoff: time.Second, flushBackoffMax: 8 * time.Second}
+	for _, tc := range []struct {
+		failures int
+		want     time.Duration
+	}{
+		{failures: 1, want: time.Second},
+		{failures: 2, want: 2 * time.Second},
+		{failures: 3, want: 4 * time.Second},
+		{failures: 4, want: 8 * time.Second},
+		{failures: 100, want: 8 * time.Second},
+	} {
+		if got := sink.flushBackoffFor(tc.failures); got != tc.want {
+			t.Fatalf("flushBackoffFor(%d) = %s, want %s", tc.failures, got, tc.want)
+		}
+	}
+}
+
+func TestOpsSystemLogSinkSuppressesWritesDuringBackoff(t *testing.T) {
+	var calls int64
+	repo := &opsRepoMock{
+		BatchInsertSystemLogsFn: func(context.Context, []*OpsInsertSystemLogInput) (int64, error) {
+			atomic.AddInt64(&calls, 1)
+			return 0, errors.New("db unavailable")
+		},
+	}
+	sink := NewOpsSystemLogSink(repo)
+	sink.batchSize = 1
+	sink.flushInterval = time.Millisecond
+	sink.flushBackoff = 250 * time.Millisecond
+	sink.flushBackoffMax = 250 * time.Millisecond
+	sink.Start()
+	defer sink.Stop()
+
+	event := func() {
+		sink.WriteLogEvent(&logger.LogEvent{Time: time.Now(), Level: "warn", Component: "app", Message: "boom"})
+	}
+	event()
+	deadline := time.Now().Add(time.Second)
+	for sink.Health().WriteFailed == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if health := sink.Health(); health.WriteFailed == 0 {
+		t.Fatal("initial failed flush was not recorded")
+	}
+	if got := atomic.LoadInt64(&calls); got != 1 {
+		t.Fatalf("initial flush calls = %d, want 1", got)
+	}
+
+	for i := 0; i < 10; i++ {
+		event()
+	}
+	time.Sleep(30 * time.Millisecond)
+	if got := atomic.LoadInt64(&calls); got != 1 {
+		t.Fatalf("flush calls during backoff = %d, want 1", got)
+	}
+	if got := sink.Health().DroppedCount; got == 0 {
+		t.Fatal("suppressed log batches must increase dropped count")
+	}
+}
+
 func TestOpsSystemLogSink_StopFlushUsesActiveContextAndDrainsQueue(t *testing.T) {
 	var inserted int64
 	var canceledCtxCalls int64

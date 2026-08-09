@@ -199,6 +199,50 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.account_level).toBe('plus')
   })
 
+  it('updates an API key account without resubmitting its redacted key', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      base_url: 'https://api.example.com',
+      model_mapping: {
+        'gpt-5.2': 'gpt-5.2'
+      }
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toEqual(expect.objectContaining({
+      base_url: 'https://api.example.com'
+    }))
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('api_key')
+  })
+
+  it('lets a user update an API key account without resubmitting its redacted key', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      base_url: 'https://api.example.com'
+    }
+    updateUserAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateUserAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await wrapper.setProps({ accountScope: 'user' })
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateUserAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateUserAccountMock.mock.calls[0]?.[1]?.credentials).toEqual(expect.objectContaining({
+      base_url: 'https://api.example.com'
+    }))
+    expect(updateUserAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('api_key')
+  })
+
   it('keeps account level read-only for user-scoped account edits', async () => {
     const account = buildAccount()
     account.type = 'oauth'

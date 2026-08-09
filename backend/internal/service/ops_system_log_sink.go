@@ -34,6 +34,10 @@ type OpsSystemLogSink struct {
 	batchSize     int
 	flushInterval time.Duration
 
+	// Consecutive write failures must not let best-effort logs exhaust the DB pool.
+	flushBackoff    time.Duration
+	flushBackoffMax time.Duration
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -48,20 +52,53 @@ type OpsSystemLogSink struct {
 
 const maxSystemLogHostLength = 255
 
+const (
+	defaultOpsSystemLogFlushBackoff    = 2 * time.Second
+	defaultOpsSystemLogFlushBackoffMax = 60 * time.Second
+)
+
 func NewOpsSystemLogSink(opsRepo OpsRepository) *OpsSystemLogSink {
 	ctx, cancel := context.WithCancel(context.Background())
 	rawHost, err := os.Hostname()
 	s := &OpsSystemLogSink{
-		opsRepo:       opsRepo,
-		host:          normalizeSystemLogHost(rawHost, err),
-		queue:         make(chan *logger.LogEvent, 5000),
-		batchSize:     200,
-		flushInterval: time.Second,
-		ctx:           ctx,
-		cancel:        cancel,
+		opsRepo:         opsRepo,
+		host:            normalizeSystemLogHost(rawHost, err),
+		queue:           make(chan *logger.LogEvent, 5000),
+		batchSize:       200,
+		flushInterval:   time.Second,
+		flushBackoff:    defaultOpsSystemLogFlushBackoff,
+		flushBackoffMax: defaultOpsSystemLogFlushBackoffMax,
+		ctx:             ctx,
+		cancel:          cancel,
 	}
 	s.lastError.Store("")
 	return s
+}
+
+func (s *OpsSystemLogSink) flushBackoffFor(failures int) time.Duration {
+	base := s.flushBackoff
+	if base <= 0 {
+		base = defaultOpsSystemLogFlushBackoff
+	}
+	maxBackoff := s.flushBackoffMax
+	if maxBackoff <= 0 {
+		maxBackoff = defaultOpsSystemLogFlushBackoffMax
+	}
+	if maxBackoff < base {
+		maxBackoff = base
+	}
+
+	backoff := base
+	for i := 1; i < failures && backoff < maxBackoff; i++ {
+		if backoff >= maxBackoff/2 {
+			return maxBackoff
+		}
+		backoff *= 2
+	}
+	if backoff > maxBackoff {
+		return maxBackoff
+	}
+	return backoff
 }
 
 func normalizeSystemLogHost(host string, err error) string {
@@ -146,20 +183,32 @@ func (s *OpsSystemLogSink) run() {
 	defer ticker.Stop()
 
 	batch := make([]*logger.LogEvent, 0, s.batchSize)
+	failures := 0
+	var suppressedUntil time.Time
 	flush := func(baseCtx context.Context) {
 		if len(batch) == 0 {
+			return
+		}
+		if time.Now().Before(suppressedUntil) {
+			atomic.AddUint64(&s.droppedCount, uint64(len(batch)))
+			batch = batch[:0]
 			return
 		}
 		started := time.Now()
 		inserted, err := s.flushBatch(baseCtx, batch)
 		delay := time.Since(started)
 		if err != nil {
+			failures++
+			backoff := s.flushBackoffFor(failures)
+			suppressedUntil = time.Now().Add(backoff)
 			atomic.AddUint64(&s.writeFailed, uint64(len(batch)))
 			s.lastError.Store(err.Error())
-			_, _ = fmt.Fprintf(os.Stderr, "time=%s level=WARN msg=\"ops system log sink flush failed\" err=%v batch=%d\n",
-				time.Now().Format(time.RFC3339Nano), err, len(batch),
+			_, _ = fmt.Fprintf(os.Stderr, "time=%s level=WARN msg=\"ops system log sink flush failed\" err=%v batch=%d failures=%d backoff=%s\n",
+				time.Now().Format(time.RFC3339Nano), err, len(batch), failures, backoff,
 			)
 		} else {
+			failures = 0
+			suppressedUntil = time.Time{}
 			atomic.AddUint64(&s.writtenCount, uint64(inserted))
 			atomic.AddUint64(&s.totalDelayNs, uint64(delay.Nanoseconds()))
 			s.lastError.Store("")

@@ -580,6 +580,7 @@ func (s *GeminiMessagesCompatService) SelectAccountForAIStudioEndpoints(ctx cont
 }
 
 func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+	beginGeminiImageOutputObservation(c)
 	startTime := time.Now()
 
 	var req struct {
@@ -637,9 +638,9 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 			if req.Stream {
 				action = "streamGenerateContent"
 			}
-			fullURL := fmt.Sprintf("%s/v1beta/models/%s:%s", strings.TrimRight(normalizedBaseURL, "/"), mappedModel, action)
-			if req.Stream {
-				fullURL += "?alt=sse"
+			fullURL, err := buildGeminiAIStudioModelActionURL(normalizedBaseURL, mappedModel, action, req.Stream)
+			if err != nil {
+				return nil, "", err
 			}
 
 			restGeminiReq := normalizeGeminiRequestForAIStudio(geminiReq)
@@ -711,9 +712,9 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 					return nil, "", err
 				}
 
-				fullURL := fmt.Sprintf("%s/v1beta/models/%s:%s", strings.TrimRight(normalizedBaseURL, "/"), mappedModel, action)
-				if useUpstreamStream {
-					fullURL += "?alt=sse"
+				fullURL, err := buildGeminiAIStudioModelActionURL(normalizedBaseURL, mappedModel, action, useUpstreamStream)
+				if err != nil {
+					return nil, "", err
 				}
 
 				restGeminiReq := normalizeGeminiRequestForAIStudio(geminiReq)
@@ -1068,6 +1069,7 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 				return nil, s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to read upstream stream")
 			}
 			collectedBytes, _ := json.Marshal(collected)
+			observeGeminiImageOutputs(c, collectedBytes)
 			claudeResp, usageObj2 := convertGeminiToClaudeMessage(collected, originalModel, collectedBytes)
 			c.JSON(http.StatusOK, claudeResp)
 			usage = usageObj2
@@ -1083,12 +1085,9 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 	}
 
 	// 图片生成计费
-	imageCount := 0
 	imageInputSize := s.extractImageInputSize(body)
 	imageSize := normalizeOpenAIImageSizeTier(imageInputSize)
-	if isImageGenerationModel(originalModel) {
-		imageCount = 1
-	}
+	imageCount := resolveGeminiImageCount(c, originalModel, mappedModel)
 
 	return &ForwardResult{
 		RequestID:      requestID,
@@ -1113,6 +1112,7 @@ func isGeminiSignatureRelatedError(respBody []byte) bool {
 }
 
 func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.Context, account *Account, originalModel string, action string, stream bool, body []byte) (*ForwardResult, error) {
+	beginGeminiImageOutputObservation(c)
 	startTime := time.Now()
 
 	if strings.TrimSpace(originalModel) == "" {
@@ -1177,9 +1177,9 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 				return nil, "", err
 			}
 
-			fullURL := fmt.Sprintf("%s/v1beta/models/%s:%s", strings.TrimRight(normalizedBaseURL, "/"), mappedModel, upstreamAction)
-			if useUpstreamStream {
-				fullURL += "?alt=sse"
+			fullURL, err := buildGeminiAIStudioModelActionURL(normalizedBaseURL, mappedModel, upstreamAction, useUpstreamStream)
+			if err != nil {
+				return nil, "", err
 			}
 
 			upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewReader(body))
@@ -1245,9 +1245,9 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 					return nil, "", err
 				}
 
-				fullURL := fmt.Sprintf("%s/v1beta/models/%s:%s", strings.TrimRight(normalizedBaseURL, "/"), mappedModel, upstreamAction)
-				if useUpstreamStream {
-					fullURL += "?alt=sse"
+				fullURL, err := buildGeminiAIStudioModelActionURL(normalizedBaseURL, mappedModel, upstreamAction, useUpstreamStream)
+				if err != nil {
+					return nil, "", err
 				}
 
 				upstreamReq, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewReader(body))
@@ -1596,6 +1596,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 				return nil, s.writeGoogleError(c, http.StatusBadGateway, "Failed to read upstream stream")
 			}
 			b, _ := json.Marshal(collected)
+			observeGeminiImageOutputs(c, b)
 			c.Data(http.StatusOK, "application/json", b)
 			usage = usageObj
 		} else {
@@ -1612,12 +1613,9 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 	}
 
 	// 图片生成计费
-	imageCount := 0
 	imageInputSize := s.extractImageInputSize(body)
 	imageSize := normalizeOpenAIImageSizeTier(imageInputSize)
-	if isImageGenerationModel(originalModel) {
-		imageCount = 1
-	}
+	imageCount := resolveGeminiImageCount(c, originalModel, mappedModel)
 
 	return &ForwardResult{
 		RequestID:      requestID,
@@ -1959,6 +1957,7 @@ func (s *GeminiMessagesCompatService) handleNonStreamingResponse(c *gin.Context,
 	if err != nil {
 		return nil, s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
+	observeGeminiImageOutputs(c, unwrappedBody)
 
 	var geminiResp map[string]any
 	if err := json.Unmarshal(unwrappedBody, &geminiResp); err != nil {
@@ -2042,6 +2041,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 		if err != nil {
 			continue
 		}
+		observeGeminiImageOutputs(c, unwrappedBytes)
 
 		var geminiResp map[string]any
 		if err := json.Unmarshal(unwrappedBytes, &geminiResp); err != nil {
@@ -2528,6 +2528,7 @@ func (s *GeminiMessagesCompatService) handleNativeNonStreamingResponse(c *gin.Co
 			respBody = unwrappedBody
 		}
 	}
+	observeGeminiImageOutputs(c, respBody)
 
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 
@@ -2606,6 +2607,7 @@ func (s *GeminiMessagesCompatService) handleNativeStreamingResponse(c *gin.Conte
 					if u := extractGeminiUsage(rawBytes); u != nil {
 						usage = u
 					}
+					observeGeminiImageOutputs(c, rawBytes)
 
 					if firstTokenMs == nil {
 						ms := int(time.Since(startTime).Milliseconds())
@@ -2646,10 +2648,11 @@ func (s *GeminiMessagesCompatService) ForwardAIStudioGET(ctx context.Context, ac
 	if account == nil {
 		return nil, errors.New("account is nil")
 	}
-	path = strings.TrimSpace(path)
-	if path == "" || !strings.HasPrefix(path, "/") {
+	sanitizedPath, ok := sanitizedUpstreamPathSuffix(path)
+	if !ok || sanitizedPath == "" {
 		return nil, errors.New("invalid path")
 	}
+	path = sanitizedPath
 
 	baseURL := account.GetGeminiBaseURL(geminicli.AIStudioBaseURL)
 	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)

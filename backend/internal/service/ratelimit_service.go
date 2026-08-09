@@ -2078,6 +2078,9 @@ func (s *RateLimitService) HandleUpstreamModelNotFound(ctx context.Context, acco
 	if modelKey == "" {
 		return false
 	}
+	if shouldSkipCodexPlanGatedImageModelCooldown(ctx, reason, requestedModel, modelKey) {
+		return true
+	}
 	resetAt := time.Now().Add(cooldown)
 	if err := s.accountRepo.SetModelRateLimit(ctx, account.ID, modelKey, resetAt, reason); err != nil {
 		slog.Warn("upstream_model_not_found_set_model_rate_limit_failed", "account_id", account.ID, "model", modelKey, "reason", reason, "error", err)
@@ -2085,6 +2088,13 @@ func (s *RateLimitService) HandleUpstreamModelNotFound(ctx context.Context, acco
 	}
 	slog.Info("upstream_model_not_found_model_rate_limited", "account_id", account.ID, "model", modelKey, "reason", reason, "reset_at", resetAt)
 	return true
+}
+
+func shouldSkipCodexPlanGatedImageModelCooldown(ctx context.Context, reason, requestedModel, modelKey string) bool {
+	if reason != upstreamCodexPlanGatedModelReason || OpenAIImagesEndpointFromContext(ctx) {
+		return false
+	}
+	return IsGPTImageGenerationModel(requestedModel) || IsGPTImageGenerationModel(modelKey)
 }
 
 func modelRateLimitKeyForUpstreamModelNotFound(ctx context.Context, account *Account, requestedModel string) string {

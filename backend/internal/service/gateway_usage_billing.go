@@ -804,6 +804,10 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}, s.billingDeps(), s.usageBillingRepo)
 
 	if billingErr != nil {
+		// Preserve the observed upstream usage for audit and reconciliation, but
+		// record it as unsettled so it cannot be interpreted as a completed debit.
+		usageLog.ActualCost = 0
+		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")

@@ -754,8 +754,15 @@ func openAIStreamDataStartsClientOutput(data, eventType string) bool {
 	if trimmed == "" {
 		return false
 	}
-	if strings.TrimSpace(eventType) == "response.failed" {
+	switch strings.TrimSpace(eventType) {
+	case "response.failed":
 		return false
+	case "error":
+		payload := []byte(trimmed)
+		// Transient error events precede response.failed when the upstream sheds
+		// capacity. They must not count as output or the later pre-output
+		// failover becomes impossible.
+		return !openAIStreamFailedEventShouldFailover(payload, extractOpenAISSEErrorMessage(payload))
 	}
 	return !openAIStreamEventIsPreamble(eventType)
 }
@@ -788,6 +795,41 @@ func openAIStreamFailedEventSemanticStatus(payload []byte, message string) int {
 	default:
 		return http.StatusBadGateway
 	}
+}
+
+func isOpenAIUpstreamCapacityShedEvent(payload []byte) bool {
+	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String()))
+	if code == "" {
+		code = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.code").String()))
+	}
+	return code == "server_is_overloaded" || code == "slow_down"
+}
+
+const openAICapacityShedRetryableClientCode = "server_error"
+
+// sanitizeOpenAICapacityShedErrorCodeForClient only changes the downstream
+// copy after local failover is no longer possible. Codex treats the upstream
+// capacity-shed codes as terminal but retries ordinary server errors.
+func sanitizeOpenAICapacityShedErrorCodeForClient(payload []byte) ([]byte, bool) {
+	if len(payload) == 0 || !gjson.ValidBytes(payload) || !isOpenAIUpstreamCapacityShedEvent(payload) {
+		return payload, false
+	}
+	updated := payload
+	changed := false
+	for _, path := range []string{"response.error.code", "error.code"} {
+		switch strings.ToLower(strings.TrimSpace(gjson.GetBytes(updated, path).String())) {
+		case "server_is_overloaded", "slow_down":
+		default:
+			continue
+		}
+		next, err := sjson.SetBytes(updated, path, openAICapacityShedRetryableClientCode)
+		if err != nil {
+			return payload, false
+		}
+		updated = next
+		changed = true
+	}
+	return updated, changed
 }
 
 func openAIStreamFailureStatus(payload []byte, message string) int {

@@ -1987,6 +1987,13 @@ func (h *AuthHandler) ExchangePendingOAuthCompletion(c *gin.Context) {
 		response.Success(c, payload)
 		return
 	}
+	// Only a completed login or an explicitly authenticated bind flow may adopt
+	// an OAuth profile. Intermediate sessions can reference a user discovered by
+	// email and must never bind an identity to that user.
+	if !canIssueTokenPair && !strings.EqualFold(strings.TrimSpace(session.Intent), oauthIntentBindCurrentUser) {
+		response.Success(c, payload)
+		return
+	}
 	if !adoptionDecision.hasDecision() {
 		adoptionRequired, _ := payload["adoption_required"].(bool)
 		if adoptionRequired {

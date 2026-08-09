@@ -1162,6 +1162,81 @@ func TestAccountServiceUpdateOwnedRejectsManualAccountLevel(t *testing.T) {
 	require.Empty(t, repo.updatedAccounts)
 }
 
+func TestAccountServiceUpdateOwnedPreservesRedactedAPIKey(t *testing.T) {
+	ownerID := int64(101)
+	accountID := int64(2)
+	repo := &ownedAccountDuplicateRepoStub{
+		getByIDAccounts: map[int64]*Account{
+			accountID: {
+				ID:          accountID,
+				Platform:    PlatformCustom,
+				Type:        AccountTypeAPIKey,
+				OwnerUserID: &ownerID,
+				Credentials: map[string]any{
+					"api_key":       "sk-old",
+					"base_url":      "https://api.example.com",
+					"model_mapping": map[string]any{"gpt-5.2": "gpt-5.2"},
+				},
+				Status:      StatusActive,
+				Schedulable: true,
+				Concurrency: 1,
+				Priority:    1,
+			},
+		},
+	}
+	svc := &AccountService{accountRepo: repo}
+	redactedCredentials := map[string]any{
+		"base_url":      "https://api.example.com",
+		"model_mapping": map[string]any{"gpt-5.2": "gpt-5.2-mini"},
+	}
+	concurrency := 3
+
+	account, err := svc.UpdateOwned(context.Background(), ownerID, accountID, UpdateAccountRequest{
+		Credentials: &redactedCredentials,
+		Concurrency: &concurrency,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "sk-old", account.Credentials["api_key"])
+	require.Equal(t, "sk-old", repo.updatedAccounts[0].Credentials["api_key"])
+	require.Equal(t, map[string]any{"gpt-5.2": "gpt-5.2-mini"}, account.Credentials["model_mapping"])
+	require.Equal(t, concurrency, account.Concurrency)
+}
+
+func TestAccountServiceUpdateOwnedReplacesAPIKeyWhenProvided(t *testing.T) {
+	ownerID := int64(101)
+	accountID := int64(2)
+	repo := &ownedAccountDuplicateRepoStub{
+		getByIDAccounts: map[int64]*Account{
+			accountID: {
+				ID:          accountID,
+				Platform:    PlatformCustom,
+				Type:        AccountTypeAPIKey,
+				OwnerUserID: &ownerID,
+				Credentials: map[string]any{
+					"api_key":  "sk-old",
+					"base_url": "https://api.example.com",
+				},
+				Status:      StatusActive,
+				Schedulable: true,
+				Concurrency: 1,
+				Priority:    1,
+			},
+		},
+	}
+	svc := &AccountService{accountRepo: repo}
+	credentials := map[string]any{
+		"api_key":  "sk-new",
+		"base_url": "https://api.example.com",
+	}
+
+	account, err := svc.UpdateOwned(context.Background(), ownerID, accountID, UpdateAccountRequest{Credentials: &credentials})
+
+	require.NoError(t, err)
+	require.Equal(t, "sk-new", account.Credentials["api_key"])
+	require.Equal(t, "sk-new", repo.updatedAccounts[0].Credentials["api_key"])
+}
+
 func TestAccountServiceBulkUpdateOwnedRejectsBatchDuplicateIdentityBeforeWrite(t *testing.T) {
 	ownerID := int64(101)
 	repo := &ownedAccountDuplicateRepoStub{

@@ -185,7 +185,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			return
 		}
 		if activeRouteIndex != routeCursor.index {
-			routeCtx = service.WithOpenAIImageGenerationIntent(gatewayRouteContext(c.Request.Context(), currentAPIKey, subject.UserID))
+			routeCtx = service.WithOpenAIImagesEndpoint(service.WithOpenAIImageGenerationIntent(gatewayRouteContext(c.Request.Context(), currentAPIKey, subject.UserID)))
 			if userRPMCounted {
 				routeCtx = service.WithUserRPMAlreadyCounted(routeCtx)
 			}

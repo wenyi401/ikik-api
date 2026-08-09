@@ -3921,16 +3921,9 @@ const handleSubmit = async () => {
         base_url: newBaseUrl
       }
 
-      // Handle API key
+      // 空输入表示保留已存储的密钥；账号响应中的敏感凭证已脱敏。
       if (editApiKey.value.trim()) {
-        // User provided a new API key
         newCredentials.api_key = editApiKey.value.trim()
-      } else if (currentCredentials.api_key) {
-        // Preserve existing api_key
-        newCredentials.api_key = currentCredentials.api_key
-      } else {
-        appStore.showError(t('admin.accounts.apiKeyIsRequired'))
-        return
       }
 
       // Add model mapping if configured（OpenAI 开启自动透传时保留现有映射，不再编辑）

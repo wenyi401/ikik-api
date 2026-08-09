@@ -252,6 +252,21 @@ func resolveOpenAICompactSessionID(c *gin.Context) string {
 }
 
 func openAIResponsesRequestPathSuffix(c *gin.Context) string {
+	suffix, ok := sanitizedUpstreamPathSuffix(rawOpenAIResponsesRequestPathSuffix(c))
+	if !ok {
+		return ""
+	}
+	return suffix
+}
+
+// IsForwardableOpenAIResponsesRequestPath reports whether a client Responses
+// suffix can safely be forwarded to the upstream endpoint.
+func IsForwardableOpenAIResponsesRequestPath(c *gin.Context) bool {
+	_, ok := sanitizedUpstreamPathSuffix(rawOpenAIResponsesRequestPathSuffix(c))
+	return ok
+}
+
+func rawOpenAIResponsesRequestPathSuffix(c *gin.Context) string {
 	if c == nil || c.Request == nil || c.Request.URL == nil {
 		return ""
 	}
@@ -275,8 +290,8 @@ func openAIResponsesRequestPathSuffix(c *gin.Context) string {
 
 func appendOpenAIResponsesRequestPathSuffix(baseURL, suffix string) string {
 	trimmedBase := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	trimmedSuffix := strings.TrimSpace(suffix)
-	if trimmedBase == "" || trimmedSuffix == "" {
+	trimmedSuffix, ok := sanitizedUpstreamPathSuffix(suffix)
+	if !ok || trimmedBase == "" || trimmedSuffix == "" {
 		return trimmedBase
 	}
 	return trimmedBase + trimmedSuffix

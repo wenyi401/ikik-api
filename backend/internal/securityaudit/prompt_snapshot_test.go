@@ -336,6 +336,22 @@ func TestBlockingPromptSnapshotLimitsInputToLatestUserAndPreviousOutput(t *testi
 	}
 }
 
+func TestResponsesOutputTextIsIncludedInPromptSnapshots(t *testing.T) {
+	body := []byte(`{"input":[
+		{"type":"message","role":"user","content":[{"type":"input_text","text":"earlier user input"}]},
+		{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"previous assistant output"}]},
+		{"type":"message","role":"user","content":[{"type":"input_text","text":"latest user input"}]}
+	]}`)
+
+	full, err := ExtractPromptSnapshot(Request{Protocol: "openai_responses", Body: body})
+	require.NoError(t, err)
+	require.Contains(t, full.ScanText, "previous assistant output")
+
+	latest, err := ExtractBlockingPromptSnapshot(Request{Protocol: "openai_responses", Body: body}, true)
+	require.NoError(t, err)
+	require.Equal(t, "latest user input"+promptAuditPrioritySeparator+"previous assistant output", latest.ScanText)
+}
+
 func TestBlockingPromptSnapshotPreservesFullScopeByDefaultAndWithoutUserInput(t *testing.T) {
 	req := Request{Protocol: "openai_chat_completions", Body: []byte(`{"messages":[{"role":"system","content":"system instruction"},{"role":"user","content":"older user input"},{"role":"assistant","content":"previous output"},{"role":"user","content":"latest user input"}]}`)}
 	full, err := ExtractPromptSnapshot(req)

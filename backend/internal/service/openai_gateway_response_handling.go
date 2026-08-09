@@ -1302,10 +1302,18 @@ func extractOpenAISSEErrorMessage(payload []byte) string {
 }
 
 func sanitizeOpenAIResponseFailedEventForClient(payload []byte, eventType string, clientOutputStarted bool) ([]byte, bool) {
-	if eventType != "response.failed" || len(payload) == 0 || !gjson.ValidBytes(payload) {
+	eventType = strings.TrimSpace(eventType)
+	isFailedEvent := eventType == "response.failed"
+	if (!isFailedEvent && eventType != "error") || len(payload) == 0 || !gjson.ValidBytes(payload) {
 		return payload, false
 	}
 	updated := payload
+	if rewritten, changed := sanitizeOpenAICapacityShedErrorCodeForClient(updated); changed {
+		updated = rewritten
+	}
+	if !isFailedEvent {
+		return updated, !bytes.Equal(updated, payload)
+	}
 	if clientOutputStarted && isOpenAIContextWindowError(extractOpenAISSEErrorMessage(payload), payload) {
 		errorPath := ""
 		switch {

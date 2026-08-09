@@ -12,6 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/authidentity"
 	"ikik-api/ent/enttest"
@@ -22,9 +25,6 @@ import (
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/pquerna/otp/totp"
-	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -904,6 +904,79 @@ func TestExchangePendingOAuthCompletionRejectsDisabledTargetUser(t *testing.T) {
 	handler.ExchangePendingOAuthCompletion(ginCtx)
 
 	require.Equal(t, http.StatusForbidden, recorder.Code)
+
+	storedSession, err := client.PendingAuthSession.Get(ctx, session.ID)
+	require.NoError(t, err)
+	require.Nil(t, storedSession.ConsumedAt)
+}
+
+func TestExchangePendingOAuthCompletionChoiceStateDoesNotBindIdentity(t *testing.T) {
+	handler, client := newOAuthPendingFlowTestHandler(t, false)
+	ctx := context.Background()
+
+	victim, err := client.User.Create().
+		SetEmail("victim@example.com").
+		SetUsername("victim-user").
+		SetPasswordHash("hash").
+		SetRole(service.RoleUser).
+		SetStatus(service.StatusActive).
+		Save(ctx)
+	require.NoError(t, err)
+
+	// This state can refer to an existing email but is not proof that the OAuth
+	// identity belongs to that user. It must return its choice payload without
+	// binding the identity or consuming the pending session.
+	session, err := client.PendingAuthSession.Create().
+		SetSessionToken("choice-state-attack-session-token").
+		SetIntent("login").
+		SetProviderType("linuxdo").
+		SetProviderKey("linuxdo").
+		SetProviderSubject("attacker-subject-123").
+		SetTargetUserID(victim.ID).
+		SetResolvedEmail(victim.Email).
+		SetBrowserSessionKey("choice-state-attack-browser-session-key").
+		SetUpstreamIdentityClaims(map[string]any{
+			"username":               "attacker_linuxdo_user",
+			"suggested_display_name": "Attacker Display Name",
+		}).
+		SetLocalFlowState(map[string]any{
+			oauthCompletionResponseKey: map[string]any{
+				"step":                      oauthPendingChoiceStep,
+				"adoption_required":         true,
+				"email_binding_required":    true,
+				"existing_account_bindable": true,
+				"email":                     victim.Email,
+			},
+		}).
+		SetExpiresAt(time.Now().UTC().Add(10 * time.Minute)).
+		Save(ctx)
+	require.NoError(t, err)
+
+	body := bytes.NewBufferString(`{"adopt_display_name":true,"adopt_avatar":true}`)
+	recorder := httptest.NewRecorder()
+	ginCtx, _ := gin.CreateTestContext(recorder)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/oauth/pending/exchange", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: oauthPendingSessionCookieName, Value: encodeCookieValue(session.SessionToken)})
+	req.AddCookie(&http.Cookie{Name: oauthPendingBrowserCookieName, Value: encodeCookieValue("choice-state-attack-browser-session-key")})
+	ginCtx.Request = req
+
+	handler.ExchangePendingOAuthCompletion(ginCtx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	data := decodeJSONResponseData(t, recorder)
+	require.NotContains(t, data, "access_token")
+	require.Equal(t, oauthPendingChoiceStep, data["step"])
+
+	identityCount, err := client.AuthIdentity.Query().
+		Where(
+			authidentity.ProviderTypeEQ("linuxdo"),
+			authidentity.ProviderKeyEQ("linuxdo"),
+			authidentity.ProviderSubjectEQ("attacker-subject-123"),
+		).
+		Count(ctx)
+	require.NoError(t, err)
+	require.Zero(t, identityCount)
 
 	storedSession, err := client.PendingAuthSession.Get(ctx, session.ID)
 	require.NoError(t, err)

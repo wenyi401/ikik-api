@@ -6,8 +6,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 var ErrUsageBillingRequestIDRequired = errors.New("usage billing request_id is required")
@@ -66,6 +69,36 @@ func (c *UsageBillingCommand) Normalize() {
 	if strings.TrimSpace(c.RequestFingerprint) == "" {
 		c.RequestFingerprint = buildUsageBillingFingerprint(c)
 	}
+	// Keep the idempotency fingerprint based on the original values. A retry of
+	// a pre-upgrade request must not become a fingerprint conflict merely because
+	// the monetary values are now normalized before reaching SQL.
+	c.quantizeMonetaryFields()
+}
+
+// UsageBillingMonetaryScale matches the NUMERIC(20,8) precision used by the
+// persisted balance and quota columns.
+const UsageBillingMonetaryScale = 8
+
+func (c *UsageBillingCommand) quantizeMonetaryFields() {
+	c.BalanceCost = QuantizeUsageBillingAmount(c.BalanceCost)
+	c.SubscriptionCost = QuantizeUsageBillingAmount(c.SubscriptionCost)
+	// IKIK adds a private-group commission debit to the upstream command. It
+	// reaches the same numeric balance column, so it needs identical precision.
+	c.PrivateGroupCommissionCost = QuantizeUsageBillingAmount(c.PrivateGroupCommissionCost)
+	c.APIKeyQuotaCost = QuantizeUsageBillingAmount(c.APIKeyQuotaCost)
+	c.APIKeyRateLimitCost = QuantizeUsageBillingAmount(c.APIKeyRateLimitCost)
+	c.AccountQuotaCost = QuantizeUsageBillingAmount(c.AccountQuotaCost)
+}
+
+// QuantizeUsageBillingAmount rounds monetary values using PostgreSQL NUMERIC's
+// half-away-from-zero behaviour. Quantizing before separate debit and increment
+// statements keeps their deltas exactly reconcilable at the database scale.
+func QuantizeUsageBillingAmount(v float64) float64 {
+	if v == 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+		return v
+	}
+	quantized, _ := decimal.NewFromFloat(v).Round(UsageBillingMonetaryScale).Float64()
+	return quantized
 }
 
 func buildUsageBillingFingerprint(c *UsageBillingCommand) string {

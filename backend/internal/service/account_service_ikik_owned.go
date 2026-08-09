@@ -423,7 +423,9 @@ func (s *AccountService) UpdateOwned(ctx context.Context, ownerUserID, accountID
 		account.Notes = normalizeAccountNotes(req.Notes)
 	}
 	if req.Credentials != nil {
-		account.Credentials = *req.Credentials
+		// 账号详情响应会脱敏 api_key 等字段。编辑并发或映射时，前端提交的
+		// credentials 不含这些字段，因此必须保留已有密钥而不是整体覆盖。
+		account.Credentials = MergePreservingSensitiveCreds(account.Credentials, *req.Credentials)
 	}
 	if req.Extra != nil {
 		account.Extra = *req.Extra

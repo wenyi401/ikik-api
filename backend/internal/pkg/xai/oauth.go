@@ -611,6 +611,9 @@ func BuildVideoURLWithValidator(baseURL, requestID string, validator BaseURLVali
 	if requestID == "" {
 		return "", fmt.Errorf("request id is required")
 	}
+	if requestID == "." || requestID == ".." || strings.ContainsAny(requestID, "\x00\r\n") {
+		return "", fmt.Errorf("invalid request id")
+	}
 	return validatedBaseURL + "/videos/" + url.PathEscape(requestID), nil
 }
 

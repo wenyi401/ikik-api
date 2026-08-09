@@ -120,6 +120,21 @@ func OpenAIImageGenerationIntentFromContext(ctx context.Context) bool {
 	return ok && enabled
 }
 
+func WithOpenAIImagesEndpoint(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, ctxkey.OpenAIImagesEndpoint, true)
+}
+
+func OpenAIImagesEndpointFromContext(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	enabled, ok := ctx.Value(ctxkey.OpenAIImagesEndpoint).(bool)
+	return ok && enabled
+}
+
 func resolveFinalAntigravityModelKey(ctx context.Context, account *Account, requestedModel string) string {
 	modelKey := mapAntigravityModel(account, requestedModel)
 	if modelKey == "" {
