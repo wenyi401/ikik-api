@@ -4,17 +4,18 @@ import "time"
 
 // APIKeyAuthSnapshot API Key 认证缓存快照（仅包含认证所需字段）
 type APIKeyAuthSnapshot struct {
-	Version     int                            `json:"version"`
-	APIKeyID    int64                          `json:"api_key_id"`
-	UserID      int64                          `json:"user_id"`
-	GroupID     *int64                         `json:"group_id,omitempty"`
-	Name        string                         `json:"name"`
-	Status      string                         `json:"status"`
-	IPWhitelist []string                       `json:"ip_whitelist,omitempty"`
-	IPBlacklist []string                       `json:"ip_blacklist,omitempty"`
-	User        APIKeyAuthUserSnapshot         `json:"user"`
-	Group       *APIKeyAuthGroupSnapshot       `json:"group,omitempty"`
-	GroupRoutes []APIKeyAuthGroupRouteSnapshot `json:"group_routes,omitempty"`
+	Version                         int                            `json:"version"`
+	APIKeyID                        int64                          `json:"api_key_id"`
+	UserID                          int64                          `json:"user_id"`
+	GroupID                         *int64                         `json:"group_id,omitempty"`
+	Name                            string                         `json:"name"`
+	Status                          string                         `json:"status"`
+	OpenAIExperimentalPromptEnabled bool                           `json:"openai_experimental_prompt_enabled"`
+	IPWhitelist                     []string                       `json:"ip_whitelist,omitempty"`
+	IPBlacklist                     []string                       `json:"ip_blacklist,omitempty"`
+	User                            APIKeyAuthUserSnapshot         `json:"user"`
+	Group                           *APIKeyAuthGroupSnapshot       `json:"group,omitempty"`
+	GroupRoutes                     []APIKeyAuthGroupRouteSnapshot `json:"group_routes,omitempty"`
 
 	// Quota fields for API Key independent quota feature
 	Quota     float64 `json:"quota"`      // Quota limit in USD (0 = unlimited)
@@ -31,14 +32,15 @@ type APIKeyAuthSnapshot struct {
 
 // APIKeyAuthUserSnapshot 用户快照
 type APIKeyAuthUserSnapshot struct {
-	ID              int64                `json:"id"`
-	Status          string               `json:"status"`
-	Role            string               `json:"role"`
-	Balance         float64              `json:"balance"`
-	Concurrency     int                  `json:"concurrency"`
-	AllowedGroups   []int64              `json:"allowed_groups,omitempty"`
-	BlockedGroups   []int64              `json:"blocked_groups,omitempty"`
-	RiskGroupBlocks []UserRiskGroupBlock `json:"risk_group_blocks,omitempty"`
+	ID                               int64                `json:"id"`
+	Status                           string               `json:"status"`
+	Role                             string               `json:"role"`
+	Balance                          float64              `json:"balance"`
+	Concurrency                      int                  `json:"concurrency"`
+	OpenAIExperimentalPromptUnlocked bool                 `json:"openai_experimental_prompt_unlocked"`
+	AllowedGroups                    []int64              `json:"allowed_groups,omitempty"`
+	BlockedGroups                    []int64              `json:"blocked_groups,omitempty"`
+	RiskGroupBlocks                  []UserRiskGroupBlock `json:"risk_group_blocks,omitempty"`
 
 	// Balance notification fields (required for CheckBalanceAfterDeduction)
 	Email                      string             `json:"email"`
@@ -96,10 +98,11 @@ type APIKeyAuthGroupSnapshot struct {
 	SupportedModelScopes []string `json:"supported_model_scopes,omitempty"`
 
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	AllowMessagesDispatch       bool                              `json:"allow_messages_dispatch"`
-	DefaultMappedModel          string                            `json:"default_mapped_model,omitempty"`
-	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
-	ModelsListConfig            GroupModelsListConfig             `json:"models_list_config,omitempty"`
+	AllowMessagesDispatch           bool                              `json:"allow_messages_dispatch"`
+	DefaultMappedModel              string                            `json:"default_mapped_model,omitempty"`
+	MessagesDispatchModelConfig     OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
+	ModelsListConfig                GroupModelsListConfig             `json:"models_list_config,omitempty"`
+	OpenAIExperimentalPromptEnabled bool                              `json:"openai_experimental_prompt_enabled"`
 
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）；用于 billing_cache_service.checkRPM 级联判断。
 	RPMLimit int `json:"rpm_limit"`

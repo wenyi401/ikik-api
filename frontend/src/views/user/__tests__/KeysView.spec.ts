@@ -7,6 +7,8 @@ import KeysView from '../KeysView.vue'
 
 const {
   listKeys,
+  createKey,
+  updateKey,
   getPublicSettings,
   getDashboardApiKeysUsage,
   getAvailableGroups,
@@ -16,8 +18,16 @@ const {
   copyToClipboard,
   isCurrentStep,
   nextStep,
+  completeMission,
+  setMissionPanelOpen,
+  routerPush,
+  routerReplace,
+  startPageTutorial,
+  authUser,
 } = vi.hoisted(() => ({
   listKeys: vi.fn(),
+  createKey: vi.fn(),
+  updateKey: vi.fn(),
   getPublicSettings: vi.fn(),
   getDashboardApiKeysUsage: vi.fn(),
   getAvailableGroups: vi.fn(),
@@ -27,6 +37,16 @@ const {
   copyToClipboard: vi.fn(),
   isCurrentStep: vi.fn(),
   nextStep: vi.fn(),
+  completeMission: vi.fn(),
+  setMissionPanelOpen: vi.fn(),
+  routerPush: vi.fn(),
+  routerReplace: vi.fn(),
+  startPageTutorial: vi.fn(),
+  authUser: {
+    id: 1,
+    onboarding_mode: 'beginner',
+    openai_experimental_prompt_unlocked: false,
+  },
 }))
 
 const messages: Record<string, string> = {
@@ -59,8 +79,8 @@ const messages: Record<string, string> = {
 vi.mock('@/api', () => ({
   keysAPI: {
     list: listKeys,
-    create: vi.fn(),
-    update: vi.fn(),
+    create: createKey,
+    update: updateKey,
     delete: vi.fn(),
     toggleStatus: vi.fn(),
   },
@@ -87,7 +107,24 @@ vi.mock('@/stores/onboarding', () => ({
   useOnboardingStore: () => ({
     isCurrentStep,
     nextStep,
+    completeMission,
+    setMissionPanelOpen,
   }),
+}))
+
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({
+    user: authUser,
+  }),
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ path: '/keys', query: {} }),
+  useRouter: () => ({ push: routerPush, replace: routerReplace }),
+}))
+
+vi.mock('@/composables/usePageTutorial', () => ({
+  usePageTutorial: () => ({ startPageTutorial }),
 }))
 
 vi.mock('@/composables/useClipboard', () => ({
@@ -112,6 +149,7 @@ const createApiKey = (): ApiKey => ({
   key: 'sk-test-key',
   name: 'test-key',
   group_id: null,
+  openai_experimental_prompt_enabled: false,
   status: 'active',
   ip_whitelist: [],
   ip_blacklist: [],
@@ -219,6 +257,11 @@ const IconStub = {
   template: '<span data-test="icon">{{ name }}</span>',
 }
 
+const BaseDialogStub = {
+  props: ['show'],
+  template: '<div v-if="show"><slot /><slot name="footer" /></div>',
+}
+
 const mountView = async () => {
   const wrapper = mount(KeysView, {
     global: {
@@ -227,7 +270,7 @@ const mountView = async () => {
         TablePageLayout: TablePageLayoutStub,
         DataTable: DataTableStub,
         Pagination: PaginationStub,
-        BaseDialog: true,
+        BaseDialog: BaseDialogStub,
         ConfirmDialog: true,
         EmptyState: true,
         Select: SelectStub,
@@ -265,6 +308,8 @@ describe('user KeysView column settings', () => {
     localStorage.clear()
 
     listKeys.mockReset()
+    createKey.mockReset()
+    updateKey.mockReset()
     getPublicSettings.mockReset()
     getDashboardApiKeysUsage.mockReset()
     getAvailableGroups.mockReset()
@@ -274,6 +319,12 @@ describe('user KeysView column settings', () => {
     copyToClipboard.mockReset()
     isCurrentStep.mockReset()
     nextStep.mockReset()
+    completeMission.mockReset()
+    setMissionPanelOpen.mockReset()
+    routerPush.mockReset()
+    routerReplace.mockReset()
+    startPageTutorial.mockReset()
+    authUser.openai_experimental_prompt_unlocked = false
 
     listKeys.mockResolvedValue({
       items: [createApiKey()],
@@ -286,6 +337,8 @@ describe('user KeysView column settings', () => {
     getDashboardApiKeysUsage.mockResolvedValue({ stats: {} })
     getAvailableGroups.mockResolvedValue([])
     getUserGroupRates.mockResolvedValue({})
+    createKey.mockResolvedValue(createApiKey())
+    updateKey.mockResolvedValue(createApiKey())
     isCurrentStep.mockReturnValue(false)
   })
 
@@ -523,5 +576,142 @@ describe('user KeysView column settings', () => {
     ])
     expect(vm.isPrivateRouterRoutes([{ group_id: 11 }])).toBe(false)
     expect(vm.isPrivateRouterRoutes([{ group_id: 21 }, { group_id: 11 }, { group_id: 31 }])).toBe(true)
+  })
+
+  it('defaults new keys to the PLUS shared pool even when assigned PRO is available', async () => {
+    getAvailableGroups.mockResolvedValue([
+      {
+        id: 16,
+        name: 'gpt pro shared pool',
+        platform: 'openai',
+        scope: 'public',
+        subscription_type: 'standard',
+        rate_multiplier: 1,
+        is_exclusive: true,
+        is_shared_pool: true,
+        required_account_level: 'pro',
+      },
+      {
+        id: 6,
+        name: 'gpt plus shared pool',
+        platform: 'openai',
+        scope: 'public',
+        subscription_type: 'standard',
+        rate_multiplier: 1,
+        is_exclusive: false,
+        is_shared_pool: true,
+        required_account_level: 'plus',
+      },
+    ])
+
+    const wrapper = await mountView()
+    const vm = wrapper.vm as unknown as {
+      recommendedGroup: { id: number; name: string } | null
+      groupOptions: Array<{ value: number; recommended?: boolean }>
+      formData: { group_id: number | null }
+      openCreateModal: () => void
+    }
+
+    expect(vm.recommendedGroup?.id).toBe(6)
+    expect(vm.groupOptions[0]).toMatchObject({ value: 6, recommended: true })
+
+    vm.openCreateModal()
+    await nextTick()
+    expect(vm.formData.group_id).toBe(6)
+  })
+
+  it('shows an unlock action instead of a toggle for a locked eligible group', async () => {
+    getAvailableGroups.mockResolvedValue([{
+      id: 1,
+      name: 'OpenAI Pro',
+      description: '',
+      platform: 'openai',
+      scope: 'public',
+      subscription_type: 'standard',
+      rate_multiplier: 1,
+      is_shared_pool: true,
+      required_account_level: 'pro',
+      openai_experimental_prompt_enabled: true,
+    }])
+    const wrapper = await mountView()
+    const vm = wrapper.vm as unknown as {
+      openCreateModal: () => void
+      formData: { group_id: number | null }
+    }
+    vm.openCreateModal()
+    vm.formData.group_id = 1
+    await nextTick()
+
+    expect(wrapper.find('[data-test="openai-experimental-prompt-setting"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="openai-experimental-prompt-unlock"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="openai-experimental-prompt-toggle"]').exists()).toBe(false)
+  })
+
+  it('lets an unlocked user opt in per key and clears it for an unsupported route', async () => {
+    authUser.openai_experimental_prompt_unlocked = true
+    getAvailableGroups.mockResolvedValue([
+      {
+        id: 1,
+        name: 'OpenAI Pro',
+        description: '',
+        platform: 'openai',
+        scope: 'public',
+        subscription_type: 'standard',
+        rate_multiplier: 1,
+        is_shared_pool: true,
+        required_account_level: 'pro',
+        openai_experimental_prompt_enabled: true,
+      },
+      {
+        id: 2,
+        name: 'Claude',
+        description: '',
+        platform: 'anthropic',
+        scope: 'public',
+        subscription_type: 'standard',
+        rate_multiplier: 1,
+        openai_experimental_prompt_enabled: false,
+      },
+    ])
+    const wrapper = await mountView()
+    const vm = wrapper.vm as unknown as {
+      openCreateModal: () => void
+      formData: {
+        group_id: number | null
+        name: string
+        openai_experimental_prompt_enabled: boolean
+      }
+      handleSubmit: () => Promise<void>
+    }
+    vm.openCreateModal()
+    vm.formData.group_id = 1
+    await nextTick()
+
+    await wrapper.get('[data-test="openai-experimental-prompt-toggle"]').trigger('click')
+    expect(vm.formData.openai_experimental_prompt_enabled).toBe(true)
+
+    vm.formData.name = 'Experimental key'
+    await vm.handleSubmit()
+    expect(createKey).toHaveBeenLastCalledWith(
+      'Experimental key',
+      1,
+      undefined,
+      [],
+      [],
+      0,
+      undefined,
+      { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 },
+      expect.any(Array),
+      true,
+    )
+
+    vm.openCreateModal()
+    vm.formData.group_id = 1
+    await nextTick()
+    vm.formData.openai_experimental_prompt_enabled = true
+    vm.formData.group_id = 2
+    await nextTick()
+    expect(vm.formData.openai_experimental_prompt_enabled).toBe(false)
+    expect(wrapper.find('[data-test="openai-experimental-prompt-setting"]').exists()).toBe(false)
   })
 })

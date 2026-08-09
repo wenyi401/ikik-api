@@ -87,11 +87,9 @@ type AffiliateDetail struct {
 	AffQuota        float64 `json:"aff_quota"`
 	AffFrozenQuota  float64 `json:"aff_frozen_quota"`
 	AffHistoryQuota float64 `json:"aff_history_quota"`
-	// EffectiveRebateRatePercent 是当前用户作为邀请人时实际生效的返利比例：
-	// 优先用户自己的专属比例（aff_rebate_rate_percent），否则回退到全局比例。
-	// 用于在用户的 /affiliate 页面直观展示「分享后能拿到多少」。
-	EffectiveRebateRatePercent float64            `json:"effective_rebate_rate_percent"`
-	Invitees                   []AffiliateInvitee `json:"invitees"`
+	// InviteShareRatioPercent 是当前共享号池策略下，邀请人可获得的分成比例。
+	InviteShareRatioPercent float64            `json:"invite_share_ratio_percent"`
+	Invitees                []AffiliateInvitee `json:"invitees"`
 }
 
 type AffiliateRepository interface {
@@ -207,10 +205,11 @@ type AffiliateUserOverview struct {
 }
 
 type AffiliateService struct {
-	repo                 AffiliateRepository
-	settingService       *SettingService
-	authCacheInvalidator APIKeyAuthCacheInvalidator
-	billingCacheService  *BillingCacheService
+	repo                   AffiliateRepository
+	settingService         *SettingService
+	authCacheInvalidator   APIKeyAuthCacheInvalidator
+	billingCacheService    *BillingCacheService
+	accountSharePolicyRepo AccountSharePolicyRepository
 }
 
 func NewAffiliateService(repo AffiliateRepository, settingService *SettingService, authCacheInvalidator APIKeyAuthCacheInvalidator, billingCacheService *BillingCacheService) *AffiliateService {
@@ -222,7 +221,14 @@ func NewAffiliateService(repo AffiliateRepository, settingService *SettingServic
 	}
 }
 
-// IsEnabled reports whether the affiliate (邀请返利) feature is turned on.
+func (s *AffiliateService) SetAccountSharePolicyRepository(repo AccountSharePolicyRepository) {
+	if s == nil {
+		return
+	}
+	s.accountSharePolicyRepo = repo
+}
+
+// IsEnabled reports whether the affiliate invite feature is turned on.
 func (s *AffiliateService) IsEnabled(ctx context.Context) bool {
 	if s == nil || s.settingService == nil {
 		return AffiliateEnabledDefault
@@ -256,15 +262,15 @@ func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64)
 		return nil, err
 	}
 	return &AffiliateDetail{
-		UserID:                     summary.UserID,
-		AffCode:                    summary.AffCode,
-		InviterID:                  summary.InviterID,
-		AffCount:                   summary.AffCount,
-		AffQuota:                   summary.AffQuota,
-		AffFrozenQuota:             summary.AffFrozenQuota,
-		AffHistoryQuota:            summary.AffHistoryQuota,
-		EffectiveRebateRatePercent: s.resolveRebateRatePercent(ctx, summary),
-		Invitees:                   invitees,
+		UserID:                  summary.UserID,
+		AffCode:                 summary.AffCode,
+		InviterID:               summary.InviterID,
+		AffCount:                summary.AffCount,
+		AffQuota:                summary.AffQuota,
+		AffFrozenQuota:          summary.AffFrozenQuota,
+		AffHistoryQuota:         summary.AffHistoryQuota,
+		InviteShareRatioPercent: s.resolveInviteShareRatioPercent(ctx),
+		Invitees:                invitees,
 	}, nil
 }
 
@@ -275,10 +281,6 @@ func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, 
 	}
 	if s == nil || s.repo == nil {
 		return infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "affiliate service unavailable")
-	}
-	// 总开关关闭时，注册阶段静默忽略 aff 参数（不报错，避免阻断注册流程）
-	if !s.IsEnabled(ctx) {
-		return nil
 	}
 	if !isValidAffiliateCodeFormat(code) {
 		return ErrAffiliateCodeInvalid
@@ -314,78 +316,11 @@ func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, 
 }
 
 func (s *AffiliateService) AccrueInviteRebate(ctx context.Context, inviteeUserID int64, baseRechargeAmount float64) (float64, error) {
-	return s.AccrueInviteRebateForOrder(ctx, inviteeUserID, baseRechargeAmount, nil)
+	return 0, nil
 }
 
 func (s *AffiliateService) AccrueInviteRebateForOrder(ctx context.Context, inviteeUserID int64, baseRechargeAmount float64, sourceOrderID *int64) (float64, error) {
-	if s == nil || s.repo == nil {
-		return 0, nil
-	}
-	if inviteeUserID <= 0 || baseRechargeAmount <= 0 || math.IsNaN(baseRechargeAmount) || math.IsInf(baseRechargeAmount, 0) {
-		return 0, nil
-	}
-	// 总开关关闭时，新充值不再产生返利
-	if !s.IsEnabled(ctx) {
-		return 0, nil
-	}
-
-	inviteeSummary, err := s.repo.EnsureUserAffiliate(ctx, inviteeUserID)
-	if err != nil {
-		return 0, err
-	}
-	if inviteeSummary.InviterID == nil || *inviteeSummary.InviterID <= 0 {
-		return 0, nil
-	}
-
-	// 加载邀请人 profile，优先使用专属比例（覆盖全局）
-	inviterSummary, err := s.repo.EnsureUserAffiliate(ctx, *inviteeSummary.InviterID)
-	if err != nil {
-		return 0, err
-	}
-	// 有效期检查：超过返利有效期后不再产生返利
-	if s.settingService != nil {
-		if durationDays := s.settingService.GetAffiliateRebateDurationDays(ctx); durationDays > 0 {
-			if time.Now().After(inviteeSummary.CreatedAt.AddDate(0, 0, durationDays)) {
-				return 0, nil
-			}
-		}
-	}
-
-	rebateRatePercent := s.resolveRebateRatePercent(ctx, inviterSummary)
-	rebate := roundTo(baseRechargeAmount*(rebateRatePercent/100), 8)
-	if rebate <= 0 {
-		return 0, nil
-	}
-
-	// 单人上限检查：精确截断到剩余额度
-	if s.settingService != nil {
-		if perInviteeCap := s.settingService.GetAffiliateRebatePerInviteeCap(ctx); perInviteeCap > 0 {
-			existing, err := s.repo.GetAccruedRebateFromInvitee(ctx, *inviteeSummary.InviterID, inviteeUserID)
-			if err != nil {
-				return 0, err
-			}
-			if existing >= perInviteeCap {
-				return 0, nil
-			}
-			if remaining := perInviteeCap - existing; rebate > remaining {
-				rebate = roundTo(remaining, 8)
-			}
-		}
-	}
-
-	var freezeHours int
-	if s.settingService != nil {
-		freezeHours = s.settingService.GetAffiliateRebateFreezeHours(ctx)
-	}
-
-	applied, err := s.repo.AccrueQuota(ctx, *inviteeSummary.InviterID, inviteeUserID, rebate, freezeHours, sourceOrderID)
-	if err != nil {
-		return 0, err
-	}
-	if !applied {
-		return 0, nil
-	}
-	return rebate, nil
+	return 0, nil
 }
 
 // resolveRebateRatePercent returns the inviter's exclusive rate when set,
@@ -399,6 +334,20 @@ func (s *AffiliateService) resolveRebateRatePercent(ctx context.Context, inviter
 		return clampAffiliateRebateRate(v)
 	}
 	return s.globalRebateRatePercent(ctx)
+}
+
+func (s *AffiliateService) resolveInviteShareRatioPercent(ctx context.Context) float64 {
+	if s == nil || s.accountSharePolicyRepo == nil {
+		return 0
+	}
+	policy, err := s.accountSharePolicyRepo.ResolveEnabledAccountSharePolicy(ctx, 0, nil, "", nil)
+	if err != nil || policy == nil {
+		return 0
+	}
+	if math.IsNaN(policy.InviteShareRatio) || math.IsInf(policy.InviteShareRatio, 0) {
+		return 0
+	}
+	return policy.InviteShareRatio * 100
 }
 
 // globalRebateRatePercent reads the system-wide rebate rate via SettingService,

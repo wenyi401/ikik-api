@@ -199,6 +199,83 @@
 
         <!-- Tab: Gateway -->
         <div v-show="activeTab === 'gateway'" class="space-y-6">
+          <div class="card overflow-hidden border border-amber-200 dark:border-amber-900/50">
+            <div class="border-b border-amber-100 bg-amber-50/70 px-6 py-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+              <div class="flex items-start gap-3">
+                <div class="rounded-lg bg-amber-100 p-2 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                  <Icon name="sparkles" size="md" />
+                </div>
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    {{ t("admin.settings.openaiExperimentalPrompt.title") }}
+                  </h2>
+                  <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                    {{ t("admin.settings.openaiExperimentalPrompt.description") }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="experimentalPromptLoading" class="space-y-3 p-6">
+              <div class="h-24 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-700" />
+              <div class="h-10 w-40 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-700" />
+            </div>
+
+            <div v-else class="space-y-5 p-6">
+              <div>
+                <label class="input-label" for="openai-experimental-prompt">
+                  {{ t("admin.settings.openaiExperimentalPrompt.promptLabel") }}
+                </label>
+                <textarea
+                  id="openai-experimental-prompt"
+                  v-model="experimentalPromptForm.prompt"
+                  maxlength="40000"
+                  rows="8"
+                  class="input min-h-40 resize-y font-mono text-sm leading-6"
+                  :placeholder="t('admin.settings.openaiExperimentalPrompt.promptPlaceholder')"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.openaiExperimentalPrompt.promptHint") }}
+                </p>
+              </div>
+
+              <div class="max-w-xs">
+                <label class="input-label" for="openai-experimental-prompt-price">
+                  {{ t("admin.settings.openaiExperimentalPrompt.priceLabel") }}
+                </label>
+                <div class="relative">
+                  <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-500">¥</span>
+                  <input
+                    id="openai-experimental-prompt-price"
+                    v-model.number="experimentalPromptForm.price_yuan"
+                    type="number"
+                    min="0"
+                    max="1000000"
+                    step="0.01"
+                    class="input pl-8"
+                  />
+                </div>
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.openaiExperimentalPrompt.priceHint") }}
+                </p>
+              </div>
+
+              <div class="flex flex-col gap-3 border-t border-gray-100 pt-4 dark:border-dark-700 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-xs leading-5 text-amber-700 dark:text-amber-300">
+                  {{ t("admin.settings.openaiExperimentalPrompt.safetyHint") }}
+                </p>
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm w-full shrink-0 sm:w-auto"
+                  :disabled="experimentalPromptSaving"
+                  @click="saveOpenAIExperimentalPromptSettings"
+                >
+                  {{ experimentalPromptSaving ? t("common.saving") : t("common.save") }}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Overload Cooldown (529) Settings -->
           <div class="card">
             <div
@@ -6191,7 +6268,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div v-if="legacyAffiliateSettingsVisible" class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.affiliate.title') }}
@@ -6622,7 +6699,7 @@
 
         <!-- Affiliate add/edit modal -->
         <div
-          v-if="affiliateModal.open"
+          v-if="legacyAffiliateSettingsVisible && affiliateModal.open"
           class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           @click.self="closeAffiliateModal"
         >
@@ -7913,6 +7990,9 @@ const appStore = useAppStore();
 const settingsStepUp = useStepUp();
 const adminSettingsStore = useAdminSettingsStore();
 const isZhLocale = computed(() => locale.value.startsWith("zh"));
+// The legacy recharge-rebate controls remain only for migration compatibility.
+// Shared-pool account policies are the active configuration source.
+const legacyAffiliateSettingsVisible = computed(() => false);
 
 function localText(zh: string, en: string): string {
   return isZhLocale.value ? zh : en;
@@ -8044,6 +8124,13 @@ const ollamaCloudUsageSaving = ref(false);
 const ollamaCloudUsageForm = reactive({
   enabled: false,
   interval_minutes: 60,
+});
+
+const experimentalPromptLoading = ref(true);
+const experimentalPromptSaving = ref(false);
+const experimentalPromptForm = reactive({
+  prompt: "",
+  price_yuan: 6.6,
 });
 
 // Overload Cooldown (529) 状态
@@ -10024,7 +10111,6 @@ async function saveSettings() {
       login_agreement_updated_at: form.login_agreement_updated_at,
       login_agreement_documents: form.login_agreement_documents,
       default_balance: form.default_balance,
-      affiliate_rebate_duration_days: Math.max(0, Math.min(3650, Math.floor(Number(form.affiliate_rebate_duration_days) || 0))),
       default_concurrency: form.default_concurrency,
       default_subscriptions: normalizedDefaultSubscriptions,
       force_email_on_third_party_signup: form.force_email_on_third_party_signup,
@@ -10271,8 +10357,6 @@ async function saveSettings() {
       carpool_risk_control_fee_usd: positiveNumberOrZero(
         form.carpool_risk_control_fee_usd,
       ),
-      // Affiliate (邀请返利) feature switch
-      affiliate_enabled: form.affiliate_enabled,
     };
 
     // 仅当 openai_fast_policy_settings 已成功从后端加载时才回写，
@@ -10592,6 +10676,58 @@ async function saveOllamaCloudUsageSettings() {
     );
   } finally {
     ollamaCloudUsageSaving.value = false;
+  }
+}
+
+async function loadOpenAIExperimentalPromptSettings() {
+  experimentalPromptLoading.value = true;
+  try {
+    const settings =
+      await adminAPI.settings.getOpenAIExperimentalPromptSettings();
+    experimentalPromptForm.prompt = settings.prompt || "";
+    experimentalPromptForm.price_yuan = settings.price_cents / 100;
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.openaiExperimentalPrompt.loadFailed"),
+      ),
+    );
+  } finally {
+    experimentalPromptLoading.value = false;
+  }
+}
+
+async function saveOpenAIExperimentalPromptSettings() {
+  const priceYuan = Number(experimentalPromptForm.price_yuan);
+  if (!Number.isFinite(priceYuan) || priceYuan < 0 || priceYuan > 1000000) {
+    appStore.showError(
+      t("admin.settings.openaiExperimentalPrompt.invalidPrice"),
+    );
+    return;
+  }
+
+  experimentalPromptSaving.value = true;
+  try {
+    const updated =
+      await adminAPI.settings.updateOpenAIExperimentalPromptSettings({
+        prompt: experimentalPromptForm.prompt,
+        price_cents: Math.round(priceYuan * 100),
+      });
+    experimentalPromptForm.prompt = updated.prompt || "";
+    experimentalPromptForm.price_yuan = updated.price_cents / 100;
+    appStore.showSuccess(
+      t("admin.settings.openaiExperimentalPrompt.saved"),
+    );
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.openaiExperimentalPrompt.saveFailed"),
+      ),
+    );
+  } finally {
+    experimentalPromptSaving.value = false;
   }
 }
 
@@ -11264,6 +11400,7 @@ async function handleDeleteProvider() {
 
 onMounted(() => {
   loadSettings();
+  loadOpenAIExperimentalPromptSettings();
   loadSubscriptionGroups();
   loadAdminApiKey();
   loadUpstreamBillingProbeSettings();

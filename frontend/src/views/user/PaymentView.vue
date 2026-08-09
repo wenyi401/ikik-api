@@ -4,68 +4,6 @@
       <div v-if="loading" class="flex items-center justify-center py-20">
         <div class="h-8 w-8 animate-spin rounded-full border-2 border-[var(--ui-text)] border-t-transparent"></div>
       </div>
-      <template v-else-if="externalPurchaseEnabled">
-        <section
-          class="overflow-hidden rounded-lg border border-[#d9d9e3] bg-[#ffffff] shadow-[0_18px_48px_rgba(0,0,0,0.08)] dark:border-[#3f3f46] dark:bg-[#212121]"
-        >
-          <div class="border-b border-[#d9d9e3] bg-[#f3f3f6] px-6 py-6 dark:border-[#3f3f46] dark:bg-[#171717]">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
-              <div
-                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[#d9d9e3] bg-[#ffffff] text-[#10a37f] dark:border-[#565869] dark:bg-[#2f2f2f] dark:text-[#45d09a]"
-              >
-                <Icon name="gift" size="lg" />
-              </div>
-              <div>
-                <p class="text-xs font-semibold uppercase text-[#10a37f] dark:text-[#45d09a]">
-                  {{ t('payment.externalPurchase.kicker') }}
-                </p>
-                <h1 class="mt-1 text-2xl font-semibold text-[#171717] dark:text-[#ececf1]">
-                  {{ t('payment.externalPurchase.title') }}
-                </h1>
-                <p class="mt-2 max-w-2xl text-sm leading-6 text-[#6e6e80] dark:text-[#c5c5d2]">
-                  {{ t('payment.externalPurchase.description') }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid gap-4 p-6 sm:grid-cols-3">
-            <div
-              v-for="step in externalPurchaseSteps"
-              :key="step.title"
-              class="rounded-lg border border-[#d9d9e3] bg-[#ffffff] p-4 dark:border-[#3f3f46] dark:bg-[#212121]"
-            >
-              <div class="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-[#e6f6f1] text-sm font-semibold text-[#0d8f70] dark:bg-[#2f2f2f] dark:text-[#45d09a]">
-                {{ step.index }}
-              </div>
-              <h2 class="text-sm font-semibold text-[#171717] dark:text-[#ececf1]">
-                {{ step.title }}
-              </h2>
-              <p class="mt-2 text-sm leading-6 text-[#6e6e80] dark:text-[#c5c5d2]">
-                {{ step.description }}
-              </p>
-            </div>
-          </div>
-
-          <div class="flex flex-col gap-3 border-t border-[#d9d9e3] bg-[#f3f3f6] p-6 dark:border-[#3f3f46] dark:bg-[#171717] sm:flex-row">
-            <button
-              type="button"
-              class="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#171717] px-5 py-3 text-sm font-semibold text-[#ffffff] shadow-[0_10px_24px_rgba(0,0,0,0.18)] transition hover:bg-black dark:bg-[#ececf1] dark:text-[#171717] dark:hover:bg-white"
-              @click="openExternalPurchase"
-            >
-              <Icon name="externalLink" size="sm" />
-              {{ t('payment.externalPurchase.openStore') }}
-            </button>
-            <router-link
-              to="/redeem"
-              class="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5c5d2] bg-[#ffffff] px-5 py-3 text-sm font-semibold text-[#3f3f46] transition hover:bg-white dark:border-[#565869] dark:bg-[#2f2f2f] dark:text-[#ececf1] dark:hover:bg-[#2f2f2f]"
-            >
-              <Icon name="checkCircle" size="sm" />
-              {{ t('payment.externalPurchase.redeemCode') }}
-            </router-link>
-          </div>
-        </section>
-      </template>
       <template v-else>
         <!-- Tab Switcher (hide during payment and subscription confirm) -->
         <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="purchase-tabs" role="tablist">
@@ -167,8 +105,12 @@
           </template>
           <!-- Subscribe Tab -->
           <template v-else-if="activeTab === 'subscription'">
+            <ExternalPurchasePanel
+              v-if="externalPurchaseEnabled"
+              :purchase-url="externalPurchaseUrl"
+            />
             <!-- Subscription confirm (inline, replaces plan list) -->
-            <template v-if="selectedPlan">
+            <template v-else-if="selectedPlan">
               <div class="rounded-lg border border-[#d9d9e3] bg-[#ffffff] p-5 shadow-[0_14px_34px_rgba(0,0,0,0.08)] dark:border-[#3f3f46] dark:bg-[#212121]">
                 <!-- Header: platform badge + plan name -->
                 <div class="mb-3 flex flex-wrap items-center gap-2">
@@ -286,7 +228,7 @@
             </template>
           </template>
         </template>
-        <div v-if="(checkout.help_text || checkout.help_image_url) && paymentPhase === 'select' && !selectedPlan" class="card p-4">
+        <div v-if="(checkout.help_text || checkout.help_image_url) && paymentPhase === 'select' && !selectedPlan && (!externalPurchaseEnabled || activeTab === 'recharge')" class="card p-4">
           <div class="flex flex-col items-center gap-3">
             <img v-if="checkout.help_image_url" :src="checkout.help_image_url" alt=""
               class="h-40 max-w-full cursor-pointer rounded-lg object-contain transition-opacity hover:opacity-80"
@@ -364,6 +306,7 @@ import {
 import { platformLabel } from '@/utils/platformColors'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
+import ExternalPurchasePanel from '@/components/payment/ExternalPurchasePanel.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { UiPage } from '@/ui'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
@@ -496,11 +439,6 @@ function resetPayment() {
   removeRecoverySnapshot()
 }
 
-function openExternalPurchase() {
-  if (!externalPurchaseUrl.value || typeof window === 'undefined') return
-  window.open(externalPurchaseUrl.value, '_blank', 'noopener,noreferrer')
-}
-
 async function redirectToPaymentResult(state: PaymentRecoverySnapshot): Promise<void> {
   const query: Record<string, string | undefined> = {}
   if (state.orderId > 0) {
@@ -565,33 +503,24 @@ const externalPurchaseEnabled = computed(() =>
   appStore.cachedPublicSettings?.purchase_subscription_enabled === true &&
   /^https?:\/\//i.test(externalPurchaseUrl.value)
 )
-const externalPurchaseSteps = computed(() => [
-  {
-    index: '1',
-    title: t('payment.externalPurchase.stepBuyTitle'),
-    description: t('payment.externalPurchase.stepBuyDescription'),
-  },
-  {
-    index: '2',
-    title: t('payment.externalPurchase.stepReceiveTitle'),
-    description: t('payment.externalPurchase.stepReceiveDescription'),
-  },
-  {
-    index: '3',
-    title: t('payment.externalPurchase.stepRedeemTitle'),
-    description: t('payment.externalPurchase.stepRedeemDescription'),
-  },
-])
-
+const visibleMethods = computed(() => getVisibleMethods(checkout.value.methods))
+const enabledMethods = computed(() => Object.keys(visibleMethods.value))
+const internalPaymentAvailable = computed(() =>
+  appStore.cachedPublicSettings?.payment_enabled === true && enabledMethods.value.length > 0
+)
 const tabs = computed(() => {
   const result: { key: 'recharge' | 'subscription'; label: string }[] = []
+  if (externalPurchaseEnabled.value) {
+    if (internalPaymentAvailable.value && !checkout.value.balance_disabled) {
+      result.push({ key: 'recharge', label: t('payment.tabTopUp') })
+    }
+    result.push({ key: 'subscription', label: t('payment.tabCardStore') })
+    return result
+  }
   if (!checkout.value.balance_disabled) result.push({ key: 'recharge', label: t('payment.tabTopUp') })
   result.push({ key: 'subscription', label: t('payment.tabSubscribe') })
   return result
 })
-
-const visibleMethods = computed(() => getVisibleMethods(checkout.value.methods))
-const enabledMethods = computed(() => Object.keys(visibleMethods.value))
 const validAmount = computed(() => amount.value ?? 0)
 const balanceRechargeMultiplier = computed(() => {
   const matched = (checkout.value.balance_pricing_tiers || [])
@@ -1183,12 +1112,14 @@ onMounted(async () => {
     if (!appStore.publicSettingsLoaded) {
       await appStore.fetchPublicSettings()
     }
-    if (externalPurchaseEnabled.value) {
-      loading.value = false
+    try {
+      const res = await paymentAPI.getCheckoutInfo()
+      checkout.value = res.data
+    } catch (err) {
+      if (!externalPurchaseEnabled.value) throw err
+      activeTab.value = 'subscription'
       return
     }
-    const res = await paymentAPI.getCheckoutInfo()
-    checkout.value = res.data
     if (enabledMethods.value.length) {
       const order: readonly string[] = METHOD_ORDER
       const sorted = [...enabledMethods.value].sort((a, b) => {
@@ -1230,13 +1161,15 @@ onMounted(async () => {
       }
     }
     await resumeWechatPaymentFromQuery()
-    if (checkout.value.balance_disabled) {
+    if (externalPurchaseEnabled.value && (!internalPaymentAvailable.value || checkout.value.balance_disabled)) {
+      activeTab.value = 'subscription'
+    } else if (checkout.value.balance_disabled) {
       activeTab.value = 'subscription'
     }
     // Handle renewal navigation: ?tab=subscription&group=123
     if (route.query.tab === 'subscription') {
       activeTab.value = 'subscription'
-      if (route.query.group) {
+      if (!externalPurchaseEnabled.value && route.query.group) {
         const groupId = Number(route.query.group)
         const groupPlans = checkout.value.plans.filter(p => p.group_id === groupId)
         if (groupPlans.length === 1) {

@@ -698,7 +698,6 @@ const flagPayment = () => {
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
 const flagFreeModels = makeSidebarFlag(FeatureFlags.freeModels)
 const flagCarpool = makeSidebarFlag(FeatureFlags.carpool)
-const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
@@ -790,6 +789,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
       expandOnly: true,
       children: [
         { path: '/accounts', label: t('nav.myAccounts'), icon: MyAccountsIcon, hideInSimpleMode: true },
+        { path: '/developer-api', label: t('nav.developerApi'), icon: KeyIcon },
         { path: '/accounts/free-models', label: t('nav.freeModels'), icon: ModelLobbyIcon, hideInSimpleMode: true, featureFlag: flagFreeModels },
         { path: '/accounts/carpools', label: t('nav.carpools'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagCarpool },
       ],
@@ -819,7 +819,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
         { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
         { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
         { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
-        { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
+        { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true },
       ],
     },
     {

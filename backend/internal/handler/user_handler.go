@@ -81,6 +81,9 @@ type UpdateProfileRequest struct {
 	AvatarURL              *string  `json:"avatar_url"`
 	BalanceNotifyEnabled   *bool    `json:"balance_notify_enabled"`
 	BalanceNotifyThreshold *float64 `json:"balance_notify_threshold"`
+	OnboardingMode         *string  `json:"onboarding_mode"`
+	ShareCardText          *string  `json:"share_card_text"`
+	ShareCardTextColor     *string  `json:"share_card_text_color"`
 }
 
 type userProfileResponse struct {
@@ -178,6 +181,9 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		AvatarURL:              req.AvatarURL,
 		BalanceNotifyEnabled:   req.BalanceNotifyEnabled,
 		BalanceNotifyThreshold: req.BalanceNotifyThreshold,
+		OnboardingMode:         req.OnboardingMode,
+		ShareCardText:          req.ShareCardText,
+		ShareCardTextColor:     req.ShareCardTextColor,
 	}
 	updatedUser, err := h.userService.UpdateProfile(c.Request.Context(), subject.UserID, svcReq)
 	if err != nil {

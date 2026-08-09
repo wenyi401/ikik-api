@@ -82,6 +82,18 @@ type contentModerationTestRepo struct {
 	logs []ContentModerationLog
 }
 
+type contentModerationUnbanRepo struct {
+	*contentModerationTestRepo
+	ContentModerationGroupPenaltyAdminRepository
+	releasedUserID int64
+	releasedCount  int64
+}
+
+func (r *contentModerationUnbanRepo) ReleaseAllUserGroupPenalties(_ context.Context, userID int64) (int64, error) {
+	r.releasedUserID = userID
+	return r.releasedCount, nil
+}
+
 func (r *contentModerationTestRepo) CreateLog(ctx context.Context, log *ContentModerationLog) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1892,7 +1904,7 @@ func TestBuildContentModerationAccountDisabledEmailBody_ContainsBanDetails(t *te
 func TestContentModerationUnbanUser_ActivatesUserAndInvalidatesAuthCache(t *testing.T) {
 	userRepo := &contentModerationTestUserRepo{user: &User{ID: 1001, Email: "user@example.com", Status: StatusDisabled}}
 	invalidator := &contentModerationTestAuthCacheInvalidator{}
-	repo := &contentModerationTestRepo{}
+	repo := &contentModerationUnbanRepo{contentModerationTestRepo: &contentModerationTestRepo{}, releasedCount: 2}
 	svc := NewContentModerationService(nil, repo, nil, nil, userRepo, invalidator, nil)
 
 	result, err := svc.UnbanUser(context.Background(), 1001)
@@ -1900,6 +1912,8 @@ func TestContentModerationUnbanUser_ActivatesUserAndInvalidatesAuthCache(t *test
 	require.NoError(t, err)
 	require.Equal(t, int64(1001), result.UserID)
 	require.Equal(t, StatusActive, result.Status)
+	require.Equal(t, int64(2), result.ReleasedGroupPenalties)
+	require.Equal(t, int64(1001), repo.releasedUserID)
 	require.Len(t, userRepo.updated, 1)
 	require.Equal(t, StatusActive, userRepo.updated[0].Status)
 	require.Equal(t, []int64{1001}, invalidator.userIDs)

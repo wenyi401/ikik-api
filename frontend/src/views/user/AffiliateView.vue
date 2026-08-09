@@ -10,7 +10,7 @@
           :period-preset="periodPreset"
           :start-date="periodStartDate"
           :end-date="periodEndDate"
-          :rebate-rate="formattedRebateRate"
+          :rebate-rate="formattedInviteShareRate"
           :invitee-count="detail.aff_count"
           :period-income-title="periodIncomeTitle"
           :period-rebate="detail.period_rebate"
@@ -23,7 +23,7 @@
         <AffiliateInvitePanel
           :code="detail.aff_code"
           :invite-link="inviteLink"
-          :rebate-rate="formattedRebateRate"
+          :rebate-rate="formattedInviteShareRate"
           @copy-code="copyCode"
           @copy-link="copyInviteLink"
         />
@@ -74,8 +74,8 @@ const inviteLink = computed(() => {
   return `${window.location.origin}/register?aff=${encodeURIComponent(detail.value.aff_code)}`
 })
 
-const formattedRebateRate = computed(() => {
-  const value = detail.value?.effective_rebate_rate_percent ?? 0
+const formattedInviteShareRate = computed(() => {
+  const value = detail.value?.invite_share_ratio_percent ?? 0
   const rounded = Math.round(value * 100) / 100
   return Number.isInteger(rounded) ? String(rounded) : rounded.toString()
 })

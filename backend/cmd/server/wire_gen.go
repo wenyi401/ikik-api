@@ -16,6 +16,7 @@ import (
 	"ikik-api/internal/payment"
 	"ikik-api/internal/plugin"
 	"ikik-api/internal/repository"
+	"ikik-api/internal/riskengine"
 	"ikik-api/internal/securityaudit"
 	"ikik-api/internal/server"
 	"ikik-api/internal/server/middleware"
@@ -84,7 +85,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	authService := service.ProvideAuthService(client, userRepository, redeemCodeRepository, refreshTokenCache, configConfig, settingService, emailService, turnstileService, emailQueueService, promoService, subscriptionService, affiliateService, serviceUserPlatformQuotaRepository, userPrivateGroupProvisioner)
 	userService := service.NewUserService(userRepository, settingRepository, apiKeyAuthCacheInvalidator, billingCache)
 	redeemCache := repository.NewRedeemCache(redisClient)
-	redeemService := service.NewRedeemService(redeemCodeRepository, userRepository, subscriptionService, redeemCache, billingCacheService, client, apiKeyAuthCacheInvalidator, affiliateService)
+	redeemService := service.ProvideRedeemService(redeemCodeRepository, userRepository, subscriptionService, redeemCache, billingCacheService, client, apiKeyAuthCacheInvalidator, affiliateService, settingService)
 	secretEncryptor, err := repository.NewAESEncryptor(configConfig)
 	if err != nil {
 		return nil, err
@@ -98,6 +99,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	userHandler := handler.NewUserHandler(userService, authService, emailService, emailCache, affiliateService, serviceUserPlatformQuotaRepository)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
 	accountSharePolicyRepository := repository.NewAccountSharePolicyRepository(client, db)
+	affiliateService.SetAccountSharePolicyRepository(accountSharePolicyRepository)
 	proxyExitInfoProber := repository.NewProxyExitInfoProber(configConfig)
 	accountService := service.ProvideAccountService(accountRepository, groupRepository, userRepository, userSubscriptionRepository, accountSharePolicyRepository, userPrivateGroupProvisioner, proxyRepository, proxyExitInfoProber)
 	usageLogRepository := repository.NewUsageLogRepository(client, db)
@@ -171,6 +173,9 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	leaderLockCache := repository.NewLeaderLockCache(redisClient)
 	ollamaCloudUsageService := service.ProvideOllamaCloudUsageService(accountRepository, httpUpstream, settingService, secretEncryptor, configConfig, leaderLockCache, db)
 	userAccountHandler := handler.ProvideUserAccountHandler(accountService, accountUsageService, accountTestService, rateLimitService, openAIQuotaService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, kiroOAuthService, accountBatchTaskService, carpoolService, settingService, ollamaCloudUsageService)
+	developerTokenRepository := repository.NewDeveloperTokenRepository(client)
+	developerTokenService := service.NewDeveloperTokenService(developerTokenRepository, userRepository)
+	developerHandler := handler.NewDeveloperHandler(developerTokenService, userAccountHandler)
 	usageService := service.ProvideUsageService(usageLogRepository, userRepository, client, apiKeyAuthCacheInvalidator, settingRepository, groupRepository)
 	opsRepository := repository.NewOpsRepository(db)
 	identityService := service.NewIdentityService(identityCache)
@@ -289,7 +294,10 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	redisPayloadStore := securityaudit.NewRedisPayloadStore(redisClient)
 	openAICompatibleScanner := securityaudit.NewOpenAICompatibleScanner()
 	atomicMetrics := securityaudit.NewAtomicMetrics()
-	promptService := securityaudit.NewPromptService(configManager, postgreSQLRepository, redisPayloadStore, openAICompatibleScanner, atomicMetrics)
+	knowledgeRepository := riskengine.NewKnowledgeRepository(db)
+	shadowRepository := riskengine.NewShadowRepository(db)
+	knowledgeShadowService := riskengine.NewKnowledgeShadowService(knowledgeRepository, shadowRepository)
+	promptService := securityaudit.ProvidePromptService(configManager, postgreSQLRepository, redisPayloadStore, openAICompatibleScanner, atomicMetrics, knowledgeRepository, shadowRepository, knowledgeShadowService)
 	promptAdminHandler := securityaudit.NewPromptAdminHandler(promptService)
 	paymentHandler := admin.NewPaymentHandler(paymentService, paymentConfigService)
 	revenueService := service.NewRevenueService(client)
@@ -353,7 +361,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	kiroCooldownStore := service.ProvideKiroCooldownStore(redisClient)
 	ikikRuntimeWiring := service.ProvideIkikRuntimeWiring(gatewayService, openAIGatewayService, accountUsageService, carpoolRepository, kiroTokenProvider, kiroCooldownStore)
 	ikikHandlerRuntimeWiring := handler.ProvideIkikHandlerRuntimeWiring(gatewayHandler, openAIGatewayHandler, channelMonitorUserHandler, handlerPaymentHandler, accountHandler, groupHandler, chain, accountService, kiroOAuthService, accountBatchTaskService, groupRateScheduleService, groupCapacityService, channelService, ikikRuntimeWiring)
-	handlers := handler.ProvideHandlers(authHandler, userHandler, apiKeyHandler, userAccountHandler, usageHandler, redeemHandler, subscriptionHandler, announcementHandler, promptSubmissionHandler, channelMonitorUserHandler, serviceStatusHandler, adminHandlers, gatewayHandler, openAIGatewayHandler, handlerSettingHandler, totpHandler, handlerPaymentHandler, paymentWebhookHandler, availableChannelHandler, asyncImageHandler, batchImageHandler, playgroundHandler, receiptCodeHandler, handlerWithdrawalHandler, handlerShopHandler, idempotencyCoordinator, idempotencyCleanupService, ikikHandlerRuntimeWiring)
+	handlers := handler.ProvideHandlers(authHandler, userHandler, apiKeyHandler, userAccountHandler, developerHandler, usageHandler, redeemHandler, subscriptionHandler, announcementHandler, promptSubmissionHandler, channelMonitorUserHandler, serviceStatusHandler, adminHandlers, gatewayHandler, openAIGatewayHandler, handlerSettingHandler, totpHandler, handlerPaymentHandler, paymentWebhookHandler, availableChannelHandler, asyncImageHandler, batchImageHandler, playgroundHandler, receiptCodeHandler, handlerWithdrawalHandler, handlerShopHandler, idempotencyCoordinator, idempotencyCleanupService, ikikHandlerRuntimeWiring)
 	jwtAuthMiddleware := middleware.NewJWTAuthMiddleware(authService, userService, settingService, auditLogService)
 	adminAuthMiddleware := middleware.NewAdminAuthMiddleware(authService, userService, settingService, auditLogService)
 	apiKeyAuthMiddleware := middleware.NewAPIKeyAuthMiddleware(apiKeyService, subscriptionService, configConfig)

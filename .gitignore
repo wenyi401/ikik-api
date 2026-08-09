@@ -137,6 +137,8 @@ docs/*
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
 !docs/RISK_CONTROL_MODEL_CLASSIFIER.md
+!docs/DEVELOPER_ACCOUNT_API.md
+!docs/developer-account-api.openapi.yaml
 !docs/OFFICIAL_UPDATE_AND_DEPLOY_CN.md
 !docs/LOCAL_IMAGE_UPLOAD_DEPLOY_CN.md
 !docs/legal/

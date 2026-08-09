@@ -299,6 +299,77 @@ export interface ContentModerationLogsResponse {
 export interface ContentModerationUnbanUserResponse {
   user_id: number
   status: string
+  released_group_penalties: number
+}
+
+export interface ContentModerationGroupPenalty {
+  user_id: number
+  user_email: string
+  username: string
+  user_status: string
+  group_id: number
+  group_name: string
+  group_platform: string
+  strike_count: number
+  blocked_until?: string
+  permanent: boolean
+  last_category: string
+  last_request_id: string
+  last_score: number
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ContentModerationGroupPenaltyEvent {
+  id: number
+  user_id: number
+  group_id: number
+  request_id: string
+  category: string
+  score: number
+  created_at: string
+}
+
+export interface ContentModerationGroupPenaltyOverview {
+  total: number
+  active: number
+  expired: number
+  permanent: number
+  today_events: number
+}
+
+export interface ContentModerationGroupPenaltiesResponse {
+  items: ContentModerationGroupPenalty[]
+  overview: ContentModerationGroupPenaltyOverview
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface ContentModerationGroupPenaltyEventsResponse {
+  items: ContentModerationGroupPenaltyEvent[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface ContentModerationGroupPenaltyActionResponse {
+  user_id: number
+  group_id: number
+  affected: boolean
+  strike_count: number
+}
+
+export interface ListContentModerationGroupPenaltiesParams {
+  page?: number
+  page_size?: number
+  status?: 'all' | 'active' | 'expired' | 'permanent'
+  search?: string
+  category?: string
+  group_id?: number
 }
 
 export interface ContentModerationRiskProfile {
@@ -409,6 +480,49 @@ export async function unbanUser(userID: number): Promise<ContentModerationUnbanU
   return data
 }
 
+export async function listGroupPenalties(
+  params: ListContentModerationGroupPenaltiesParams = {}
+): Promise<ContentModerationGroupPenaltiesResponse> {
+  const { data } = await apiClient.get<ContentModerationGroupPenaltiesResponse>(
+    '/admin/risk-control/group-penalties',
+    { params }
+  )
+  return data
+}
+
+export async function listGroupPenaltyEvents(
+  userID: number,
+  groupID: number,
+  page = 1,
+  pageSize = 20
+): Promise<ContentModerationGroupPenaltyEventsResponse> {
+  const { data } = await apiClient.get<ContentModerationGroupPenaltyEventsResponse>(
+    `/admin/risk-control/group-penalties/${userID}/${groupID}/events`,
+    { params: { page, page_size: pageSize } }
+  )
+  return data
+}
+
+export async function releaseGroupPenalty(
+  userID: number,
+  groupID: number
+): Promise<ContentModerationGroupPenaltyActionResponse> {
+  const { data } = await apiClient.post<ContentModerationGroupPenaltyActionResponse>(
+    `/admin/risk-control/group-penalties/${userID}/${groupID}/release`
+  )
+  return data
+}
+
+export async function resetGroupPenalty(
+  userID: number,
+  groupID: number
+): Promise<ContentModerationGroupPenaltyActionResponse> {
+  const { data } = await apiClient.delete<ContentModerationGroupPenaltyActionResponse>(
+    `/admin/risk-control/group-penalties/${userID}/${groupID}`
+  )
+  return data
+}
+
 export async function listRiskProfiles(
   params: ListContentModerationRiskProfilesParams = {}
 ): Promise<ContentModerationRiskProfilesResponse> {
@@ -451,6 +565,10 @@ export const riskControlAPI = {
   listRiskProfiles,
   updateRiskProfile,
   unbanUser,
+  listGroupPenalties,
+  listGroupPenaltyEvents,
+  releaseGroupPenalty,
+  resetGroupPenalty,
   deleteFlaggedHash,
   clearFlaggedHashes,
 }

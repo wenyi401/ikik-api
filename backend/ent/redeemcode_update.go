@@ -58,6 +58,26 @@ func (_u *RedeemCodeUpdate) SetNillableType(v *string) *RedeemCodeUpdate {
 	return _u
 }
 
+// SetFeatureKey sets the "feature_key" field.
+func (_u *RedeemCodeUpdate) SetFeatureKey(v string) *RedeemCodeUpdate {
+	_u.mutation.SetFeatureKey(v)
+	return _u
+}
+
+// SetNillableFeatureKey sets the "feature_key" field if the given value is not nil.
+func (_u *RedeemCodeUpdate) SetNillableFeatureKey(v *string) *RedeemCodeUpdate {
+	if v != nil {
+		_u.SetFeatureKey(*v)
+	}
+	return _u
+}
+
+// ClearFeatureKey clears the value of the "feature_key" field.
+func (_u *RedeemCodeUpdate) ClearFeatureKey() *RedeemCodeUpdate {
+	_u.mutation.ClearFeatureKey()
+	return _u
+}
+
 // SetValue sets the "value" field.
 func (_u *RedeemCodeUpdate) SetValue(v float64) *RedeemCodeUpdate {
 	_u.mutation.ResetValue()
@@ -294,6 +314,11 @@ func (_u *RedeemCodeUpdate) check() error {
 			return &ValidationError{Name: "type", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.type": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.FeatureKey(); ok {
+		if err := redeemcode.FeatureKeyValidator(v); err != nil {
+			return &ValidationError{Name: "feature_key", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.feature_key": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := redeemcode.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.status": %w`, err)}
@@ -319,6 +344,12 @@ func (_u *RedeemCodeUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 	}
 	if value, ok := _u.mutation.GetType(); ok {
 		_spec.SetField(redeemcode.FieldType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.FeatureKey(); ok {
+		_spec.SetField(redeemcode.FieldFeatureKey, field.TypeString, value)
+	}
+	if _u.mutation.FeatureKeyCleared() {
+		_spec.ClearField(redeemcode.FieldFeatureKey, field.TypeString)
 	}
 	if value, ok := _u.mutation.Value(); ok {
 		_spec.SetField(redeemcode.FieldValue, field.TypeFloat64, value)
@@ -456,6 +487,26 @@ func (_u *RedeemCodeUpdateOne) SetNillableType(v *string) *RedeemCodeUpdateOne {
 	if v != nil {
 		_u.SetType(*v)
 	}
+	return _u
+}
+
+// SetFeatureKey sets the "feature_key" field.
+func (_u *RedeemCodeUpdateOne) SetFeatureKey(v string) *RedeemCodeUpdateOne {
+	_u.mutation.SetFeatureKey(v)
+	return _u
+}
+
+// SetNillableFeatureKey sets the "feature_key" field if the given value is not nil.
+func (_u *RedeemCodeUpdateOne) SetNillableFeatureKey(v *string) *RedeemCodeUpdateOne {
+	if v != nil {
+		_u.SetFeatureKey(*v)
+	}
+	return _u
+}
+
+// ClearFeatureKey clears the value of the "feature_key" field.
+func (_u *RedeemCodeUpdateOne) ClearFeatureKey() *RedeemCodeUpdateOne {
+	_u.mutation.ClearFeatureKey()
 	return _u
 }
 
@@ -708,6 +759,11 @@ func (_u *RedeemCodeUpdateOne) check() error {
 			return &ValidationError{Name: "type", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.type": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.FeatureKey(); ok {
+		if err := redeemcode.FeatureKeyValidator(v); err != nil {
+			return &ValidationError{Name: "feature_key", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.feature_key": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := redeemcode.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.status": %w`, err)}
@@ -750,6 +806,12 @@ func (_u *RedeemCodeUpdateOne) sqlSave(ctx context.Context) (_node *RedeemCode, 
 	}
 	if value, ok := _u.mutation.GetType(); ok {
 		_spec.SetField(redeemcode.FieldType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.FeatureKey(); ok {
+		_spec.SetField(redeemcode.FieldFeatureKey, field.TypeString, value)
+	}
+	if _u.mutation.FeatureKeyCleared() {
+		_spec.ClearField(redeemcode.FieldFeatureKey, field.TypeString)
 	}
 	if value, ok := _u.mutation.Value(); ok {
 		_spec.SetField(redeemcode.FieldValue, field.TypeFloat64, value)

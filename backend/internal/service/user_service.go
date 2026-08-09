@@ -36,6 +36,9 @@ var (
 	ErrAvatarInvalid            = infraerrors.BadRequest("AVATAR_INVALID", "avatar must be a valid image data URL or http(s) URL")
 	ErrAvatarTooLarge           = infraerrors.BadRequest("AVATAR_TOO_LARGE", "avatar image must be 100KB or smaller")
 	ErrAvatarNotImage           = infraerrors.BadRequest("AVATAR_NOT_IMAGE", "avatar content must be an image")
+	ErrOnboardingModeInvalid    = infraerrors.BadRequest("ONBOARDING_MODE_INVALID", "onboarding mode must be unset, beginner, or expert")
+	ErrShareCardTextInvalid     = infraerrors.BadRequest("SHARE_CARD_TEXT_INVALID", "share card text must not exceed 80 characters")
+	ErrShareCardColorInvalid    = infraerrors.BadRequest("SHARE_CARD_COLOR_INVALID", "share card text color must use #RRGGBB format")
 	ErrIdentityProviderInvalid  = infraerrors.BadRequest("IDENTITY_PROVIDER_INVALID", "identity provider is invalid")
 	ErrIdentityRedirectInvalid  = infraerrors.BadRequest("IDENTITY_REDIRECT_INVALID", "identity redirect path is invalid")
 	ErrIdentityUnbindLastMethod = infraerrors.Conflict(
@@ -192,6 +195,9 @@ type UpdateProfileRequest struct {
 	Concurrency            *int     `json:"concurrency"`
 	BalanceNotifyEnabled   *bool    `json:"balance_notify_enabled"`
 	BalanceNotifyThreshold *float64 `json:"balance_notify_threshold"`
+	OnboardingMode         *string  `json:"onboarding_mode"`
+	ShareCardText          *string  `json:"share_card_text"`
+	ShareCardTextColor     *string  `json:"share_card_text_color"`
 }
 
 type UserAvatar struct {
@@ -473,6 +479,35 @@ func (s *UserService) updateProfile(ctx context.Context, userID int64, req Updat
 		} else {
 			user.BalanceNotifyThreshold = req.BalanceNotifyThreshold
 		}
+	}
+	if req.OnboardingMode != nil {
+		mode := strings.ToLower(strings.TrimSpace(*req.OnboardingMode))
+		switch mode {
+		case "unset", "beginner", "expert":
+			user.OnboardingMode = mode
+		default:
+			return nil, oldConcurrency, ErrOnboardingModeInvalid
+		}
+	}
+	if req.ShareCardText != nil {
+		text := strings.TrimSpace(*req.ShareCardText)
+		if len([]rune(text)) > 80 {
+			return nil, oldConcurrency, ErrShareCardTextInvalid
+		}
+		user.ShareCardText = text
+	}
+	if req.ShareCardTextColor != nil {
+		color := strings.ToLower(strings.TrimSpace(*req.ShareCardTextColor))
+		if color == "" {
+			color = "#08775c"
+		}
+		if len(color) != 7 || color[0] != '#' {
+			return nil, oldConcurrency, ErrShareCardColorInvalid
+		}
+		if _, err := hex.DecodeString(color[1:]); err != nil {
+			return nil, oldConcurrency, ErrShareCardColorInvalid
+		}
+		user.ShareCardTextColor = color
 	}
 
 	if err := s.userRepo.Update(ctx, user); err != nil {

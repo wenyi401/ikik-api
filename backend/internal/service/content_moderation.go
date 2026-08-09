@@ -555,8 +555,9 @@ type ContentModerationRuntimeStatus struct {
 }
 
 type ContentModerationUnbanUserResult struct {
-	UserID int64  `json:"user_id"`
-	Status string `json:"status"`
+	UserID                 int64  `json:"user_id"`
+	Status                 string `json:"status"`
+	ReleasedGroupPenalties int64  `json:"released_group_penalties"`
 }
 
 type ContentModerationDeleteHashResult struct {
@@ -1577,12 +1578,20 @@ func (s *ContentModerationService) UnbanUser(ctx context.Context, userID int64) 
 			return nil, fmt.Errorf("update content moderation unban user: %w", err)
 		}
 	}
+	var releasedGroupPenalties int64
+	if repo, ok := s.repo.(ContentModerationGroupPenaltyAdminRepository); ok {
+		releasedGroupPenalties, err = repo.ReleaseAllUserGroupPenalties(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("release content moderation group penalties: %w", err)
+		}
+	}
 	if s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 	}
 	return &ContentModerationUnbanUserResult{
-		UserID: userID,
-		Status: StatusActive,
+		UserID:                 userID,
+		Status:                 StatusActive,
+		ReleasedGroupPenalties: releasedGroupPenalties,
 	}, nil
 }
 

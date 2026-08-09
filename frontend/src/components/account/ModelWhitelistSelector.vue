@@ -86,7 +86,7 @@
         {{ t('admin.accounts.fillRelatedModels') }}
       </button>
       <button
-        v-if="canSyncUpstream"
+        v-if="accountScope === 'admin' && canSyncUpstream"
         type="button"
         @click="syncUpstreamModels"
         :disabled="isSyncingUpstream"
@@ -144,6 +144,7 @@
     <ModelProbeModal
       :show="showProbeModal"
       :default-platform="primaryPlatform"
+      :account-scope="accountScope"
       @close="showProbeModal = false"
       @apply="applyProbedModels"
     />
@@ -163,12 +164,15 @@ import { allModels, getModelsByPlatform } from '@/composables/useModelWhitelist'
 
 const { t } = useI18n()
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: string[]
   platform?: string
   platforms?: string[]
   syncCredentials?: SyncUpstreamPreviewParams
-}>()
+  accountScope?: 'admin' | 'user'
+}>(), {
+  accountScope: 'admin'
+})
 
 const emit = defineEmits<{
   'update:modelValue': [value: string[]]

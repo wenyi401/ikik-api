@@ -94,6 +94,8 @@ const (
 	FieldMessagesDispatchModelConfig = "messages_dispatch_model_config"
 	// FieldModelsListConfig holds the string denoting the models_list_config field in the database.
 	FieldModelsListConfig = "models_list_config"
+	// FieldOpenaiExperimentalPromptEnabled holds the string denoting the openai_experimental_prompt_enabled field in the database.
+	FieldOpenaiExperimentalPromptEnabled = "openai_experimental_prompt_enabled"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// FieldKiroCacheEmulationEnabled holds the string denoting the kiro_cache_emulation_enabled field in the database.
@@ -271,6 +273,7 @@ var Columns = []string{
 	FieldDefaultMappedModel,
 	FieldMessagesDispatchModelConfig,
 	FieldModelsListConfig,
+	FieldOpenaiExperimentalPromptEnabled,
 	FieldRpmLimit,
 	FieldKiroCacheEmulationEnabled,
 	FieldKiroAutoStickyEnabled,
@@ -390,6 +393,8 @@ var (
 	DefaultMessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig
 	// DefaultModelsListConfig holds the default value on creation for the "models_list_config" field.
 	DefaultModelsListConfig domain.GroupModelsListConfig
+	// DefaultOpenaiExperimentalPromptEnabled holds the default value on creation for the "openai_experimental_prompt_enabled" field.
+	DefaultOpenaiExperimentalPromptEnabled bool
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 	// DefaultKiroCacheEmulationEnabled holds the default value on creation for the "kiro_cache_emulation_enabled" field.
@@ -609,6 +614,11 @@ func ByRequirePrivacySet(opts ...sql.OrderTermOption) OrderOption {
 // ByDefaultMappedModel orders the results by the default_mapped_model field.
 func ByDefaultMappedModel(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDefaultMappedModel, opts...).ToFunc()
+}
+
+// ByOpenaiExperimentalPromptEnabled orders the results by the openai_experimental_prompt_enabled field.
+func ByOpenaiExperimentalPromptEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOpenaiExperimentalPromptEnabled, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.

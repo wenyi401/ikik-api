@@ -149,6 +149,28 @@ func (r *PostgreSQLRepository) PreparePromptAudit(ctx context.Context, userID in
 	return decision, nil
 }
 
+func (r *PostgreSQLRepository) PreparePromptAuditShadow(ctx context.Context, userID int64, requestID string, forceRemote bool) (PromptAuditAdmissionDecision, error) {
+	if r == nil || r.db == nil || userID <= 0 {
+		return PromptAuditAdmissionDecision{RunRemote: true}, nil
+	}
+	var totalRequests, remoteAudits int64
+	var sampleRate int
+	err := r.db.QueryRowContext(ctx, `
+		INSERT INTO prompt_audit_user_profiles (user_id, total_requests)
+		VALUES ($1, 1)
+		ON CONFLICT (user_id) DO UPDATE SET
+			total_requests = prompt_audit_user_profiles.total_requests + 1,
+			updated_at = NOW()
+		RETURNING total_requests, remote_audits, current_sample_rate`, userID).
+		Scan(&totalRequests, &remoteAudits, &sampleRate)
+	if err != nil {
+		return PromptAuditAdmissionDecision{}, err
+	}
+	return PromptAuditAdmissionDecision{
+		RunRemote: shouldRunRemotePromptAudit(forceRemote, remoteAudits, userID, requestID, totalRequests, sampleRate),
+	}, nil
+}
+
 func shouldRunRemotePromptAudit(forceRemote bool, remoteAudits, userID int64, requestID string, totalRequests int64, sampleRate int) bool {
 	return forceRemote || remoteAudits < 100 || sampledPromptAudit(userID, requestID, totalRequests, sampleRate)
 }
@@ -328,7 +350,7 @@ func applyPromptAuditCompletion(ctx context.Context, tx *sql.Tx, snapshot Prompt
 	if remoteAudit {
 		remoteIncrement = 1
 	}
-	if isJailbreakBlock(result) {
+	if isJailbreakBlock(result) && !result.Shadow {
 		_, err := tx.ExecContext(ctx, `
 			UPDATE prompt_audit_user_profiles SET
 				remote_audits=remote_audits+$2,

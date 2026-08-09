@@ -660,6 +660,207 @@ LIMIT 1
 	return &penalty, applied, nil
 }
 
+func (r *contentModerationRepository) ListUserGroupPenalties(ctx context.Context, filter service.ContentModerationGroupPenaltyFilter) ([]service.ContentModerationGroupPenaltyRecord, *pagination.PaginationResult, error) {
+	where := []string{"p.user_id IS NOT NULL"}
+	args := make([]any, 0, 4)
+	switch strings.ToLower(strings.TrimSpace(filter.Status)) {
+	case "active":
+		where = append(where, "(p.permanent = TRUE OR p.blocked_until > CURRENT_TIMESTAMP)")
+	case "expired":
+		where = append(where, "(p.permanent = FALSE AND p.blocked_until <= CURRENT_TIMESTAMP)")
+	case "permanent":
+		where = append(where, "p.permanent = TRUE")
+	}
+	if filter.GroupID != nil && *filter.GroupID > 0 {
+		args = append(args, *filter.GroupID)
+		where = append(where, fmt.Sprintf("p.group_id = $%d", len(args)))
+	}
+	if category := strings.TrimSpace(filter.Category); category != "" {
+		args = append(args, category)
+		where = append(where, fmt.Sprintf("p.last_category = $%d", len(args)))
+	}
+	if search := strings.TrimSpace(filter.Search); search != "" {
+		args = append(args, "%"+search+"%")
+		idx := len(args)
+		where = append(where, fmt.Sprintf("(u.email ILIKE $%d OR u.username ILIKE $%d OR g.name ILIKE $%d OR CAST(p.user_id AS TEXT) ILIKE $%d)", idx, idx, idx, idx))
+	}
+	whereSQL := "WHERE " + strings.Join(where, " AND ")
+	var total int64
+	if err := r.db.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM content_moderation_user_group_penalties p
+JOIN users u ON u.id = p.user_id
+JOIN groups g ON g.id = p.group_id
+`+whereSQL, args...).Scan(&total); err != nil {
+		return nil, nil, fmt.Errorf("count content moderation group penalties: %w", err)
+	}
+
+	params := filter.Pagination
+	if params.Page <= 0 {
+		params.Page = 1
+	}
+	if params.PageSize <= 0 {
+		params.PageSize = 20
+	}
+	if params.PageSize > 100 {
+		params.PageSize = 100
+	}
+	queryArgs := append([]any{}, args...)
+	queryArgs = append(queryArgs, params.Limit(), params.Offset())
+	rows, err := r.db.QueryContext(ctx, `
+SELECT p.user_id, p.group_id, p.strike_count, p.blocked_until, p.permanent,
+       p.last_category, p.last_request_id, p.last_score, p.created_at, p.updated_at,
+       COALESCE(u.email, ''), COALESCE(u.username, ''), COALESCE(u.status, ''),
+       COALESCE(g.name, ''), COALESCE(g.platform, ''),
+       (p.permanent = TRUE OR p.blocked_until > CURRENT_TIMESTAMP) AS active
+FROM content_moderation_user_group_penalties p
+JOIN users u ON u.id = p.user_id
+JOIN groups g ON g.id = p.group_id
+`+whereSQL+`
+ORDER BY active DESC, p.permanent DESC, p.updated_at DESC
+LIMIT $`+fmt.Sprint(len(queryArgs)-1)+` OFFSET $`+fmt.Sprint(len(queryArgs)), queryArgs...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list content moderation group penalties: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	items := make([]service.ContentModerationGroupPenaltyRecord, 0)
+	for rows.Next() {
+		var item service.ContentModerationGroupPenaltyRecord
+		var blockedUntil sql.NullTime
+		if err := rows.Scan(
+			&item.UserID, &item.GroupID, &item.StrikeCount, &blockedUntil, &item.Permanent,
+			&item.LastCategory, &item.LastRequestID, &item.LastScore, &item.CreatedAt, &item.UpdatedAt,
+			&item.UserEmail, &item.Username, &item.UserStatus, &item.GroupName, &item.GroupPlatform, &item.Active,
+		); err != nil {
+			return nil, nil, fmt.Errorf("scan content moderation group penalty: %w", err)
+		}
+		if blockedUntil.Valid {
+			item.BlockedUntil = timePtr(blockedUntil.Time)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("iterate content moderation group penalties: %w", err)
+	}
+	return items, paginationResultFromTotal(total, params), nil
+}
+
+func (r *contentModerationRepository) GetUserGroupPenaltyOverview(ctx context.Context) (*service.ContentModerationGroupPenaltyOverview, error) {
+	var result service.ContentModerationGroupPenaltyOverview
+	err := r.db.QueryRowContext(ctx, `
+SELECT
+    COUNT(*),
+    COUNT(*) FILTER (WHERE permanent = TRUE OR blocked_until > CURRENT_TIMESTAMP),
+    COUNT(*) FILTER (WHERE permanent = FALSE AND blocked_until <= CURRENT_TIMESTAMP),
+    COUNT(*) FILTER (WHERE permanent = TRUE),
+    (SELECT COUNT(*) FROM content_moderation_user_group_penalty_events WHERE created_at >= CURRENT_DATE)
+FROM content_moderation_user_group_penalties
+`).Scan(&result.Total, &result.Active, &result.Expired, &result.Permanent, &result.TodayEvents)
+	if err != nil {
+		return nil, fmt.Errorf("get content moderation group penalty overview: %w", err)
+	}
+	return &result, nil
+}
+
+func (r *contentModerationRepository) ListUserGroupPenaltyEvents(ctx context.Context, userID, groupID int64, params pagination.PaginationParams) ([]service.ContentModerationGroupPenaltyEvent, *pagination.PaginationResult, error) {
+	if params.Page <= 0 {
+		params.Page = 1
+	}
+	if params.PageSize <= 0 {
+		params.PageSize = 20
+	}
+	if params.PageSize > 100 {
+		params.PageSize = 100
+	}
+	var total int64
+	if err := r.db.QueryRowContext(ctx, `
+SELECT COUNT(*) FROM content_moderation_user_group_penalty_events WHERE user_id = $1 AND group_id = $2
+`, userID, groupID).Scan(&total); err != nil {
+		return nil, nil, fmt.Errorf("count content moderation group penalty events: %w", err)
+	}
+	rows, err := r.db.QueryContext(ctx, `
+SELECT id, user_id, group_id, request_id, category, score, created_at
+FROM content_moderation_user_group_penalty_events
+WHERE user_id = $1 AND group_id = $2
+ORDER BY created_at DESC, id DESC
+LIMIT $3 OFFSET $4
+`, userID, groupID, params.Limit(), params.Offset())
+	if err != nil {
+		return nil, nil, fmt.Errorf("list content moderation group penalty events: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	items := make([]service.ContentModerationGroupPenaltyEvent, 0)
+	for rows.Next() {
+		var item service.ContentModerationGroupPenaltyEvent
+		if err := rows.Scan(&item.ID, &item.UserID, &item.GroupID, &item.RequestID, &item.Category, &item.Score, &item.CreatedAt); err != nil {
+			return nil, nil, fmt.Errorf("scan content moderation group penalty event: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("iterate content moderation group penalty events: %w", err)
+	}
+	return items, paginationResultFromTotal(total, params), nil
+}
+
+func (r *contentModerationRepository) ReleaseUserGroupPenalty(ctx context.Context, userID, groupID int64) (*service.ContentModerationGroupPenaltyActionResult, error) {
+	result := &service.ContentModerationGroupPenaltyActionResult{UserID: userID, GroupID: groupID}
+	err := r.db.QueryRowContext(ctx, `
+UPDATE content_moderation_user_group_penalties
+SET permanent = FALSE, blocked_until = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE user_id = $1 AND group_id = $2
+  AND (permanent = TRUE OR blocked_until > CURRENT_TIMESTAMP)
+RETURNING strike_count
+`, userID, groupID).Scan(&result.StrikeCount)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = r.db.QueryRowContext(ctx, `
+SELECT strike_count FROM content_moderation_user_group_penalties WHERE user_id = $1 AND group_id = $2
+`, userID, groupID).Scan(&result.StrikeCount)
+		if errors.Is(err, sql.ErrNoRows) {
+			return result, nil
+		}
+		return result, err
+	}
+	if err != nil {
+		return nil, fmt.Errorf("release content moderation group penalty: %w", err)
+	}
+	result.Affected = true
+	return result, nil
+}
+
+func (r *contentModerationRepository) ResetUserGroupPenalty(ctx context.Context, userID, groupID int64) (*service.ContentModerationGroupPenaltyActionResult, error) {
+	result := &service.ContentModerationGroupPenaltyActionResult{UserID: userID, GroupID: groupID}
+	err := r.db.QueryRowContext(ctx, `
+DELETE FROM content_moderation_user_group_penalties
+WHERE user_id = $1 AND group_id = $2
+RETURNING strike_count
+`, userID, groupID).Scan(&result.StrikeCount)
+	if errors.Is(err, sql.ErrNoRows) {
+		return result, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reset content moderation group penalty: %w", err)
+	}
+	result.Affected = true
+	return result, nil
+}
+
+func (r *contentModerationRepository) ReleaseAllUserGroupPenalties(ctx context.Context, userID int64) (int64, error) {
+	result, err := r.db.ExecContext(ctx, `
+UPDATE content_moderation_user_group_penalties
+SET permanent = FALSE, blocked_until = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE user_id = $1 AND (permanent = TRUE OR blocked_until > CURRENT_TIMESTAMP)
+`, userID)
+	if err != nil {
+		return 0, fmt.Errorf("release all content moderation group penalties: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("count released content moderation group penalties: %w", err)
+	}
+	return count, nil
+}
+
 type riskProfileScanner interface {
 	Scan(dest ...any) error
 }

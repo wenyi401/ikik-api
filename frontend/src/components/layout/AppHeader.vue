@@ -10,7 +10,7 @@
           <Icon name="menu" size="md" />
         </button>
 
-        <div class="app-header-context">
+        <div v-if="showPageTitle" class="app-header-context">
           <h1 class="app-header-title">
             {{ pageTitle }}
           </h1>
@@ -18,6 +18,18 @@
       </div>
 
       <div class="app-header-actions">
+        <a
+          v-if="docUrl"
+          :href="docUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn-ghost btn-icon app-header-icon-button app-header-doc-button app-header-action-item"
+          :aria-label="t('nav.docs')"
+          :title="t('nav.docs')"
+          data-testid="header-doc-link"
+        >
+          <Icon name="book" size="md" />
+        </a>
         <LocaleSwitcher class="app-header-action-item shrink-0" />
         <SubscriptionProgressMini v-if="user" class="app-header-action-item" />
         <AnnouncementBell v-if="user" class="app-header-action-item" />
@@ -110,7 +122,7 @@
 
               <div v-if="showOnboardingButton" class="border-t border-[var(--app-border)] py-1">
                 <button @click="handleReplayGuide" class="dropdown-item w-full">
-                  {{ $t('onboarding.restartTour') }}
+                  {{ authStore.user?.onboarding_mode === 'beginner' ? $t('onboarding.journey.open') : $t('onboarding.restartTour') }}
                 </button>
               </div>
 
@@ -156,10 +168,10 @@ const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
+const showPageTitle = computed(() => authStore.isAdmin && route.path.startsWith('/admin'))
 
-// 只在标准模式的管理员下显示新手引导按钮
 const showOnboardingButton = computed(() => {
-  return !authStore.isSimpleMode && user.value?.role === 'admin'
+  return !authStore.isSimpleMode
 })
 
 const userInitials = computed(() => {
@@ -241,6 +253,30 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.app-header-doc-button {
+  display: inline-flex;
+  width: 2.625rem;
+  height: 2.625rem;
+  flex: 0 0 2.625rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-surface) 72%, transparent);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.app-header-doc-button:hover {
+  border-color: var(--app-border-strong);
+  background: var(--app-surface);
+  transform: translateY(-1px);
+}
+
 .dropdown-enter-active,
 .dropdown-leave-active {
   transition: all 0.2s ease;

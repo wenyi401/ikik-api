@@ -10,6 +10,7 @@ import (
 	"ikik-api/ent/announcementread"
 	"ikik-api/ent/apikey"
 	"ikik-api/ent/authidentity"
+	"ikik-api/ent/developertoken"
 	"ikik-api/ent/group"
 	"ikik-api/ent/paymentorder"
 	"ikik-api/ent/pendingauthsession"
@@ -43,6 +44,7 @@ type UserQuery struct {
 	inters                    []Interceptor
 	predicates                []predicate.User
 	withAPIKeys               *APIKeyQuery
+	withDeveloperTokens       *DeveloperTokenQuery
 	withRedeemCodes           *RedeemCodeQuery
 	withSubscriptions         *UserSubscriptionQuery
 	withAssignedSubscriptions *UserSubscriptionQuery
@@ -114,6 +116,28 @@ func (_q *UserQuery) QueryAPIKeys() *APIKeyQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(apikey.Table, apikey.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.APIKeysTable, user.APIKeysColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryDeveloperTokens chains the current query on the "developer_tokens" edge.
+func (_q *UserQuery) QueryDeveloperTokens() *DeveloperTokenQuery {
+	query := (&DeveloperTokenClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(developertoken.Table, developertoken.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.DeveloperTokensTable, user.DeveloperTokensColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -732,6 +756,7 @@ func (_q *UserQuery) Clone() *UserQuery {
 		inters:                    append([]Interceptor{}, _q.inters...),
 		predicates:                append([]predicate.User{}, _q.predicates...),
 		withAPIKeys:               _q.withAPIKeys.Clone(),
+		withDeveloperTokens:       _q.withDeveloperTokens.Clone(),
 		withRedeemCodes:           _q.withRedeemCodes.Clone(),
 		withSubscriptions:         _q.withSubscriptions.Clone(),
 		withAssignedSubscriptions: _q.withAssignedSubscriptions.Clone(),
@@ -765,6 +790,17 @@ func (_q *UserQuery) WithAPIKeys(opts ...func(*APIKeyQuery)) *UserQuery {
 		opt(query)
 	}
 	_q.withAPIKeys = query
+	return _q
+}
+
+// WithDeveloperTokens tells the query-builder to eager-load the nodes that are connected to
+// the "developer_tokens" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithDeveloperTokens(opts ...func(*DeveloperTokenQuery)) *UserQuery {
+	query := (&DeveloperTokenClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withDeveloperTokens = query
 	return _q
 }
 
@@ -1055,8 +1091,9 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [20]bool{
+		loadedTypes = [21]bool{
 			_q.withAPIKeys != nil,
+			_q.withDeveloperTokens != nil,
 			_q.withRedeemCodes != nil,
 			_q.withSubscriptions != nil,
 			_q.withAssignedSubscriptions != nil,
@@ -1103,6 +1140,13 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadAPIKeys(ctx, query, nodes,
 			func(n *User) { n.Edges.APIKeys = []*APIKey{} },
 			func(n *User, e *APIKey) { n.Edges.APIKeys = append(n.Edges.APIKeys, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withDeveloperTokens; query != nil {
+		if err := _q.loadDeveloperTokens(ctx, query, nodes,
+			func(n *User) { n.Edges.DeveloperTokens = []*DeveloperToken{} },
+			func(n *User, e *DeveloperToken) { n.Edges.DeveloperTokens = append(n.Edges.DeveloperTokens, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -1261,6 +1305,36 @@ func (_q *UserQuery) loadAPIKeys(ctx context.Context, query *APIKeyQuery, nodes 
 	}
 	query.Where(predicate.APIKey(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(user.APIKeysColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadDeveloperTokens(ctx context.Context, query *DeveloperTokenQuery, nodes []*User, init func(*User), assign func(*User, *DeveloperToken)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(developertoken.FieldUserID)
+	}
+	query.Where(predicate.DeveloperToken(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.DeveloperTokensColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

@@ -3,9 +3,12 @@ package securityaudit
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"ikik-api/internal/riskengine"
 )
 
 type WorkerRuntime struct {
@@ -20,13 +23,14 @@ type WorkerRuntime struct {
 }
 
 type Runner struct {
-	config  ConfigStore
-	repo    JobRepository
-	payload PayloadStore
-	scanner PromptScanner
-	metrics Metrics
-	clock   Clock
-	runtime WorkerRuntime
+	config        ConfigStore
+	repo          JobRepository
+	payload       PayloadStore
+	scanner       PromptScanner
+	metrics       Metrics
+	clock         Clock
+	riskKnowledge *riskengine.KnowledgeShadowService
+	runtime       WorkerRuntime
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -35,6 +39,12 @@ type Runner struct {
 
 func NewRunner(config ConfigStore, repo JobRepository, payload PayloadStore, scanner PromptScanner, metrics Metrics) *Runner {
 	return &Runner{config: config, repo: repo, payload: payload, scanner: scanner, metrics: metrics, clock: realClock{}}
+}
+
+func (r *Runner) SetRiskKnowledgeObserver(observer *riskengine.KnowledgeShadowService) {
+	if r != nil {
+		r.riskKnowledge = observer
+	}
 }
 
 func (r *Runner) Start(ctx context.Context) error {
@@ -145,10 +155,12 @@ func (r *Runner) processJob(ctx context.Context, workerID int, cfg ActiveConfig,
 	job.Snapshot.FullPrompt = FullPromptFromScanText(scanText)
 	endpoints := cfg.EnabledEndpoints()
 	knownMalicious := false
-	if admission, ok := r.repo.(PromptAuditAdmissionRepository); ok {
-		knownMalicious, err = admission.IsKnownMaliciousPromptHash(ctx, job.Snapshot.PromptHash)
-		if err != nil {
-			knownMalicious = false
+	if cfg.Enforces() {
+		if admission, ok := r.repo.(PromptAuditAdmissionRepository); ok {
+			knownMalicious, err = admission.IsKnownMaliciousPromptHash(ctx, job.Snapshot.PromptHash)
+			if err != nil {
+				knownMalicious = false
+			}
 		}
 	}
 	if !knownMalicious && len(endpoints) == 0 {
@@ -201,6 +213,7 @@ func (r *Runner) processJob(ctx context.Context, workerID int, cfg ActiveConfig,
 		return r.finishFailure(ctx, job, &GuardError{Code: ErrorCodeInvalidResponse, Cause: err})
 	}
 	aggregated.ChunkTotal = len(chunks)
+	aggregated.Shadow = !cfg.Enforces()
 	if r.metrics != nil {
 		r.metrics.Observe(decisionKindForResult(aggregated), r.clock.Now().Sub(started))
 	}
@@ -213,6 +226,7 @@ func (r *Runner) processJob(ctx context.Context, workerID int, cfg ActiveConfig,
 	if err != nil {
 		return err
 	}
+	r.observeRiskKnowledge(ctx, job, scanText, aggregated)
 	if deleteErr := r.payload.Delete(ctx, job.ID); deleteErr != nil {
 		LogWarn(EventProcessFailed, mergeLogFields(baseFields, map[string]any{"worker_id": workerID, "status": "payload_delete_deferred", "error_code": "payload_delete_failed"}))
 	}
@@ -221,6 +235,39 @@ func (r *Runner) processJob(ctx context.Context, workerID int, cfg ActiveConfig,
 		LogWarn(EventFindingRecorded, mergeLogFields(baseFields, map[string]any{"worker_id": workerID, "event_id": event.ID, "decision": aggregated.Decision, "risk_level": aggregated.RiskLevel, "action": aggregated.Action, "guard_endpoint_id": aggregated.GuardEndpointID, "status": "recorded"}))
 	}
 	return nil
+}
+
+func (r *Runner) observeRiskKnowledge(ctx context.Context, job *Job, scanText string, result *NormalizedResult) {
+	if r == nil || r.riskKnowledge == nil || job == nil || result == nil {
+		return
+	}
+	text := strings.TrimSpace(FullPromptFromScanText(scanText))
+	if text == "" {
+		return
+	}
+	groupID := int64(0)
+	if job.Snapshot.GroupID != nil {
+		groupID = *job.Snapshot.GroupID
+	}
+	observeCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+	defer cancel()
+	persisted, matched, err := r.riskKnowledge.Observe(observeCtx, riskengine.Input{
+		RequestID: job.Snapshot.RequestID, UserID: job.Snapshot.UserID, GroupID: groupID,
+		Text: text, ReceivedAt: job.CreatedAt,
+	}, riskengine.GuardSignal{
+		Decision: string(result.Decision), Categories: append([]string(nil), result.Categories...), Model: result.ScannerVersion,
+	})
+	if err != nil {
+		LogWarn(EventKnowledgeObservationFailed, mergeLogFields(jobLogFields(job), map[string]any{
+			"status": "failed", "error_code": "risk_knowledge_observation_failed",
+		}))
+		return
+	}
+	if matched {
+		LogInfo(EventKnowledgeObserved, mergeLogFields(jobLogFields(job), map[string]any{
+			"status": "recorded", "observation_id": persisted.ObservationID,
+		}))
+	}
 }
 
 func containsString(values []string, target string) bool {

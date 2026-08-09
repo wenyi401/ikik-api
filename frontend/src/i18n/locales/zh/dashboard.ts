@@ -525,28 +525,45 @@ export default {
   },
 
   affiliate: {
-    title: '邀请返利',
-    description: '邀请新用户注册，并将返利额度转入账户余额',
+    title: '邀请收益',
+    description: '邀请新用户注册，被邀请用户使用共享号池消费时，你可按比例获得实时余额收益',
     yourCode: '我的邀请码',
     inviteLink: '邀请链接',
     copyCode: '复制邀请码',
     copyLink: '复制链接',
     codeCopied: '邀请码已复制',
     linkCopied: '邀请链接已复制',
-    loadFailed: '加载邀请返利数据失败',
+    loadFailed: '加载邀请收益数据失败',
     transferFailed: '转入余额失败',
     stats: {
-      rebateRate: '我的返利比例',
-      rebateRateHint: '被邀请用户每次充值后你可获得的返利比例',
+      rebateRate: '我的邀请分成',
+      rebateRateHint: '被邀请用户在有效期内使用共享号池时你可获得的分成比例',
       invitedUsers: '邀请人数',
-      availableQuota: '可转返利额度',
+      availableQuota: '历史可转返利额度',
+      settlementMode: '结算方式',
+      realtimeBalance: '实时入余额',
+      realtimeBalanceHint: '邀请收益按 usage 结算后直接进入账户余额',
       frozenQuota: '冻结中',
-      frozenQuotaHint: '新产生的返利正在冻结期中',
-      totalQuota: '历史返利额度'
+      frozenQuotaHint: '旧充值返利冻结额度，仅用于历史兼容',
+      todayQuota: '今日邀请收益',
+      yesterdayQuota: '昨日邀请收益',
+      last7Quota: '近 7 天邀请收益',
+      periodQuota: '时间段邀请收益',
+      totalQuota: '历史邀请收益'
+    },
+    period: {
+      start: '开始日期',
+      end: '结束日期',
+      invalid: '请选择有效的时间范围',
+      presets: {
+        today: '今日',
+        yesterday: '昨日',
+        last7: '近 7 天'
+      }
     },
     transfer: {
-      title: '返利额度转余额',
-      description: '将当前可用返利额度一键转入账户余额',
+      title: '旧返利额度转余额',
+      description: '旧充值返利转余额入口已停用，新的邀请收益会实时进入账户余额',
       button: '转入余额',
       transferring: '转入中...',
       empty: '当前没有可转入额度',
@@ -556,18 +573,33 @@ export default {
       title: '已邀请用户',
       empty: '暂无邀请记录',
       columns: {
+        user: '用户',
         email: '邮箱',
         username: '用户名',
-        rebate: '返利明细',
+        bindSource: '绑定方式',
+        status: '状态',
+        periodConsumption: '时间段消费',
+        periodRebate: '时间段收益',
+        historyConsumption: '历史消费',
+        rebate: '邀请收益',
         joinedAt: '注册时间'
+      },
+      bindSources: {
+        registration: '注册绑定',
+        admin: '管理员绑定',
+        legacy: '历史绑定'
+      },
+      status: {
+        active: '有效',
+        disabled: '已禁用'
       }
     },
     tips: {
       title: '使用说明',
       line1: '将邀请码或邀请链接分享给新用户。',
-      line2: '被邀请用户充值后，你可获得 {rate} 的返利额度。',
-      line3: '返利额度可随时转入账户余额。',
-      line4: '新产生的返利需要经过冻结期后才能提现。'
+      line2: '被邀请用户在有效期内使用共享号池消费时，你可获得 {rate} 的邀请收益。',
+      line3: '邀请收益按每次 usage 实时结算并直接进入账户余额。',
+      line4: '旧充值返利的冻结提现规则已停用。'
     }
   },
 
@@ -655,6 +687,87 @@ export default {
     passwordTooShort: '密码至少需要 8 个字符',
     passwordChangeSuccess: '密码修改成功',
     passwordChangeFailed: '密码修改失败',
+    experimentalPrompt: {
+      title: 'OpenAI 实验性系统指令',
+      description: '解锁后，仅在您使用已开启该功能的 OpenAI 分组时生效。',
+      serviceStatus: '服务状态',
+      entitlementStatus: '权益状态',
+      configured: '已配置',
+      notConfigured: '暂未开放',
+      unlocked: '已解锁',
+      locked: '未解锁',
+      unlockedHint: '权益已生效。每次请求都会按实际命中的 OpenAI 分组判断，切换到其他分组不会错误继承。',
+      price: '一次性价格',
+      priceValue: '余额 {amount}',
+      purchase: '余额解锁',
+      insufficientBalance: '余额不足，还差 ¥{amount}',
+      purchaseUnavailable: '管理员尚未配置系统指令，当前不能使用余额购买。',
+      redeemLabel: '功能兑换码',
+      redeemPlaceholder: '输入兑换码',
+      redeem: '兑换解锁',
+      purchaseSuccess: 'OpenAI 实验性系统指令已解锁',
+      redeemSuccess: '功能兑换成功，权益已解锁',
+      wrongCodeType: '该兑换码已成功使用，但不是此功能的兑换码，请在账户余额或订阅中查看结果。',
+      loadFailed: '加载实验性系统指令权益失败',
+      purchaseFailed: '余额解锁失败',
+      redeemFailed: '兑换失败，请检查兑换码后重试'
+    },
+    developerTokens: {
+      title: '开发者令牌',
+      description: '用于自动导入自有账号和提交共享申请的细粒度凭证。',
+      create: '创建令牌',
+      createTitle: '创建开发者令牌',
+      createdTitle: '开发者令牌已创建',
+      name: '令牌名称',
+      namePlaceholder: '例如：账号同步服务',
+      nameRequired: '请输入令牌名称',
+      permissions: '权限范围',
+      scopeRequired: '请至少选择一项权限',
+      expiry: '过期时间',
+      empty: '暂无开发者令牌',
+      emptyHint: '集成服务准备好后，再创建对应权限的令牌。',
+      accessDisabledTitle: '开发者 API 尚未授权',
+      accessDisabledDescription: '入口已固定显示在账号管理。当前账户暂时不能创建开发者令牌，请联系管理员开通权限。',
+      plaintextToken: '令牌',
+      oneTimeWarning: '该令牌只显示一次。关闭窗口前，请将它保存在安全的位置。',
+      savedToken: '我已安全保存',
+      copy: '复制令牌',
+      copied: '开发者令牌已复制',
+      revoke: '撤销',
+      revokeNamed: '撤销 {name}',
+      revokeTitle: '撤销开发者令牌',
+      revokeConfirm: '确定撤销“{name}”吗？使用它的集成会立即停止。',
+      revoked: '开发者令牌已撤销',
+      loadFailed: '加载开发者令牌失败',
+      createFailed: '创建开发者令牌失败',
+      revokeFailed: '撤销开发者令牌失败',
+      neverUsed: '从未使用',
+      lastUsed: '最后使用于 {time}',
+      expires: '过期于 {time}',
+      status: {
+        active: '有效',
+        expired: '已过期',
+        revoked: '已撤销'
+      },
+      scopes: {
+        read: {
+          label: '读取账号',
+          description: '查看自有账号列表和异步任务状态。'
+        },
+        write: {
+          label: '管理账号',
+          description: '导入 OAuth 账号并删除自己的账号。'
+        },
+        share: {
+          label: '申请共享',
+          description: '提交自有账号公开共享申请，或将其恢复为私有。'
+        },
+        access: {
+          label: 'QQ 机器人访问',
+          description: '允许机器人读取本人的个人资料、用量、渠道、账号和共享统计。'
+        }
+      }
+    },
     // TOTP 2FA
     totp: {
       title: '双因素认证 (2FA)',

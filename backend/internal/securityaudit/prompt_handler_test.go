@@ -13,22 +13,30 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/riskengine"
 	servermiddleware "ikik-api/internal/server/middleware"
 )
 
 type fakePromptAdminService struct {
-	config         PublicConfig
-	save           func(context.Context, UpdateConfigRequest, int64) (PublicConfig, error)
-	probe          func(context.Context, ProbeRequest) ProbeResult
-	runtime        RuntimeSnapshot
-	list           func(context.Context, EventFilter, int, int) (*EventPage, error)
-	get            func(context.Context, int64) (*Event, error)
-	deleteOne      func(context.Context, int64) (*DeleteResult, error)
-	deleteIDs      func(context.Context, []int64) (*DeleteResult, error)
-	preview        func(context.Context, EventFilter, int64) (*DeletePreview, error)
-	deleteFilter   func(context.Context, DeleteByFilterRequest, int64) (*DeleteResult, error)
-	listProfiles   func(context.Context, int, int, bool, string) (*PromptAuditUserProfilePage, error)
-	unblockProfile func(context.Context, int64) (*PromptAuditUserProfile, error)
+	config            PublicConfig
+	save              func(context.Context, UpdateConfigRequest, int64) (PublicConfig, error)
+	probe             func(context.Context, ProbeRequest) ProbeResult
+	testPrompt        func(context.Context, string) (*PromptAuditTestResult, error)
+	runtime           RuntimeSnapshot
+	list              func(context.Context, EventFilter, int, int) (*EventPage, error)
+	get               func(context.Context, int64) (*Event, error)
+	deleteOne         func(context.Context, int64) (*DeleteResult, error)
+	deleteIDs         func(context.Context, []int64) (*DeleteResult, error)
+	preview           func(context.Context, EventFilter, int64) (*DeletePreview, error)
+	deleteFilter      func(context.Context, DeleteByFilterRequest, int64) (*DeleteResult, error)
+	listProfiles      func(context.Context, int, int, bool, string) (*PromptAuditUserProfilePage, error)
+	unblockProfile    func(context.Context, int64) (*PromptAuditUserProfile, error)
+	knowledgeSummary  func(context.Context) (*riskengine.KnowledgeSummary, error)
+	listKnowledge     func(context.Context, riskengine.KnowledgeFilter, int, int) (*riskengine.KnowledgeEntryPage, error)
+	createKnowledge   func(context.Context, riskengine.KnowledgeWriteInput, int64) (*riskengine.KnowledgeEntry, int, error)
+	updateKnowledge   func(context.Context, int64, riskengine.KnowledgeWriteInput, int64) (*riskengine.KnowledgeEntry, int, error)
+	listObservations  func(context.Context, riskengine.ObservationFilter, int, int) (*riskengine.ObservationPage, error)
+	reviewObservation func(context.Context, int64, riskengine.ObservationReviewInput, int64) (*riskengine.Observation, error)
 }
 
 func (s *fakePromptAdminService) GetConfig() PublicConfig { return s.config }
@@ -43,6 +51,12 @@ func (s *fakePromptAdminService) Probe(ctx context.Context, req ProbeRequest) Pr
 		return ProbeResult{}
 	}
 	return s.probe(ctx, req)
+}
+func (s *fakePromptAdminService) TestPrompt(ctx context.Context, prompt string) (*PromptAuditTestResult, error) {
+	if s.testPrompt == nil {
+		return nil, errors.New("unexpected TestPrompt call")
+	}
+	return s.testPrompt(ctx, prompt)
 }
 func (s *fakePromptAdminService) Runtime(context.Context) RuntimeSnapshot { return s.runtime }
 func (s *fakePromptAdminService) ListEvents(ctx context.Context, filter EventFilter, page, pageSize int) (*EventPage, error) {
@@ -93,6 +107,42 @@ func (s *fakePromptAdminService) UnblockPromptAuditUser(ctx context.Context, use
 	}
 	return s.unblockProfile(ctx, userID)
 }
+func (s *fakePromptAdminService) KnowledgeSummary(ctx context.Context) (*riskengine.KnowledgeSummary, error) {
+	if s.knowledgeSummary == nil {
+		return &riskengine.KnowledgeSummary{}, nil
+	}
+	return s.knowledgeSummary(ctx)
+}
+func (s *fakePromptAdminService) ListKnowledge(ctx context.Context, filter riskengine.KnowledgeFilter, page, pageSize int) (*riskengine.KnowledgeEntryPage, error) {
+	if s.listKnowledge == nil {
+		return &riskengine.KnowledgeEntryPage{}, nil
+	}
+	return s.listKnowledge(ctx, filter, page, pageSize)
+}
+func (s *fakePromptAdminService) CreateKnowledge(ctx context.Context, input riskengine.KnowledgeWriteInput, actorID int64) (*riskengine.KnowledgeEntry, int, error) {
+	if s.createKnowledge == nil {
+		return &riskengine.KnowledgeEntry{}, 1, nil
+	}
+	return s.createKnowledge(ctx, input, actorID)
+}
+func (s *fakePromptAdminService) UpdateKnowledge(ctx context.Context, id int64, input riskengine.KnowledgeWriteInput, actorID int64) (*riskengine.KnowledgeEntry, int, error) {
+	if s.updateKnowledge == nil {
+		return &riskengine.KnowledgeEntry{ID: id}, 1, nil
+	}
+	return s.updateKnowledge(ctx, id, input, actorID)
+}
+func (s *fakePromptAdminService) ListKnowledgeObservations(ctx context.Context, filter riskengine.ObservationFilter, page, pageSize int) (*riskengine.ObservationPage, error) {
+	if s.listObservations == nil {
+		return &riskengine.ObservationPage{}, nil
+	}
+	return s.listObservations(ctx, filter, page, pageSize)
+}
+func (s *fakePromptAdminService) ReviewKnowledgeObservation(ctx context.Context, id int64, input riskengine.ObservationReviewInput, actorID int64) (*riskengine.Observation, error) {
+	if s.reviewObservation == nil {
+		return &riskengine.Observation{ID: id, ReviewStatus: input.Status}, nil
+	}
+	return s.reviewObservation(ctx, id, input, actorID)
+}
 
 func promptAdminRouter(service PromptAdminService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -107,7 +157,14 @@ func promptAdminRouter(service PromptAdminService) *gin.Engine {
 	group.GET("/config", handler.GetConfig)
 	group.PUT("/config", handler.UpdateConfig)
 	group.POST("/endpoints/probe", handler.ProbeEndpoint)
+	group.POST("/test", handler.TestPrompt)
 	group.GET("/runtime", handler.GetRuntime)
+	group.GET("/knowledge/summary", handler.GetKnowledgeSummary)
+	group.GET("/knowledge/observations", handler.ListKnowledgeObservations)
+	group.PUT("/knowledge/observations/:id/review", handler.ReviewKnowledgeObservation)
+	group.GET("/knowledge", handler.ListKnowledge)
+	group.POST("/knowledge", handler.CreateKnowledge)
+	group.PUT("/knowledge/:id", handler.UpdateKnowledge)
 	group.GET("/events", handler.ListEvents)
 	group.GET("/profiles", handler.ListProfiles)
 	group.POST("/profiles/:user_id/unblock", handler.UnblockProfile)
@@ -222,6 +279,30 @@ func TestPromptAdminProbeSupportsTemporaryOrSavedTokenWithoutEcho(t *testing.T) 
 	}
 }
 
+func TestPromptAdminTestPromptValidatesAndDoesNotEchoInput(t *testing.T) {
+	const prompt = "测试外挂识别，不要把原文写入响应"
+	service := &fakePromptAdminService{testPrompt: func(_ context.Context, got string) (*PromptAuditTestResult, error) {
+		require.Equal(t, prompt, got)
+		return &PromptAuditTestResult{
+			Result: &NormalizedResult{
+				Decision: EventCritical, RiskLevel: RiskCritical, Action: ActionBlock,
+				Categories: []string{"cheat_automation"}, Shadow: true,
+			},
+			ChunkTotal: 1,
+			LatencyMS:  5,
+		}, nil
+	}}
+	response := promptAdminRequest(t, promptAdminRouter(service), http.MethodPost, "/admin/prompt-audit/test", PromptAuditTestRequest{Prompt: prompt})
+	require.Equal(t, http.StatusOK, response.Code)
+	require.Contains(t, response.Body.String(), `"decision":"critical"`)
+	require.Contains(t, response.Body.String(), `"categories":["cheat_automation"]`)
+	require.NotContains(t, response.Body.String(), prompt)
+
+	response = promptAdminRequest(t, promptAdminRouter(service), http.MethodPost, "/admin/prompt-audit/test", PromptAuditTestRequest{Prompt: "  "})
+	require.Equal(t, http.StatusBadRequest, response.Code)
+	require.Contains(t, response.Body.String(), "prompt_audit_test_prompt_required")
+}
+
 func TestPromptAdminRejectsInvalidEventIDsTimesAndPagination(t *testing.T) {
 	router := promptAdminRouter(&fakePromptAdminService{})
 	for _, tc := range []struct {
@@ -270,4 +351,64 @@ func TestPromptAdminDeleteConfirmationErrorsStayGeneric(t *testing.T) {
 	require.Contains(t, response.Body.String(), "prompt_audit_delete_confirmation_invalid")
 	require.NotContains(t, response.Body.String(), "sensitive-token")
 	require.NotContains(t, response.Body.String(), "secret-confirmation")
+}
+
+func TestPromptKnowledgeAdminWritesCasesAndShadowReviewLabelsOnly(t *testing.T) {
+	created := false
+	reviewed := false
+	service := &fakePromptAdminService{
+		createKnowledge: func(_ context.Context, input riskengine.KnowledgeWriteInput, actorID int64) (*riskengine.KnowledgeEntry, int, error) {
+			require.EqualValues(t, 42, actorID)
+			require.Equal(t, riskengine.TopicCheatDevelopment, input.Topic)
+			require.Equal(t, riskengine.KnowledgeRisk, input.Disposition)
+			created = true
+			return &riskengine.KnowledgeEntry{ID: 12, Title: input.Title}, 4, nil
+		},
+		reviewObservation: func(_ context.Context, id int64, input riskengine.ObservationReviewInput, actorID int64) (*riskengine.Observation, error) {
+			require.EqualValues(t, 9, id)
+			require.EqualValues(t, 42, actorID)
+			require.Equal(t, riskengine.ObservationConfirmed, input.Status)
+			require.Equal(t, riskengine.TopicCheatDevelopment, input.Topic)
+			require.Equal(t, riskengine.CategoryCheatAutomation, input.Category)
+			reviewed = true
+			return &riskengine.Observation{ID: id, Mode: "shadow", ReviewStatus: input.Status}, nil
+		},
+	}
+	router := promptAdminRouter(service)
+	entry := riskengine.KnowledgeWriteInput{
+		Topic: riskengine.TopicCheatDevelopment, Category: riskengine.CategoryCheatAutomation,
+		Disposition: riskengine.KnowledgeRisk, Intent: riskengine.IntentOperational,
+		Actionability: riskengine.ActionabilityHigh, Authorization: riskengine.AuthorizationUnknown,
+		Language: "zh", Title: "外挂开发", ExampleText: "读取游戏内存并自动瞄准", Enabled: true,
+	}
+	response := promptAdminRequest(t, router, http.MethodPost, "/admin/prompt-audit/knowledge", entry)
+	require.Equal(t, http.StatusOK, response.Code)
+	require.True(t, created)
+	require.Contains(t, response.Body.String(), `"version":4`)
+
+	review := riskengine.ObservationReviewInput{
+		Status: riskengine.ObservationConfirmed, Topic: riskengine.TopicCheatDevelopment,
+		Category: riskengine.CategoryCheatAutomation, Note: "人工确认",
+	}
+	response = promptAdminRequest(t, router, http.MethodPut, "/admin/prompt-audit/knowledge/observations/9/review", review)
+	require.Equal(t, http.StatusOK, response.Code)
+	require.True(t, reviewed)
+	require.Contains(t, response.Body.String(), `"mode":"shadow"`)
+	require.NotContains(t, response.Body.String(), "blocked")
+	require.NotContains(t, response.Body.String(), "penalty")
+}
+
+func TestPromptKnowledgeAdminParsesObservationFilters(t *testing.T) {
+	service := &fakePromptAdminService{listObservations: func(_ context.Context, filter riskengine.ObservationFilter, page, pageSize int) (*riskengine.ObservationPage, error) {
+		require.Equal(t, riskengine.ObservationUnreviewed, filter.ReviewStatus)
+		require.Equal(t, riskengine.CategoryCheatAutomation, filter.Category)
+		require.EqualValues(t, 7, *filter.UserID)
+		require.Equal(t, "外挂", filter.Keyword)
+		require.Equal(t, 2, page)
+		require.Equal(t, 10, pageSize)
+		return &riskengine.ObservationPage{Page: page, PageSize: pageSize}, nil
+	}}
+	response := promptAdminRequest(t, promptAdminRouter(service), http.MethodGet,
+		"/admin/prompt-audit/knowledge/observations?review_status=unreviewed&category=cheat_automation&user_id=7&keyword=%E5%A4%96%E6%8C%82&page=2&page_size=10", nil)
+	require.Equal(t, http.StatusOK, response.Code)
 }

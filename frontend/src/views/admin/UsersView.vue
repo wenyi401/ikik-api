@@ -509,16 +509,26 @@
             />
           </template>
 
-          <template #cell-status="{ value }">
-            <div class="flex items-center gap-1.5">
+          <template #cell-status="{ value, row }">
+            <div class="flex flex-col items-start gap-1.5">
+              <div class="flex items-center gap-1.5">
+                <span
+                  :class="[
+                    'inline-block h-2 w-2 rounded-full',
+                    value === 'active' ? 'bg-green-500' : 'bg-red-500'
+                  ]"
+                ></span>
+                <span class="text-sm text-gray-700 dark:text-gray-300">
+                  {{ value === 'active' ? t('common.active') : t('admin.users.disabled') }}
+                </span>
+              </div>
               <span
-                :class="[
-                  'inline-block h-2 w-2 rounded-full',
-                  value === 'active' ? 'bg-green-500' : 'bg-red-500'
-                ]"
-              ></span>
-              <span class="text-sm text-gray-700 dark:text-gray-300">
-                {{ value === 'active' ? t('common.active') : t('admin.users.disabled') }}
+                v-if="row.risk_group_blocks?.length"
+                class="inline-flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                :title="riskGroupBlocksTitle(row)"
+              >
+                <Icon name="ban" size="xs" />
+                {{ t('admin.users.riskGroupLimited', { count: row.risk_group_blocks.length }) }}
               </span>
             </div>
           </template>
@@ -1539,6 +1549,12 @@ const handleEdit = (user: AdminUser) => {
   editingUser.value = user
   showEditModal.value = true
 }
+
+const riskGroupBlocksTitle = (user: AdminUser): string =>
+  (user.risk_group_blocks ?? []).map((block) => {
+    if (block.permanent) return `#${block.group_id} / ${t('admin.riskControl.penalties.permanent')}`
+    return `#${block.group_id} / ${block.blocked_until ? formatDateTime(block.blocked_until) : '-'}`
+  }).join('\n')
 
 const closeEditModal = () => {
   showEditModal.value = false

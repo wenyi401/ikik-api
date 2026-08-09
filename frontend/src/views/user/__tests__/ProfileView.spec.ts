@@ -80,9 +80,11 @@ describe('ProfileView', () => {
           AppLayout: { template: '<div><slot /></div>' },
           StatCard: { template: '<div class="stat-card" />' },
           ProfileInfoCard: {
-            template: '<div data-testid="profile-info-card"><slot /><slot name="main-after" /><slot name="side-after" /></div>'
+            props: ['hasMainContent'],
+            template: '<div data-testid="profile-info-card" :data-has-main-content="String(hasMainContent)"><slot /><slot name="main-after" /><slot name="side-after" /></div>'
           },
           ProfileBalanceNotifyCard: { template: '<div data-testid="profile-balance-notify-card" />' },
+          ProfileExperimentalPromptCard: { template: '<div data-testid="profile-experimental-prompt-card" />' },
           ProfilePasswordForm: { template: '<div data-testid="profile-password-form" />' },
           ProfileTotpCard: { template: '<div data-testid="profile-totp-card" />' },
           Icon: true
@@ -97,6 +99,34 @@ describe('ProfileView', () => {
     expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-info-card')
     expect(wrapper.find('[data-testid="profile-withdrawal-card"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-password-form')
+    expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-experimental-prompt-card')
     expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-totp-card')
+    expect(wrapper.get('[data-testid="profile-info-card"]').attributes('data-has-main-content')).toBe('false')
+  })
+
+  it('only reserves the main profile column for enabled balance notifications', async () => {
+    fetchPublicSettingsMock.mockResolvedValue({
+      balance_low_notify_enabled: true
+    })
+    const wrapper = mount(ProfileView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          ProfileInfoCard: {
+            props: ['hasMainContent'],
+            template: '<div data-testid="profile-info-card" :data-has-main-content="String(hasMainContent)"><slot name="main-after" /><slot name="side-after" /></div>'
+          },
+          ProfileBalanceNotifyCard: { template: '<div data-testid="profile-balance-notify-card" />' },
+          ProfileExperimentalPromptCard: true,
+          ProfilePasswordForm: true,
+          ProfileTotpCard: true,
+          Icon: true
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="profile-balance-notify-card"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="profile-info-card"]').attributes('data-has-main-content')).toBe('true')
   })
 })

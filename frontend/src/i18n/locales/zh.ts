@@ -463,6 +463,7 @@ export default {
     saving: '保存中...',
     selectedCount: '（已选 {count} 个）',
     refresh: '刷新',
+    retry: '重试',
     autoRefresh: {
       title: '自动刷新',
       enable: '启用自动刷新',
@@ -506,6 +507,7 @@ export default {
     redeem: '兑换',
     affiliate: '邀请返利',
     profile: '个人资料',
+    developerApi: '开发者 API',
     withdrawals: '提现',
     users: '用户管理',
     groups: '分组管理',
@@ -1049,6 +1051,7 @@ export default {
     searchPlaceholder: '搜索账号名称...',
     createAccount: '新增账号',
     importAccounts: '导入',
+    dataImport: '数据导入',
     proxyPool: '私有代理池',
     proxyPoolLimit: '已添加 {count}/{limit} 个代理',
     proxyPoolHint: '账号绑定代理后仍可设为私有，也可以共享到公共号池。',
@@ -1411,6 +1414,12 @@ export default {
         invalidWeight: '多分组路由权重必须是不小于 1 的整数',
         invalidCooldown: '多分组路由冷却秒数必须是不小于 0 的整数'
       }
+    },
+    openAIExperimentalPrompt: {
+      title: '实验性指令',
+      description: '仅此密钥可选开启；实际路由到支持的 OpenAI 分组时生效。',
+      locked: '解锁后可为每个密钥单独选择。',
+      unlockAction: '去个人中心解锁'
     },
     statusLabel: '状态',
     selectStatus: '选择状态',
@@ -2140,6 +2149,16 @@ export default {
       action: '分享',
       title: '分享个人资料',
       description: '生成一张个人活动卡片，或者复制当前页面链接。',
+      customizeTitle: '导出内容',
+      customizeDescription: '这段文案会显示在用户名下方，不会导出您的邮箱。',
+      textLabel: '自定义文案',
+      textPlaceholder: '例如：保持好奇，持续创造',
+      textColor: '文案颜色',
+      customColor: '选择自定义颜色',
+      saveSettings: '保存导出设置',
+      settingsSaved: '导出设置已保存',
+      settingsSaveFailed: '导出设置保存失败，请稍后重试',
+      livePreview: '实时预览',
       website: '分享网站',
       image: '分享图片',
       websiteText: '查看 {name} 的 ikik 个人资料',
@@ -2151,7 +2170,7 @@ export default {
       eyebrow: 'Token 活动',
       title: 'Token 活动热力图',
       shortTitle: 'Token 活动',
-      githubTitle: '过去一年使用 {total} Token',
+      githubTitle: '过去一年 Token 使用',
       range365: '最近 365 天',
       totalTokens: '累计 Token',
       peakDay: '峰值日',
@@ -2483,6 +2502,39 @@ export default {
         updated: '用户风险策略已更新',
         updateFailed: '更新用户风险策略失败',
         loadFailed: '加载用户风险档案失败'
+      },
+      penalties: {
+        title: '分组处罚记录',
+        subtitle: '查看处罚状态、累计次数和每次命中依据',
+        refresh: '刷新处罚记录',
+        active: '生效中',
+        expired: '已过期',
+        permanent: '永久处罚',
+        todayEvents: '今日命中',
+        allStatuses: '全部状态',
+        allGroups: '全部分组',
+        allCategories: '全部分类',
+        searchPlaceholder: '搜索邮箱、用户名、用户 ID 或分组',
+        empty: '暂无符合条件的分组处罚',
+        user: '用户',
+        group: '处罚分组',
+        category: '命中分类',
+        strikes: '累计次数',
+        status: '处罚状态',
+        strikeValue: '第 {count} 次',
+        noExpiry: '不会自动到期',
+        viewHistory: '查看命中历史',
+        release: '解除当前处罚',
+        reset: '重置处罚次数',
+        releaseConfirm: '确定解除用户 {user} 对分组 {group} 的当前处罚吗？累计次数会保留。',
+        resetConfirm: '确定重置用户 {user} 对分组 {group} 的处罚次数吗？当前处罚也会解除，历史命中仍保留。',
+        released: '当前分组处罚已解除',
+        resetDone: '处罚次数已重置',
+        historyTitle: '分组处罚命中历史',
+        historyEmpty: '暂无命中历史',
+        loadFailed: '加载分组处罚记录失败',
+        historyFailed: '加载处罚历史失败',
+        actionFailed: '更新分组处罚失败'
       },
       title: '风控中心',
       description: '配置内容审计策略并查看审核记录',
@@ -3675,6 +3727,7 @@ export default {
       blockGroup: '禁止使用',
       blocked: '已封禁',
       blockedLabel: '已封禁',
+      riskGroupLimited: '风控限制 {count} 个分组',
       defaultRate: '默认倍率',
       customRate: '专属倍率',
       useDefaultRate: '使用默认',
@@ -8723,7 +8776,110 @@ export default {
 
   // Onboarding Tour
   onboarding: {
+    pageHelp: '查看本页教学',
+    recommended: '推荐',
     restartTour: '重新查看新手引导',
+    mode: {
+      title: '选择使用方式',
+      eyebrow: '首次进入',
+      subtitle: '选择适合你的操作节奏',
+      beginner: {
+        title: '我是新手',
+        description: '跟随 5 个短任务完成渠道检查、密钥创建和首次调用。',
+        meta: '约 3 分钟'
+      },
+      expert: {
+        title: '我是老手',
+        description: '直接进入控制台，需要时再从页面问号打开教学。',
+        meta: '跳过任务'
+      },
+      footnote: '选择会保存到当前账号，可在右上角重新打开教学。',
+      saveFailed: '无法保存使用方式，请重试'
+    },
+    journey: {
+      open: '打开新手任务',
+      eyebrow: 'BEGINNER QUEST',
+      title: '首次调用任务',
+      progress: '总进度',
+      missions: {
+        groups: {
+          title: '认识分组',
+          description: '分组决定密钥使用哪个账号池。',
+          action: '开始认识分组'
+        },
+        monitor: {
+          title: '侦察渠道',
+          description: '学会判断推荐分组现在是否可用。',
+          action: '查看渠道状态'
+        },
+        key: {
+          title: '创建密钥',
+          description: '选择分组并创建第一枚 API 密钥。',
+          action: '继续创建密钥'
+        },
+        client: {
+          title: '配置客户端',
+          description: '查看地址、密钥和常用客户端配置。',
+          action: '打开使用方法'
+        },
+        first_call: {
+          title: '首次调用',
+          description: '发送一次真实请求，系统会自动确认。',
+          action: '查看调用方法'
+        }
+      },
+      complete: {
+        title: '训练完成',
+        description: '你已完成首次调用流程。'
+      }
+    },
+    keys: {
+      recommendedGroup: '{name} 是默认推荐分组，推荐不代表此刻一定可用。',
+      inspectStatus: '先查看当前状态',
+      tour: {
+        nameTitle: '给密钥起名',
+        nameDescription: '使用客户端或用途命名，之后更容易区分。',
+        groupTitle: '分组决定服务来源',
+        groupDescription: '每枚密钥绑定一个分组，计费、模型和可用账号都由分组决定。',
+        recommendedTitle: '推荐与可用是两回事',
+        recommendedDescription: 'PLUS 共享号池适合作为默认选择；创建前仍要到渠道状态确认可调度账号。',
+        submitTitle: '创建密钥',
+        submitDescription: '确认名称和分组即可创建，其他限制以后再设置。',
+        clientTitle: '打开使用方法',
+        clientDescription: '这里会显示 API 地址、密钥和客户端配置。',
+        firstCallTitle: '发送第一次请求',
+        firstCallDescription: '按使用方法配置客户端并发送请求，成功后任务会自动完成。'
+      }
+    },
+    monitor: {
+      returnToKey: '返回创建密钥',
+      tour: {
+        overviewTitle: '先看总体状态',
+        overviewDescription: '总体状态异常时先暂停创建，刷新后再判断。',
+        groupsTitle: '重点看可调度账号',
+        groupsDescription: '找到 PRO 共享号池。可调度账号大于 0 才表示当前能接收请求；推荐标签不等于实时可用。',
+        historyTitle: '再看波动记录',
+        historyDescription: '可用率和延迟用于判断近期稳定性，点击卡片可以查看详情。'
+      }
+    },
+    accounts: {
+      tour: {
+        modesTitle: '先分清三种用法',
+        modesDescription: '<b>私有</b>只给自己用；<b>共享</b>加入公共号池；<b>拼车</b>按成员和周期共同使用。',
+        createTitle: '添加一个账号',
+        createDescription: '下一步会打开新增账号窗口，只做介绍，不会提交任何凭证。',
+        shareTitle: '选择私有或共享',
+        shareDescription: '<b>私有</b>进入你的专属分组；<b>共享</b>通过校验后进入公共号池。API Key、Cookie 等手动凭证只能私有使用。',
+        proxyTitle: '需要固定出口再选代理',
+        proxyDescription: '先在“更多 → 私有代理池”保存 HTTP 或 SOCKS5 代理，再回到这里绑定。没有固定出口要求可以留空。',
+        toolsTitle: '代理池和导入入口',
+        toolsDescription: '“更多”里有私有代理池、凭证导入和数据导入。凭证导入适合批量粘贴账号；数据导入用于恢复 JSON、TXT 或 ZIP 备份。',
+        statusTitle: '上传后先看状态',
+        statusDescription: '确认共享状态、代理、容量和调度状态都正常。出现异常时先测试或重新授权。',
+        carpoolTitle: '拼车单独管理',
+        carpoolDescription: '在拼车池创建或加入拼车、绑定账号并查看成员额度。成员订阅长期有效，退出、被移除或删除拼车池时才会撤销。'
+      }
+    },
     dontShowAgain: '不再提示',
     dontShowAgainTitle: '永久关闭新手引导',
     confirmDontShow: '确定不再显示新手引导吗？\n\n您可以随时在右上角头像菜单中重新开启。',
@@ -8985,6 +9141,7 @@ export default {
     noActiveSubscription: '暂无有效订阅',
     tabTopUp: '充值',
     tabSubscribe: '订阅',
+    tabCardStore: '发卡',
     noPlans: '暂无可用订阅套餐',
     notAvailable: '充值功能暂未开放',
     confirmSubscription: '确认订阅',

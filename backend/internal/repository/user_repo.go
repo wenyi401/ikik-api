@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sort"
@@ -94,6 +95,8 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		SetBalance(userIn.Balance).
 		SetConcurrency(userIn.Concurrency).
 		SetStatus(userIn.Status).
+		SetDeveloperAPIEnabled(userIn.DeveloperAPIEnabled).
+		SetOnboardingMode(normalizeOnboardingMode(userIn.OnboardingMode)).
 		SetSignupSource(userSignupSourceOrDefault(userIn.SignupSource)).
 		SetNillableLastLoginAt(userIn.LastLoginAt).
 		SetNillableLastActiveAt(userIn.LastActiveAt).
@@ -264,6 +267,10 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 		SetBalance(userIn.Balance).
 		SetConcurrency(userIn.Concurrency).
 		SetStatus(userIn.Status).
+		SetDeveloperAPIEnabled(userIn.DeveloperAPIEnabled).
+		SetOnboardingMode(normalizeOnboardingMode(userIn.OnboardingMode)).
+		SetShareCardText(userIn.ShareCardText).
+		SetShareCardTextColor(normalizeShareCardTextColor(userIn.ShareCardTextColor)).
 		SetBalanceNotifyEnabled(userIn.BalanceNotifyEnabled).
 		SetBalanceNotifyThresholdType(userIn.BalanceNotifyThresholdType).
 		SetNillableBalanceNotifyThreshold(userIn.BalanceNotifyThreshold).
@@ -590,6 +597,13 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 		if groups, ok := blockedGroupsByUser[id]; ok {
 			u.BlockedGroups = groups
 		}
+	}
+	riskUsers := make([]*service.User, 0, len(userMap))
+	for _, user := range userMap {
+		riskUsers = append(riskUsers, user)
+	}
+	if err := attachActiveRiskGroupBlocks(ctx, r.sql, riskUsers...); err != nil {
+		return nil, nil, err
 	}
 
 	return outUsers, paginationResultFromTotal(int64(total), params), nil
@@ -1223,8 +1237,33 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 	dst.SignupSource = src.SignupSource
 	dst.LastLoginAt = src.LastLoginAt
 	dst.LastActiveAt = src.LastActiveAt
+	dst.OnboardingMode = string(src.OnboardingMode)
+	dst.OpenAIExperimentalPromptUnlocked = src.OpenaiExperimentalPromptUnlocked
+	dst.ShareCardText = src.ShareCardText
+	dst.ShareCardTextColor = src.ShareCardTextColor
 	dst.CreatedAt = src.CreatedAt
 	dst.UpdatedAt = src.UpdatedAt
+}
+
+func normalizeShareCardTextColor(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if len(value) == 7 && value[0] == '#' {
+		if _, err := hex.DecodeString(value[1:]); err == nil {
+			return value
+		}
+	}
+	return "#08775c"
+}
+
+func normalizeOnboardingMode(value string) dbuser.OnboardingMode {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case string(dbuser.OnboardingModeBeginner):
+		return dbuser.OnboardingModeBeginner
+	case string(dbuser.OnboardingModeExpert):
+		return dbuser.OnboardingModeExpert
+	default:
+		return dbuser.OnboardingModeUnset
+	}
 }
 
 func userSignupSourceOrDefault(signupSource string) string {

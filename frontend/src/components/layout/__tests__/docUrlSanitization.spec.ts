@@ -18,12 +18,27 @@ describe('doc_url sanitization', () => {
     expect(headerSource).toContain('sanitizeUrl(appStore.docUrl)')
   })
 
+  it('AppHeader shows the configured documentation link in the top bar', () => {
+    expect(headerSource).toContain('data-testid="header-doc-link"')
+    expect(headerSource).toContain('<Icon name="book" size="md" />')
+    expect(headerSource).toContain('border-radius: 999px;')
+  })
+
+  it('AppHeader hides page titles outside the admin workspace', () => {
+    expect(headerSource).toContain('v-if="showPageTitle"')
+    expect(headerSource).toContain("authStore.isAdmin && route.path.startsWith('/admin')")
+  })
+
   it('HomeView imports sanitizeUrl', () => {
     expect(homeViewSource).toContain("import { sanitizeUrl } from '@/utils/url'")
   })
 
   it('HomeView applies sanitizeUrl to docUrl', () => {
     expect(homeViewSource).toContain('sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl')
+  })
+
+  it('HomeView shows the configured documentation link in the top bar', () => {
+    expect(homeViewSource).toContain('data-testid="home-doc-link"')
   })
 
   it('KeyUsageView imports sanitizeUrl', () => {

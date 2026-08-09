@@ -245,7 +245,7 @@ const openaiOAuth = useOpenAIOAuth(accountScope.value)
 const geminiOAuth = useGeminiOAuth(accountScope.value)
 const antigravityOAuth = useAntigravityOAuth(accountScope.value)
 const grokOAuth = useGrokOAuth(accountScope.value)
-const kiroOAuth = useKiroOAuth()
+const kiroOAuth = useKiroOAuth(accountScope.value)
 
 // Refs
 const oauthFlowRef = ref<OAuthFlowExposed | null>(null)

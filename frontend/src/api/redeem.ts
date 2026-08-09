@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from './client'
-import type { RedeemCodeRequest } from '@/types'
+import type { OpenAIExperimentalPromptStatus, RedeemCodeRequest } from '@/types'
 
 export interface RedeemHistoryItem {
   id: number
@@ -63,9 +63,25 @@ export async function getHistory(): Promise<RedeemHistoryItem[]> {
   return data
 }
 
+export async function getOpenAIExperimentalPromptStatus(): Promise<OpenAIExperimentalPromptStatus> {
+  const { data } = await apiClient.get<OpenAIExperimentalPromptStatus>(
+    '/features/openai-experimental-prompt',
+  )
+  return data
+}
+
+export async function purchaseOpenAIExperimentalPrompt(): Promise<OpenAIExperimentalPromptStatus> {
+  const { data } = await apiClient.post<OpenAIExperimentalPromptStatus>(
+    '/features/openai-experimental-prompt/purchase',
+  )
+  return data
+}
+
 export const redeemAPI = {
   redeem,
-  getHistory
+  getHistory,
+  getOpenAIExperimentalPromptStatus,
+  purchaseOpenAIExperimentalPrompt,
 }
 
 export default redeemAPI

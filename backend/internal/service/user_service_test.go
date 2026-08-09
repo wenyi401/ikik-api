@@ -11,6 +11,7 @@ import (
 	"errors"
 	"image"
 	"image/png"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -695,6 +696,92 @@ func TestNewUserService_FieldsAssignment(t *testing.T) {
 	require.Equal(t, repo, svc.userRepo)
 	require.Equal(t, auth, svc.authCacheInvalidator)
 	require.Equal(t, cache, svc.billingCache)
+}
+
+func TestUpdateProfile_UpdatesOnboardingMode(t *testing.T) {
+	mode := " BEGINNER "
+	repo := &mockUserRepo{
+		getByIDUser: &User{
+			ID:             21,
+			Email:          "beginner@example.com",
+			Username:       "beginner",
+			OnboardingMode: "unset",
+		},
+	}
+	svc := NewUserService(repo, nil, nil, nil)
+
+	updated, err := svc.UpdateProfile(context.Background(), 21, UpdateProfileRequest{
+		OnboardingMode: &mode,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "beginner", updated.OnboardingMode)
+	require.Equal(t, 1, repo.updateCalls)
+}
+
+func TestUpdateProfile_RejectsInvalidOnboardingMode(t *testing.T) {
+	mode := "advanced"
+	repo := &mockUserRepo{
+		getByIDUser: &User{
+			ID:             22,
+			Email:          "invalid-mode@example.com",
+			Username:       "invalid-mode",
+			OnboardingMode: "unset",
+		},
+	}
+	svc := NewUserService(repo, nil, nil, nil)
+
+	_, err := svc.UpdateProfile(context.Background(), 22, UpdateProfileRequest{
+		OnboardingMode: &mode,
+	})
+
+	require.ErrorIs(t, err, ErrOnboardingModeInvalid)
+	require.Zero(t, repo.updateCalls)
+}
+
+func TestUpdateProfile_StoresShareCardCustomization(t *testing.T) {
+	text := "  保持好奇，持续创造  "
+	color := " #BE123C "
+	repo := &mockUserRepo{
+		getByIDUser: &User{
+			ID:                 23,
+			Email:              "share-card@example.com",
+			Username:           "share-card",
+			ShareCardTextColor: "#08775c",
+		},
+	}
+	svc := NewUserService(repo, nil, nil, nil)
+
+	updated, err := svc.UpdateProfile(context.Background(), 23, UpdateProfileRequest{
+		ShareCardText:      &text,
+		ShareCardTextColor: &color,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "保持好奇，持续创造", updated.ShareCardText)
+	require.Equal(t, "#be123c", updated.ShareCardTextColor)
+	require.Equal(t, 1, repo.updateCalls)
+}
+
+func TestUpdateProfile_RejectsInvalidShareCardCustomization(t *testing.T) {
+	repo := &mockUserRepo{
+		getByIDUser: &User{
+			ID:                 24,
+			Email:              "invalid-share-card@example.com",
+			Username:           "invalid-share-card",
+			ShareCardTextColor: "#08775c",
+		},
+	}
+	svc := NewUserService(repo, nil, nil, nil)
+
+	tooLong := strings.Repeat("文", 81)
+	_, err := svc.UpdateProfile(context.Background(), 24, UpdateProfileRequest{ShareCardText: &tooLong})
+	require.ErrorIs(t, err, ErrShareCardTextInvalid)
+
+	invalidColor := "red"
+	_, err = svc.UpdateProfile(context.Background(), 24, UpdateProfileRequest{ShareCardTextColor: &invalidColor})
+	require.ErrorIs(t, err, ErrShareCardColorInvalid)
+	require.Zero(t, repo.updateCalls)
 }
 
 func TestUpdateProfile_StoresInlineAvatarWithinLimit(t *testing.T) {

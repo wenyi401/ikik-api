@@ -11,7 +11,6 @@ import (
 
 	dbent "ikik-api/ent"
 	infraerrors "ikik-api/internal/pkg/errors"
-	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/pagination"
 )
 
@@ -32,9 +31,9 @@ const (
 
 type ctxKeySkipRedeemAffiliate struct{}
 
-// ContextSkipRedeemAffiliate returns a context that suppresses the redeem-level
-// affiliate rebate. Used by payment fulfillment which handles rebate separately
-// via applyAffiliateRebateForOrder (with audit-log deduplication).
+// ContextSkipRedeemAffiliate returns a context marker kept for legacy compatibility.
+// The old recharge rebate path is now disabled, but some older flows still pass
+// this context through unchanged.
 func ContextSkipRedeemAffiliate(ctx context.Context) context.Context {
 	return context.WithValue(ctx, ctxKeySkipRedeemAffiliate{}, true)
 }
@@ -70,9 +69,10 @@ type RedeemCodeRepository interface {
 
 // GenerateCodesRequest 生成兑换码请求
 type GenerateCodesRequest struct {
-	Count int     `json:"count"`
-	Value float64 `json:"value"`
-	Type  string  `json:"type"`
+	Count      int     `json:"count"`
+	Value      float64 `json:"value"`
+	Type       string  `json:"type"`
+	FeatureKey string  `json:"feature_key"`
 }
 
 // RedeemCodeResponse 兑换码响应
@@ -142,6 +142,11 @@ type RedeemService struct {
 	entClient            *dbent.Client
 	authCacheInvalidator APIKeyAuthCacheInvalidator
 	affiliateService     *AffiliateService
+	settingService       *SettingService
+}
+
+func (s *RedeemService) SetSettingService(settingService *SettingService) {
+	s.settingService = settingService
 }
 
 // NewRedeemService 创建兑换码服务实例
@@ -197,8 +202,20 @@ func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequ
 		return nil, errors.New("count must be greater than 0")
 	}
 
+	codeType := req.Type
+	if codeType == "" {
+		codeType = RedeemTypeBalance
+	}
+	featureKey := strings.TrimSpace(req.FeatureKey)
+	if codeType == RedeemTypeFeature && featureKey != FeatureKeyOpenAIExperimentalPrompt {
+		return nil, infraerrors.BadRequest("REDEEM_CODE_FEATURE_INVALID", "unsupported feature key")
+	}
+	if codeType != RedeemTypeFeature && featureKey != "" {
+		return nil, infraerrors.BadRequest("REDEEM_CODE_FEATURE_INVALID", "feature key is only valid for feature codes")
+	}
+
 	// 邀请码类型不需要数值，其他类型需要非零值（支持负数用于退款）
-	if req.Type != RedeemTypeInvitation && req.Value == 0 {
+	if codeType != RedeemTypeInvitation && codeType != RedeemTypeFeature && req.Value == 0 {
 		return nil, errors.New("value must not be zero")
 	}
 
@@ -206,14 +223,9 @@ func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequ
 		return nil, errors.New("cannot generate more than 1000 codes at once")
 	}
 
-	codeType := req.Type
-	if codeType == "" {
-		codeType = RedeemTypeBalance
-	}
-
 	// 邀请码类型的 value 设为 0
 	value := req.Value
-	if codeType == RedeemTypeInvitation {
+	if codeType == RedeemTypeInvitation || codeType == RedeemTypeFeature {
 		value = 0
 	}
 
@@ -225,10 +237,11 @@ func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequ
 		}
 
 		codes = append(codes, RedeemCode{
-			Code:   code,
-			Type:   codeType,
-			Value:  value,
-			Status: StatusUnused,
+			Code:       code,
+			Type:       codeType,
+			Value:      value,
+			FeatureKey: req.FeatureKey,
+			Status:     StatusUnused,
 		})
 	}
 
@@ -254,8 +267,11 @@ func (s *RedeemService) CreateCode(ctx context.Context, code *RedeemCode) error 
 	if code.Type == "" {
 		code.Type = RedeemTypeBalance
 	}
-	if code.Type != RedeemTypeInvitation && code.Value == 0 {
+	if code.Type != RedeemTypeInvitation && code.Type != RedeemTypeFeature && code.Value == 0 {
 		return errors.New("value must not be zero")
+	}
+	if code.Type == RedeemTypeFeature && strings.TrimSpace(code.FeatureKey) != FeatureKeyOpenAIExperimentalPrompt {
+		return infraerrors.BadRequest("REDEEM_CODE_FEATURE_INVALID", "unsupported feature key")
 	}
 	if code.Status == "" {
 		code.Status = StatusUnused
@@ -424,6 +440,10 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 		if redeemCode.GroupID == nil {
 			return nil, infraerrors.BadRequest("REDEEM_CODE_INVALID", "invalid subscription redeem code: missing group_id")
 		}
+	case RedeemTypeFeature:
+		if redeemCode.FeatureKey != FeatureKeyOpenAIExperimentalPrompt {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_FEATURE_INVALID", "unsupported feature key")
+		}
 	default:
 		return nil, unsupportedRedeemTypeError(redeemCode.Type)
 	}
@@ -504,6 +524,11 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 			}
 		}
 
+	case RedeemTypeFeature:
+		if err := unlockOpenAIExperimentalPromptTx(txCtx, tx, userID); err != nil {
+			return nil, fmt.Errorf("unlock feature: %w", err)
+		}
+
 	default:
 		return nil, unsupportedRedeemTypeError(redeemCode.Type)
 	}
@@ -571,23 +596,7 @@ func (s *RedeemService) invalidateRedeemCaches(ctx context.Context, userID int64
 }
 
 func (s *RedeemService) tryAccrueAffiliateRebateForRedeem(ctx context.Context, userID int64, amount float64) {
-	if ctx.Value(ctxKeySkipRedeemAffiliate{}) != nil {
-		return
-	}
-	if s.affiliateService == nil {
-		return
-	}
-	if !s.affiliateService.IsEnabled(ctx) {
-		return
-	}
-	rebate, err := s.affiliateService.AccrueInviteRebate(ctx, userID, amount)
-	if err != nil {
-		logger.LegacyPrintf("service.redeem", "[Redeem] affiliate rebate failed for user %d amount %.2f: %v", userID, amount, err)
-		return
-	}
-	if rebate > 0 {
-		logger.LegacyPrintf("service.redeem", "[Redeem] affiliate rebate accrued %.8f for inviter of user %d", rebate, userID)
-	}
+	return
 }
 
 // GetByID 根据ID获取兑换码

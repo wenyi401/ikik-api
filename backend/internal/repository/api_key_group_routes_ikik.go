@@ -19,6 +19,7 @@ func (r *apiKeyRepository) createAPIKeyWithGroupRoutes(ctx context.Context, key 
 			SetKey(key.Key).
 			SetName(key.Name).
 			SetStatus(key.Status).
+			SetOpenaiExperimentalPromptEnabled(key.OpenAIExperimentalPromptEnabled).
 			SetNillableGroupID(key.GroupID).
 			SetNillableLastUsedAt(key.LastUsedAt).
 			SetQuota(key.Quota).
@@ -55,6 +56,7 @@ func (r *apiKeyRepository) updateAPIKeyWithGroupRoutes(ctx context.Context, key 
 			Where(apikey.IDEQ(key.ID), apikey.DeletedAtIsNil()).
 			SetName(key.Name).
 			SetStatus(key.Status).
+			SetOpenaiExperimentalPromptEnabled(key.OpenAIExperimentalPromptEnabled).
 			SetQuota(key.Quota).
 			SetQuotaUsed(key.QuotaUsed).
 			SetRateLimit5h(key.RateLimit5h).

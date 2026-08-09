@@ -35,8 +35,9 @@ func NewRedeemHandler(adminService service.AdminService, redeemService *service.
 // GenerateRedeemCodesRequest represents generate redeem codes request
 type GenerateRedeemCodesRequest struct {
 	Count         int        `json:"count" binding:"required,min=1,max=100"`
-	Type          string     `json:"type" binding:"required,oneof=balance concurrency subscription invitation"`
+	Type          string     `json:"type" binding:"required,oneof=balance concurrency subscription invitation feature"`
 	Value         float64    `json:"value"`
+	FeatureKey    string     `json:"feature_key"`
 	GroupID       *int64     `json:"group_id"`      // 订阅类型必填
 	ValidityDays  int        `json:"validity_days"` // 订阅类型使用，正数增加/负数退款扣减
 	ExpiresAt     *time.Time `json:"expires_at"`
@@ -47,8 +48,9 @@ type GenerateRedeemCodesRequest struct {
 // Type 为 omitempty 而非 required 是为了向后兼容旧版调用方（不传 type 时默认 balance）。
 type CreateAndRedeemCodeRequest struct {
 	Code          string     `json:"code" binding:"required,min=3,max=128"`
-	Type          string     `json:"type" binding:"omitempty,oneof=balance concurrency subscription invitation"` // 不传时默认 balance（向后兼容）
-	Value         float64    `json:"value" binding:"required"`
+	Type          string     `json:"type" binding:"omitempty,oneof=balance concurrency subscription invitation feature"` // 不传时默认 balance（向后兼容）
+	Value         float64    `json:"value"`
+	FeatureKey    string     `json:"feature_key"`
 	UserID        int64      `json:"user_id" binding:"required,gt=0"`
 	GroupID       *int64     `json:"group_id"`      // subscription 类型必填
 	ValidityDays  int        `json:"validity_days"` // subscription 类型：正数增加，负数退款扣减
@@ -147,6 +149,7 @@ func (h *RedeemHandler) Generate(c *gin.Context) {
 			Count:        req.Count,
 			Type:         req.Type,
 			Value:        req.Value,
+			FeatureKey:   strings.TrimSpace(req.FeatureKey),
 			GroupID:      req.GroupID,
 			ValidityDays: req.ValidityDays,
 			ExpiresAt:    expiresAt,
@@ -193,6 +196,14 @@ func (h *RedeemHandler) CreateAndRedeem(c *gin.Context) {
 			return
 		}
 	}
+	if req.Type == service.RedeemTypeFeature && strings.TrimSpace(req.FeatureKey) != service.FeatureKeyOpenAIExperimentalPrompt {
+		response.BadRequest(c, "feature_key must be openai_experimental_prompt for feature codes")
+		return
+	}
+	if req.Type != service.RedeemTypeFeature && strings.TrimSpace(req.FeatureKey) != "" {
+		response.BadRequest(c, "feature_key is only valid for feature codes")
+		return
+	}
 
 	expiresAt, err := resolveRedeemCodeExpiresAt(req.ExpiresAt, req.ExpiresInDays)
 	if err != nil {
@@ -212,6 +223,7 @@ func (h *RedeemHandler) CreateAndRedeem(c *gin.Context) {
 		createErr := h.redeemService.CreateCode(ctx, &service.RedeemCode{
 			Code:         req.Code,
 			Type:         req.Type,
+			FeatureKey:   strings.TrimSpace(req.FeatureKey),
 			Value:        req.Value,
 			Status:       service.StatusUnused,
 			Notes:        req.Notes,

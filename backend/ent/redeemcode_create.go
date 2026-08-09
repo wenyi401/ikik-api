@@ -44,6 +44,20 @@ func (_c *RedeemCodeCreate) SetNillableType(v *string) *RedeemCodeCreate {
 	return _c
 }
 
+// SetFeatureKey sets the "feature_key" field.
+func (_c *RedeemCodeCreate) SetFeatureKey(v string) *RedeemCodeCreate {
+	_c.mutation.SetFeatureKey(v)
+	return _c
+}
+
+// SetNillableFeatureKey sets the "feature_key" field if the given value is not nil.
+func (_c *RedeemCodeCreate) SetNillableFeatureKey(v *string) *RedeemCodeCreate {
+	if v != nil {
+		_c.SetFeatureKey(*v)
+	}
+	return _c
+}
+
 // SetValue sets the "value" field.
 func (_c *RedeemCodeCreate) SetValue(v float64) *RedeemCodeCreate {
 	_c.mutation.SetValue(v)
@@ -233,6 +247,10 @@ func (_c *RedeemCodeCreate) defaults() {
 		v := redeemcode.DefaultType
 		_c.mutation.SetType(v)
 	}
+	if _, ok := _c.mutation.FeatureKey(); !ok {
+		v := redeemcode.DefaultFeatureKey
+		_c.mutation.SetFeatureKey(v)
+	}
 	if _, ok := _c.mutation.Value(); !ok {
 		v := redeemcode.DefaultValue
 		_c.mutation.SetValue(v)
@@ -267,6 +285,11 @@ func (_c *RedeemCodeCreate) check() error {
 	if v, ok := _c.mutation.GetType(); ok {
 		if err := redeemcode.TypeValidator(v); err != nil {
 			return &ValidationError{Name: "type", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.type": %w`, err)}
+		}
+	}
+	if v, ok := _c.mutation.FeatureKey(); ok {
+		if err := redeemcode.FeatureKeyValidator(v); err != nil {
+			return &ValidationError{Name: "feature_key", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.feature_key": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.Value(); !ok {
@@ -320,6 +343,10 @@ func (_c *RedeemCodeCreate) createSpec() (*RedeemCode, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.GetType(); ok {
 		_spec.SetField(redeemcode.FieldType, field.TypeString, value)
 		_node.Type = value
+	}
+	if value, ok := _c.mutation.FeatureKey(); ok {
+		_spec.SetField(redeemcode.FieldFeatureKey, field.TypeString, value)
+		_node.FeatureKey = value
 	}
 	if value, ok := _c.mutation.Value(); ok {
 		_spec.SetField(redeemcode.FieldValue, field.TypeFloat64, value)
@@ -456,6 +483,24 @@ func (u *RedeemCodeUpsert) SetType(v string) *RedeemCodeUpsert {
 // UpdateType sets the "type" field to the value that was provided on create.
 func (u *RedeemCodeUpsert) UpdateType() *RedeemCodeUpsert {
 	u.SetExcluded(redeemcode.FieldType)
+	return u
+}
+
+// SetFeatureKey sets the "feature_key" field.
+func (u *RedeemCodeUpsert) SetFeatureKey(v string) *RedeemCodeUpsert {
+	u.Set(redeemcode.FieldFeatureKey, v)
+	return u
+}
+
+// UpdateFeatureKey sets the "feature_key" field to the value that was provided on create.
+func (u *RedeemCodeUpsert) UpdateFeatureKey() *RedeemCodeUpsert {
+	u.SetExcluded(redeemcode.FieldFeatureKey)
+	return u
+}
+
+// ClearFeatureKey clears the value of the "feature_key" field.
+func (u *RedeemCodeUpsert) ClearFeatureKey() *RedeemCodeUpsert {
+	u.SetNull(redeemcode.FieldFeatureKey)
 	return u
 }
 
@@ -667,6 +712,27 @@ func (u *RedeemCodeUpsertOne) SetType(v string) *RedeemCodeUpsertOne {
 func (u *RedeemCodeUpsertOne) UpdateType() *RedeemCodeUpsertOne {
 	return u.Update(func(s *RedeemCodeUpsert) {
 		s.UpdateType()
+	})
+}
+
+// SetFeatureKey sets the "feature_key" field.
+func (u *RedeemCodeUpsertOne) SetFeatureKey(v string) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetFeatureKey(v)
+	})
+}
+
+// UpdateFeatureKey sets the "feature_key" field to the value that was provided on create.
+func (u *RedeemCodeUpsertOne) UpdateFeatureKey() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateFeatureKey()
+	})
+}
+
+// ClearFeatureKey clears the value of the "feature_key" field.
+func (u *RedeemCodeUpsertOne) ClearFeatureKey() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.ClearFeatureKey()
 	})
 }
 
@@ -1067,6 +1133,27 @@ func (u *RedeemCodeUpsertBulk) SetType(v string) *RedeemCodeUpsertBulk {
 func (u *RedeemCodeUpsertBulk) UpdateType() *RedeemCodeUpsertBulk {
 	return u.Update(func(s *RedeemCodeUpsert) {
 		s.UpdateType()
+	})
+}
+
+// SetFeatureKey sets the "feature_key" field.
+func (u *RedeemCodeUpsertBulk) SetFeatureKey(v string) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetFeatureKey(v)
+	})
+}
+
+// UpdateFeatureKey sets the "feature_key" field to the value that was provided on create.
+func (u *RedeemCodeUpsertBulk) UpdateFeatureKey() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateFeatureKey()
+	})
+}
+
+// ClearFeatureKey clears the value of the "feature_key" field.
+func (u *RedeemCodeUpsertBulk) ClearFeatureKey() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.ClearFeatureKey()
 	})
 }
 

@@ -47,6 +47,9 @@ func (APIKey) Fields() []ent.Field {
 		field.String("status").
 			MaxLen(20).
 			Default(domain.StatusActive),
+		field.Bool("openai_experimental_prompt_enabled").
+			Default(false).
+			Comment("Whether this API key opts in to the unlocked OpenAI experimental prompt"),
 		field.Time("last_used_at").
 			Optional().
 			Nillable().

@@ -26,6 +26,7 @@ func (r *redeemCodeRepository) Create(ctx context.Context, code *service.RedeemC
 	created, err := r.client.RedeemCode.Create().
 		SetCode(code.Code).
 		SetType(code.Type).
+		SetFeatureKey(code.FeatureKey).
 		SetValue(code.Value).
 		SetStatus(code.Status).
 		SetNotes(code.Notes).
@@ -53,6 +54,7 @@ func (r *redeemCodeRepository) CreateBatch(ctx context.Context, codes []service.
 		b := r.client.RedeemCode.Create().
 			SetCode(c.Code).
 			SetType(c.Type).
+			SetFeatureKey(c.FeatureKey).
 			SetValue(c.Value).
 			SetStatus(c.Status).
 			SetNotes(c.Notes).
@@ -199,6 +201,7 @@ func (r *redeemCodeRepository) Update(ctx context.Context, code *service.RedeemC
 	up := r.client.RedeemCode.UpdateOneID(code.ID).
 		SetCode(code.Code).
 		SetType(code.Type).
+		SetFeatureKey(code.FeatureKey).
 		SetValue(code.Value).
 		SetStatus(code.Status).
 		SetNotes(code.Notes).
@@ -416,6 +419,7 @@ func redeemCodeEntityToService(m *dbent.RedeemCode) *service.RedeemCode {
 		ID:           m.ID,
 		Code:         m.Code,
 		Type:         m.Type,
+		FeatureKey:   m.FeatureKey,
 		Value:        m.Value,
 		Status:       m.Status,
 		UsedBy:       m.UsedBy,

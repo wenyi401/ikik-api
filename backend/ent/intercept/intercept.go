@@ -23,6 +23,7 @@ import (
 	"ikik-api/ent/channelmonitorhistory"
 	"ikik-api/ent/channelmonitorrequesttemplate"
 	"ikik-api/ent/compositemodelroute"
+	"ikik-api/ent/developertoken"
 	"ikik-api/ent/emailbroadcast"
 	"ikik-api/ent/errorpassthroughrule"
 	"ikik-api/ent/group"
@@ -546,6 +547,33 @@ func (f TraverseCompositeModelRoute) Traverse(ctx context.Context, q ent.Query) 
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.CompositeModelRouteQuery", q)
+}
+
+// The DeveloperTokenFunc type is an adapter to allow the use of ordinary function as a Querier.
+type DeveloperTokenFunc func(context.Context, *ent.DeveloperTokenQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f DeveloperTokenFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.DeveloperTokenQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.DeveloperTokenQuery", q)
+}
+
+// The TraverseDeveloperToken type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseDeveloperToken func(context.Context, *ent.DeveloperTokenQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseDeveloperToken) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseDeveloperToken) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.DeveloperTokenQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.DeveloperTokenQuery", q)
 }
 
 // The EmailBroadcastFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -1447,6 +1475,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.ChannelMonitorRequestTemplateQuery, predicate.ChannelMonitorRequestTemplate, channelmonitorrequesttemplate.OrderOption]{typ: ent.TypeChannelMonitorRequestTemplate, tq: q}, nil
 	case *ent.CompositeModelRouteQuery:
 		return &query[*ent.CompositeModelRouteQuery, predicate.CompositeModelRoute, compositemodelroute.OrderOption]{typ: ent.TypeCompositeModelRoute, tq: q}, nil
+	case *ent.DeveloperTokenQuery:
+		return &query[*ent.DeveloperTokenQuery, predicate.DeveloperToken, developertoken.OrderOption]{typ: ent.TypeDeveloperToken, tq: q}, nil
 	case *ent.EmailBroadcastQuery:
 		return &query[*ent.EmailBroadcastQuery, predicate.EmailBroadcast, emailbroadcast.OrderOption]{typ: ent.TypeEmailBroadcast, tq: q}, nil
 	case *ent.ErrorPassthroughRuleQuery:

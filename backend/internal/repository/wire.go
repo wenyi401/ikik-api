@@ -68,6 +68,7 @@ var ProviderSet = wire.NewSet(
 	IkikProviderSet,
 	NewUserRepository,
 	NewAPIKeyRepository,
+	NewDeveloperTokenRepository,
 	NewGroupRepository,
 	NewAdminGroupRepository,
 	NewCompositeModelRouteRepository,

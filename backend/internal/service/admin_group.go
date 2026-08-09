@@ -505,6 +505,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		DefaultMappedModel:              input.DefaultMappedModel,
 		MessagesDispatchModelConfig:     normalizeOpenAIMessagesDispatchModelConfig(input.MessagesDispatchModelConfig),
 		ModelsListConfig:                normalizeGroupModelsListConfig(input.ModelsListConfig),
+		OpenAIExperimentalPromptEnabled: input.OpenAIExperimentalPromptEnabled && platform == PlatformOpenAI,
 		RPMLimit:                        input.RPMLimit,
 	}
 	sanitizeGroupMessagesDispatchFields(group)
@@ -836,6 +837,11 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.ModelsListConfig != nil {
 		group.ModelsListConfig = normalizeGroupModelsListConfig(*input.ModelsListConfig)
+	}
+	if input.OpenAIExperimentalPromptEnabled != nil {
+		group.OpenAIExperimentalPromptEnabled = *input.OpenAIExperimentalPromptEnabled && group.Platform == PlatformOpenAI
+	} else if group.Platform != PlatformOpenAI {
+		group.OpenAIExperimentalPromptEnabled = false
 	}
 	if input.RPMLimit != nil {
 		group.RPMLimit = *input.RPMLimit

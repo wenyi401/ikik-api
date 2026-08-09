@@ -1,17 +1,34 @@
 <template>
   <AppLayout>
     <UiPage width="wide" density="compact">
-      <MonitorHero
-        :overall-status="overallStatus"
-        :interval-seconds="DEFAULT_INTERVAL_SECONDS"
-        :window="currentWindow"
-        :loading="loading"
-        :auto-refresh="autoRefresh"
-        @update:window="handleWindowChange"
-        @refresh="manualReload"
-      />
+      <div class="monitor-guide-toolbar">
+        <button
+          v-if="returnPath"
+          type="button"
+          class="monitor-return-action"
+          @click="returnToKeyCreation"
+        >
+          <Icon name="arrowLeft" size="sm" />
+          {{ t('onboarding.monitor.returnToKey') }}
+        </button>
+        <UiIconButton :label="t('onboarding.pageHelp')" @click="startMonitorTutorial">
+          <Icon name="questionCircle" size="md" />
+        </UiIconButton>
+      </div>
 
-      <div class="channel-quota-grid">
+      <div data-guide="monitor-overview">
+        <MonitorHero
+          :overall-status="overallStatus"
+          :interval-seconds="DEFAULT_INTERVAL_SECONDS"
+          :window="currentWindow"
+          :loading="loading"
+          :auto-refresh="autoRefresh"
+          @update:window="handleWindowChange"
+          @refresh="manualReload"
+        />
+      </div>
+
+      <div class="channel-quota-grid" data-guide="monitor-groups">
         <ChannelQuotaSummary
           :dashboard="quotaPoolDashboard?.platform ?? null"
           :loading="quotaPoolLoading"
@@ -36,14 +53,16 @@
         />
       </div>
 
-      <MonitorCardGrid
-        :items="items"
-        :window="currentWindow"
-        :countdown-seconds="countdown"
-        :loading="loading"
-        :detail-cache="detailCache"
-        @card-click="openDetail"
-      />
+      <div data-guide="monitor-history">
+        <MonitorCardGrid
+          :items="items"
+          :window="currentWindow"
+          :countdown-seconds="countdown"
+          :loading="loading"
+          :detail-cache="detailCache"
+          @card-click="openDetail"
+        />
+      </div>
     </UiPage>
 
     <MonitorDetailDialog
@@ -58,7 +77,10 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { useOnboardingStore } from '@/stores/onboarding'
+import { usePageTutorial } from '@/composables/usePageTutorial'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { getQuotaDashboard as fetchQuotaPoolDashboard } from '@/api/accounts'
 import {
@@ -69,7 +91,8 @@ import {
 } from '@/api/channelMonitor'
 import type { UserAccountQuotaPoolDashboard } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import { UiPage } from '@/ui'
+import { UiIconButton, UiPage } from '@/ui'
+import Icon from '@/components/icons/Icon.vue'
 import ChannelQuotaSummary from '@/components/user/monitor/ChannelQuotaSummary.vue'
 import {
   accountQuotaGroupHealthRank,
@@ -84,9 +107,14 @@ import MonitorCardGrid from '@/components/user/monitor/MonitorCardGrid.vue'
 import MonitorDetailDialog from '@/components/user/MonitorDetailDialog.vue'
 import { DEFAULT_INTERVAL_SECONDS } from '@/constants/channelMonitor'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
+import type { DriveStep } from 'driver.js'
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const onboardingStore = useOnboardingStore()
+const route = useRoute()
+const router = useRouter()
+const { startPageTutorial } = usePageTutorial()
 
 // ── State ──
 const items = ref<UserMonitorView[]>([])
@@ -129,6 +157,57 @@ const overallStatus = computed<OverallStatus>(() => {
 const detailTitle = computed(() => {
   return detailTarget.value?.name || t('channelStatus.detailTitle')
 })
+const returnPath = computed(() => typeof route.query.return === 'string' ? route.query.return : '')
+
+function clearGuideQuery(): void {
+  if (!route.query.guide) return
+  const query = { ...route.query }
+  delete query.guide
+  void router.replace({ path: route.path, query })
+}
+
+async function startMonitorTutorial(): Promise<void> {
+  const steps: DriveStep[] = [{
+    element: '[data-guide="monitor-overview"]',
+    popover: {
+      title: t('onboarding.monitor.tour.overviewTitle'),
+      description: t('onboarding.monitor.tour.overviewDescription'),
+      side: 'bottom',
+      align: 'start'
+    }
+  }, {
+    element: '[data-guide="monitor-groups"]',
+    popover: {
+      title: t('onboarding.monitor.tour.groupsTitle'),
+      description: t('onboarding.monitor.tour.groupsDescription'),
+      side: 'top',
+      align: 'start'
+    }
+  }, {
+    element: '[data-guide="monitor-history"]',
+    popover: {
+      title: t('onboarding.monitor.tour.historyTitle'),
+      description: t('onboarding.monitor.tour.historyDescription'),
+      side: 'top',
+      align: 'start'
+    }
+  }]
+  await startPageTutorial(steps, () => {
+    onboardingStore.completeMission('monitor')
+  })
+  clearGuideQuery()
+}
+
+async function returnToKeyCreation(): Promise<void> {
+  onboardingStore.completeMission('monitor')
+  await router.push({
+    path: returnPath.value || '/keys',
+    query: {
+      draft: route.query.draft === 'key' ? 'key' : undefined,
+      guide: 'key'
+    }
+  })
+}
 
 // ── Loaders ──
 async function reload(silent = false) {
@@ -234,10 +313,22 @@ watch(
   },
 )
 
-onMounted(() => {
-  void reloadAll(false)
+watch(
+  () => route.query.guide,
+  async (guide, previousGuide) => {
+    if (guide === 'monitor' && guide !== previousGuide) {
+      await startMonitorTutorial()
+    }
+  },
+)
+
+onMounted(async () => {
+  await reloadAll(false)
   if (appStore.cachedPublicSettings?.channel_monitor_enabled !== false) {
     autoRefresh.setEnabled(true)
+  }
+  if (route.query.guide === 'monitor') {
+    await startMonitorTutorial()
   }
 })
 
@@ -252,6 +343,35 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
+}
+
+.monitor-guide-toolbar {
+  display: flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.monitor-return-action {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--app-primary-border);
+  border-radius: 6px;
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: border-color 180ms ease, background-color 180ms ease;
+}
+
+.monitor-return-action:hover {
+  border-color: var(--app-primary);
+  background: var(--app-surface);
 }
 
 @media (max-width: 1100px) {

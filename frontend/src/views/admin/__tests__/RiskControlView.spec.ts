@@ -14,6 +14,10 @@ const {
   getLog,
   getGroups,
   testAPIKeys,
+  listGroupPenalties,
+  listGroupPenaltyEvents,
+  releaseGroupPenalty,
+  resetGroupPenalty,
   showError,
   showSuccess,
 } = vi.hoisted(() => ({
@@ -24,6 +28,10 @@ const {
   getLog: vi.fn(),
   getGroups: vi.fn(),
   testAPIKeys: vi.fn(),
+  listGroupPenalties: vi.fn(),
+  listGroupPenaltyEvents: vi.fn(),
+  releaseGroupPenalty: vi.fn(),
+  resetGroupPenalty: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
 }))
@@ -37,6 +45,10 @@ vi.mock('@/api/admin', () => ({
       listLogs,
       getLog,
       testAPIKeys,
+      listGroupPenalties,
+      listGroupPenaltyEvents,
+      releaseGroupPenalty,
+      resetGroupPenalty,
       deleteFlaggedHash: vi.fn(),
       clearFlaggedHashes: vi.fn(),
       unbanUser: vi.fn(),
@@ -204,6 +216,10 @@ describe('admin RiskControlView', () => {
     getLog.mockReset()
     getGroups.mockReset()
     testAPIKeys.mockReset()
+    listGroupPenalties.mockReset()
+    listGroupPenaltyEvents.mockReset()
+    releaseGroupPenalty.mockReset()
+    resetGroupPenalty.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
 
@@ -213,6 +229,13 @@ describe('admin RiskControlView', () => {
     getLog.mockResolvedValue(null)
     getGroups.mockResolvedValue([])
     testAPIKeys.mockResolvedValue({ items: [], image_count: 0 })
+    listGroupPenalties.mockResolvedValue({
+      items: [], total: 0, page: 1, page_size: 20, pages: 1,
+      overview: { total: 0, active: 0, expired: 0, permanent: 0, today_events: 0 },
+    })
+    listGroupPenaltyEvents.mockResolvedValue({ items: [] })
+    releaseGroupPenalty.mockResolvedValue({})
+    resetGroupPenalty.mockResolvedValue({})
     updateConfig.mockImplementation(async (payload: UpdateContentModerationConfig) => ({
       ...baseConfig(),
       ...payload,

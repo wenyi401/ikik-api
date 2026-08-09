@@ -10,9 +10,16 @@ import type {
   PromptEventFilters,
   PromptEventPage,
   PromptProbeResult,
+  PromptAuditTestResult,
   PromptAuditEndpointDraft,
 	PromptAuditUserProfile,
 	PromptAuditUserProfilePage,
+	RiskKnowledgeEntryPage,
+	RiskKnowledgeSummary,
+	RiskKnowledgeWriteInput,
+	RiskObservationPage,
+	RiskObservationReviewInput,
+	RiskObservation,
 } from './types'
 import { eventFilterPayload, eventQueryParams } from './viewModel'
 
@@ -47,6 +54,11 @@ export async function probeEndpoint(endpoint: PromptAuditEndpointDraft): Promise
 
 export async function getRuntime(): Promise<PromptAuditRuntime> {
   const { data } = await apiClient.get<PromptAuditRuntime>(`${basePath}/runtime`)
+  return data
+}
+
+export async function testPrompt(prompt: string): Promise<PromptAuditTestResult> {
+  const { data } = await apiClient.post<PromptAuditTestResult>(`${basePath}/test`, { prompt })
   return data
 }
 
@@ -120,11 +132,58 @@ export async function unblockProfile(userId: number): Promise<PromptAuditUserPro
 	return data
 }
 
+export async function getKnowledgeSummary(): Promise<RiskKnowledgeSummary> {
+  const { data } = await apiClient.get<RiskKnowledgeSummary>(`${basePath}/knowledge/summary`)
+  return data
+}
+
+export async function listKnowledge(params: {
+  page: number
+  page_size: number
+  topic?: string
+  category?: string
+  disposition?: string
+  keyword?: string
+  enabled?: boolean
+}): Promise<RiskKnowledgeEntryPage> {
+  const { data } = await apiClient.get<RiskKnowledgeEntryPage>(`${basePath}/knowledge`, { params })
+  return data
+}
+
+export async function createKnowledge(input: RiskKnowledgeWriteInput): Promise<{ entry: RiskKnowledgeEntryPage['items'][number]; version: number }> {
+  const { data } = await apiClient.post(`${basePath}/knowledge`, input)
+  return data
+}
+
+export async function updateKnowledge(id: number, input: RiskKnowledgeWriteInput): Promise<{ entry: RiskKnowledgeEntryPage['items'][number]; version: number }> {
+  const { data } = await apiClient.put(`${basePath}/knowledge/${id}`, input)
+  return data
+}
+
+export async function listKnowledgeObservations(params: {
+  page: number
+  page_size: number
+  review_status?: string
+  category?: string
+  user_id?: number
+  group_id?: number
+  keyword?: string
+}): Promise<RiskObservationPage> {
+  const { data } = await apiClient.get<RiskObservationPage>(`${basePath}/knowledge/observations`, { params })
+  return data
+}
+
+export async function reviewKnowledgeObservation(id: number, input: RiskObservationReviewInput): Promise<RiskObservation> {
+  const { data } = await apiClient.put<RiskObservation>(`${basePath}/knowledge/observations/${id}/review`, input)
+  return data
+}
+
 export const promptAuditAPI = {
   getConfig,
   updateConfig,
   probeEndpoint,
   getRuntime,
+  testPrompt,
   listEvents,
   getEvent,
   deleteEvent,
@@ -134,6 +193,12 @@ export const promptAuditAPI = {
   listGroups,
 	listProfiles,
 	unblockProfile,
+	getKnowledgeSummary,
+	listKnowledge,
+	createKnowledge,
+	updateKnowledge,
+	listKnowledgeObservations,
+	reviewKnowledgeObservation,
 }
 
 export default promptAuditAPI

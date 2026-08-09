@@ -16,6 +16,7 @@ type ChannelMonitorUserHandler struct {
 	monitorService       *service.ChannelMonitorService
 	settingService       *service.SettingService
 	groupCapacityService *service.GroupCapacityService
+	accountService       *service.AccountService
 }
 
 // NewChannelMonitorUserHandler 创建 handler。

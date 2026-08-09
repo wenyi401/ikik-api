@@ -45,6 +45,13 @@ func registerIkikUserRoutes(
 
 	registerIkikUserAccountRoutes(authenticated, h)
 
+	if h.Developer != nil {
+		developerTokens := authenticated.Group("/developer-tokens")
+		developerTokens.GET("", h.Developer.ListTokens)
+		developerTokens.POST("", h.Developer.CreateToken)
+		developerTokens.DELETE("/:id", h.Developer.DeleteToken)
+	}
+
 	playground := authenticated.Group("/playground")
 	playground.POST("/chat/completions", h.Playground.ChatCompletions)
 	authenticated.GET("/prompt-library", h.ServiceStatus.GetPromptLibrary)
@@ -82,6 +89,8 @@ func registerIkikUserAccountRoutes(authenticated *gin.RouterGroup, h *handler.Ha
 	accounts.POST("/import", h.UserAccount.Import)
 	accounts.POST("/import-agent-identity", h.UserAccount.ImportOpenAIAgentIdentity)
 	accounts.POST("/import-credentials", h.UserAccount.ImportCredentials)
+	accounts.POST("/model-probe/list", h.UserAccount.ProbeModelList)
+	accounts.POST("/model-probe/test", h.UserAccount.ProbeModels)
 	accounts.POST("/bulk-update", h.UserAccount.BulkUpdate)
 	accounts.POST("/bulk-delete", h.UserAccount.BulkDelete)
 	accounts.POST("/batch-recover-state", h.UserAccount.BatchRecoverState)

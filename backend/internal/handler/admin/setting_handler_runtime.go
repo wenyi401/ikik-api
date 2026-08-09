@@ -10,6 +10,40 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// UpdateOpenAIExperimentalPromptSettingsRequest updates the generic instruction and its one-time unlock price.
+type UpdateOpenAIExperimentalPromptSettingsRequest struct {
+	Prompt     string `json:"prompt"`
+	PriceCents int64  `json:"price_cents"`
+}
+
+// GetOpenAIExperimentalPromptSettings returns the administrator-only instruction settings.
+func (h *SettingHandler) GetOpenAIExperimentalPromptSettings(c *gin.Context) {
+	settings, err := h.settingService.GetOpenAIExperimentalPromptSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, settings)
+}
+
+// UpdateOpenAIExperimentalPromptSettings stores the administrator-owned instruction settings.
+func (h *SettingHandler) UpdateOpenAIExperimentalPromptSettings(c *gin.Context) {
+	var req UpdateOpenAIExperimentalPromptSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	settings, err := h.settingService.SetOpenAIExperimentalPromptSettings(c.Request.Context(), service.OpenAIExperimentalPromptSettings{
+		Prompt:     req.Prompt,
+		PriceCents: req.PriceCents,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, settings)
+}
+
 // GetAdminAPIKey 获取管理员 API Key 状态
 // GET /api/v1/admin/settings/admin-api-key
 func (h *SettingHandler) GetAdminAPIKey(c *gin.Context) {

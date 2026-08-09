@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	infraerrors "ikik-api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 type prefixEncryptor struct{}
@@ -19,6 +19,9 @@ func TestDefaultConfigIsOff(t *testing.T) {
 	storage, err := ParseStorageConfig("")
 	require.NoError(t, err)
 	require.False(t, storage.Enabled)
+	require.False(t, storage.BlockingLatestTurnOnly)
+	require.True(t, storage.AsyncLatestUserOnly)
+	require.Equal(t, EnforcementShadow, storage.EnforcementMode)
 	active, err := ActiveFromStorage(storage, true, prefixEncryptor{})
 	require.NoError(t, err)
 	require.Equal(t, ModeOff, active.EffectiveMode())
@@ -27,6 +30,28 @@ func TestDefaultConfigIsOff(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(publicJSON), `"group_ids":[]`)
 	require.Contains(t, string(publicJSON), `"endpoints":[]`)
+}
+
+func TestBlockingLatestTurnOnlyConfigRoundTrip(t *testing.T) {
+	manager := &ConfigManager{encryptor: prefixEncryptor{}}
+	request := UpdateConfigRequest{
+		ExpectedConfigVersion: 1, Enabled: true, BlockingEnabled: true, BlockingLatestTurnOnly: true,
+		Strategy: "priority", WorkerCount: 1, QueueCapacity: 10, Scanners: []string{"pii"}, AllGroups: true,
+		Endpoints: []UpdateEndpoint{{
+			ID: "guard-1", Name: "Guard", Protocol: "openai_compatible", BaseURL: "http://127.0.0.1:8080",
+			Model: DefaultGuardModel, TimeoutMS: 1000, InputLimit: 1000, Enabled: true,
+		}},
+	}
+	next, err := manager.buildNextStorage(DefaultStorageConfig(), request, 9)
+	require.NoError(t, err)
+	require.True(t, next.BlockingLatestTurnOnly)
+	require.Contains(t, changeSummary(next), `"blocking_latest_turn_only":true`)
+
+	active, err := ActiveFromStorage(next, true, prefixEncryptor{})
+	require.NoError(t, err)
+	require.True(t, active.BlockingLatestTurnOnly)
+	public := PublicFromStorage(next, true)
+	require.True(t, public.BlockingLatestTurnOnly)
 }
 
 func TestConfigRejectsBlockingWithoutAudit(t *testing.T) {
@@ -101,10 +126,10 @@ func TestConfigManagerColdStartOnlyFailsClosedForExplicitBlockingIntent(t *testi
 	require.Equal(t, ModeOff, manager.EffectiveMode(), "an async config version must not imply blocking")
 	require.False(t, manager.BlockingActivationDegraded())
 
-	manager.observeExpectedState(`{"enabled":true,"blocking_enabled":true,"config_version":43}`, false)
+	manager.observeExpectedState(`{"enabled":true,"blocking_enabled":true,"enforcement_mode":"enforce","config_version":43}`, false)
 	require.Equal(t, ModeOff, manager.EffectiveMode(), "the global risk-control switch still gates blocking")
 
-	manager.observeExpectedState(`{"enabled":true,"blocking_enabled":true,"config_version":44}`, true)
+	manager.observeExpectedState(`{"enabled":true,"blocking_enabled":true,"enforcement_mode":"enforce","config_version":44}`, true)
 	require.Equal(t, ModeBlocking, manager.EffectiveMode())
 	require.True(t, manager.BlockingActivationDegraded())
 
@@ -161,7 +186,7 @@ func TestConfigManagerStartupLoadFailureDoesNotBlockWhenBlockingNotIntended(t *t
 func TestConfigManagerStartupLoadFailureFailsClosedWhenBlockingIntended(t *testing.T) {
 	manager := NewConfigManager(nil, errorSettingRepository{}, nil, prefixEncryptor{})
 	// Simulate intent observed before a later load failure (e.g. decrypt error).
-	manager.observeExpectedState(`{"enabled":true,"blocking_enabled":true,"config_version":3}`, true)
+	manager.observeExpectedState(`{"enabled":true,"blocking_enabled":true,"enforcement_mode":"enforce","config_version":3}`, true)
 	manager.markConfigUntrusted()
 	require.True(t, manager.BlockingActivationDegraded())
 	require.Equal(t, ModeBlocking, manager.EffectiveMode())
@@ -181,7 +206,7 @@ func TestConfigManagerStartupLoadFailureFailsClosedWhenBlockingIntended(t *testi
 func TestConfigManagerUntrustedClearsOnSuccessfulDisable(t *testing.T) {
 	// After a degraded fail-closed period, saving disabled config must restore ModeOff.
 	manager := &ConfigManager{encryptor: prefixEncryptor{}, clock: fixedClock{}}
-	manager.observeExpectedState(`{"enabled":true,"blocking_enabled":true,"config_version":5}`, true)
+	manager.observeExpectedState(`{"enabled":true,"blocking_enabled":true,"enforcement_mode":"enforce","config_version":5}`, true)
 	manager.markConfigUntrusted()
 	require.Equal(t, ModeBlocking, manager.EffectiveMode())
 
@@ -227,6 +252,8 @@ func TestParseLegacyConfigDefaultsMissingFieldsWithoutEnablingBlocking(t *testin
 	require.Equal(t, DefaultQueueCapacity, storage.QueueCapacity)
 	require.Equal(t, AllScannerIDs, storage.Scanners)
 	require.True(t, storage.AllGroups)
+	require.True(t, storage.AsyncLatestUserOnly)
+	require.Equal(t, EnforcementShadow, storage.EnforcementMode)
 }
 
 func TestUpdateConfigStrictBoundsAndKnownValues(t *testing.T) {

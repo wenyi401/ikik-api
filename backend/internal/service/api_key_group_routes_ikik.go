@@ -117,6 +117,46 @@ func (s *APIKeyService) canUserBindAPIKeyGroup(ctx context.Context, user *User, 
 	return err == nil
 }
 
+func apiKeySupportsOpenAIExperimentalPrompt(apiKey *APIKey) bool {
+	if apiKey == nil {
+		return false
+	}
+	if len(apiKey.GroupRoutes) > 0 {
+		for i := range apiKey.GroupRoutes {
+			route := &apiKey.GroupRoutes[i]
+			if route.Enabled && route.Group != nil && route.Group.Platform == PlatformOpenAI && route.Group.OpenAIExperimentalPromptEnabled {
+				return true
+			}
+		}
+		return false
+	}
+	return apiKey.Group != nil && apiKey.Group.Platform == PlatformOpenAI && apiKey.Group.OpenAIExperimentalPromptEnabled
+}
+
+func applyAPIKeyOpenAIExperimentalPromptPreference(user *User, apiKey *APIKey, requested *bool, routesChanged bool) error {
+	if apiKey == nil {
+		return ErrOpenAIExperimentalPromptGroupUnsupported
+	}
+	if requested != nil {
+		if !*requested {
+			apiKey.OpenAIExperimentalPromptEnabled = false
+			return nil
+		}
+		if user == nil || !user.OpenAIExperimentalPromptUnlocked {
+			return ErrOpenAIExperimentalPromptLocked
+		}
+		if !apiKeySupportsOpenAIExperimentalPrompt(apiKey) {
+			return ErrOpenAIExperimentalPromptGroupUnsupported
+		}
+		apiKey.OpenAIExperimentalPromptEnabled = true
+		return nil
+	}
+	if routesChanged && !apiKeySupportsOpenAIExperimentalPrompt(apiKey) {
+		apiKey.OpenAIExperimentalPromptEnabled = false
+	}
+	return nil
+}
+
 func (s *APIKeyService) prepareAPIKeyGroupRoutesForCreate(ctx context.Context, user *User, req *CreateAPIKeyRequest) ([]APIKeyGroupRoute, error) {
 	routes, err := normalizeAPIKeyGroupRoutes(req.GroupRoutes)
 	if err != nil {

@@ -125,6 +125,12 @@ func RegisterUserRoutes(
 			redeem.GET("/history", h.Redeem.GetHistory)
 		}
 
+		features := authenticated.Group("/features")
+		{
+			features.GET("/openai-experimental-prompt", h.Redeem.GetOpenAIExperimentalPromptStatus)
+			features.POST("/openai-experimental-prompt/purchase", h.Redeem.PurchaseOpenAIExperimentalPrompt)
+		}
+
 		// 用户订阅
 		subscriptions := authenticated.Group("/subscriptions")
 		{

@@ -12,9 +12,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/service"
-	"github.com/redis/go-redis/v9"
 )
 
 type activeConfigSnapshot struct {
@@ -116,7 +116,7 @@ func (m *ConfigManager) Reload(ctx context.Context) error {
 		return err
 	}
 	m.expected.Store(storage.ConfigVersion)
-	m.expectedBlocking.Store(values[SettingKeyRiskControl] == "true" && storage.Enabled && storage.BlockingEnabled)
+	m.expectedBlocking.Store(values[SettingKeyRiskControl] == "true" && storage.Enabled && storage.BlockingEnabled && storage.EnforcementMode == EnforcementEnforce)
 	active, err := ActiveFromStorage(storage, values[SettingKeyRiskControl] == "true", m.encryptor)
 	if err != nil {
 		m.recordLoadError(err)
@@ -202,7 +202,21 @@ func (m *ConfigManager) Public() PublicConfig {
 	if snapshot == nil {
 		return PublicFromStorage(DefaultStorageConfig(), false)
 	}
-	return PublicFromStorage(cloneStorageConfig(snapshot.storage), snapshot.active.RiskControlEnabled)
+	return publicConfigWithTokenStatus(cloneStorageConfig(snapshot.storage), snapshot.active)
+}
+
+func publicConfigWithTokenStatus(storage storageConfig, active ActiveConfig) PublicConfig {
+	public := PublicFromStorage(storage, active.RiskControlEnabled)
+	invalid := make(map[string]struct{})
+	for _, id := range active.InvalidTokenEndpointIDs() {
+		invalid[id] = struct{}{}
+	}
+	for index := range public.Endpoints {
+		if _, ok := invalid[public.Endpoints[index].ID]; ok {
+			public.Endpoints[index].TokenStatus = "invalid"
+		}
+	}
+	return public
 }
 
 func (m *ConfigManager) Save(ctx context.Context, req UpdateConfigRequest, actorID int64) (PublicConfig, error) {
@@ -267,7 +281,7 @@ func (m *ConfigManager) Save(ctx context.Context, req UpdateConfigRequest, actor
 		return PublicConfig{}, err
 	}
 	m.expected.Store(next.ConfigVersion)
-	m.expectedBlocking.Store(active.RiskControlEnabled && next.Enabled && next.BlockingEnabled)
+	m.expectedBlocking.Store(active.RiskControlEnabled && next.Enabled && next.BlockingEnabled && next.EnforcementMode == EnforcementEnforce)
 	m.snapshot.Store(&activeConfigSnapshot{storage: cloneStorageConfig(next), active: cloneActiveConfig(active), loadedAt: m.clock.Now()})
 	// A successful admin save installs a trustworthy snapshot; clear any prior
 	// fail-closed degradation so disabling audit actually takes effect.
@@ -283,7 +297,7 @@ func (m *ConfigManager) Save(ctx context.Context, req UpdateConfigRequest, actor
 			})
 		}
 	}
-	return PublicFromStorage(next, active.RiskControlEnabled), nil
+	return publicConfigWithTokenStatus(next, active), nil
 }
 
 func (m *ConfigManager) buildNextStorage(current storageConfig, req UpdateConfigRequest, actorID int64) (storageConfig, error) {
@@ -294,8 +308,16 @@ func (m *ConfigManager) buildNextStorage(current storageConfig, req UpdateConfig
 	for _, endpoint := range current.Endpoints {
 		currentByID[endpoint.ID] = endpoint
 	}
+	enforcementMode := req.EnforcementMode
+	if enforcementMode == "" {
+		enforcementMode = EnforcementShadow
+		if req.BlockingEnabled {
+			enforcementMode = EnforcementEnforce
+		}
+	}
 	next := storageConfig{
-		Enabled: req.Enabled, BlockingEnabled: req.BlockingEnabled, StorePassEvents: req.StorePassEvents,
+		Enabled: req.Enabled, BlockingEnabled: req.BlockingEnabled, BlockingLatestTurnOnly: req.BlockingLatestTurnOnly,
+		AsyncLatestUserOnly: req.AsyncLatestUserOnly, EnforcementMode: enforcementMode, StorePassEvents: req.StorePassEvents,
 		Strategy: strings.TrimSpace(req.Strategy), WorkerCount: req.WorkerCount,
 		QueueCapacity: req.QueueCapacity, Scanners: append([]string(nil), req.Scanners...),
 		AllGroups: req.AllGroups, GroupIDs: append([]int64(nil), req.GroupIDs...),
@@ -373,9 +395,10 @@ func (m *ConfigManager) observeExpectedState(raw string, riskControlEnabled bool
 		return
 	}
 	var intent struct {
-		Enabled         bool  `json:"enabled"`
-		BlockingEnabled bool  `json:"blocking_enabled"`
-		ConfigVersion   int64 `json:"config_version"`
+		Enabled         bool            `json:"enabled"`
+		BlockingEnabled bool            `json:"blocking_enabled"`
+		EnforcementMode EnforcementMode `json:"enforcement_mode"`
+		ConfigVersion   int64           `json:"config_version"`
 	}
 	if err := json.Unmarshal([]byte(raw), &intent); err != nil {
 		return
@@ -384,7 +407,7 @@ func (m *ConfigManager) observeExpectedState(raw string, riskControlEnabled bool
 		intent.ConfigVersion = 1
 	}
 	m.expected.Store(intent.ConfigVersion)
-	m.expectedBlocking.Store(riskControlEnabled && intent.Enabled && intent.BlockingEnabled)
+	m.expectedBlocking.Store(riskControlEnabled && intent.Enabled && intent.BlockingEnabled && intent.EnforcementMode == EnforcementEnforce)
 }
 
 func (m *ConfigManager) refreshLoop(ctx context.Context) {

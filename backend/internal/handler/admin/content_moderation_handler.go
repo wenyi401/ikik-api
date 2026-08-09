@@ -189,6 +189,72 @@ func (h *ContentModerationHandler) UpdateRiskProfile(c *gin.Context) {
 	response.Success(c, result)
 }
 
+func (h *ContentModerationHandler) ListGroupPenalties(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	filter := service.ContentModerationGroupPenaltyFilter{
+		Pagination: pagination.PaginationParams{Page: page, PageSize: pageSize, SortOrder: pagination.SortOrderDesc},
+		Status:     c.Query("status"),
+		Search:     c.Query("search"),
+		Category:   c.Query("category"),
+	}
+	if raw := strings.TrimSpace(c.Query("group_id")); raw != "" {
+		groupID, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || groupID <= 0 {
+			response.BadRequest(c, "Invalid group_id")
+			return
+		}
+		filter.GroupID = &groupID
+	}
+	result, err := h.service.ListGroupPenalties(c.Request.Context(), filter)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *ContentModerationHandler) ListGroupPenaltyEvents(c *gin.Context) {
+	userID, groupID, ok := contentModerationPenaltyIDs(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	result, err := h.service.ListGroupPenaltyEvents(c.Request.Context(), userID, groupID, pagination.PaginationParams{
+		Page: page, PageSize: pageSize, SortOrder: pagination.SortOrderDesc,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *ContentModerationHandler) ReleaseGroupPenalty(c *gin.Context) {
+	userID, groupID, ok := contentModerationPenaltyIDs(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ReleaseGroupPenalty(c.Request.Context(), userID, groupID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *ContentModerationHandler) ResetGroupPenalty(c *gin.Context) {
+	userID, groupID, ok := contentModerationPenaltyIDs(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ResetGroupPenalty(c.Request.Context(), userID, groupID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
 func (h *ContentModerationHandler) TestAPIKeys(c *gin.Context) {
 	var req contentModerationAPIKeyTestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -334,4 +400,14 @@ func parseContentModerationDate(raw string) (time.Time, bool, error) {
 	}
 	t, err := time.Parse("2006-01-02", raw)
 	return t, err == nil, err
+}
+
+func contentModerationPenaltyIDs(c *gin.Context) (int64, int64, bool) {
+	userID, userErr := strconv.ParseInt(strings.TrimSpace(c.Param("user_id")), 10, 64)
+	groupID, groupErr := strconv.ParseInt(strings.TrimSpace(c.Param("group_id")), 10, 64)
+	if userErr != nil || groupErr != nil || userID <= 0 || groupID <= 0 {
+		response.BadRequest(c, "Invalid user_id or group_id")
+		return 0, 0, false
+	}
+	return userID, groupID, true
 }

@@ -585,6 +585,7 @@ function onKeyChange() {
   form.payment_mode = defaultPaymentMode(form.provider_key)
   clearConfig()
   applyDefaults()
+  applyCallbackDefaults()
 }
 
 function clearConfig() {
@@ -600,6 +601,17 @@ function clearConfig() {
 function applyDefaults() {
   for (const f of PROVIDER_CONFIG_FIELDS[form.provider_key] || []) {
     if (f.defaultValue && !config[f.key]) config[f.key] = f.defaultValue
+  }
+}
+
+/** Callback paths are fixed by the provider, so the current site is a safe default base URL. */
+function applyCallbackDefaults() {
+  if (!defaultBaseUrl) return
+  if (!notifyBaseUrl.value && PROVIDER_CALLBACK_PATHS[form.provider_key]?.notifyUrl) {
+    notifyBaseUrl.value = defaultBaseUrl
+  }
+  if (!returnBaseUrl.value && PROVIDER_CALLBACK_PATHS[form.provider_key]?.returnUrl) {
+    returnBaseUrl.value = defaultBaseUrl
   }
 }
 
@@ -782,6 +794,7 @@ function reset(defaultKey: string) {
   form.allow_user_refund = false
   clearConfig()
   applyDefaults()
+  applyCallbackDefaults()
 }
 
 function loadProvider(provider: ProviderInstance) {
@@ -819,6 +832,7 @@ function loadProvider(provider: ProviderInstance) {
     }
   }
   applyDefaults()
+  applyCallbackDefaults()
   // Parse existing limits
   if (provider.limits) {
     try {

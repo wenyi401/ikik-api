@@ -83,3 +83,35 @@ func (h *RedeemHandler) GetHistory(c *gin.Context) {
 	}
 	response.Success(c, out)
 }
+
+// GetOpenAIExperimentalPromptStatus returns the current user's feature entitlement.
+// GET /api/v1/user/features/openai-experimental-prompt
+func (h *RedeemHandler) GetOpenAIExperimentalPromptStatus(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	status, err := h.redeemService.OpenAIExperimentalPromptStatus(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, status)
+}
+
+// PurchaseOpenAIExperimentalPrompt unlocks the feature using the user's balance.
+// POST /api/v1/user/features/openai-experimental-prompt/purchase
+func (h *RedeemHandler) PurchaseOpenAIExperimentalPrompt(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	status, err := h.redeemService.PurchaseOpenAIExperimentalPrompt(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, status)
+}

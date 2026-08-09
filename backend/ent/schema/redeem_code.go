@@ -42,6 +42,11 @@ func (RedeemCode) Fields() []ent.Field {
 		field.String("type").
 			MaxLen(20).
 			Default(domain.RedeemTypeBalance),
+		field.String("feature_key").
+			MaxLen(80).
+			Optional().
+			Default("").
+			Comment("feature 类型兑换码对应的权益键"),
 		field.Float("value").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0),

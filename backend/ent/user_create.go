@@ -10,6 +10,7 @@ import (
 	"ikik-api/ent/announcementread"
 	"ikik-api/ent/apikey"
 	"ikik-api/ent/authidentity"
+	"ikik-api/ent/developertoken"
 	"ikik-api/ent/group"
 	"ikik-api/ent/paymentorder"
 	"ikik-api/ent/pendingauthsession"
@@ -214,6 +215,76 @@ func (_c *UserCreate) SetStatus(v string) *UserCreate {
 func (_c *UserCreate) SetNillableStatus(v *string) *UserCreate {
 	if v != nil {
 		_c.SetStatus(*v)
+	}
+	return _c
+}
+
+// SetDeveloperAPIEnabled sets the "developer_api_enabled" field.
+func (_c *UserCreate) SetDeveloperAPIEnabled(v bool) *UserCreate {
+	_c.mutation.SetDeveloperAPIEnabled(v)
+	return _c
+}
+
+// SetNillableDeveloperAPIEnabled sets the "developer_api_enabled" field if the given value is not nil.
+func (_c *UserCreate) SetNillableDeveloperAPIEnabled(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetDeveloperAPIEnabled(*v)
+	}
+	return _c
+}
+
+// SetOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field.
+func (_c *UserCreate) SetOpenaiExperimentalPromptUnlocked(v bool) *UserCreate {
+	_c.mutation.SetOpenaiExperimentalPromptUnlocked(v)
+	return _c
+}
+
+// SetNillableOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field if the given value is not nil.
+func (_c *UserCreate) SetNillableOpenaiExperimentalPromptUnlocked(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetOpenaiExperimentalPromptUnlocked(*v)
+	}
+	return _c
+}
+
+// SetOnboardingMode sets the "onboarding_mode" field.
+func (_c *UserCreate) SetOnboardingMode(v user.OnboardingMode) *UserCreate {
+	_c.mutation.SetOnboardingMode(v)
+	return _c
+}
+
+// SetNillableOnboardingMode sets the "onboarding_mode" field if the given value is not nil.
+func (_c *UserCreate) SetNillableOnboardingMode(v *user.OnboardingMode) *UserCreate {
+	if v != nil {
+		_c.SetOnboardingMode(*v)
+	}
+	return _c
+}
+
+// SetShareCardText sets the "share_card_text" field.
+func (_c *UserCreate) SetShareCardText(v string) *UserCreate {
+	_c.mutation.SetShareCardText(v)
+	return _c
+}
+
+// SetNillableShareCardText sets the "share_card_text" field if the given value is not nil.
+func (_c *UserCreate) SetNillableShareCardText(v *string) *UserCreate {
+	if v != nil {
+		_c.SetShareCardText(*v)
+	}
+	return _c
+}
+
+// SetShareCardTextColor sets the "share_card_text_color" field.
+func (_c *UserCreate) SetShareCardTextColor(v string) *UserCreate {
+	_c.mutation.SetShareCardTextColor(v)
+	return _c
+}
+
+// SetNillableShareCardTextColor sets the "share_card_text_color" field if the given value is not nil.
+func (_c *UserCreate) SetNillableShareCardTextColor(v *string) *UserCreate {
+	if v != nil {
+		_c.SetShareCardTextColor(*v)
 	}
 	return _c
 }
@@ -469,6 +540,21 @@ func (_c *UserCreate) AddAPIKeys(v ...*APIKey) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddAPIKeyIDs(ids...)
+}
+
+// AddDeveloperTokenIDs adds the "developer_tokens" edge to the DeveloperToken entity by IDs.
+func (_c *UserCreate) AddDeveloperTokenIDs(ids ...int64) *UserCreate {
+	_c.mutation.AddDeveloperTokenIDs(ids...)
+	return _c
+}
+
+// AddDeveloperTokens adds the "developer_tokens" edges to the DeveloperToken entity.
+func (_c *UserCreate) AddDeveloperTokens(v ...*DeveloperToken) *UserCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddDeveloperTokenIDs(ids...)
 }
 
 // AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by IDs.
@@ -813,6 +899,26 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultStatus
 		_c.mutation.SetStatus(v)
 	}
+	if _, ok := _c.mutation.DeveloperAPIEnabled(); !ok {
+		v := user.DefaultDeveloperAPIEnabled
+		_c.mutation.SetDeveloperAPIEnabled(v)
+	}
+	if _, ok := _c.mutation.OpenaiExperimentalPromptUnlocked(); !ok {
+		v := user.DefaultOpenaiExperimentalPromptUnlocked
+		_c.mutation.SetOpenaiExperimentalPromptUnlocked(v)
+	}
+	if _, ok := _c.mutation.OnboardingMode(); !ok {
+		v := user.DefaultOnboardingMode
+		_c.mutation.SetOnboardingMode(v)
+	}
+	if _, ok := _c.mutation.ShareCardText(); !ok {
+		v := user.DefaultShareCardText
+		_c.mutation.SetShareCardText(v)
+	}
+	if _, ok := _c.mutation.ShareCardTextColor(); !ok {
+		v := user.DefaultShareCardTextColor
+		_c.mutation.SetShareCardTextColor(v)
+	}
 	if _, ok := _c.mutation.Username(); !ok {
 		v := user.DefaultUsername
 		_c.mutation.SetUsername(v)
@@ -923,6 +1029,36 @@ func (_c *UserCreate) check() error {
 	if v, ok := _c.mutation.Status(); ok {
 		if err := user.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.DeveloperAPIEnabled(); !ok {
+		return &ValidationError{Name: "developer_api_enabled", err: errors.New(`ent: missing required field "User.developer_api_enabled"`)}
+	}
+	if _, ok := _c.mutation.OpenaiExperimentalPromptUnlocked(); !ok {
+		return &ValidationError{Name: "openai_experimental_prompt_unlocked", err: errors.New(`ent: missing required field "User.openai_experimental_prompt_unlocked"`)}
+	}
+	if _, ok := _c.mutation.OnboardingMode(); !ok {
+		return &ValidationError{Name: "onboarding_mode", err: errors.New(`ent: missing required field "User.onboarding_mode"`)}
+	}
+	if v, ok := _c.mutation.OnboardingMode(); ok {
+		if err := user.OnboardingModeValidator(v); err != nil {
+			return &ValidationError{Name: "onboarding_mode", err: fmt.Errorf(`ent: validator failed for field "User.onboarding_mode": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.ShareCardText(); !ok {
+		return &ValidationError{Name: "share_card_text", err: errors.New(`ent: missing required field "User.share_card_text"`)}
+	}
+	if v, ok := _c.mutation.ShareCardText(); ok {
+		if err := user.ShareCardTextValidator(v); err != nil {
+			return &ValidationError{Name: "share_card_text", err: fmt.Errorf(`ent: validator failed for field "User.share_card_text": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.ShareCardTextColor(); !ok {
+		return &ValidationError{Name: "share_card_text_color", err: errors.New(`ent: missing required field "User.share_card_text_color"`)}
+	}
+	if v, ok := _c.mutation.ShareCardTextColor(); ok {
+		if err := user.ShareCardTextColorValidator(v); err != nil {
+			return &ValidationError{Name: "share_card_text_color", err: fmt.Errorf(`ent: validator failed for field "User.share_card_text_color": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.Username(); !ok {
@@ -1054,6 +1190,26 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldStatus, field.TypeString, value)
 		_node.Status = value
 	}
+	if value, ok := _c.mutation.DeveloperAPIEnabled(); ok {
+		_spec.SetField(user.FieldDeveloperAPIEnabled, field.TypeBool, value)
+		_node.DeveloperAPIEnabled = value
+	}
+	if value, ok := _c.mutation.OpenaiExperimentalPromptUnlocked(); ok {
+		_spec.SetField(user.FieldOpenaiExperimentalPromptUnlocked, field.TypeBool, value)
+		_node.OpenaiExperimentalPromptUnlocked = value
+	}
+	if value, ok := _c.mutation.OnboardingMode(); ok {
+		_spec.SetField(user.FieldOnboardingMode, field.TypeEnum, value)
+		_node.OnboardingMode = value
+	}
+	if value, ok := _c.mutation.ShareCardText(); ok {
+		_spec.SetField(user.FieldShareCardText, field.TypeString, value)
+		_node.ShareCardText = value
+	}
+	if value, ok := _c.mutation.ShareCardTextColor(); ok {
+		_spec.SetField(user.FieldShareCardTextColor, field.TypeString, value)
+		_node.ShareCardTextColor = value
+	}
 	if value, ok := _c.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
 		_node.Username = value
@@ -1131,6 +1287,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikey.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.DeveloperTokensIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeveloperTokensTable,
+			Columns: []string{user.DeveloperTokensColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(developertoken.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -1665,6 +1837,66 @@ func (u *UserUpsert) SetStatus(v string) *UserUpsert {
 // UpdateStatus sets the "status" field to the value that was provided on create.
 func (u *UserUpsert) UpdateStatus() *UserUpsert {
 	u.SetExcluded(user.FieldStatus)
+	return u
+}
+
+// SetDeveloperAPIEnabled sets the "developer_api_enabled" field.
+func (u *UserUpsert) SetDeveloperAPIEnabled(v bool) *UserUpsert {
+	u.Set(user.FieldDeveloperAPIEnabled, v)
+	return u
+}
+
+// UpdateDeveloperAPIEnabled sets the "developer_api_enabled" field to the value that was provided on create.
+func (u *UserUpsert) UpdateDeveloperAPIEnabled() *UserUpsert {
+	u.SetExcluded(user.FieldDeveloperAPIEnabled)
+	return u
+}
+
+// SetOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field.
+func (u *UserUpsert) SetOpenaiExperimentalPromptUnlocked(v bool) *UserUpsert {
+	u.Set(user.FieldOpenaiExperimentalPromptUnlocked, v)
+	return u
+}
+
+// UpdateOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field to the value that was provided on create.
+func (u *UserUpsert) UpdateOpenaiExperimentalPromptUnlocked() *UserUpsert {
+	u.SetExcluded(user.FieldOpenaiExperimentalPromptUnlocked)
+	return u
+}
+
+// SetOnboardingMode sets the "onboarding_mode" field.
+func (u *UserUpsert) SetOnboardingMode(v user.OnboardingMode) *UserUpsert {
+	u.Set(user.FieldOnboardingMode, v)
+	return u
+}
+
+// UpdateOnboardingMode sets the "onboarding_mode" field to the value that was provided on create.
+func (u *UserUpsert) UpdateOnboardingMode() *UserUpsert {
+	u.SetExcluded(user.FieldOnboardingMode)
+	return u
+}
+
+// SetShareCardText sets the "share_card_text" field.
+func (u *UserUpsert) SetShareCardText(v string) *UserUpsert {
+	u.Set(user.FieldShareCardText, v)
+	return u
+}
+
+// UpdateShareCardText sets the "share_card_text" field to the value that was provided on create.
+func (u *UserUpsert) UpdateShareCardText() *UserUpsert {
+	u.SetExcluded(user.FieldShareCardText)
+	return u
+}
+
+// SetShareCardTextColor sets the "share_card_text_color" field.
+func (u *UserUpsert) SetShareCardTextColor(v string) *UserUpsert {
+	u.Set(user.FieldShareCardTextColor, v)
+	return u
+}
+
+// UpdateShareCardTextColor sets the "share_card_text_color" field to the value that was provided on create.
+func (u *UserUpsert) UpdateShareCardTextColor() *UserUpsert {
+	u.SetExcluded(user.FieldShareCardTextColor)
 	return u
 }
 
@@ -2211,6 +2443,76 @@ func (u *UserUpsertOne) SetStatus(v string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateStatus() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetDeveloperAPIEnabled sets the "developer_api_enabled" field.
+func (u *UserUpsertOne) SetDeveloperAPIEnabled(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDeveloperAPIEnabled(v)
+	})
+}
+
+// UpdateDeveloperAPIEnabled sets the "developer_api_enabled" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateDeveloperAPIEnabled() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDeveloperAPIEnabled()
+	})
+}
+
+// SetOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field.
+func (u *UserUpsertOne) SetOpenaiExperimentalPromptUnlocked(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetOpenaiExperimentalPromptUnlocked(v)
+	})
+}
+
+// UpdateOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateOpenaiExperimentalPromptUnlocked() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateOpenaiExperimentalPromptUnlocked()
+	})
+}
+
+// SetOnboardingMode sets the "onboarding_mode" field.
+func (u *UserUpsertOne) SetOnboardingMode(v user.OnboardingMode) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetOnboardingMode(v)
+	})
+}
+
+// UpdateOnboardingMode sets the "onboarding_mode" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateOnboardingMode() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateOnboardingMode()
+	})
+}
+
+// SetShareCardText sets the "share_card_text" field.
+func (u *UserUpsertOne) SetShareCardText(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetShareCardText(v)
+	})
+}
+
+// UpdateShareCardText sets the "share_card_text" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateShareCardText() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateShareCardText()
+	})
+}
+
+// SetShareCardTextColor sets the "share_card_text_color" field.
+func (u *UserUpsertOne) SetShareCardTextColor(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetShareCardTextColor(v)
+	})
+}
+
+// UpdateShareCardTextColor sets the "share_card_text_color" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateShareCardTextColor() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateShareCardTextColor()
 	})
 }
 
@@ -2968,6 +3270,76 @@ func (u *UserUpsertBulk) SetStatus(v string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateStatus() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetDeveloperAPIEnabled sets the "developer_api_enabled" field.
+func (u *UserUpsertBulk) SetDeveloperAPIEnabled(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDeveloperAPIEnabled(v)
+	})
+}
+
+// UpdateDeveloperAPIEnabled sets the "developer_api_enabled" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateDeveloperAPIEnabled() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDeveloperAPIEnabled()
+	})
+}
+
+// SetOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field.
+func (u *UserUpsertBulk) SetOpenaiExperimentalPromptUnlocked(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetOpenaiExperimentalPromptUnlocked(v)
+	})
+}
+
+// UpdateOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateOpenaiExperimentalPromptUnlocked() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateOpenaiExperimentalPromptUnlocked()
+	})
+}
+
+// SetOnboardingMode sets the "onboarding_mode" field.
+func (u *UserUpsertBulk) SetOnboardingMode(v user.OnboardingMode) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetOnboardingMode(v)
+	})
+}
+
+// UpdateOnboardingMode sets the "onboarding_mode" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateOnboardingMode() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateOnboardingMode()
+	})
+}
+
+// SetShareCardText sets the "share_card_text" field.
+func (u *UserUpsertBulk) SetShareCardText(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetShareCardText(v)
+	})
+}
+
+// UpdateShareCardText sets the "share_card_text" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateShareCardText() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateShareCardText()
+	})
+}
+
+// SetShareCardTextColor sets the "share_card_text_color" field.
+func (u *UserUpsertBulk) SetShareCardTextColor(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetShareCardTextColor(v)
+	})
+}
+
+// UpdateShareCardTextColor sets the "share_card_text_color" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateShareCardTextColor() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateShareCardTextColor()
 	})
 }
 

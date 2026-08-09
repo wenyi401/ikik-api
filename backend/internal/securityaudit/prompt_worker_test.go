@@ -432,6 +432,32 @@ func TestWorkerKnownFingerprintBlocksWithoutRemoteScanner(t *testing.T) {
 	require.Equal(t, "local-known-fingerprint", base.completedResult.ScannerBackend)
 }
 
+func TestWorkerShadowModeNeverUsesKnownMaliciousFingerprint(t *testing.T) {
+	base := &fakeJobRepository{}
+	repo := &fakeAdmissionJobRepository{fakeJobRepository: base, knownMalicious: true}
+	payload := &fakePayloadStore{values: map[int64]string{51: "ordinary prompt"}}
+	scannerCalls := 0
+	cfg := asyncConfig()
+	cfg.EnforcementMode = EnforcementShadow
+	runner := NewRunner(&fakeConfigStore{cfg: cfg, active: true}, repo, payload, PromptScannerFunc(func(_ context.Context, _ ActiveEndpoint, _ string, _ []string) (*NormalizedResult, error) {
+		scannerCalls++
+		return &NormalizedResult{
+			Decision: EventPass, RiskLevel: RiskLow, Action: ActionAllow,
+			ScannerScores: map[string]float64{}, ScannerEvidence: map[string]string{},
+		}, nil
+	}), NewAtomicMetrics())
+	job := workerJob(1, 1)
+	job.Snapshot.PromptHash = strings.Repeat("a", 64)
+
+	err := runner.processJob(context.Background(), 0, cfg, job)
+
+	require.NoError(t, err)
+	require.NotZero(t, scannerCalls)
+	require.NotNil(t, base.completedResult)
+	require.Equal(t, EventPass, base.completedResult.Decision)
+	require.True(t, base.completedResult.Shadow)
+}
+
 func workerJob(attempts, maxAttempts int) *Job {
 	return &Job{ID: 51, ClaimVersion: 3, Attempts: attempts, MaxAttempts: maxAttempts, ConfigVersion: 7,
 		Snapshot: PromptSnapshot{RequestID: "worker-request", PromptLength: 6, RedactedPreview: "red***"}}

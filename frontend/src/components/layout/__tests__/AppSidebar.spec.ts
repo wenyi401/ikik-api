@@ -30,3 +30,21 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
   })
 })
+
+describe('AppSidebar developer API navigation', () => {
+  it('keeps the developer API entry under account management, not personal center', () => {
+    const accountManagementStart = componentSource.indexOf("path: '/self/accounts'")
+    const personalCenterStart = componentSource.indexOf("path: '/self/profile-center'")
+    const additionalMenuStart = componentSource.indexOf("path: '/self/extras'")
+    const developerApiEntry = componentSource.indexOf(
+      "{ path: '/developer-api', label: t('nav.developerApi'), icon: KeyIcon }",
+    )
+
+    expect(accountManagementStart).toBeGreaterThanOrEqual(0)
+    expect(developerApiEntry).toBeGreaterThan(accountManagementStart)
+    expect(developerApiEntry).toBeLessThan(personalCenterStart)
+    expect(componentSource.slice(personalCenterStart, additionalMenuStart)).not.toContain(
+      "path: '/developer-api'",
+    )
+  })
+})

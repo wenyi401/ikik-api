@@ -23,6 +23,7 @@ import (
 	"ikik-api/ent/channelmonitorhistory"
 	"ikik-api/ent/channelmonitorrequesttemplate"
 	"ikik-api/ent/compositemodelroute"
+	"ikik-api/ent/developertoken"
 	"ikik-api/ent/emailbroadcast"
 	"ikik-api/ent/errorpassthroughrule"
 	"ikik-api/ent/group"
@@ -89,6 +90,7 @@ const (
 	TypeChannelMonitorHistory         = "ChannelMonitorHistory"
 	TypeChannelMonitorRequestTemplate = "ChannelMonitorRequestTemplate"
 	TypeCompositeModelRoute           = "CompositeModelRoute"
+	TypeDeveloperToken                = "DeveloperToken"
 	TypeEmailBroadcast                = "EmailBroadcast"
 	TypeErrorPassthroughRule          = "ErrorPassthroughRule"
 	TypeGroup                         = "Group"
@@ -126,54 +128,55 @@ const (
 // APIKeyMutation represents an operation that mutates the APIKey nodes in the graph.
 type APIKeyMutation struct {
 	config
-	op                  Op
-	typ                 string
-	id                  *int64
-	created_at          *time.Time
-	updated_at          *time.Time
-	deleted_at          *time.Time
-	key                 *string
-	name                *string
-	status              *string
-	last_used_at        *time.Time
-	ip_whitelist        *[]string
-	appendip_whitelist  []string
-	ip_blacklist        *[]string
-	appendip_blacklist  []string
-	quota               *float64
-	addquota            *float64
-	quota_used          *float64
-	addquota_used       *float64
-	expires_at          *time.Time
-	rate_limit_5h       *float64
-	addrate_limit_5h    *float64
-	rate_limit_1d       *float64
-	addrate_limit_1d    *float64
-	rate_limit_7d       *float64
-	addrate_limit_7d    *float64
-	usage_5h            *float64
-	addusage_5h         *float64
-	usage_1d            *float64
-	addusage_1d         *float64
-	usage_7d            *float64
-	addusage_7d         *float64
-	window_5h_start     *time.Time
-	window_1d_start     *time.Time
-	window_7d_start     *time.Time
-	clearedFields       map[string]struct{}
-	user                *int64
-	cleareduser         bool
-	group               *int64
-	clearedgroup        bool
-	group_routes        map[int64]struct{}
-	removedgroup_routes map[int64]struct{}
-	clearedgroup_routes bool
-	usage_logs          map[int64]struct{}
-	removedusage_logs   map[int64]struct{}
-	clearedusage_logs   bool
-	done                bool
-	oldValue            func(context.Context) (*APIKey, error)
-	predicates          []predicate.APIKey
+	op                                 Op
+	typ                                string
+	id                                 *int64
+	created_at                         *time.Time
+	updated_at                         *time.Time
+	deleted_at                         *time.Time
+	key                                *string
+	name                               *string
+	status                             *string
+	openai_experimental_prompt_enabled *bool
+	last_used_at                       *time.Time
+	ip_whitelist                       *[]string
+	appendip_whitelist                 []string
+	ip_blacklist                       *[]string
+	appendip_blacklist                 []string
+	quota                              *float64
+	addquota                           *float64
+	quota_used                         *float64
+	addquota_used                      *float64
+	expires_at                         *time.Time
+	rate_limit_5h                      *float64
+	addrate_limit_5h                   *float64
+	rate_limit_1d                      *float64
+	addrate_limit_1d                   *float64
+	rate_limit_7d                      *float64
+	addrate_limit_7d                   *float64
+	usage_5h                           *float64
+	addusage_5h                        *float64
+	usage_1d                           *float64
+	addusage_1d                        *float64
+	usage_7d                           *float64
+	addusage_7d                        *float64
+	window_5h_start                    *time.Time
+	window_1d_start                    *time.Time
+	window_7d_start                    *time.Time
+	clearedFields                      map[string]struct{}
+	user                               *int64
+	cleareduser                        bool
+	group                              *int64
+	clearedgroup                       bool
+	group_routes                       map[int64]struct{}
+	removedgroup_routes                map[int64]struct{}
+	clearedgroup_routes                bool
+	usage_logs                         map[int64]struct{}
+	removedusage_logs                  map[int64]struct{}
+	clearedusage_logs                  bool
+	done                               bool
+	oldValue                           func(context.Context) (*APIKey, error)
+	predicates                         []predicate.APIKey
 }
 
 var _ ent.Mutation = (*APIKeyMutation)(nil)
@@ -586,6 +589,42 @@ func (m *APIKeyMutation) OldStatus(ctx context.Context) (v string, err error) {
 // ResetStatus resets all changes to the "status" field.
 func (m *APIKeyMutation) ResetStatus() {
 	m.status = nil
+}
+
+// SetOpenaiExperimentalPromptEnabled sets the "openai_experimental_prompt_enabled" field.
+func (m *APIKeyMutation) SetOpenaiExperimentalPromptEnabled(b bool) {
+	m.openai_experimental_prompt_enabled = &b
+}
+
+// OpenaiExperimentalPromptEnabled returns the value of the "openai_experimental_prompt_enabled" field in the mutation.
+func (m *APIKeyMutation) OpenaiExperimentalPromptEnabled() (r bool, exists bool) {
+	v := m.openai_experimental_prompt_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOpenaiExperimentalPromptEnabled returns the old "openai_experimental_prompt_enabled" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldOpenaiExperimentalPromptEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOpenaiExperimentalPromptEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOpenaiExperimentalPromptEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOpenaiExperimentalPromptEnabled: %w", err)
+	}
+	return oldValue.OpenaiExperimentalPromptEnabled, nil
+}
+
+// ResetOpenaiExperimentalPromptEnabled resets all changes to the "openai_experimental_prompt_enabled" field.
+func (m *APIKeyMutation) ResetOpenaiExperimentalPromptEnabled() {
+	m.openai_experimental_prompt_enabled = nil
 }
 
 // SetLastUsedAt sets the "last_used_at" field.
@@ -1607,7 +1646,7 @@ func (m *APIKeyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *APIKeyMutation) Fields() []string {
-	fields := make([]string, 0, 23)
+	fields := make([]string, 0, 24)
 	if m.created_at != nil {
 		fields = append(fields, apikey.FieldCreatedAt)
 	}
@@ -1631,6 +1670,9 @@ func (m *APIKeyMutation) Fields() []string {
 	}
 	if m.status != nil {
 		fields = append(fields, apikey.FieldStatus)
+	}
+	if m.openai_experimental_prompt_enabled != nil {
+		fields = append(fields, apikey.FieldOpenaiExperimentalPromptEnabled)
 	}
 	if m.last_used_at != nil {
 		fields = append(fields, apikey.FieldLastUsedAt)
@@ -1701,6 +1743,8 @@ func (m *APIKeyMutation) Field(name string) (ent.Value, bool) {
 		return m.GroupID()
 	case apikey.FieldStatus:
 		return m.Status()
+	case apikey.FieldOpenaiExperimentalPromptEnabled:
+		return m.OpenaiExperimentalPromptEnabled()
 	case apikey.FieldLastUsedAt:
 		return m.LastUsedAt()
 	case apikey.FieldIPWhitelist:
@@ -1756,6 +1800,8 @@ func (m *APIKeyMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldGroupID(ctx)
 	case apikey.FieldStatus:
 		return m.OldStatus(ctx)
+	case apikey.FieldOpenaiExperimentalPromptEnabled:
+		return m.OldOpenaiExperimentalPromptEnabled(ctx)
 	case apikey.FieldLastUsedAt:
 		return m.OldLastUsedAt(ctx)
 	case apikey.FieldIPWhitelist:
@@ -1850,6 +1896,13 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetStatus(v)
+		return nil
+	case apikey.FieldOpenaiExperimentalPromptEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOpenaiExperimentalPromptEnabled(v)
 		return nil
 	case apikey.FieldLastUsedAt:
 		v, ok := value.(time.Time)
@@ -2184,6 +2237,9 @@ func (m *APIKeyMutation) ResetField(name string) error {
 		return nil
 	case apikey.FieldStatus:
 		m.ResetStatus()
+		return nil
+	case apikey.FieldOpenaiExperimentalPromptEnabled:
+		m.ResetOpenaiExperimentalPromptEnabled()
 		return nil
 	case apikey.FieldLastUsedAt:
 		m.ResetLastUsedAt()
@@ -21929,6 +21985,1078 @@ func (m *CompositeModelRouteMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown CompositeModelRoute edge %s", name)
 }
 
+// DeveloperTokenMutation represents an operation that mutates the DeveloperToken nodes in the graph.
+type DeveloperTokenMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int64
+	created_at    *time.Time
+	updated_at    *time.Time
+	deleted_at    *time.Time
+	name          *string
+	token_prefix  *string
+	token_hash    *string
+	scopes        *[]string
+	appendscopes  []string
+	status        *string
+	expires_at    *time.Time
+	last_used_at  *time.Time
+	last_used_ip  *string
+	clearedFields map[string]struct{}
+	user          *int64
+	cleareduser   bool
+	done          bool
+	oldValue      func(context.Context) (*DeveloperToken, error)
+	predicates    []predicate.DeveloperToken
+}
+
+var _ ent.Mutation = (*DeveloperTokenMutation)(nil)
+
+// developertokenOption allows management of the mutation configuration using functional options.
+type developertokenOption func(*DeveloperTokenMutation)
+
+// newDeveloperTokenMutation creates new mutation for the DeveloperToken entity.
+func newDeveloperTokenMutation(c config, op Op, opts ...developertokenOption) *DeveloperTokenMutation {
+	m := &DeveloperTokenMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeDeveloperToken,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withDeveloperTokenID sets the ID field of the mutation.
+func withDeveloperTokenID(id int64) developertokenOption {
+	return func(m *DeveloperTokenMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *DeveloperToken
+		)
+		m.oldValue = func(ctx context.Context) (*DeveloperToken, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().DeveloperToken.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withDeveloperToken sets the old DeveloperToken of the mutation.
+func withDeveloperToken(node *DeveloperToken) developertokenOption {
+	return func(m *DeveloperTokenMutation) {
+		m.oldValue = func(context.Context) (*DeveloperToken, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m DeveloperTokenMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m DeveloperTokenMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *DeveloperTokenMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *DeveloperTokenMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().DeveloperToken.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *DeveloperTokenMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *DeveloperTokenMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the DeveloperToken entity.
+// If the DeveloperToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeveloperTokenMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *DeveloperTokenMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *DeveloperTokenMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *DeveloperTokenMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the DeveloperToken entity.
+// If the DeveloperToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeveloperTokenMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *DeveloperTokenMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (m *DeveloperTokenMutation) SetDeletedAt(t time.Time) {
+	m.deleted_at = &t
+}
+
+// DeletedAt returns the value of the "deleted_at" field in the mutation.
+func (m *DeveloperTokenMutation) DeletedAt() (r time.Time, exists bool) {
+	v := m.deleted_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeletedAt returns the old "deleted_at" field's value of the DeveloperToken entity.
+// If the DeveloperToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeveloperTokenMutation) OldDeletedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeletedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeletedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeletedAt: %w", err)
+	}
+	return oldValue.DeletedAt, nil
+}
+
+// ClearDeletedAt clears the value of the "deleted_at" field.
+func (m *DeveloperTokenMutation) ClearDeletedAt() {
+	m.deleted_at = nil
+	m.clearedFields[developertoken.FieldDeletedAt] = struct{}{}
+}
+
+// DeletedAtCleared returns if the "deleted_at" field was cleared in this mutation.
+func (m *DeveloperTokenMutation) DeletedAtCleared() bool {
+	_, ok := m.clearedFields[developertoken.FieldDeletedAt]
+	return ok
+}
+
+// ResetDeletedAt resets all changes to the "deleted_at" field.
+func (m *DeveloperTokenMutation) ResetDeletedAt() {
+	m.deleted_at = nil
+	delete(m.clearedFields, developertoken.FieldDeletedAt)
+}
+
+// SetUserID sets the "user_id" field.
+func (m *DeveloperTokenMutation) SetUserID(i int64) {
+	m.user = &i
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *DeveloperTokenMutation) UserID() (r int64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the DeveloperToken entity.
+// If the DeveloperToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeveloperTokenMutation) OldUserID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *DeveloperTokenMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetName sets the "name" field.
+func (m *DeveloperTokenMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *DeveloperTokenMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the DeveloperToken entity.
+// If the DeveloperToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeveloperTokenMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *DeveloperTokenMutation) ResetName() {
+	m.name = nil
+}
+
+// SetTokenPrefix sets the "token_prefix" field.
+func (m *DeveloperTokenMutation) SetTokenPrefix(s string) {
+	m.token_prefix = &s
+}
+
+// TokenPrefix returns the value of the "token_prefix" field in the mutation.
+func (m *DeveloperTokenMutation) TokenPrefix() (r string, exists bool) {
+	v := m.token_prefix
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTokenPrefix returns the old "token_prefix" field's value of the DeveloperToken entity.
+// If the DeveloperToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeveloperTokenMutation) OldTokenPrefix(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTokenPrefix is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTokenPrefix requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTokenPrefix: %w", err)
+	}
+	return oldValue.TokenPrefix, nil
+}
+
+// ResetTokenPrefix resets all changes to the "token_prefix" field.
+func (m *DeveloperTokenMutation) ResetTokenPrefix() {
+	m.token_prefix = nil
+}
+
+// SetTokenHash sets the "token_hash" field.
+func (m *DeveloperTokenMutation) SetTokenHash(s string) {
+	m.token_hash = &s
+}
+
+// TokenHash returns the value of the "token_hash" field in the mutation.
+func (m *DeveloperTokenMutation) TokenHash() (r string, exists bool) {
+	v := m.token_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTokenHash returns the old "token_hash" field's value of the DeveloperToken entity.
+// If the DeveloperToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeveloperTokenMutation) OldTokenHash(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTokenHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTokenHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTokenHash: %w", err)
+	}
+	return oldValue.TokenHash, nil
+}
+
+// ResetTokenHash resets all changes to the "token_hash" field.
+func (m *DeveloperTokenMutation) ResetTokenHash() {
+	m.token_hash = nil
+}
+
+// SetScopes sets the "scopes" field.
+func (m *DeveloperTokenMutation) SetScopes(s []string) {
+	m.scopes = &s
+	m.appendscopes = nil
+}
+
+// Scopes returns the value of the "scopes" field in the mutation.
+func (m *DeveloperTokenMutation) Scopes() (r []string, exists bool) {
+	v := m.scopes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldScopes returns the old "scopes" field's value of the DeveloperToken entity.
+// If the DeveloperToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeveloperTokenMutation) OldScopes(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldScopes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldScopes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldScopes: %w", err)
+	}
+	return oldValue.Scopes, nil
+}
+
+// AppendScopes adds s to the "scopes" field.
+func (m *DeveloperTokenMutation) AppendScopes(s []string) {
+	m.appendscopes = append(m.appendscopes, s...)
+}
+
+// AppendedScopes returns the list of values that were appended to the "scopes" field in this mutation.
+func (m *DeveloperTokenMutation) AppendedScopes() ([]string, bool) {
+	if len(m.appendscopes) == 0 {
+		return nil, false
+	}
+	return m.appendscopes, true
+}
+
+// ResetScopes resets all changes to the "scopes" field.
+func (m *DeveloperTokenMutation) ResetScopes() {
+	m.scopes = nil
+	m.appendscopes = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *DeveloperTokenMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *DeveloperTokenMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the DeveloperToken entity.
+// If the DeveloperToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeveloperTokenMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *DeveloperTokenMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetExpiresAt sets the "expires_at" field.
+func (m *DeveloperTokenMutation) SetExpiresAt(t time.Time) {
+	m.expires_at = &t
+}
+
+// ExpiresAt returns the value of the "expires_at" field in the mutation.
+func (m *DeveloperTokenMutation) ExpiresAt() (r time.Time, exists bool) {
+	v := m.expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiresAt returns the old "expires_at" field's value of the DeveloperToken entity.
+// If the DeveloperToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeveloperTokenMutation) OldExpiresAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiresAt: %w", err)
+	}
+	return oldValue.ExpiresAt, nil
+}
+
+// ClearExpiresAt clears the value of the "expires_at" field.
+func (m *DeveloperTokenMutation) ClearExpiresAt() {
+	m.expires_at = nil
+	m.clearedFields[developertoken.FieldExpiresAt] = struct{}{}
+}
+
+// ExpiresAtCleared returns if the "expires_at" field was cleared in this mutation.
+func (m *DeveloperTokenMutation) ExpiresAtCleared() bool {
+	_, ok := m.clearedFields[developertoken.FieldExpiresAt]
+	return ok
+}
+
+// ResetExpiresAt resets all changes to the "expires_at" field.
+func (m *DeveloperTokenMutation) ResetExpiresAt() {
+	m.expires_at = nil
+	delete(m.clearedFields, developertoken.FieldExpiresAt)
+}
+
+// SetLastUsedAt sets the "last_used_at" field.
+func (m *DeveloperTokenMutation) SetLastUsedAt(t time.Time) {
+	m.last_used_at = &t
+}
+
+// LastUsedAt returns the value of the "last_used_at" field in the mutation.
+func (m *DeveloperTokenMutation) LastUsedAt() (r time.Time, exists bool) {
+	v := m.last_used_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastUsedAt returns the old "last_used_at" field's value of the DeveloperToken entity.
+// If the DeveloperToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeveloperTokenMutation) OldLastUsedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastUsedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastUsedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastUsedAt: %w", err)
+	}
+	return oldValue.LastUsedAt, nil
+}
+
+// ClearLastUsedAt clears the value of the "last_used_at" field.
+func (m *DeveloperTokenMutation) ClearLastUsedAt() {
+	m.last_used_at = nil
+	m.clearedFields[developertoken.FieldLastUsedAt] = struct{}{}
+}
+
+// LastUsedAtCleared returns if the "last_used_at" field was cleared in this mutation.
+func (m *DeveloperTokenMutation) LastUsedAtCleared() bool {
+	_, ok := m.clearedFields[developertoken.FieldLastUsedAt]
+	return ok
+}
+
+// ResetLastUsedAt resets all changes to the "last_used_at" field.
+func (m *DeveloperTokenMutation) ResetLastUsedAt() {
+	m.last_used_at = nil
+	delete(m.clearedFields, developertoken.FieldLastUsedAt)
+}
+
+// SetLastUsedIP sets the "last_used_ip" field.
+func (m *DeveloperTokenMutation) SetLastUsedIP(s string) {
+	m.last_used_ip = &s
+}
+
+// LastUsedIP returns the value of the "last_used_ip" field in the mutation.
+func (m *DeveloperTokenMutation) LastUsedIP() (r string, exists bool) {
+	v := m.last_used_ip
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastUsedIP returns the old "last_used_ip" field's value of the DeveloperToken entity.
+// If the DeveloperToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeveloperTokenMutation) OldLastUsedIP(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastUsedIP is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastUsedIP requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastUsedIP: %w", err)
+	}
+	return oldValue.LastUsedIP, nil
+}
+
+// ClearLastUsedIP clears the value of the "last_used_ip" field.
+func (m *DeveloperTokenMutation) ClearLastUsedIP() {
+	m.last_used_ip = nil
+	m.clearedFields[developertoken.FieldLastUsedIP] = struct{}{}
+}
+
+// LastUsedIPCleared returns if the "last_used_ip" field was cleared in this mutation.
+func (m *DeveloperTokenMutation) LastUsedIPCleared() bool {
+	_, ok := m.clearedFields[developertoken.FieldLastUsedIP]
+	return ok
+}
+
+// ResetLastUsedIP resets all changes to the "last_used_ip" field.
+func (m *DeveloperTokenMutation) ResetLastUsedIP() {
+	m.last_used_ip = nil
+	delete(m.clearedFields, developertoken.FieldLastUsedIP)
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *DeveloperTokenMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[developertoken.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *DeveloperTokenMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *DeveloperTokenMutation) UserIDs() (ids []int64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *DeveloperTokenMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the DeveloperTokenMutation builder.
+func (m *DeveloperTokenMutation) Where(ps ...predicate.DeveloperToken) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the DeveloperTokenMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *DeveloperTokenMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.DeveloperToken, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *DeveloperTokenMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *DeveloperTokenMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (DeveloperToken).
+func (m *DeveloperTokenMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *DeveloperTokenMutation) Fields() []string {
+	fields := make([]string, 0, 12)
+	if m.created_at != nil {
+		fields = append(fields, developertoken.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, developertoken.FieldUpdatedAt)
+	}
+	if m.deleted_at != nil {
+		fields = append(fields, developertoken.FieldDeletedAt)
+	}
+	if m.user != nil {
+		fields = append(fields, developertoken.FieldUserID)
+	}
+	if m.name != nil {
+		fields = append(fields, developertoken.FieldName)
+	}
+	if m.token_prefix != nil {
+		fields = append(fields, developertoken.FieldTokenPrefix)
+	}
+	if m.token_hash != nil {
+		fields = append(fields, developertoken.FieldTokenHash)
+	}
+	if m.scopes != nil {
+		fields = append(fields, developertoken.FieldScopes)
+	}
+	if m.status != nil {
+		fields = append(fields, developertoken.FieldStatus)
+	}
+	if m.expires_at != nil {
+		fields = append(fields, developertoken.FieldExpiresAt)
+	}
+	if m.last_used_at != nil {
+		fields = append(fields, developertoken.FieldLastUsedAt)
+	}
+	if m.last_used_ip != nil {
+		fields = append(fields, developertoken.FieldLastUsedIP)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *DeveloperTokenMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case developertoken.FieldCreatedAt:
+		return m.CreatedAt()
+	case developertoken.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case developertoken.FieldDeletedAt:
+		return m.DeletedAt()
+	case developertoken.FieldUserID:
+		return m.UserID()
+	case developertoken.FieldName:
+		return m.Name()
+	case developertoken.FieldTokenPrefix:
+		return m.TokenPrefix()
+	case developertoken.FieldTokenHash:
+		return m.TokenHash()
+	case developertoken.FieldScopes:
+		return m.Scopes()
+	case developertoken.FieldStatus:
+		return m.Status()
+	case developertoken.FieldExpiresAt:
+		return m.ExpiresAt()
+	case developertoken.FieldLastUsedAt:
+		return m.LastUsedAt()
+	case developertoken.FieldLastUsedIP:
+		return m.LastUsedIP()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *DeveloperTokenMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case developertoken.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case developertoken.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case developertoken.FieldDeletedAt:
+		return m.OldDeletedAt(ctx)
+	case developertoken.FieldUserID:
+		return m.OldUserID(ctx)
+	case developertoken.FieldName:
+		return m.OldName(ctx)
+	case developertoken.FieldTokenPrefix:
+		return m.OldTokenPrefix(ctx)
+	case developertoken.FieldTokenHash:
+		return m.OldTokenHash(ctx)
+	case developertoken.FieldScopes:
+		return m.OldScopes(ctx)
+	case developertoken.FieldStatus:
+		return m.OldStatus(ctx)
+	case developertoken.FieldExpiresAt:
+		return m.OldExpiresAt(ctx)
+	case developertoken.FieldLastUsedAt:
+		return m.OldLastUsedAt(ctx)
+	case developertoken.FieldLastUsedIP:
+		return m.OldLastUsedIP(ctx)
+	}
+	return nil, fmt.Errorf("unknown DeveloperToken field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *DeveloperTokenMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case developertoken.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case developertoken.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case developertoken.FieldDeletedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeletedAt(v)
+		return nil
+	case developertoken.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case developertoken.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case developertoken.FieldTokenPrefix:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTokenPrefix(v)
+		return nil
+	case developertoken.FieldTokenHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTokenHash(v)
+		return nil
+	case developertoken.FieldScopes:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetScopes(v)
+		return nil
+	case developertoken.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case developertoken.FieldExpiresAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiresAt(v)
+		return nil
+	case developertoken.FieldLastUsedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastUsedAt(v)
+		return nil
+	case developertoken.FieldLastUsedIP:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastUsedIP(v)
+		return nil
+	}
+	return fmt.Errorf("unknown DeveloperToken field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *DeveloperTokenMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *DeveloperTokenMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *DeveloperTokenMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown DeveloperToken numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *DeveloperTokenMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(developertoken.FieldDeletedAt) {
+		fields = append(fields, developertoken.FieldDeletedAt)
+	}
+	if m.FieldCleared(developertoken.FieldExpiresAt) {
+		fields = append(fields, developertoken.FieldExpiresAt)
+	}
+	if m.FieldCleared(developertoken.FieldLastUsedAt) {
+		fields = append(fields, developertoken.FieldLastUsedAt)
+	}
+	if m.FieldCleared(developertoken.FieldLastUsedIP) {
+		fields = append(fields, developertoken.FieldLastUsedIP)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *DeveloperTokenMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *DeveloperTokenMutation) ClearField(name string) error {
+	switch name {
+	case developertoken.FieldDeletedAt:
+		m.ClearDeletedAt()
+		return nil
+	case developertoken.FieldExpiresAt:
+		m.ClearExpiresAt()
+		return nil
+	case developertoken.FieldLastUsedAt:
+		m.ClearLastUsedAt()
+		return nil
+	case developertoken.FieldLastUsedIP:
+		m.ClearLastUsedIP()
+		return nil
+	}
+	return fmt.Errorf("unknown DeveloperToken nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *DeveloperTokenMutation) ResetField(name string) error {
+	switch name {
+	case developertoken.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case developertoken.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case developertoken.FieldDeletedAt:
+		m.ResetDeletedAt()
+		return nil
+	case developertoken.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case developertoken.FieldName:
+		m.ResetName()
+		return nil
+	case developertoken.FieldTokenPrefix:
+		m.ResetTokenPrefix()
+		return nil
+	case developertoken.FieldTokenHash:
+		m.ResetTokenHash()
+		return nil
+	case developertoken.FieldScopes:
+		m.ResetScopes()
+		return nil
+	case developertoken.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case developertoken.FieldExpiresAt:
+		m.ResetExpiresAt()
+		return nil
+	case developertoken.FieldLastUsedAt:
+		m.ResetLastUsedAt()
+		return nil
+	case developertoken.FieldLastUsedIP:
+		m.ResetLastUsedIP()
+		return nil
+	}
+	return fmt.Errorf("unknown DeveloperToken field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *DeveloperTokenMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, developertoken.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *DeveloperTokenMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case developertoken.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *DeveloperTokenMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *DeveloperTokenMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *DeveloperTokenMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, developertoken.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *DeveloperTokenMutation) EdgeCleared(name string) bool {
+	switch name {
+	case developertoken.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *DeveloperTokenMutation) ClearEdge(name string) error {
+	switch name {
+	case developertoken.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown DeveloperToken unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *DeveloperTokenMutation) ResetEdge(name string) error {
+	switch name {
+	case developertoken.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown DeveloperToken edge %s", name)
+}
+
 // EmailBroadcastMutation represents an operation that mutates the EmailBroadcast nodes in the graph.
 type EmailBroadcastMutation struct {
 	config
@@ -24641,6 +25769,7 @@ type GroupMutation struct {
 	default_mapped_model                    *string
 	messages_dispatch_model_config          *domain.OpenAIMessagesDispatchModelConfig
 	models_list_config                      *domain.GroupModelsListConfig
+	openai_experimental_prompt_enabled      *bool
 	rpm_limit                               *int
 	addrpm_limit                            *int
 	kiro_cache_emulation_enabled            *bool
@@ -26656,6 +27785,42 @@ func (m *GroupMutation) ResetModelsListConfig() {
 	m.models_list_config = nil
 }
 
+// SetOpenaiExperimentalPromptEnabled sets the "openai_experimental_prompt_enabled" field.
+func (m *GroupMutation) SetOpenaiExperimentalPromptEnabled(b bool) {
+	m.openai_experimental_prompt_enabled = &b
+}
+
+// OpenaiExperimentalPromptEnabled returns the value of the "openai_experimental_prompt_enabled" field in the mutation.
+func (m *GroupMutation) OpenaiExperimentalPromptEnabled() (r bool, exists bool) {
+	v := m.openai_experimental_prompt_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOpenaiExperimentalPromptEnabled returns the old "openai_experimental_prompt_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldOpenaiExperimentalPromptEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOpenaiExperimentalPromptEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOpenaiExperimentalPromptEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOpenaiExperimentalPromptEnabled: %w", err)
+	}
+	return oldValue.OpenaiExperimentalPromptEnabled, nil
+}
+
+// ResetOpenaiExperimentalPromptEnabled resets all changes to the "openai_experimental_prompt_enabled" field.
+func (m *GroupMutation) ResetOpenaiExperimentalPromptEnabled() {
+	m.openai_experimental_prompt_enabled = nil
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (m *GroupMutation) SetRpmLimit(i int) {
 	m.rpm_limit = &i
@@ -28082,7 +29247,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 58)
+	fields := make([]string, 0, 59)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -28199,6 +29364,9 @@ func (m *GroupMutation) Fields() []string {
 	}
 	if m.models_list_config != nil {
 		fields = append(fields, group.FieldModelsListConfig)
+	}
+	if m.openai_experimental_prompt_enabled != nil {
+		fields = append(fields, group.FieldOpenaiExperimentalPromptEnabled)
 	}
 	if m.rpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
@@ -28343,6 +29511,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.MessagesDispatchModelConfig()
 	case group.FieldModelsListConfig:
 		return m.ModelsListConfig()
+	case group.FieldOpenaiExperimentalPromptEnabled:
+		return m.OpenaiExperimentalPromptEnabled()
 	case group.FieldRpmLimit:
 		return m.RpmLimit()
 	case group.FieldKiroCacheEmulationEnabled:
@@ -28468,6 +29638,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldMessagesDispatchModelConfig(ctx)
 	case group.FieldModelsListConfig:
 		return m.OldModelsListConfig(ctx)
+	case group.FieldOpenaiExperimentalPromptEnabled:
+		return m.OldOpenaiExperimentalPromptEnabled(ctx)
 	case group.FieldRpmLimit:
 		return m.OldRpmLimit(ctx)
 	case group.FieldKiroCacheEmulationEnabled:
@@ -28787,6 +29959,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetModelsListConfig(v)
+		return nil
+	case group.FieldOpenaiExperimentalPromptEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOpenaiExperimentalPromptEnabled(v)
 		return nil
 	case group.FieldRpmLimit:
 		v, ok := value.(int)
@@ -29482,6 +30661,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldModelsListConfig:
 		m.ResetModelsListConfig()
+		return nil
+	case group.FieldOpenaiExperimentalPromptEnabled:
+		m.ResetOpenaiExperimentalPromptEnabled()
 		return nil
 	case group.FieldRpmLimit:
 		m.ResetRpmLimit()
@@ -40930,6 +42112,7 @@ type RedeemCodeMutation struct {
 	id               *int64
 	code             *string
 	_type            *string
+	feature_key      *string
 	value            *float64
 	addvalue         *float64
 	status           *string
@@ -41117,6 +42300,55 @@ func (m *RedeemCodeMutation) OldType(ctx context.Context) (v string, err error) 
 // ResetType resets all changes to the "type" field.
 func (m *RedeemCodeMutation) ResetType() {
 	m._type = nil
+}
+
+// SetFeatureKey sets the "feature_key" field.
+func (m *RedeemCodeMutation) SetFeatureKey(s string) {
+	m.feature_key = &s
+}
+
+// FeatureKey returns the value of the "feature_key" field in the mutation.
+func (m *RedeemCodeMutation) FeatureKey() (r string, exists bool) {
+	v := m.feature_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFeatureKey returns the old "feature_key" field's value of the RedeemCode entity.
+// If the RedeemCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RedeemCodeMutation) OldFeatureKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFeatureKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFeatureKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFeatureKey: %w", err)
+	}
+	return oldValue.FeatureKey, nil
+}
+
+// ClearFeatureKey clears the value of the "feature_key" field.
+func (m *RedeemCodeMutation) ClearFeatureKey() {
+	m.feature_key = nil
+	m.clearedFields[redeemcode.FieldFeatureKey] = struct{}{}
+}
+
+// FeatureKeyCleared returns if the "feature_key" field was cleared in this mutation.
+func (m *RedeemCodeMutation) FeatureKeyCleared() bool {
+	_, ok := m.clearedFields[redeemcode.FieldFeatureKey]
+	return ok
+}
+
+// ResetFeatureKey resets all changes to the "feature_key" field.
+func (m *RedeemCodeMutation) ResetFeatureKey() {
+	m.feature_key = nil
+	delete(m.clearedFields, redeemcode.FieldFeatureKey)
 }
 
 // SetValue sets the "value" field.
@@ -41649,12 +42881,15 @@ func (m *RedeemCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RedeemCodeMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.code != nil {
 		fields = append(fields, redeemcode.FieldCode)
 	}
 	if m._type != nil {
 		fields = append(fields, redeemcode.FieldType)
+	}
+	if m.feature_key != nil {
+		fields = append(fields, redeemcode.FieldFeatureKey)
 	}
 	if m.value != nil {
 		fields = append(fields, redeemcode.FieldValue)
@@ -41695,6 +42930,8 @@ func (m *RedeemCodeMutation) Field(name string) (ent.Value, bool) {
 		return m.Code()
 	case redeemcode.FieldType:
 		return m.GetType()
+	case redeemcode.FieldFeatureKey:
+		return m.FeatureKey()
 	case redeemcode.FieldValue:
 		return m.Value()
 	case redeemcode.FieldStatus:
@@ -41726,6 +42963,8 @@ func (m *RedeemCodeMutation) OldField(ctx context.Context, name string) (ent.Val
 		return m.OldCode(ctx)
 	case redeemcode.FieldType:
 		return m.OldType(ctx)
+	case redeemcode.FieldFeatureKey:
+		return m.OldFeatureKey(ctx)
 	case redeemcode.FieldValue:
 		return m.OldValue(ctx)
 	case redeemcode.FieldStatus:
@@ -41766,6 +43005,13 @@ func (m *RedeemCodeMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetType(v)
+		return nil
+	case redeemcode.FieldFeatureKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFeatureKey(v)
 		return nil
 	case redeemcode.FieldValue:
 		v, ok := value.(float64)
@@ -41887,6 +43133,9 @@ func (m *RedeemCodeMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *RedeemCodeMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(redeemcode.FieldFeatureKey) {
+		fields = append(fields, redeemcode.FieldFeatureKey)
+	}
 	if m.FieldCleared(redeemcode.FieldUsedBy) {
 		fields = append(fields, redeemcode.FieldUsedBy)
 	}
@@ -41916,6 +43165,9 @@ func (m *RedeemCodeMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *RedeemCodeMutation) ClearField(name string) error {
 	switch name {
+	case redeemcode.FieldFeatureKey:
+		m.ClearFeatureKey()
+		return nil
 	case redeemcode.FieldUsedBy:
 		m.ClearUsedBy()
 		return nil
@@ -41944,6 +43196,9 @@ func (m *RedeemCodeMutation) ResetField(name string) error {
 		return nil
 	case redeemcode.FieldType:
 		m.ResetType()
+		return nil
+	case redeemcode.FieldFeatureKey:
+		m.ResetFeatureKey()
 		return nil
 	case redeemcode.FieldValue:
 		m.ResetValue()
@@ -59637,110 +60892,118 @@ func (m *UsageLogMutation) ResetEdge(name string) error {
 // UserMutation represents an operation that mutates the User nodes in the graph.
 type UserMutation struct {
 	config
-	op                            Op
-	typ                           string
-	id                            *int64
-	created_at                    *time.Time
-	updated_at                    *time.Time
-	deleted_at                    *time.Time
-	email                         *string
-	password_hash                 *string
-	role                          *string
-	balance                       *float64
-	addbalance                    *float64
-	recharge_balance              *float64
-	addrecharge_balance           *float64
-	invite_income_balance         *float64
-	addinvite_income_balance      *float64
-	share_income_balance          *float64
-	addshare_income_balance       *float64
-	points_balance                *float64
-	addpoints_balance             *float64
-	prefer_points_billing         *bool
-	concurrency                   *int
-	addconcurrency                *int
-	status                        *string
-	username                      *string
-	notes                         *string
-	totp_secret_encrypted         *string
-	totp_enabled                  *bool
-	totp_enabled_at               *time.Time
-	signup_source                 *string
-	last_login_at                 *time.Time
-	last_active_at                *time.Time
-	balance_notify_enabled        *bool
-	balance_notify_threshold_type *string
-	balance_notify_threshold      *float64
-	addbalance_notify_threshold   *float64
-	balance_notify_extra_emails   *string
-	total_recharged               *float64
-	addtotal_recharged            *float64
-	total_invite_income           *float64
-	addtotal_invite_income        *float64
-	total_share_income            *float64
-	addtotal_share_income         *float64
-	rpm_limit                     *int
-	addrpm_limit                  *int
-	frozen_balance                *float64
-	addfrozen_balance             *float64
-	clearedFields                 map[string]struct{}
-	api_keys                      map[int64]struct{}
-	removedapi_keys               map[int64]struct{}
-	clearedapi_keys               bool
-	redeem_codes                  map[int64]struct{}
-	removedredeem_codes           map[int64]struct{}
-	clearedredeem_codes           bool
-	subscriptions                 map[int64]struct{}
-	removedsubscriptions          map[int64]struct{}
-	clearedsubscriptions          bool
-	assigned_subscriptions        map[int64]struct{}
-	removedassigned_subscriptions map[int64]struct{}
-	clearedassigned_subscriptions bool
-	announcement_reads            map[int64]struct{}
-	removedannouncement_reads     map[int64]struct{}
-	clearedannouncement_reads     bool
-	allowed_groups                map[int64]struct{}
-	removedallowed_groups         map[int64]struct{}
-	clearedallowed_groups         bool
-	blocked_groups                map[int64]struct{}
-	removedblocked_groups         map[int64]struct{}
-	clearedblocked_groups         bool
-	usage_logs                    map[int64]struct{}
-	removedusage_logs             map[int64]struct{}
-	clearedusage_logs             bool
-	attribute_values              map[int64]struct{}
-	removedattribute_values       map[int64]struct{}
-	clearedattribute_values       bool
-	promo_code_usages             map[int64]struct{}
-	removedpromo_code_usages      map[int64]struct{}
-	clearedpromo_code_usages      bool
-	payment_orders                map[int64]struct{}
-	removedpayment_orders         map[int64]struct{}
-	clearedpayment_orders         bool
-	shop_orders                   map[int64]struct{}
-	removedshop_orders            map[int64]struct{}
-	clearedshop_orders            bool
-	shop_draw_cycles              map[int64]struct{}
-	removedshop_draw_cycles       map[int64]struct{}
-	clearedshop_draw_cycles       bool
-	shop_balance_ledger           map[int64]struct{}
-	removedshop_balance_ledger    map[int64]struct{}
-	clearedshop_balance_ledger    bool
-	owned_accounts                map[int64]struct{}
-	removedowned_accounts         map[int64]struct{}
-	clearedowned_accounts         bool
-	auth_identities               map[int64]struct{}
-	removedauth_identities        map[int64]struct{}
-	clearedauth_identities        bool
-	pending_auth_sessions         map[int64]struct{}
-	removedpending_auth_sessions  map[int64]struct{}
-	clearedpending_auth_sessions  bool
-	platform_quotas               map[int64]struct{}
-	removedplatform_quotas        map[int64]struct{}
-	clearedplatform_quotas        bool
-	done                          bool
-	oldValue                      func(context.Context) (*User, error)
-	predicates                    []predicate.User
+	op                                  Op
+	typ                                 string
+	id                                  *int64
+	created_at                          *time.Time
+	updated_at                          *time.Time
+	deleted_at                          *time.Time
+	email                               *string
+	password_hash                       *string
+	role                                *string
+	balance                             *float64
+	addbalance                          *float64
+	recharge_balance                    *float64
+	addrecharge_balance                 *float64
+	invite_income_balance               *float64
+	addinvite_income_balance            *float64
+	share_income_balance                *float64
+	addshare_income_balance             *float64
+	points_balance                      *float64
+	addpoints_balance                   *float64
+	prefer_points_billing               *bool
+	concurrency                         *int
+	addconcurrency                      *int
+	status                              *string
+	developer_api_enabled               *bool
+	openai_experimental_prompt_unlocked *bool
+	onboarding_mode                     *user.OnboardingMode
+	share_card_text                     *string
+	share_card_text_color               *string
+	username                            *string
+	notes                               *string
+	totp_secret_encrypted               *string
+	totp_enabled                        *bool
+	totp_enabled_at                     *time.Time
+	signup_source                       *string
+	last_login_at                       *time.Time
+	last_active_at                      *time.Time
+	balance_notify_enabled              *bool
+	balance_notify_threshold_type       *string
+	balance_notify_threshold            *float64
+	addbalance_notify_threshold         *float64
+	balance_notify_extra_emails         *string
+	total_recharged                     *float64
+	addtotal_recharged                  *float64
+	total_invite_income                 *float64
+	addtotal_invite_income              *float64
+	total_share_income                  *float64
+	addtotal_share_income               *float64
+	rpm_limit                           *int
+	addrpm_limit                        *int
+	frozen_balance                      *float64
+	addfrozen_balance                   *float64
+	clearedFields                       map[string]struct{}
+	api_keys                            map[int64]struct{}
+	removedapi_keys                     map[int64]struct{}
+	clearedapi_keys                     bool
+	developer_tokens                    map[int64]struct{}
+	removeddeveloper_tokens             map[int64]struct{}
+	cleareddeveloper_tokens             bool
+	redeem_codes                        map[int64]struct{}
+	removedredeem_codes                 map[int64]struct{}
+	clearedredeem_codes                 bool
+	subscriptions                       map[int64]struct{}
+	removedsubscriptions                map[int64]struct{}
+	clearedsubscriptions                bool
+	assigned_subscriptions              map[int64]struct{}
+	removedassigned_subscriptions       map[int64]struct{}
+	clearedassigned_subscriptions       bool
+	announcement_reads                  map[int64]struct{}
+	removedannouncement_reads           map[int64]struct{}
+	clearedannouncement_reads           bool
+	allowed_groups                      map[int64]struct{}
+	removedallowed_groups               map[int64]struct{}
+	clearedallowed_groups               bool
+	blocked_groups                      map[int64]struct{}
+	removedblocked_groups               map[int64]struct{}
+	clearedblocked_groups               bool
+	usage_logs                          map[int64]struct{}
+	removedusage_logs                   map[int64]struct{}
+	clearedusage_logs                   bool
+	attribute_values                    map[int64]struct{}
+	removedattribute_values             map[int64]struct{}
+	clearedattribute_values             bool
+	promo_code_usages                   map[int64]struct{}
+	removedpromo_code_usages            map[int64]struct{}
+	clearedpromo_code_usages            bool
+	payment_orders                      map[int64]struct{}
+	removedpayment_orders               map[int64]struct{}
+	clearedpayment_orders               bool
+	shop_orders                         map[int64]struct{}
+	removedshop_orders                  map[int64]struct{}
+	clearedshop_orders                  bool
+	shop_draw_cycles                    map[int64]struct{}
+	removedshop_draw_cycles             map[int64]struct{}
+	clearedshop_draw_cycles             bool
+	shop_balance_ledger                 map[int64]struct{}
+	removedshop_balance_ledger          map[int64]struct{}
+	clearedshop_balance_ledger          bool
+	owned_accounts                      map[int64]struct{}
+	removedowned_accounts               map[int64]struct{}
+	clearedowned_accounts               bool
+	auth_identities                     map[int64]struct{}
+	removedauth_identities              map[int64]struct{}
+	clearedauth_identities              bool
+	pending_auth_sessions               map[int64]struct{}
+	removedpending_auth_sessions        map[int64]struct{}
+	clearedpending_auth_sessions        bool
+	platform_quotas                     map[int64]struct{}
+	removedplatform_quotas              map[int64]struct{}
+	clearedplatform_quotas              bool
+	done                                bool
+	oldValue                            func(context.Context) (*User, error)
+	predicates                          []predicate.User
 }
 
 var _ ent.Mutation = (*UserMutation)(nil)
@@ -60476,6 +61739,186 @@ func (m *UserMutation) OldStatus(ctx context.Context) (v string, err error) {
 // ResetStatus resets all changes to the "status" field.
 func (m *UserMutation) ResetStatus() {
 	m.status = nil
+}
+
+// SetDeveloperAPIEnabled sets the "developer_api_enabled" field.
+func (m *UserMutation) SetDeveloperAPIEnabled(b bool) {
+	m.developer_api_enabled = &b
+}
+
+// DeveloperAPIEnabled returns the value of the "developer_api_enabled" field in the mutation.
+func (m *UserMutation) DeveloperAPIEnabled() (r bool, exists bool) {
+	v := m.developer_api_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeveloperAPIEnabled returns the old "developer_api_enabled" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldDeveloperAPIEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeveloperAPIEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeveloperAPIEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeveloperAPIEnabled: %w", err)
+	}
+	return oldValue.DeveloperAPIEnabled, nil
+}
+
+// ResetDeveloperAPIEnabled resets all changes to the "developer_api_enabled" field.
+func (m *UserMutation) ResetDeveloperAPIEnabled() {
+	m.developer_api_enabled = nil
+}
+
+// SetOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field.
+func (m *UserMutation) SetOpenaiExperimentalPromptUnlocked(b bool) {
+	m.openai_experimental_prompt_unlocked = &b
+}
+
+// OpenaiExperimentalPromptUnlocked returns the value of the "openai_experimental_prompt_unlocked" field in the mutation.
+func (m *UserMutation) OpenaiExperimentalPromptUnlocked() (r bool, exists bool) {
+	v := m.openai_experimental_prompt_unlocked
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOpenaiExperimentalPromptUnlocked returns the old "openai_experimental_prompt_unlocked" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldOpenaiExperimentalPromptUnlocked(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOpenaiExperimentalPromptUnlocked is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOpenaiExperimentalPromptUnlocked requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOpenaiExperimentalPromptUnlocked: %w", err)
+	}
+	return oldValue.OpenaiExperimentalPromptUnlocked, nil
+}
+
+// ResetOpenaiExperimentalPromptUnlocked resets all changes to the "openai_experimental_prompt_unlocked" field.
+func (m *UserMutation) ResetOpenaiExperimentalPromptUnlocked() {
+	m.openai_experimental_prompt_unlocked = nil
+}
+
+// SetOnboardingMode sets the "onboarding_mode" field.
+func (m *UserMutation) SetOnboardingMode(um user.OnboardingMode) {
+	m.onboarding_mode = &um
+}
+
+// OnboardingMode returns the value of the "onboarding_mode" field in the mutation.
+func (m *UserMutation) OnboardingMode() (r user.OnboardingMode, exists bool) {
+	v := m.onboarding_mode
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOnboardingMode returns the old "onboarding_mode" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldOnboardingMode(ctx context.Context) (v user.OnboardingMode, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOnboardingMode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOnboardingMode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOnboardingMode: %w", err)
+	}
+	return oldValue.OnboardingMode, nil
+}
+
+// ResetOnboardingMode resets all changes to the "onboarding_mode" field.
+func (m *UserMutation) ResetOnboardingMode() {
+	m.onboarding_mode = nil
+}
+
+// SetShareCardText sets the "share_card_text" field.
+func (m *UserMutation) SetShareCardText(s string) {
+	m.share_card_text = &s
+}
+
+// ShareCardText returns the value of the "share_card_text" field in the mutation.
+func (m *UserMutation) ShareCardText() (r string, exists bool) {
+	v := m.share_card_text
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldShareCardText returns the old "share_card_text" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldShareCardText(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldShareCardText is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldShareCardText requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldShareCardText: %w", err)
+	}
+	return oldValue.ShareCardText, nil
+}
+
+// ResetShareCardText resets all changes to the "share_card_text" field.
+func (m *UserMutation) ResetShareCardText() {
+	m.share_card_text = nil
+}
+
+// SetShareCardTextColor sets the "share_card_text_color" field.
+func (m *UserMutation) SetShareCardTextColor(s string) {
+	m.share_card_text_color = &s
+}
+
+// ShareCardTextColor returns the value of the "share_card_text_color" field in the mutation.
+func (m *UserMutation) ShareCardTextColor() (r string, exists bool) {
+	v := m.share_card_text_color
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldShareCardTextColor returns the old "share_card_text_color" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldShareCardTextColor(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldShareCardTextColor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldShareCardTextColor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldShareCardTextColor: %w", err)
+	}
+	return oldValue.ShareCardTextColor, nil
+}
+
+// ResetShareCardTextColor resets all changes to the "share_card_text_color" field.
+func (m *UserMutation) ResetShareCardTextColor() {
+	m.share_card_text_color = nil
 }
 
 // SetUsername sets the "username" field.
@@ -61328,6 +62771,60 @@ func (m *UserMutation) ResetAPIKeys() {
 	m.api_keys = nil
 	m.clearedapi_keys = false
 	m.removedapi_keys = nil
+}
+
+// AddDeveloperTokenIDs adds the "developer_tokens" edge to the DeveloperToken entity by ids.
+func (m *UserMutation) AddDeveloperTokenIDs(ids ...int64) {
+	if m.developer_tokens == nil {
+		m.developer_tokens = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.developer_tokens[ids[i]] = struct{}{}
+	}
+}
+
+// ClearDeveloperTokens clears the "developer_tokens" edge to the DeveloperToken entity.
+func (m *UserMutation) ClearDeveloperTokens() {
+	m.cleareddeveloper_tokens = true
+}
+
+// DeveloperTokensCleared reports if the "developer_tokens" edge to the DeveloperToken entity was cleared.
+func (m *UserMutation) DeveloperTokensCleared() bool {
+	return m.cleareddeveloper_tokens
+}
+
+// RemoveDeveloperTokenIDs removes the "developer_tokens" edge to the DeveloperToken entity by IDs.
+func (m *UserMutation) RemoveDeveloperTokenIDs(ids ...int64) {
+	if m.removeddeveloper_tokens == nil {
+		m.removeddeveloper_tokens = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.developer_tokens, ids[i])
+		m.removeddeveloper_tokens[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedDeveloperTokens returns the removed IDs of the "developer_tokens" edge to the DeveloperToken entity.
+func (m *UserMutation) RemovedDeveloperTokensIDs() (ids []int64) {
+	for id := range m.removeddeveloper_tokens {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// DeveloperTokensIDs returns the "developer_tokens" edge IDs in the mutation.
+func (m *UserMutation) DeveloperTokensIDs() (ids []int64) {
+	for id := range m.developer_tokens {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetDeveloperTokens resets all changes to the "developer_tokens" edge.
+func (m *UserMutation) ResetDeveloperTokens() {
+	m.developer_tokens = nil
+	m.cleareddeveloper_tokens = false
+	m.removeddeveloper_tokens = nil
 }
 
 // AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by ids.
@@ -62282,7 +63779,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 31)
+	fields := make([]string, 0, 36)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -62324,6 +63821,21 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.status != nil {
 		fields = append(fields, user.FieldStatus)
+	}
+	if m.developer_api_enabled != nil {
+		fields = append(fields, user.FieldDeveloperAPIEnabled)
+	}
+	if m.openai_experimental_prompt_unlocked != nil {
+		fields = append(fields, user.FieldOpenaiExperimentalPromptUnlocked)
+	}
+	if m.onboarding_mode != nil {
+		fields = append(fields, user.FieldOnboardingMode)
+	}
+	if m.share_card_text != nil {
+		fields = append(fields, user.FieldShareCardText)
+	}
+	if m.share_card_text_color != nil {
+		fields = append(fields, user.FieldShareCardTextColor)
 	}
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
@@ -62412,6 +63924,16 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Concurrency()
 	case user.FieldStatus:
 		return m.Status()
+	case user.FieldDeveloperAPIEnabled:
+		return m.DeveloperAPIEnabled()
+	case user.FieldOpenaiExperimentalPromptUnlocked:
+		return m.OpenaiExperimentalPromptUnlocked()
+	case user.FieldOnboardingMode:
+		return m.OnboardingMode()
+	case user.FieldShareCardText:
+		return m.ShareCardText()
+	case user.FieldShareCardTextColor:
+		return m.ShareCardTextColor()
 	case user.FieldUsername:
 		return m.Username()
 	case user.FieldNotes:
@@ -62483,6 +64005,16 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldConcurrency(ctx)
 	case user.FieldStatus:
 		return m.OldStatus(ctx)
+	case user.FieldDeveloperAPIEnabled:
+		return m.OldDeveloperAPIEnabled(ctx)
+	case user.FieldOpenaiExperimentalPromptUnlocked:
+		return m.OldOpenaiExperimentalPromptUnlocked(ctx)
+	case user.FieldOnboardingMode:
+		return m.OldOnboardingMode(ctx)
+	case user.FieldShareCardText:
+		return m.OldShareCardText(ctx)
+	case user.FieldShareCardTextColor:
+		return m.OldShareCardTextColor(ctx)
 	case user.FieldUsername:
 		return m.OldUsername(ctx)
 	case user.FieldNotes:
@@ -62623,6 +64155,41 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetStatus(v)
+		return nil
+	case user.FieldDeveloperAPIEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeveloperAPIEnabled(v)
+		return nil
+	case user.FieldOpenaiExperimentalPromptUnlocked:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOpenaiExperimentalPromptUnlocked(v)
+		return nil
+	case user.FieldOnboardingMode:
+		v, ok := value.(user.OnboardingMode)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOnboardingMode(v)
+		return nil
+	case user.FieldShareCardText:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetShareCardText(v)
+		return nil
+	case user.FieldShareCardTextColor:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetShareCardTextColor(v)
 		return nil
 	case user.FieldUsername:
 		v, ok := value.(string)
@@ -63020,6 +64587,21 @@ func (m *UserMutation) ResetField(name string) error {
 	case user.FieldStatus:
 		m.ResetStatus()
 		return nil
+	case user.FieldDeveloperAPIEnabled:
+		m.ResetDeveloperAPIEnabled()
+		return nil
+	case user.FieldOpenaiExperimentalPromptUnlocked:
+		m.ResetOpenaiExperimentalPromptUnlocked()
+		return nil
+	case user.FieldOnboardingMode:
+		m.ResetOnboardingMode()
+		return nil
+	case user.FieldShareCardText:
+		m.ResetShareCardText()
+		return nil
+	case user.FieldShareCardTextColor:
+		m.ResetShareCardTextColor()
+		return nil
 	case user.FieldUsername:
 		m.ResetUsername()
 		return nil
@@ -63077,9 +64659,12 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 18)
+	edges := make([]string, 0, 19)
 	if m.api_keys != nil {
 		edges = append(edges, user.EdgeAPIKeys)
+	}
+	if m.developer_tokens != nil {
+		edges = append(edges, user.EdgeDeveloperTokens)
 	}
 	if m.redeem_codes != nil {
 		edges = append(edges, user.EdgeRedeemCodes)
@@ -63142,6 +64727,12 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 	case user.EdgeAPIKeys:
 		ids := make([]ent.Value, 0, len(m.api_keys))
 		for id := range m.api_keys {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeDeveloperTokens:
+		ids := make([]ent.Value, 0, len(m.developer_tokens))
+		for id := range m.developer_tokens {
 			ids = append(ids, id)
 		}
 		return ids
@@ -63253,9 +64844,12 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 18)
+	edges := make([]string, 0, 19)
 	if m.removedapi_keys != nil {
 		edges = append(edges, user.EdgeAPIKeys)
+	}
+	if m.removeddeveloper_tokens != nil {
+		edges = append(edges, user.EdgeDeveloperTokens)
 	}
 	if m.removedredeem_codes != nil {
 		edges = append(edges, user.EdgeRedeemCodes)
@@ -63318,6 +64912,12 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 	case user.EdgeAPIKeys:
 		ids := make([]ent.Value, 0, len(m.removedapi_keys))
 		for id := range m.removedapi_keys {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeDeveloperTokens:
+		ids := make([]ent.Value, 0, len(m.removeddeveloper_tokens))
+		for id := range m.removeddeveloper_tokens {
 			ids = append(ids, id)
 		}
 		return ids
@@ -63429,9 +65029,12 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 18)
+	edges := make([]string, 0, 19)
 	if m.clearedapi_keys {
 		edges = append(edges, user.EdgeAPIKeys)
+	}
+	if m.cleareddeveloper_tokens {
+		edges = append(edges, user.EdgeDeveloperTokens)
 	}
 	if m.clearedredeem_codes {
 		edges = append(edges, user.EdgeRedeemCodes)
@@ -63493,6 +65096,8 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 	switch name {
 	case user.EdgeAPIKeys:
 		return m.clearedapi_keys
+	case user.EdgeDeveloperTokens:
+		return m.cleareddeveloper_tokens
 	case user.EdgeRedeemCodes:
 		return m.clearedredeem_codes
 	case user.EdgeSubscriptions:
@@ -63545,6 +65150,9 @@ func (m *UserMutation) ResetEdge(name string) error {
 	switch name {
 	case user.EdgeAPIKeys:
 		m.ResetAPIKeys()
+		return nil
+	case user.EdgeDeveloperTokens:
+		m.ResetDeveloperTokens()
 		return nil
 	case user.EdgeRedeemCodes:
 		m.ResetRedeemCodes()

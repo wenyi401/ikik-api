@@ -15,6 +15,7 @@ import (
 	"ikik-api/internal/pkg/claude"
 	"ikik-api/internal/pkg/geminicli"
 	"ikik-api/internal/util/logredact"
+	"ikik-api/internal/util/urlvalidator"
 )
 
 const (
@@ -119,6 +120,64 @@ func (s *AccountTestService) ProbeModels(ctx context.Context, input ModelProbeTe
 		result.Results = append(result.Results, s.probeSingleModel(ctx, platform, input.BaseURL, apiKey, mode, model))
 	}
 	return result, nil
+}
+
+// ProbeModelListForUser discovers models without allowing user-controlled
+// requests to reach local or private network services.
+func (s *AccountTestService) ProbeModelListForUser(ctx context.Context, input ModelProbeListInput) (ModelProbeListResult, error) {
+	baseURL, err := normalizeUserModelProbeBaseURL(input.Platform, input.BaseURL)
+	if err != nil {
+		return ModelProbeListResult{}, err
+	}
+	input.BaseURL = baseURL
+	return s.ProbeModelList(WithHTTPUpstreamRedirectsDisabled(ctx), input)
+}
+
+// ProbeModelsForUser validates models with the same outbound restrictions as
+// user model discovery.
+func (s *AccountTestService) ProbeModelsForUser(ctx context.Context, input ModelProbeTestInput) (ModelProbeTestResult, error) {
+	baseURL, err := normalizeUserModelProbeBaseURL(input.Platform, input.BaseURL)
+	if err != nil {
+		return ModelProbeTestResult{}, err
+	}
+	input.BaseURL = baseURL
+	return s.ProbeModels(WithHTTPUpstreamRedirectsDisabled(ctx), input)
+}
+
+func normalizeUserModelProbeBaseURL(platform, baseURL string) (string, error) {
+	platform = normalizeModelProbePlatform(platform)
+	if platform == "" {
+		return "", errors.New("unsupported platform")
+	}
+
+	baseURL = strings.TrimSpace(baseURL)
+	if baseURL == "" {
+		switch platform {
+		case PlatformOpenAI:
+			baseURL = "https://api.openai.com"
+		case PlatformGemini:
+			baseURL = geminicli.AIStudioBaseURL
+		case PlatformAnthropic:
+			baseURL = "https://api.anthropic.com"
+		case PlatformKiro:
+			return "", errors.New("kiro base url is required")
+		}
+	}
+
+	normalized, err := urlvalidator.ValidateHTTPSURL(baseURL, urlvalidator.ValidationOptions{
+		AllowPrivate: false,
+	})
+	if err != nil {
+		return "", fmt.Errorf("unsafe base url: %w", err)
+	}
+	parsed, err := url.Parse(normalized)
+	if err != nil {
+		return "", errors.New("invalid base url")
+	}
+	if err := urlvalidator.ValidateResolvedIP(parsed.Hostname()); err != nil {
+		return "", fmt.Errorf("unsafe base url: %w", err)
+	}
+	return normalized, nil
 }
 
 func (s *AccountTestService) probeOpenAIModelList(ctx context.Context, baseURL, apiKey string) (ModelProbeListResult, error) {

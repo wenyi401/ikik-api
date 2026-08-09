@@ -55,7 +55,10 @@ const (
 	RedeemTypeConcurrency  = "concurrency"
 	RedeemTypeSubscription = "subscription"
 	RedeemTypeInvitation   = "invitation"
+	RedeemTypeFeature      = "feature"
 )
+
+const FeatureKeyOpenAIExperimentalPrompt = "openai_experimental_prompt"
 
 // PromoCode status constants
 const (

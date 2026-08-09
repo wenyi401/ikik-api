@@ -30,7 +30,7 @@ func ProvideIkikHandlerRuntimeWiring(
 	openAIGatewayHandler.SetPreFlightHooks(hooks)
 	adminAccountHandler.ConfigureIkikExtensions(accountService, kiroOAuthService, accountBatchTaskService)
 	adminGroupHandler.ConfigureIkikExtensions(groupRateScheduleService)
-	channelMonitorUserHandler.configureIkikExtensions(groupCapacityService)
+	channelMonitorUserHandler.configureIkikExtensions(groupCapacityService, accountService)
 	paymentHandler.configureIkikExtensions(channelService)
 	return &IkikHandlerRuntimeWiring{}
 }

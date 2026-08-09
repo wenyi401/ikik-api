@@ -35,6 +35,7 @@ export interface NotifyEmailEntry {
 // ==================== User & Auth Types ====================
 
 export type UserAuthProvider = 'email' | 'linuxdo' | 'oidc' | 'wechat' | 'github' | 'google'
+export type OnboardingMode = 'unset' | 'beginner' | 'expert'
 
 export interface UserAuthBindingStatus {
   bound?: boolean
@@ -94,8 +95,18 @@ export interface User {
   concurrency: number // Allowed concurrent requests
   rpm_limit?: number // User-level RPM cap (0 = unlimited); effective as fallback when group has no rpm_limit
   status: 'active' | 'disabled' // Account status
-	allowed_groups: number[] | null // Allowed group IDs (null = all non-exclusive groups)
+  developer_api_enabled?: boolean // Whether scoped developer tokens may be created and used
+  openai_experimental_prompt_unlocked?: boolean // One-time OpenAI instruction entitlement
+  onboarding_mode?: OnboardingMode // Account-level onboarding preference
+  share_card_text?: string // Custom text shown on exported profile cards
+  share_card_text_color?: string // Hex color used for custom export text
+  allowed_groups: number[] | null // Allowed group IDs (null = all non-exclusive groups)
   blocked_groups?: number[] | null // Explicitly denied group IDs; deny takes precedence
+  risk_group_blocks?: Array<{
+    group_id: number
+    blocked_until?: string
+    permanent: boolean
+  }>
   balance_notify_enabled: boolean
   balance_notify_threshold: number | null
   balance_notify_extra_emails: NotifyEmailEntry[]
@@ -204,8 +215,8 @@ export interface UserAffiliateDetail {
   period_start_at?: string | null
   period_end_at?: string | null
   period_rebate: number
-  /** 当前用户作为邀请人时实际生效的返利比例（专属覆盖全局）。0-100。 */
-  effective_rebate_rate_percent: number
+  /** 当前共享号池策略下，邀请人可获得的分成比例。0-100。 */
+  invite_share_ratio_percent: number
   invitees: AffiliateInvitee[]
 }
 
@@ -685,6 +696,8 @@ export interface Group {
   fallback_group_id_on_invalid_request: number | null
   // OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
   allow_messages_dispatch?: boolean
+  // OpenAI 分组级实验性系统指令
+  openai_experimental_prompt_enabled?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   models_list_config?: ModelsListConfig
@@ -731,6 +744,7 @@ export interface ApiKey {
   name: string
   group_id: number | null
   group_routes?: ApiKeyGroupRoute[]
+  openai_experimental_prompt_enabled: boolean
   status: 'active' | 'inactive' | 'quota_exhausted' | 'expired'
   ip_whitelist: string[]
   ip_blacklist: string[]
@@ -770,6 +784,7 @@ export interface CreateApiKeyRequest {
   name: string
   group_id?: number | null
   group_routes?: ApiKeyGroupRoute[]
+  openai_experimental_prompt_enabled?: boolean
   custom_key?: string // Optional custom API Key
   ip_whitelist?: string[]
   ip_blacklist?: string[]
@@ -784,6 +799,7 @@ export interface UpdateApiKeyRequest {
   name?: string
   group_id?: number | null
   group_routes?: ApiKeyGroupRoute[]
+  openai_experimental_prompt_enabled?: boolean
   status?: 'active' | 'inactive'
   ip_whitelist?: string[]
   ip_blacklist?: string[]
@@ -823,6 +839,7 @@ export interface CreateGroupRequest {
   kiro_cache_emulation_ratio?: number
   kiro_endpoint_mode?: 'q' | 'krs' | string
   allow_messages_dispatch?: boolean
+  openai_experimental_prompt_enabled?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   model_routing?: Record<string, number[]> | null
@@ -862,6 +879,7 @@ export interface UpdateGroupRequest {
   kiro_cache_emulation_ratio?: number
   kiro_endpoint_mode?: 'q' | 'krs' | string
   allow_messages_dispatch?: boolean
+  openai_experimental_prompt_enabled?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   model_routing?: Record<string, number[]> | null
@@ -1795,7 +1813,7 @@ export interface CodexSessionImportResult {
 
 // ==================== Usage & Redeem Types ====================
 
-export type RedeemCodeType = 'balance' | 'points' | 'concurrency' | 'subscription' | 'invitation'
+export type RedeemCodeType = 'balance' | 'points' | 'concurrency' | 'subscription' | 'invitation' | 'feature'
 export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2' | 'cyber'
 
 export interface UsageLog {
@@ -1927,6 +1945,7 @@ export interface RedeemCode {
   updated_at?: string
   group_id?: number | null // 订阅类型专用
   validity_days?: number // 订阅类型专用
+  feature_key?: string // 功能权益类型专用
   user?: User
   group?: Group // 关联的分组
 }
@@ -1937,6 +1956,7 @@ export interface GenerateRedeemCodesRequest {
   value: number
   group_id?: number | null // 订阅类型专用
   validity_days?: number // 订阅类型专用
+  feature_key?: string // 功能权益类型专用
   expires_at?: string | null
   expires_in_days?: number
 }
@@ -1955,6 +1975,13 @@ export interface BatchUpdateRedeemCodesRequest {
 
 export interface RedeemCodeRequest {
   code: string
+}
+
+export interface OpenAIExperimentalPromptStatus {
+  feature_key: 'openai_experimental_prompt' | string
+  unlocked: boolean
+  configured: boolean
+  price_cents: number
 }
 
 // ==================== Dashboard & Statistics ====================
@@ -2132,8 +2159,10 @@ export interface UpdateUserRequest {
   role?: 'admin' | 'user'
   balance?: number
   concurrency?: number
+  rpm_limit?: number
   status?: 'active' | 'disabled'
-	allowed_groups?: number[] | null
+  developer_api_enabled?: boolean
+  allowed_groups?: number[] | null
   blocked_groups?: number[] | null
   // 用户专属分组倍率配置 (group_id -> rate_multiplier | null)
   // null 表示删除该分组的专属倍率

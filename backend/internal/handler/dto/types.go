@@ -10,25 +10,31 @@ import (
 )
 
 type User struct {
-	ID                  int64      `json:"id"`
-	Email               string     `json:"email"`
-	Username            string     `json:"username"`
-	Role                string     `json:"role"`
-	Balance             float64    `json:"balance"`
-	RechargeBalance     float64    `json:"recharge_balance"`
-	InviteIncomeBalance float64    `json:"invite_income_balance"`
-	ShareIncomeBalance  float64    `json:"share_income_balance"`
-	PointsBalance       float64    `json:"points_balance"`
-	PreferPointsBilling bool       `json:"prefer_points_billing"`
-	FrozenBalance       float64    `json:"frozen_balance"`
-	Concurrency         int        `json:"concurrency"`
-	Status              string     `json:"status"`
-	AllowedGroups       []int64    `json:"allowed_groups"`
-	BlockedGroups       []int64    `json:"blocked_groups"`
-	LastActiveAt        *time.Time `json:"last_active_at,omitempty"`
-	CreatedAt           time.Time  `json:"created_at"`
-	UpdatedAt           time.Time  `json:"updated_at"`
-	DeletedAt           *time.Time `json:"deleted_at,omitempty"`
+	ID                               int64                `json:"id"`
+	Email                            string               `json:"email"`
+	Username                         string               `json:"username"`
+	Role                             string               `json:"role"`
+	Balance                          float64              `json:"balance"`
+	RechargeBalance                  float64              `json:"recharge_balance"`
+	InviteIncomeBalance              float64              `json:"invite_income_balance"`
+	ShareIncomeBalance               float64              `json:"share_income_balance"`
+	PointsBalance                    float64              `json:"points_balance"`
+	PreferPointsBilling              bool                 `json:"prefer_points_billing"`
+	FrozenBalance                    float64              `json:"frozen_balance"`
+	Concurrency                      int                  `json:"concurrency"`
+	Status                           string               `json:"status"`
+	DeveloperAPIEnabled              bool                 `json:"developer_api_enabled"`
+	OpenAIExperimentalPromptUnlocked bool                 `json:"openai_experimental_prompt_unlocked"`
+	OnboardingMode                   string               `json:"onboarding_mode"`
+	ShareCardText                    string               `json:"share_card_text"`
+	ShareCardTextColor               string               `json:"share_card_text_color"`
+	AllowedGroups                    []int64              `json:"allowed_groups"`
+	BlockedGroups                    []int64              `json:"blocked_groups"`
+	RiskGroupBlocks                  []UserRiskGroupBlock `json:"risk_group_blocks"`
+	LastActiveAt                     *time.Time           `json:"last_active_at,omitempty"`
+	CreatedAt                        time.Time            `json:"created_at"`
+	UpdatedAt                        time.Time            `json:"updated_at"`
+	DeletedAt                        *time.Time           `json:"deleted_at,omitempty"`
 
 	// 余额不足通知
 	BalanceNotifyEnabled       bool               `json:"balance_notify_enabled"`
@@ -46,6 +52,12 @@ type User struct {
 	Subscriptions []UserSubscription `json:"subscriptions,omitempty"`
 }
 
+type UserRiskGroupBlock struct {
+	GroupID      int64      `json:"group_id"`
+	BlockedUntil *time.Time `json:"blocked_until,omitempty"`
+	Permanent    bool       `json:"permanent"`
+}
+
 // AdminUser 是管理员接口使用的 user DTO（包含敏感/内部字段）。
 // 注意：普通用户接口不得返回 notes 等管理员备注信息。
 type AdminUser struct {
@@ -59,22 +71,23 @@ type AdminUser struct {
 }
 
 type APIKey struct {
-	ID          int64              `json:"id"`
-	UserID      int64              `json:"user_id"`
-	Key         string             `json:"key"`
-	Name        string             `json:"name"`
-	GroupID     *int64             `json:"group_id"`
-	GroupRoutes []APIKeyGroupRoute `json:"group_routes,omitempty"`
-	Status      string             `json:"status"`
-	IPWhitelist []string           `json:"ip_whitelist"`
-	IPBlacklist []string           `json:"ip_blacklist"`
-	LastUsedAt  *time.Time         `json:"last_used_at"`
-	LastUsedIP  *string            `json:"last_used_ip"`
-	Quota       float64            `json:"quota"`      // Quota limit in USD (0 = unlimited)
-	QuotaUsed   float64            `json:"quota_used"` // Used quota amount in USD
-	ExpiresAt   *time.Time         `json:"expires_at"` // Expiration time (nil = never expires)
-	CreatedAt   time.Time          `json:"created_at"`
-	UpdatedAt   time.Time          `json:"updated_at"`
+	ID                              int64              `json:"id"`
+	UserID                          int64              `json:"user_id"`
+	Key                             string             `json:"key"`
+	Name                            string             `json:"name"`
+	GroupID                         *int64             `json:"group_id"`
+	GroupRoutes                     []APIKeyGroupRoute `json:"group_routes,omitempty"`
+	Status                          string             `json:"status"`
+	OpenAIExperimentalPromptEnabled bool               `json:"openai_experimental_prompt_enabled"`
+	IPWhitelist                     []string           `json:"ip_whitelist"`
+	IPBlacklist                     []string           `json:"ip_blacklist"`
+	LastUsedAt                      *time.Time         `json:"last_used_at"`
+	LastUsedIP                      *string            `json:"last_used_ip"`
+	Quota                           float64            `json:"quota"`      // Quota limit in USD (0 = unlimited)
+	QuotaUsed                       float64            `json:"quota_used"` // Used quota amount in USD
+	ExpiresAt                       *time.Time         `json:"expires_at"` // Expiration time (nil = never expires)
+	CreatedAt                       time.Time          `json:"created_at"`
+	UpdatedAt                       time.Time          `json:"updated_at"`
 	// CurrentConcurrency is the real-time active request count for this API key.
 	CurrentConcurrency int `json:"current_concurrency"`
 
@@ -143,7 +156,8 @@ type Group struct {
 	FallbackGroupIDOnInvalidRequest *int64 `json:"fallback_group_id_on_invalid_request"`
 
 	// OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
-	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`
+	AllowMessagesDispatch           bool `json:"allow_messages_dispatch"`
+	OpenAIExperimentalPromptEnabled bool `json:"openai_experimental_prompt_enabled"`
 
 	// 账号过滤控制（仅 OpenAI/Antigravity 平台有效）
 	RequireOAuthOnly  bool `json:"require_oauth_only"`
@@ -390,15 +404,16 @@ type ProxyAccountSummary struct {
 }
 
 type RedeemCode struct {
-	ID        int64      `json:"id"`
-	Code      string     `json:"code"`
-	Type      string     `json:"type"`
-	Value     float64    `json:"value"`
-	Status    string     `json:"status"`
-	UsedBy    *int64     `json:"used_by"`
-	UsedAt    *time.Time `json:"used_at"`
-	CreatedAt time.Time  `json:"created_at"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	ID         int64      `json:"id"`
+	Code       string     `json:"code"`
+	Type       string     `json:"type"`
+	FeatureKey string     `json:"feature_key,omitempty"`
+	Value      float64    `json:"value"`
+	Status     string     `json:"status"`
+	UsedBy     *int64     `json:"used_by"`
+	UsedAt     *time.Time `json:"used_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 
 	GroupID      *int64 `json:"group_id"`
 	ValidityDays int    `json:"validity_days"`

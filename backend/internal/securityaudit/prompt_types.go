@@ -29,6 +29,13 @@ const (
 	ModeBlocking Mode = "blocking"
 )
 
+type EnforcementMode string
+
+const (
+	EnforcementShadow  EnforcementMode = "shadow"
+	EnforcementEnforce EnforcementMode = "enforce"
+)
+
 type DecisionKind string
 
 const (
@@ -144,6 +151,7 @@ type NormalizedResult struct {
 	ChunkTotal        int                `json:"chunk_total"`
 	LatencyMS         int                `json:"latency_ms"`
 	UnknownCategories []string           `json:"unknown_categories,omitempty"`
+	Shadow            bool               `json:"-"`
 }
 
 type PromptDecision struct {

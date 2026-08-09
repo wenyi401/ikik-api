@@ -204,6 +204,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import { adminAPI } from '@/api/admin'
+import { accountsAPI as userAccountsAPI } from '@/api/accounts'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import type { ModelProbeModel, ModelProbeSingleResult } from '@/api/admin/accounts'
 
@@ -212,8 +213,10 @@ const { t } = useI18n()
 const props = withDefaults(defineProps<{
   show: boolean
   defaultPlatform?: string
+  accountScope?: 'admin' | 'user'
 }>(), {
-  defaultPlatform: 'openai'
+  defaultPlatform: 'openai',
+  accountScope: 'admin'
 })
 
 const emit = defineEmits<{
@@ -235,6 +238,7 @@ const testing = ref(false)
 const maxProbeModels = 20
 
 const busy = computed(() => discovering.value || testing.value)
+const probeAPI = computed(() => props.accountScope === 'user' ? userAccountsAPI : adminAPI.accounts)
 
 const platformDefaults: Record<string, string> = {
   openai: 'https://api.openai.com',
@@ -350,7 +354,7 @@ const discoverModels = async () => {
   lastError.value = ''
   testResults.value = []
   try {
-    const result = await adminAPI.accounts.probeModelList({
+    const result = await probeAPI.value.probeModelList({
       platform: platform.value,
       base_url: baseUrl.value.trim(),
       api_key: apiKey.value.trim()
@@ -373,7 +377,7 @@ const testSelectedModels = async () => {
   testing.value = true
   lastError.value = ''
   try {
-    const result = await adminAPI.accounts.probeModels({
+    const result = await probeAPI.value.probeModels({
       platform: platform.value,
       base_url: baseUrl.value.trim(),
       api_key: apiKey.value.trim(),

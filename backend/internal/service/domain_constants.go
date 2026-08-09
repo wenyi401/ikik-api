@@ -79,11 +79,13 @@ const (
 
 // Redeem type constants
 const (
-	RedeemTypeBalance          = domain.RedeemTypeBalance
-	RedeemTypeConcurrency      = domain.RedeemTypeConcurrency
-	RedeemTypeSubscription     = domain.RedeemTypeSubscription
-	RedeemTypeInvitation       = domain.RedeemTypeInvitation
-	RedeemTypeAffiliateBalance = "affiliate_balance"
+	RedeemTypeBalance                  = domain.RedeemTypeBalance
+	RedeemTypeConcurrency              = domain.RedeemTypeConcurrency
+	RedeemTypeSubscription             = domain.RedeemTypeSubscription
+	RedeemTypeFeature                  = domain.RedeemTypeFeature
+	RedeemTypeInvitation               = domain.RedeemTypeInvitation
+	RedeemTypeAffiliateBalance         = "affiliate_balance"
+	FeatureKeyOpenAIExperimentalPrompt = domain.FeatureKeyOpenAIExperimentalPrompt
 )
 
 // PromoCode status constants
@@ -423,7 +425,8 @@ const (
 	// service_tier (fast/flex) policy rules. Mirrors BetaPolicySettings but
 	// targets OpenAI's body-level service_tier field instead of Claude's
 	// anthropic-beta header.
-	SettingKeyOpenAIFastPolicySettings = "openai_fast_policy_settings"
+	SettingKeyOpenAIFastPolicySettings         = "openai_fast_policy_settings"
+	SettingKeyOpenAIExperimentalPromptSettings = "openai_experimental_prompt_settings"
 
 	// =========================
 	// Claude Code Version Check

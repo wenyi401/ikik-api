@@ -330,6 +330,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/developer-api',
+    name: 'UserDeveloperApi',
+    component: () => import('@/views/user/DeveloperApiView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Developer API',
+      titleKey: 'profile.developerTokens.title',
+      descriptionKey: 'profile.developerTokens.description'
+    }
+  },
+  {
     path: '/withdrawals',
     name: 'UserWithdrawals',
     component: () => import('@/views/user/WithdrawalsView.vue'),

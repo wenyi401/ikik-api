@@ -35,6 +35,12 @@ function toggle() {
   open.value = !open.value
 }
 
+function show() {
+  open.value = true
+}
+
+defineExpose({ close, show })
+
 function handlePointerDown(event: MouseEvent) {
   if (!rootRef.value?.contains(event.target as Node)) close()
 }

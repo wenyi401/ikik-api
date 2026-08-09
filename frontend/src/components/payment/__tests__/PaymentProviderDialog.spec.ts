@@ -96,6 +96,20 @@ function mountDialog(options: { editing?: ProviderInstance | null } = {}) {
 }
 
 describe('PaymentProviderDialog payment guide', () => {
+  it('fills callback base URLs with the current origin for a new EasyPay provider', async () => {
+    const wrapper = mountDialog()
+
+    ;(wrapper.vm as unknown as { reset: (key: string) => void }).reset('easypay')
+    await nextTick()
+
+    const originInputs = wrapper.findAll('input[type="text"]').filter(
+      input => (input.element as HTMLInputElement).value === window.location.origin,
+    )
+    expect(originInputs).toHaveLength(2)
+    expect(wrapper.text()).toContain('/api/v1/payment/webhook/easypay')
+    expect(wrapper.text()).toContain('/payment/result')
+  })
+
   it('shows no payment guide for providers without a flow guide', () => {
     const wrapper = mountDialog()
 

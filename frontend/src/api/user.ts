@@ -19,7 +19,8 @@ import type {
   ReceiptCode,
   ReceiptCodePaymentMethod,
   WithdrawalRequest,
-  BasePaginationResponse
+  BasePaginationResponse,
+  OnboardingMode
 } from '@/types'
 
 /**
@@ -43,6 +44,9 @@ export async function updateProfile(profile: {
   balance_notify_threshold?: number | null
   balance_notify_extra_emails?: NotifyEmailEntry[]
   prefer_points_billing?: boolean
+  onboarding_mode?: OnboardingMode
+  share_card_text?: string
+  share_card_text_color?: string
 }): Promise<User> {
   const { data } = await apiClient.put<User>('/user', profile)
   return data

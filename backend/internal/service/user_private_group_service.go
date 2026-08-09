@@ -11,7 +11,7 @@ import (
 
 const (
 	UserPrivateGroupValidityDays        = MaxValidityDays
-	UserCarpoolGroupDefaultValidityDays = 365
+	UserCarpoolGroupDefaultValidityDays = MaxValidityDays
 )
 
 var ErrUserPrivateGroupPlatformUnsupported = infraerrors.BadRequest(

@@ -154,17 +154,18 @@ type CreateUserInput struct {
 }
 
 type UpdateUserInput struct {
-	Email         string
-	Password      string
-	Username      *string
-	Notes         *string
-	Role          string   // 空字符串表示"未提供"(不修改);合法值 admin/user
-	Balance       *float64 // 使用指针区分"未提供"和"设置为0"
-	Concurrency   *int     // 使用指针区分"未提供"和"设置为0"
-	RPMLimit      *int     // 使用指针区分"未提供"和"设置为0"
-	Status        string
-	AllowedGroups *[]int64 // 使用指针区分"未提供"和"设置为空数组"
-	BlockedGroups *[]int64 // 使用指针区分"未提供"和"设置为空数组"
+	Email               string
+	Password            string
+	Username            *string
+	Notes               *string
+	Role                string   // 空字符串表示"未提供"(不修改);合法值 admin/user
+	Balance             *float64 // 使用指针区分"未提供"和"设置为0"
+	Concurrency         *int     // 使用指针区分"未提供"和"设置为0"
+	RPMLimit            *int     // 使用指针区分"未提供"和"设置为0"
+	DeveloperAPIEnabled *bool
+	Status              string
+	AllowedGroups       *[]int64 // 使用指针区分"未提供"和"设置为空数组"
+	BlockedGroups       *[]int64 // 使用指针区分"未提供"和"设置为空数组"
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
 	GroupRates map[int64]*float64
@@ -255,12 +256,13 @@ type CreateGroupInput struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes []string
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	AllowMessagesDispatch       bool
-	DefaultMappedModel          string
-	RequireOAuthOnly            bool
-	RequirePrivacySet           bool
-	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
-	ModelsListConfig            GroupModelsListConfig
+	AllowMessagesDispatch           bool
+	DefaultMappedModel              string
+	RequireOAuthOnly                bool
+	RequirePrivacySet               bool
+	MessagesDispatchModelConfig     OpenAIMessagesDispatchModelConfig
+	ModelsListConfig                GroupModelsListConfig
+	OpenAIExperimentalPromptEnabled bool
 	// RPMLimit 分组 RPM 上限（0 = 不限制）
 	RPMLimit int
 	// 从指定分组复制账号（创建分组后在同一事务内绑定）
@@ -313,12 +315,13 @@ type UpdateGroupInput struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes *[]string
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	AllowMessagesDispatch       *bool
-	DefaultMappedModel          *string
-	RequireOAuthOnly            *bool
-	RequirePrivacySet           *bool
-	MessagesDispatchModelConfig *OpenAIMessagesDispatchModelConfig
-	ModelsListConfig            *GroupModelsListConfig
+	AllowMessagesDispatch           *bool
+	DefaultMappedModel              *string
+	RequireOAuthOnly                *bool
+	RequirePrivacySet               *bool
+	MessagesDispatchModelConfig     *OpenAIMessagesDispatchModelConfig
+	ModelsListConfig                *GroupModelsListConfig
+	OpenAIExperimentalPromptEnabled *bool
 	// RPMLimit 分组 RPM 上限（0 = 不限制），nil 表示未提供不改动。
 	RPMLimit *int
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
@@ -493,6 +496,7 @@ type GenerateRedeemCodesInput struct {
 	Count        int
 	Type         string
 	Value        float64
+	FeatureKey   string
 	GroupID      *int64 // 订阅类型专用：关联的分组ID
 	ValidityDays int    // 订阅类型专用：有效天数
 	ExpiresAt    *time.Time

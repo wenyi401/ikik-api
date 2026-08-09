@@ -200,6 +200,18 @@ func (f CompositeModelRouteFunc) Mutate(ctx context.Context, m ent.Mutation) (en
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CompositeModelRouteMutation", m)
 }
 
+// The DeveloperTokenFunc type is an adapter to allow the use of ordinary
+// function as DeveloperToken mutator.
+type DeveloperTokenFunc func(context.Context, *ent.DeveloperTokenMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f DeveloperTokenFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.DeveloperTokenMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DeveloperTokenMutation", m)
+}
+
 // The EmailBroadcastFunc type is an adapter to allow the use of ordinary
 // function as EmailBroadcast mutator.
 type EmailBroadcastFunc func(context.Context, *ent.EmailBroadcastMutation) (ent.Value, error)

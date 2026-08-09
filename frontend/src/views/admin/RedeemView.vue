@@ -119,7 +119,7 @@
                 'badge',
                 value === 'balance'
                   ? 'badge-success'
-                  : value === 'subscription'
+                  : value === 'subscription' || value === 'feature'
                     ? 'badge-warning'
                     : 'badge-primary'
               ]"
@@ -137,6 +137,9 @@
                 <span v-if="row.group" class="ml-1 text-xs text-gray-500 dark:text-gray-400"
                   >({{ row.group.name }})</span
                 >
+              </template>
+              <template v-else-if="row.type === 'feature'">
+                {{ t('admin.redeem.openaiExperimentalPrompt') }}
               </template>
               <template v-else>{{ value }}</template>
             </span>
@@ -289,7 +292,7 @@
               <Select v-model="generateForm.type" :options="typeOptions" />
             </div>
             <!-- 余额/并发类型：显示数值输入 -->
-            <div v-if="generateForm.type !== 'subscription' && generateForm.type !== 'invitation'">
+            <div v-if="!['subscription', 'invitation', 'feature'].includes(generateForm.type)">
               <label class="input-label">
                 {{
                   generateForm.type === 'balance'
@@ -312,6 +315,11 @@
             <div v-if="generateForm.type === 'invitation'" class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
               <p class="text-sm text-blue-700 dark:text-blue-300">
                 {{ t('admin.redeem.invitationHint') }}
+              </p>
+            </div>
+            <div v-if="generateForm.type === 'feature'" class="rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
+              <p class="text-sm text-amber-700 dark:text-amber-300">
+                {{ t('admin.redeem.openaiExperimentalPromptHint') }}
               </p>
             </div>
             <!-- 订阅类型：显示分组选择和有效天数 -->
@@ -739,7 +747,8 @@ const typeOptions = computed(() => [
   { value: 'points', label: t('admin.redeem.points') },
   { value: 'concurrency', label: t('admin.redeem.concurrency') },
   { value: 'subscription', label: t('admin.redeem.subscription') },
-  { value: 'invitation', label: t('admin.redeem.invitation') }
+  { value: 'invitation', label: t('admin.redeem.invitation') },
+  { value: 'feature', label: t('admin.redeem.openaiExperimentalPrompt') }
 ])
 
 const filterTypeOptions = computed(() => [
@@ -748,7 +757,8 @@ const filterTypeOptions = computed(() => [
   { value: 'points', label: t('admin.redeem.points') },
   { value: 'concurrency', label: t('admin.redeem.concurrency') },
   { value: 'subscription', label: t('admin.redeem.subscription') },
-  { value: 'invitation', label: t('admin.redeem.invitation') }
+  { value: 'invitation', label: t('admin.redeem.invitation') },
+  { value: 'feature', label: t('admin.redeem.openaiExperimentalPrompt') }
 ])
 
 const filterStatusOptions = computed(() => [
@@ -846,7 +856,7 @@ const generateForm = reactive({
 watch(
   () => generateForm.type,
   (newType) => {
-    if (newType === 'invitation') {
+    if (newType === 'invitation' || newType === 'feature') {
       generateForm.value = 0
     } else if (generateForm.value === 0) {
       generateForm.value = 10
@@ -1042,7 +1052,8 @@ const handleGenerateCodes = async () => {
       generateForm.value,
       generateForm.type === 'subscription' ? generateForm.group_id : undefined,
       generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
-      expiresInDays
+      expiresInDays,
+      generateForm.type === 'feature' ? 'openai_experimental_prompt' : undefined
     )
     showGenerateDialog.value = false
     generatedCodes.value = result

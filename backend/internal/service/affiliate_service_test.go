@@ -6,6 +6,7 @@ import (
 	"context"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -55,6 +56,47 @@ func TestIsEnabled_NilSettingServiceReturnsDefault(t *testing.T) {
 	svc := &AffiliateService{}
 	require.False(t, svc.IsEnabled(context.Background()))
 	require.Equal(t, AffiliateEnabledDefault, svc.IsEnabled(context.Background()))
+}
+
+type affiliateDetailRepoStub struct {
+	paymentFulfillmentAffiliateRepoStub
+}
+
+func (r *affiliateDetailRepoStub) ThawFrozenQuota(context.Context, int64) (float64, error) {
+	return 0, nil
+}
+
+func (r *affiliateDetailRepoStub) ListInvitees(context.Context, int64, int) ([]AffiliateInvitee, error) {
+	return []AffiliateInvitee{}, nil
+}
+
+func TestGetAffiliateDetail_UsesInviteShareRatioPercent(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	repo := &affiliateDetailRepoStub{
+		paymentFulfillmentAffiliateRepoStub: paymentFulfillmentAffiliateRepoStub{
+			inviteeSummary: &AffiliateSummary{
+				UserID:          42,
+				AffCode:         "AFF42",
+				AffCount:        3,
+				AffQuota:        1.23,
+				AffFrozenQuota:  0.45,
+				AffHistoryQuota: 9.87,
+				CreatedAt:       now.Add(-24 * time.Hour),
+				UpdatedAt:       now,
+			},
+		},
+	}
+	svc := &AffiliateService{repo: repo}
+	svc.SetAccountSharePolicyRepository(&ownedPublicSharePolicyRepoStub{
+		policy: &AccountSharePolicy{InviteShareRatio: 0.05},
+	})
+
+	detail, err := svc.GetAffiliateDetail(context.Background(), 42)
+	require.NoError(t, err)
+	require.Equal(t, "AFF42", detail.AffCode)
+	require.InDelta(t, 5.0, detail.InviteShareRatioPercent, 1e-9)
+	require.Empty(t, detail.Invitees)
 }
 
 // TestValidateExclusiveRate_BoundaryAndInvalid covers the validator used by

@@ -220,10 +220,10 @@ func (s *apiKeyAvailableGroupsSubRepoStub) UpdateStatus(context.Context, int64, 
 func (s *apiKeyAvailableGroupsSubRepoStub) UpdateNotes(context.Context, int64, string) error {
 	panic("unexpected UpdateNotes call")
 }
-func (s *apiKeyAvailableGroupsSubRepoStub) ActivateWindows(context.Context, int64, time.Time) error {
+func (s *apiKeyAvailableGroupsSubRepoStub) ActivateWindows(context.Context, int64, time.Time, time.Time) error {
 	panic("unexpected ActivateWindows call")
 }
-func (s *apiKeyAvailableGroupsSubRepoStub) ResetUsageWindows(context.Context, int64, bool, bool, bool, time.Time) error {
+func (s *apiKeyAvailableGroupsSubRepoStub) ResetUsageWindows(context.Context, int64, bool, bool, bool, time.Time, time.Time) error {
 	panic("unexpected ResetUsageWindows call")
 }
 func (s *apiKeyAvailableGroupsSubRepoStub) ResetDailyUsage(context.Context, int64, *time.Time, time.Time) error {
@@ -242,10 +242,11 @@ func (s *apiKeyAvailableGroupsSubRepoStub) BatchUpdateExpiredStatus(context.Cont
 	panic("unexpected BatchUpdateExpiredStatus call")
 }
 
-func TestAPIKeyService_GetAvailableGroups_PublicBalanceGroupIsSelectable(t *testing.T) {
+func TestAPIKeyService_GetAvailableGroups_PublicExclusiveGroupRequiresAdminGrant(t *testing.T) {
 	userID := int64(7)
 	otherUserID := int64(8)
 	groups := []Group{
+		{ID: 9, Name: "PLUS shared pool", Status: StatusActive, Scope: GroupScopePublic, SubscriptionType: SubscriptionTypeStandard},
 		{ID: 10, Name: "FREE shared pool", Status: StatusActive, Scope: GroupScopePublic, SubscriptionType: SubscriptionTypeStandard, IsExclusive: true},
 		{ID: 11, Name: "legacy exclusive", Status: StatusActive, SubscriptionType: SubscriptionTypeStandard, IsExclusive: true},
 		{ID: 12, Name: "other private subscription", Status: StatusActive, Scope: GroupScopeUserPrivate, SubscriptionType: SubscriptionTypeSubscription, IsExclusive: true, OwnerUserID: &otherUserID},
@@ -264,7 +265,34 @@ func TestAPIKeyService_GetAvailableGroups_PublicBalanceGroupIsSelectable(t *test
 
 	require.NoError(t, err)
 	require.Len(t, available, 1)
-	require.Equal(t, int64(10), available[0].ID)
+	require.Equal(t, int64(9), available[0].ID)
+}
+
+func TestAPIKeyService_GetAvailableGroups_AdminAssignedExclusiveGroupIsVisibleToBeginner(t *testing.T) {
+	userID := int64(7)
+	groups := []Group{
+		{ID: 6, Name: "PLUS shared pool", Status: StatusActive, Scope: GroupScopePublic, SubscriptionType: SubscriptionTypeStandard},
+		{ID: 16, Name: "PRO shared pool", Status: StatusActive, Scope: GroupScopePublic, SubscriptionType: SubscriptionTypeStandard, IsExclusive: true},
+	}
+	svc := NewAPIKeyService(
+		nil,
+		&apiKeyAvailableGroupsUserRepoStub{user: &User{
+			ID:             userID,
+			OnboardingMode: "beginner",
+			AllowedGroups:  []int64{16},
+		}},
+		&apiKeyAvailableGroupsGroupRepoStub{groups: groups},
+		&apiKeyAvailableGroupsSubRepoStub{},
+		nil,
+		nil,
+		nil,
+	)
+
+	available, err := svc.GetAvailableGroups(context.Background(), userID)
+
+	require.NoError(t, err)
+	require.Len(t, available, 2)
+	require.Equal(t, []int64{6, 16}, []int64{available[0].ID, available[1].ID})
 }
 
 func TestAPIKeyService_GetAvailableGroups_OwnPrivateSubscriptionRequiresActiveSubscription(t *testing.T) {

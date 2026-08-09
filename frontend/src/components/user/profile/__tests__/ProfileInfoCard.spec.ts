@@ -1,5 +1,5 @@
-import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
 import type { User } from '@/types'
 
@@ -9,16 +9,26 @@ vi.mock('vue-router', () => ({
   })
 }))
 
+const mocks = vi.hoisted(() => ({
+  updateProfile: vi.fn(),
+  showError: vi.fn(),
+  showSuccess: vi.fn()
+}))
+
+vi.mock('@/api/user', () => ({
+  userAPI: {
+    updateProfile: mocks.updateProfile
+  }
+}))
+
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({
-    user: null
-  })
+  useAuthStore: () => ({ user: null })
 }))
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
-    showError: vi.fn(),
-    showSuccess: vi.fn()
+    showError: mocks.showError,
+    showSuccess: mocks.showSuccess
   })
 }))
 
@@ -71,6 +81,12 @@ function createUser(overrides: Partial<User> = {}): User {
 }
 
 describe('ProfileInfoCard', () => {
+  beforeEach(() => {
+    mocks.updateProfile.mockReset()
+    mocks.showError.mockReset()
+    mocks.showSuccess.mockReset()
+  })
+
   it('renders basic account information inside the new overview shell', () => {
     const wrapper = mount(ProfileInfoCard, {
       props: {
@@ -90,6 +106,144 @@ describe('ProfileInfoCard', () => {
     expect(wrapper.get('[data-testid="profile-share-action"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="profile-edit-action"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="profile-auth-bindings-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="profile-main-column"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="profile-content-grid"]').classes()).toContain('grid-cols-1')
+  })
+
+  it('uses the two-column desktop layout only when the main column has content', () => {
+    const wrapper = mount(ProfileInfoCard, {
+      props: {
+        user: createUser(),
+        hasMainContent: true
+      },
+      slots: {
+        'main-after': '<div data-testid="main-content">Main content</div>'
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          ProfileTokenActivityHeatmap: true
+        }
+      }
+    })
+
+    expect(wrapper.get('[data-testid="profile-main-column"]').text()).toContain('Main content')
+    expect(wrapper.get('[data-testid="profile-content-grid"]').classes()).toContain('xl:grid-cols-[minmax(0,1.65fr)_minmax(0,0.85fr)]')
+  })
+
+  it('omits the email address from the image sharing preview', async () => {
+    const wrapper = mount(ProfileInfoCard, {
+      props: {
+        user: createUser()
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          ProfileTokenActivityHeatmap: true,
+          Teleport: { template: '<div><slot /></div>' }
+        }
+      }
+    })
+
+    await wrapper.get('[data-testid="profile-share-action"]').trigger('click')
+
+    const preview = wrapper.get('[data-testid="profile-share-preview"]')
+    expect(preview.text()).toContain('alice')
+    expect(preview.text()).not.toContain('alice@example.com')
+  })
+
+  it('shows the saved custom export text and color without exposing the email', async () => {
+    const wrapper = mount(ProfileInfoCard, {
+      props: {
+        user: createUser({
+          share_card_text: '保持好奇，持续创造',
+          share_card_text_color: '#be123c'
+        })
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          ProfileTokenActivityHeatmap: true,
+          Teleport: { template: '<div><slot /></div>' }
+        }
+      }
+    })
+
+    await wrapper.get('[data-testid="profile-share-action"]').trigger('click')
+
+    const preview = wrapper.get('[data-testid="profile-share-preview"]')
+    const customText = wrapper.get('[data-testid="profile-share-custom-text"]')
+    expect(customText.text()).toBe('保持好奇，持续创造')
+    expect(customText.attributes('style')).toContain('color: rgb(190, 18, 60)')
+    expect(preview.text()).not.toContain('alice@example.com')
+    expect(wrapper.get('[data-testid="profile-share-heatmap-grid"]').findAll('span')).toHaveLength(371)
+  })
+
+  it('saves custom export text and color to the current user profile', async () => {
+    const updatedUser = createUser({
+      share_card_text: '今天也在认真创造',
+      share_card_text_color: '#0b6bcb'
+    })
+    mocks.updateProfile.mockResolvedValue(updatedUser)
+
+    const wrapper = mount(ProfileInfoCard, {
+      props: {
+        user: createUser()
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          ProfileTokenActivityHeatmap: true,
+          Teleport: { template: '<div><slot /></div>' }
+        }
+      }
+    })
+
+    await wrapper.get('[data-testid="profile-share-action"]').trigger('click')
+    await wrapper.get('[data-testid="profile-share-text-input"]').setValue('  今天也在认真创造  ')
+    await wrapper.get('[data-testid="profile-share-color-input"]').setValue('#0b6bcb')
+    await wrapper.get('[data-testid="profile-share-settings-save"]').trigger('click')
+    await flushPromises()
+
+    expect(mocks.updateProfile).toHaveBeenCalledWith({
+      share_card_text: '今天也在认真创造',
+      share_card_text_color: '#0b6bcb'
+    })
+    expect(mocks.showSuccess).toHaveBeenCalledWith('profile.share.settingsSaved')
+  })
+
+  it('keeps an unsaved export draft when the session refreshes the user', async () => {
+    const wrapper = mount(ProfileInfoCard, {
+      props: {
+        user: createUser({
+          share_card_text: '原来的文案',
+          share_card_text_color: '#08775c'
+        })
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          ProfileTokenActivityHeatmap: true,
+          Teleport: { template: '<div><slot /></div>' }
+        }
+      }
+    })
+
+    await wrapper.get('[data-testid="profile-share-action"]').trigger('click')
+    await wrapper.get('[data-testid="profile-share-text-input"]').setValue('尚未保存的新文案')
+    await wrapper.setProps({
+      user: createUser({
+        share_card_text: '原来的文案',
+        share_card_text_color: '#08775c',
+        updated_at: '2026-08-02T00:00:00Z'
+      })
+    })
+
+    expect(wrapper.get('[data-testid="profile-share-text-input"]').element).toHaveProperty(
+      'value',
+      '尚未保存的新文案'
+    )
+    expect(wrapper.get('[data-testid="profile-share-custom-text"]').text()).toBe('尚未保存的新文案')
   })
 
   it('renders third-party source hints from profile sources', () => {
@@ -182,7 +336,8 @@ describe('ProfileInfoCard', () => {
   it('renders the approved overview hero and two-column content shell', () => {
     const wrapper = mount(ProfileInfoCard, {
       props: {
-        user: createUser()
+        user: createUser(),
+        hasMainContent: true
       },
       global: {
         stubs: {

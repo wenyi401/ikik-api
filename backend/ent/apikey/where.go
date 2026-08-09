@@ -95,6 +95,11 @@ func Status(v string) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldStatus, v))
 }
 
+// OpenaiExperimentalPromptEnabled applies equality check predicate on the "openai_experimental_prompt_enabled" field. It's identical to OpenaiExperimentalPromptEnabledEQ.
+func OpenaiExperimentalPromptEnabled(v bool) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldOpenaiExperimentalPromptEnabled, v))
+}
+
 // LastUsedAt applies equality check predicate on the "last_used_at" field. It's identical to LastUsedAtEQ.
 func LastUsedAt(v time.Time) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldLastUsedAt, v))
@@ -533,6 +538,16 @@ func StatusEqualFold(v string) predicate.APIKey {
 // StatusContainsFold applies the ContainsFold predicate on the "status" field.
 func StatusContainsFold(v string) predicate.APIKey {
 	return predicate.APIKey(sql.FieldContainsFold(FieldStatus, v))
+}
+
+// OpenaiExperimentalPromptEnabledEQ applies the EQ predicate on the "openai_experimental_prompt_enabled" field.
+func OpenaiExperimentalPromptEnabledEQ(v bool) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldOpenaiExperimentalPromptEnabled, v))
+}
+
+// OpenaiExperimentalPromptEnabledNEQ applies the NEQ predicate on the "openai_experimental_prompt_enabled" field.
+func OpenaiExperimentalPromptEnabledNEQ(v bool) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldOpenaiExperimentalPromptEnabled, v))
 }
 
 // LastUsedAtEQ applies the EQ predicate on the "last_used_at" field.

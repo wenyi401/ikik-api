@@ -231,3 +231,65 @@ func TestAccountTestService_ModelProbeErrorDoesNotExposePartialAPIKey(t *testing
 	require.NotContains(t, result.Results[0].Error, "sk-test")
 	require.Contains(t, strings.ToLower(result.Results[0].Error), "invalid key")
 }
+
+func TestAccountTestService_UserModelProbeRejectsUnsafeBaseURLs(t *testing.T) {
+	tests := []string{
+		"http://api.example.com",
+		"https://127.0.0.1",
+		"https://10.0.0.8",
+		"https://169.254.169.254/latest/meta-data",
+		"https://[::1]",
+	}
+
+	for _, baseURL := range tests {
+		t.Run(baseURL, func(t *testing.T) {
+			upstream := &queuedHTTPUpstream{}
+			svc := &AccountTestService{httpUpstream: upstream, cfg: modelProbeTestConfig()}
+
+			_, err := svc.ProbeModelListForUser(context.Background(), ModelProbeListInput{
+				Platform: PlatformOpenAI,
+				BaseURL:  baseURL,
+				APIKey:   "sk-test-secret",
+			})
+
+			require.Error(t, err)
+			require.Contains(t, strings.ToLower(err.Error()), "unsafe base url")
+			require.Empty(t, upstream.requests)
+		})
+	}
+}
+
+func TestAccountTestService_UserModelProbeUsesSafePublicURLAndDisablesRedirects(t *testing.T) {
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{
+		newJSONResponse(http.StatusOK, `{"data":[{"id":"gpt-5.4"}]}`),
+	}}
+	svc := &AccountTestService{httpUpstream: upstream, cfg: modelProbeTestConfig()}
+
+	result, err := svc.ProbeModelListForUser(context.Background(), ModelProbeListInput{
+		Platform: PlatformOpenAI,
+		BaseURL:  "https://1.1.1.1",
+		APIKey:   "sk-test-secret",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "gpt-5.4", result.Models[0].ID)
+	require.Len(t, upstream.requests, 1)
+	require.True(t, HTTPUpstreamRedirectsDisabled(upstream.requests[0].Context()))
+}
+
+func TestAccountTestService_AdminModelProbeBehaviorRemainsConfigurable(t *testing.T) {
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{
+		newJSONResponse(http.StatusOK, `{"data":[{"id":"local-model"}]}`),
+	}}
+	svc := &AccountTestService{httpUpstream: upstream, cfg: modelProbeTestConfig()}
+
+	result, err := svc.ProbeModelList(context.Background(), ModelProbeListInput{
+		Platform: PlatformOpenAI,
+		BaseURL:  "http://127.0.0.1:11434",
+		APIKey:   "local-key",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "local-model", result.Models[0].ID)
+	require.Len(t, upstream.requests, 1)
+}

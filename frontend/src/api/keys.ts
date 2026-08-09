@@ -56,6 +56,7 @@ export async function getById(id: number): Promise<ApiKey> {
  * @param expiresInDays - Optional days until expiry (undefined = never expires)
  * @param rateLimitData - Optional rate limit fields
  * @param groupRoutes - Optional multi-group routes
+ * @param openAIExperimentalPromptEnabled - Whether this key opts in to the unlocked experimental prompt
  * @returns Created API key
  */
 export async function create(
@@ -67,7 +68,8 @@ export async function create(
   quota?: number,
   expiresInDays?: number,
   rateLimitData?: { rate_limit_5h?: number; rate_limit_1d?: number; rate_limit_7d?: number },
-  groupRoutes?: ApiKeyGroupRoute[]
+  groupRoutes?: ApiKeyGroupRoute[],
+  openAIExperimentalPromptEnabled: boolean = false
 ): Promise<ApiKey> {
   const payload: CreateApiKeyRequest = { name }
   if (groupId !== undefined) {
@@ -100,6 +102,7 @@ export async function create(
   if (groupRoutes !== undefined) {
     payload.group_routes = groupRoutes
   }
+  payload.openai_experimental_prompt_enabled = openAIExperimentalPromptEnabled
 
   const { data } = await apiClient.post<ApiKey>('/keys', payload)
   return data

@@ -30,6 +30,8 @@ export function cloneData<T>(value: T): T {
 export function configToDraft(config: PromptAuditConfig): PromptAuditDraft {
   return {
     ...cloneData(config),
+    async_latest_user_only: config.async_latest_user_only ?? true,
+    enforcement_mode: config.enforcement_mode ?? 'shadow',
     group_ids: [...(config.group_ids ?? [])],
     scanners: [...(config.scanners ?? [])],
     endpoints: (config.endpoints ?? []).map((endpoint) => ({
@@ -62,6 +64,9 @@ export function buildUpdateRequest(draft: PromptAuditDraft): PromptAuditUpdateRe
     expected_config_version: draft.config_version,
     enabled: draft.enabled,
     blocking_enabled: draft.enabled && draft.blocking_enabled,
+    blocking_latest_turn_only: draft.blocking_latest_turn_only,
+    async_latest_user_only: draft.async_latest_user_only,
+    enforcement_mode: draft.enforcement_mode,
     store_pass_events: draft.store_pass_events,
     strategy: 'priority',
     worker_count: Number(draft.worker_count),

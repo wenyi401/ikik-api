@@ -23,16 +23,18 @@ import (
 )
 
 var (
-	ErrAPIKeyNotFound          = infraerrors.NotFound("API_KEY_NOT_FOUND", "api key not found")
-	ErrGroupNotAllowed         = infraerrors.Forbidden("GROUP_NOT_ALLOWED", "user is not allowed to bind this group")
-	ErrAPIKeyExists            = infraerrors.Conflict("API_KEY_EXISTS", "api key already exists")
-	ErrAPIKeyTooShort          = infraerrors.BadRequest("API_KEY_TOO_SHORT", "api key must be at least 16 characters")
-	ErrAPIKeyInvalidChars      = infraerrors.BadRequest("API_KEY_INVALID_CHARS", "api key can only contain letters, numbers, underscores, and hyphens")
-	ErrAPIKeyRateLimited       = infraerrors.TooManyRequests("API_KEY_RATE_LIMITED", "too many failed attempts, please try again later")
-	ErrInvalidIPPattern        = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
-	ErrAPIKeyGroupRouteInvalid = infraerrors.BadRequest("API_KEY_GROUP_ROUTE_INVALID", "invalid api key group route")
-	ErrAPIKeyGroupRequired     = infraerrors.Forbidden("API_KEY_GROUP_REQUIRED", "api key must be assigned to at least one group")
-	ErrAPIKeyAuthOverloaded    = infraerrors.ServiceUnavailable("API_KEY_AUTH_OVERLOADED", "api key authentication is temporarily overloaded")
+	ErrAPIKeyNotFound                           = infraerrors.NotFound("API_KEY_NOT_FOUND", "api key not found")
+	ErrGroupNotAllowed                          = infraerrors.Forbidden("GROUP_NOT_ALLOWED", "user is not allowed to bind this group")
+	ErrAPIKeyExists                             = infraerrors.Conflict("API_KEY_EXISTS", "api key already exists")
+	ErrAPIKeyTooShort                           = infraerrors.BadRequest("API_KEY_TOO_SHORT", "api key must be at least 16 characters")
+	ErrAPIKeyInvalidChars                       = infraerrors.BadRequest("API_KEY_INVALID_CHARS", "api key can only contain letters, numbers, underscores, and hyphens")
+	ErrAPIKeyRateLimited                        = infraerrors.TooManyRequests("API_KEY_RATE_LIMITED", "too many failed attempts, please try again later")
+	ErrInvalidIPPattern                         = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
+	ErrAPIKeyGroupRouteInvalid                  = infraerrors.BadRequest("API_KEY_GROUP_ROUTE_INVALID", "invalid api key group route")
+	ErrAPIKeyGroupRequired                      = infraerrors.Forbidden("API_KEY_GROUP_REQUIRED", "api key must be assigned to at least one group")
+	ErrAPIKeyAuthOverloaded                     = infraerrors.ServiceUnavailable("API_KEY_AUTH_OVERLOADED", "api key authentication is temporarily overloaded")
+	ErrOpenAIExperimentalPromptLocked           = infraerrors.Forbidden("OPENAI_EXPERIMENTAL_PROMPT_LOCKED", "unlock the OpenAI experimental prompt before enabling it")
+	ErrOpenAIExperimentalPromptGroupUnsupported = infraerrors.BadRequest("OPENAI_EXPERIMENTAL_PROMPT_GROUP_UNSUPPORTED", "select at least one enabled OpenAI group that supports the experimental prompt")
 	// ErrAPIKeyExpired        = infraerrors.Forbidden("API_KEY_EXPIRED", "api key has expired")
 	ErrAPIKeyExpired = infraerrors.Forbidden("API_KEY_EXPIRED", "api key 已过期")
 	// ErrAPIKeyQuotaExhausted = infraerrors.TooManyRequests("API_KEY_QUOTA_EXHAUSTED", "api key quota exhausted")
@@ -181,12 +183,13 @@ type APIKeyAuthCacheInvalidator interface {
 
 // CreateAPIKeyRequest 创建API Key请求
 type CreateAPIKeyRequest struct {
-	Name        string             `json:"name"`
-	GroupID     *int64             `json:"group_id"`
-	GroupRoutes []APIKeyGroupRoute `json:"group_routes"`
-	CustomKey   *string            `json:"custom_key"`   // 可选的自定义key
-	IPWhitelist []string           `json:"ip_whitelist"` // IP 白名单
-	IPBlacklist []string           `json:"ip_blacklist"` // IP 黑名单
+	Name                            string             `json:"name"`
+	GroupID                         *int64             `json:"group_id"`
+	GroupRoutes                     []APIKeyGroupRoute `json:"group_routes"`
+	OpenAIExperimentalPromptEnabled bool               `json:"openai_experimental_prompt_enabled"`
+	CustomKey                       *string            `json:"custom_key"`   // 可选的自定义key
+	IPWhitelist                     []string           `json:"ip_whitelist"` // IP 白名单
+	IPBlacklist                     []string           `json:"ip_blacklist"` // IP 黑名单
 
 	// Quota fields
 	Quota         float64 `json:"quota"`           // Quota limit in USD (0 = unlimited)
@@ -200,12 +203,13 @@ type CreateAPIKeyRequest struct {
 
 // UpdateAPIKeyRequest 更新API Key请求
 type UpdateAPIKeyRequest struct {
-	Name        *string             `json:"name"`
-	GroupID     *int64              `json:"group_id"`
-	GroupRoutes *[]APIKeyGroupRoute `json:"group_routes"`
-	Status      *string             `json:"status"`
-	IPWhitelist *[]string           `json:"ip_whitelist"` // IP 白名单（nil 不修改，空数组清空）
-	IPBlacklist *[]string           `json:"ip_blacklist"` // IP 黑名单（nil 不修改，空数组清空）
+	Name                            *string             `json:"name"`
+	GroupID                         *int64              `json:"group_id"`
+	GroupRoutes                     *[]APIKeyGroupRoute `json:"group_routes"`
+	OpenAIExperimentalPromptEnabled *bool               `json:"openai_experimental_prompt_enabled"`
+	Status                          *string             `json:"status"`
+	IPWhitelist                     *[]string           `json:"ip_whitelist"` // IP 白名单（nil 不修改，空数组清空）
+	IPBlacklist                     *[]string           `json:"ip_blacklist"` // IP 黑名单（nil 不修改，空数组清空）
 
 	// Quota fields
 	Quota           *float64   `json:"quota"`       // Quota limit in USD (nil = no change, 0 = unlimited)
@@ -491,6 +495,9 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		RateLimit1d: req.RateLimit1d,
 		RateLimit7d: req.RateLimit7d,
 	}
+	if err := applyAPIKeyOpenAIExperimentalPromptPreference(user, apiKey, &req.OpenAIExperimentalPromptEnabled, true); err != nil {
+		return nil, err
+	}
 
 	// Set expiration time if specified
 	if req.ExpiresInDays != nil && *req.ExpiresInDays > 0 {
@@ -732,7 +739,11 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 		apiKey.Name = html.EscapeString(*req.Name)
 	}
 
+	routesChanged := req.GroupID != nil || req.GroupRoutes != nil
 	if err := s.applyAPIKeyGroupRoutesUpdate(ctx, userID, apiKey, req); err != nil {
+		return nil, err
+	}
+	if err := applyAPIKeyOpenAIExperimentalPromptPreference(apiKey.User, apiKey, req.OpenAIExperimentalPromptEnabled, routesChanged); err != nil {
 		return nil, err
 	}
 

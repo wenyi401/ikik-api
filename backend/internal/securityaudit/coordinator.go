@@ -36,7 +36,7 @@ func (c *Coordinator) Check(ctx context.Context, req Request) Decision {
 	}
 	if admission, ok := c.prompt.(interface {
 		IsPromptAuditUserBlocked(context.Context, int64) (bool, error)
-	}); ok && mode != ModeOff {
+	}); ok && mode != ModeOff && promptAuditEnforced(c.prompt) {
 		blocked, err := admission.IsPromptAuditUserBlocked(ctx, req.UserID)
 		if err == nil && blocked {
 			return Decision{Kind: DecisionBlock, HTTPStatus: http.StatusForbidden, ErrorCode: "prompt_audit_user_blocked",
@@ -57,6 +57,11 @@ func (c *Coordinator) Check(ctx context.Context, req Request) Decision {
 		legacy, _ := c.checkLegacy(ctx, req)
 		return prioritize(legacy, nil)
 	}
+}
+
+func promptAuditEnforced(prompt PromptEngine) bool {
+	provider, ok := prompt.(interface{ PromptAuditEnforcementMode() EnforcementMode })
+	return !ok || provider.PromptAuditEnforcementMode() == EnforcementEnforce
 }
 
 func (c *Coordinator) checkBlocking(ctx context.Context, req Request) Decision {

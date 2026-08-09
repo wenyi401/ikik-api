@@ -65,6 +65,11 @@ func Type(v string) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldType, v))
 }
 
+// FeatureKey applies equality check predicate on the "feature_key" field. It's identical to FeatureKeyEQ.
+func FeatureKey(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldFeatureKey, v))
+}
+
 // Value applies equality check predicate on the "value" field. It's identical to ValueEQ.
 func Value(v float64) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldValue, v))
@@ -238,6 +243,81 @@ func TypeEqualFold(v string) predicate.RedeemCode {
 // TypeContainsFold applies the ContainsFold predicate on the "type" field.
 func TypeContainsFold(v string) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldContainsFold(FieldType, v))
+}
+
+// FeatureKeyEQ applies the EQ predicate on the "feature_key" field.
+func FeatureKeyEQ(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldFeatureKey, v))
+}
+
+// FeatureKeyNEQ applies the NEQ predicate on the "feature_key" field.
+func FeatureKeyNEQ(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNEQ(FieldFeatureKey, v))
+}
+
+// FeatureKeyIn applies the In predicate on the "feature_key" field.
+func FeatureKeyIn(vs ...string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIn(FieldFeatureKey, vs...))
+}
+
+// FeatureKeyNotIn applies the NotIn predicate on the "feature_key" field.
+func FeatureKeyNotIn(vs ...string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotIn(FieldFeatureKey, vs...))
+}
+
+// FeatureKeyGT applies the GT predicate on the "feature_key" field.
+func FeatureKeyGT(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGT(FieldFeatureKey, v))
+}
+
+// FeatureKeyGTE applies the GTE predicate on the "feature_key" field.
+func FeatureKeyGTE(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGTE(FieldFeatureKey, v))
+}
+
+// FeatureKeyLT applies the LT predicate on the "feature_key" field.
+func FeatureKeyLT(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLT(FieldFeatureKey, v))
+}
+
+// FeatureKeyLTE applies the LTE predicate on the "feature_key" field.
+func FeatureKeyLTE(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLTE(FieldFeatureKey, v))
+}
+
+// FeatureKeyContains applies the Contains predicate on the "feature_key" field.
+func FeatureKeyContains(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldContains(FieldFeatureKey, v))
+}
+
+// FeatureKeyHasPrefix applies the HasPrefix predicate on the "feature_key" field.
+func FeatureKeyHasPrefix(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldHasPrefix(FieldFeatureKey, v))
+}
+
+// FeatureKeyHasSuffix applies the HasSuffix predicate on the "feature_key" field.
+func FeatureKeyHasSuffix(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldHasSuffix(FieldFeatureKey, v))
+}
+
+// FeatureKeyIsNil applies the IsNil predicate on the "feature_key" field.
+func FeatureKeyIsNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIsNull(FieldFeatureKey))
+}
+
+// FeatureKeyNotNil applies the NotNil predicate on the "feature_key" field.
+func FeatureKeyNotNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotNull(FieldFeatureKey))
+}
+
+// FeatureKeyEqualFold applies the EqualFold predicate on the "feature_key" field.
+func FeatureKeyEqualFold(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEqualFold(FieldFeatureKey, v))
+}
+
+// FeatureKeyContainsFold applies the ContainsFold predicate on the "feature_key" field.
+func FeatureKeyContainsFold(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldContainsFold(FieldFeatureKey, v))
 }
 
 // ValueEQ applies the EQ predicate on the "value" field.

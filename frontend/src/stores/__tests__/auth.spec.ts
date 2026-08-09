@@ -10,6 +10,7 @@ const mockGetCurrentUser = vi.fn()
 const mockRegister = vi.fn()
 const mockRefreshToken = vi.fn()
 const mockResumeSession = vi.fn()
+const mockUpdateProfile = vi.fn()
 
 vi.mock('@/api', () => ({
   authAPI: {
@@ -22,6 +23,9 @@ vi.mock('@/api', () => ({
     resumeSession: (...args: any[]) => mockResumeSession(...args),
   },
   isTotp2FARequired: (response: any) => response?.requires_2fa === true,
+  userAPI: {
+    updateProfile: (...args: any[]) => mockUpdateProfile(...args),
+  },
 }))
 
 const fakeUser = {
@@ -32,6 +36,7 @@ const fakeUser = {
   balance: 100,
   concurrency: 5,
   status: 'active' as const,
+  onboarding_mode: 'unset' as const,
   allowed_groups: null,
   created_at: '2024-01-01',
   updated_at: '2024-01-01',
@@ -329,6 +334,22 @@ describe('useAuthStore', () => {
         provider: 'oidc',
         redirect: '/register',
       })
+    })
+  })
+
+  describe('onboarding mode', () => {
+    it('updates and persists the account-level onboarding mode', async () => {
+      mockLogin.mockResolvedValue(fakeAuthResponse)
+      mockUpdateProfile.mockResolvedValue({ ...fakeUser, onboarding_mode: 'beginner' })
+      const store = useAuthStore()
+      await store.login({ email: 'test@example.com', password: '123456' })
+
+      const updated = await store.updateOnboardingMode('beginner')
+
+      expect(mockUpdateProfile).toHaveBeenCalledWith({ onboarding_mode: 'beginner' })
+      expect(updated.onboarding_mode).toBe('beginner')
+      expect(store.user?.onboarding_mode).toBe('beginner')
+      expect(JSON.parse(localStorage.getItem('auth_user') || '{}').onboarding_mode).toBe('beginner')
     })
   })
 

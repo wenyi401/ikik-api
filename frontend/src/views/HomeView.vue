@@ -32,6 +32,18 @@
       </nav>
 
       <div class="home-actions">
+        <a
+          v-if="docUrl"
+          :href="docUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="icon-action"
+          :aria-label="t('home.viewDocs')"
+          :title="t('home.viewDocs')"
+          data-testid="home-doc-link"
+        >
+          <Icon name="book" size="md" />
+        </a>
         <LocaleSwitcher class="home-locale" />
         <button
           type="button"

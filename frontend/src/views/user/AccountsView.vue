@@ -4,6 +4,9 @@
       <TablePageLayout>
       <template #actions>
         <div class="flex flex-wrap items-center justify-end gap-3">
+          <UiIconButton :label="t('onboarding.pageHelp')" @click="startAccountTutorial()">
+            <Icon name="book" size="md" />
+          </UiIconButton>
           <UiIconButton
             :label="t('common.refresh')"
             :disabled="loading"
@@ -11,27 +14,45 @@
           >
             <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
           </UiIconButton>
-          <UiMenu :label="t('common.more')">
-            <template #default="{ close }">
-              <button
-                type="button"
-                :disabled="exportingData"
-                @click="openExportDataDialog(); close()"
-              >
-                {{ selectedCount > 0 ? t('userAccounts.exportSelected') : t('userAccounts.exportAccounts') }}
-              </button>
-              <button type="button" @click="showProxyPoolModal = true; close()">
-                {{ t('userAccounts.proxyPool') }}
-              </button>
-              <button type="button" @click="showImportModal = true; close()">
-                {{ t('admin.accounts.credentialImport') }}
-              </button>
-              <button type="button" @click="showDataImportModal = true; close()">
-                {{ t('admin.accounts.dataImport') }}
-              </button>
-            </template>
-          </UiMenu>
-          <button type="button" class="btn btn-primary" @click="showCreateModal = true">
+          <button
+            v-if="carpoolEnabled"
+            type="button"
+            class="btn btn-secondary"
+            data-guide="accounts-carpool"
+            @click="router.push('/accounts/carpools')"
+          >
+            <Icon name="users" size="sm" />
+            {{ t('nav.carpools') }}
+          </button>
+          <div data-guide="accounts-tools">
+            <UiMenu ref="accountToolsMenuRef" :label="t('common.more')">
+              <template #default="{ close }">
+                <button
+                  type="button"
+                  :disabled="exportingData"
+                  @click="openExportDataDialog(); close()"
+                >
+                  {{ selectedCount > 0 ? t('userAccounts.exportSelected') : t('userAccounts.exportAccounts') }}
+                </button>
+                <button type="button" @click="showProxyPoolModal = true; close()">
+                  {{ t('userAccounts.proxyPool') }}
+                </button>
+                <button type="button" @click="showImportModal = true; close()">
+                  {{ t('admin.accounts.credentialImport') }}
+                </button>
+                <button type="button" @click="showDataImportModal = true; close()">
+                  {{ t('userAccounts.dataImport') }}
+                </button>
+              </template>
+            </UiMenu>
+          </div>
+          <button
+            type="button"
+            class="btn btn-primary"
+            data-guide="accounts-create"
+            @click="showCreateModal = true"
+          >
+            <Icon name="plus" size="sm" />
             {{ t('userAccounts.createAccount') }}
           </button>
         </div>
@@ -124,7 +145,8 @@
             </button>
           </div>
         </div>
-        <DataTable
+        <div data-guide="accounts-list">
+          <DataTable
           :columns="columns"
           :data="accounts"
           :loading="loading"
@@ -380,7 +402,8 @@
               @action="showCreateModal = true"
             />
           </template>
-        </DataTable>
+          </DataTable>
+        </div>
       </template>
 
       <template #pagination>
@@ -527,12 +550,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import { accountsAPI, userGroupsAPI } from '@/api'
 import type { AccountBatchTask } from '@/api/accounts'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { useOnboardingStore } from '@/stores/onboarding'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { usePageTutorial } from '@/composables/usePageTutorial'
 import { useTableSelection } from '@/composables/useTableSelection'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -563,18 +590,31 @@ import UserProxyPoolModal from '@/components/user/UserProxyPoolModal.vue'
 import type { Account, AccountPlatform, AccountType, AdminGroup, Group, Proxy, WindowStats } from '@/types'
 import type { Column } from '@/components/common/types'
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
+import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
+import {
+  ACCOUNT_TUTORIAL_QUERY,
+  accountTutorialStorageKey,
+  createAccountTutorialSteps,
+  shouldAutoStartAccountTutorial
+} from './accountTutorial'
 
 type UserAccountStatus = 'active' | 'disabled'
 const USER_PROXY_LIMIT = 3
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const appStore = useAppStore()
+const authStore = useAuthStore()
+const onboardingStore = useOnboardingStore()
+const { startPageTutorial } = usePageTutorial()
 
 const accounts = ref<Account[]>([])
 const groups = ref<Group[]>([])
 const userProxies = ref<Proxy[]>([])
 const loading = ref(false)
 const showCreateModal = ref(false)
+const accountToolsMenuRef = ref<{ close: () => void; show: () => void } | null>(null)
 const showEditModal = ref(false)
 const showImportModal = ref(false)
 const showDataImportModal = ref(false)
@@ -633,6 +673,7 @@ let isUnmounted = false
 const ACCOUNT_BATCH_TASK_POLL_TIMEOUT_MS = 30 * 60 * 1000
 
 const modalGroups = computed(() => groups.value as unknown as AdminGroup[])
+const carpoolEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.carpool))
 
 const {
   selectedIds,
@@ -1594,9 +1635,85 @@ function handleShowTempUnsched(_account: Account): void {
   appStore.showInfo(t('admin.accounts.status.viewTempUnschedDetails'))
 }
 
+function clearAccountTutorialQuery(): void {
+  if (route.query.guide !== ACCOUNT_TUTORIAL_QUERY) return
+  const query = { ...route.query }
+  delete query.guide
+  void router.replace({ path: route.path, query })
+}
+
+function hasSeenAccountTutorial(): boolean {
+  const userID = authStore.user?.id
+  if (!userID) return true
+  return localStorage.getItem(accountTutorialStorageKey(userID)) === 'true'
+}
+
+async function startAccountTutorial(remember = false): Promise<void> {
+  const userID = authStore.user?.id
+  if (remember && userID) {
+    localStorage.setItem(accountTutorialStorageKey(userID), 'true')
+  }
+  onboardingStore.setMissionPanelOpen(false)
+  const steps = createAccountTutorialSteps(t, carpoolEnabled.value)
+  await startPageTutorial(steps, undefined, {
+    beforeNext: async (_step, index) => {
+      if (index === 1) {
+        showCreateModal.value = true
+        await nextTick()
+      } else if (index === 3) {
+        showCreateModal.value = false
+        await nextTick()
+        accountToolsMenuRef.value?.show()
+        await nextTick()
+      } else if (index === 4) {
+        accountToolsMenuRef.value?.close()
+        await nextTick()
+      }
+    },
+    beforePrevious: async (_step, index) => {
+      if (index === 2) {
+        showCreateModal.value = false
+        await nextTick()
+      } else if (index === 4) {
+        accountToolsMenuRef.value?.close()
+        showCreateModal.value = true
+        await nextTick()
+      } else if (index === 5) {
+        accountToolsMenuRef.value?.show()
+        await nextTick()
+      }
+    },
+    onClose: () => {
+      showCreateModal.value = false
+      accountToolsMenuRef.value?.close()
+    }
+  })
+  clearAccountTutorialQuery()
+}
+
+async function startAccountTutorialIfNeeded(): Promise<void> {
+  if (route.query.guide === ACCOUNT_TUTORIAL_QUERY) {
+    await startAccountTutorial()
+    return
+  }
+  if (shouldAutoStartAccountTutorial(authStore.user?.onboarding_mode, hasSeenAccountTutorial())) {
+    await startAccountTutorial(true)
+  }
+}
+
 onMounted(async () => {
   await Promise.all([loadGroups(), loadProxies(), loadAccounts()])
+  await startAccountTutorialIfNeeded()
 })
+
+watch(
+  () => route.query.guide,
+  async (guide, previousGuide) => {
+    if (guide === ACCOUNT_TUTORIAL_QUERY && guide !== previousGuide) {
+      await startAccountTutorial()
+    }
+  }
+)
 
 onUnmounted(() => {
   isUnmounted = true

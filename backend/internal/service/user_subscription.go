@@ -1,6 +1,10 @@
 package service
 
-import "time"
+import (
+	"time"
+
+	"ikik-api/internal/pkg/timezone"
+)
 
 const subscriptionDayDuration = 24 * time.Hour
 
@@ -75,27 +79,85 @@ func (s *UserSubscription) NeedsDailyReset() bool {
 }
 
 func (s *UserSubscription) NeedsDailyResetAt(now time.Time) bool {
-	if s.DailyWindowStart == nil {
-		return false
-	}
-	if s.HasOneTimeDailyQuota() {
-		return false
-	}
-	return !now.Before(s.DailyWindowStart.Add(24 * time.Hour))
+	_, ok := s.automaticDailyWindowStartAt(now)
+	return ok
 }
 
 func (s *UserSubscription) NeedsWeeklyReset() bool {
+	return s.NeedsWeeklyResetAt(time.Now())
+}
+
+func (s *UserSubscription) NeedsWeeklyResetAt(now time.Time) bool {
 	if s.WeeklyWindowStart == nil {
 		return false
 	}
-	return time.Since(*s.WeeklyWindowStart) >= 7*24*time.Hour
+	return !now.Before(s.WeeklyWindowStart.Add(7 * 24 * time.Hour))
 }
 
 func (s *UserSubscription) NeedsMonthlyReset() bool {
+	return s.NeedsMonthlyResetAt(time.Now())
+}
+
+func (s *UserSubscription) NeedsMonthlyResetAt(now time.Time) bool {
 	if s.MonthlyWindowStart == nil {
 		return false
 	}
-	return time.Since(*s.MonthlyWindowStart) >= 30*24*time.Hour
+	return !now.Before(s.MonthlyWindowStart.Add(30 * 24 * time.Hour))
+}
+
+func (s *UserSubscription) canAutomaticallyResetDailyAt(now time.Time) bool {
+	_, ok := s.automaticDailyWindowStartAt(now)
+	return ok
+}
+
+// automaticDailyWindowStartAt keeps daily quotas aligned to the configured
+// timezone's calendar day. Weekly and monthly limits intentionally keep their
+// subscription-period anchors in automaticWindowStartAt.
+func (s *UserSubscription) automaticDailyWindowStartAt(now time.Time) (time.Time, bool) {
+	if s.DailyWindowStart == nil || s.HasOneTimeDailyQuota() {
+		return time.Time{}, false
+	}
+	today := timezone.StartOfDay(now)
+	if !today.After(timezone.StartOfDay(*s.DailyWindowStart)) {
+		return time.Time{}, false
+	}
+	return today, true
+}
+
+func (s *UserSubscription) canAutomaticallyResetWeeklyAt(now time.Time) bool {
+	_, ok := s.automaticWindowStartAt(s.WeeklyWindowStart, 7*24*time.Hour, now)
+	return ok
+}
+
+func (s *UserSubscription) canAutomaticallyResetMonthlyAt(now time.Time) bool {
+	_, ok := s.automaticWindowStartAt(s.MonthlyWindowStart, 30*24*time.Hour, now)
+	return ok
+}
+
+func (s *UserSubscription) automaticWindowStartAt(previous *time.Time, period time.Duration, now time.Time) (time.Time, bool) {
+	if previous == nil {
+		return time.Time{}, false
+	}
+
+	anchor := *previous
+	// Older subscriptions initialized their first windows at midnight on their
+	// start date. Only that initial value is unambiguous; later midnight anchors
+	// may be manual resets and must remain authoritative.
+	legacyAnchor := startOfDay(s.StartsAt)
+	if legacyAnchor.Before(s.StartsAt) && anchor.Equal(legacyAnchor) {
+		anchor = s.StartsAt
+	}
+	next := anchor.Add(period)
+	if now.Before(next) || !next.Before(s.ExpiresAt) {
+		return time.Time{}, false
+	}
+
+	periods := now.Sub(anchor) / period
+	lastPeriodBeforeExpiry := (s.ExpiresAt.Sub(anchor) - 1) / period
+	if periods > lastPeriodBeforeExpiry {
+		periods = lastPeriodBeforeExpiry
+	}
+	return anchor.Add(periods * period), true
 }
 
 func (s *UserSubscription) DailyResetTime() *time.Time {
@@ -106,7 +168,7 @@ func (s *UserSubscription) DailyResetTime() *time.Time {
 		t := s.ExpiresAt
 		return &t
 	}
-	t := s.DailyWindowStart.Add(24 * time.Hour)
+	t := timezone.StartOfDay(*s.DailyWindowStart).AddDate(0, 0, 1)
 	return &t
 }
 

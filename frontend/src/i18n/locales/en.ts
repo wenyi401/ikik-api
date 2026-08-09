@@ -463,6 +463,7 @@ export default {
     saving: 'Saving...',
     selectedCount: '({count} selected)',
     refresh: 'Refresh',
+    retry: 'Retry',
     autoRefresh: {
       title: 'Auto Refresh',
       enable: 'Enable auto refresh',
@@ -506,6 +507,7 @@ export default {
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
     profile: 'Profile',
+    developerApi: 'Developer API',
     withdrawals: 'Withdrawals',
     users: 'Users',
     groups: 'Groups',
@@ -1049,6 +1051,7 @@ export default {
     searchPlaceholder: 'Search account name...',
     createAccount: 'New Account',
     importAccounts: 'Import',
+    dataImport: 'Data Import',
     proxyPool: 'Private Proxy Pool',
     proxyPoolLimit: '{count}/{limit} proxies added',
     proxyPoolHint: 'Accounts can use your proxy in either private mode or the public shared pool.',
@@ -1411,6 +1414,12 @@ export default {
         invalidWeight: 'Multi-group route weight must be an integer greater than or equal to 1.',
         invalidCooldown: 'Multi-group route cooldown seconds must be an integer greater than or equal to 0.'
       }
+    },
+    openAIExperimentalPrompt: {
+      title: 'Experimental instructions',
+      description: 'Opt in for this key only. It applies only when a supported OpenAI group handles the request.',
+      locked: 'Unlock the feature, then choose separately for each key.',
+      unlockAction: 'Unlock in profile'
     },
     statusLabel: 'Status',
     selectStatus: 'Select status',
@@ -2140,6 +2149,16 @@ export default {
       action: 'Share',
       title: 'Share Profile',
       description: 'Generate a profile activity card or copy the current page link.',
+      customizeTitle: 'Export content',
+      customizeDescription: 'This text appears below your username. Your email is never exported.',
+      textLabel: 'Custom text',
+      textPlaceholder: 'For example: Stay curious, keep creating',
+      textColor: 'Text color',
+      customColor: 'Choose a custom color',
+      saveSettings: 'Save export settings',
+      settingsSaved: 'Export settings saved',
+      settingsSaveFailed: 'Failed to save export settings. Please try again later.',
+      livePreview: 'Live preview',
       website: 'Share Website',
       image: 'Share Image',
       websiteText: "View {name}'s ikik profile",
@@ -2151,7 +2170,7 @@ export default {
       eyebrow: 'Token Activity',
       title: 'Token Activity Heatmap',
       shortTitle: 'Token Activity',
-      githubTitle: '{total} tokens in the last year',
+      githubTitle: 'Token usage over the past year',
       range365: 'Last 365 days',
       totalTokens: 'Total Tokens',
       peakDay: 'Peak Day',
@@ -2483,6 +2502,39 @@ export default {
         updated: 'User risk policy updated',
         updateFailed: 'Failed to update user risk policy',
         loadFailed: 'Failed to load user risk profiles'
+      },
+      penalties: {
+        title: 'Group penalty records',
+        subtitle: 'Review active penalties, strike progression, and the evidence for every hit',
+        refresh: 'Refresh penalty records',
+        active: 'Active',
+        expired: 'Expired',
+        permanent: 'Permanent',
+        todayEvents: 'Hits today',
+        allStatuses: 'All statuses',
+        allGroups: 'All groups',
+        allCategories: 'All categories',
+        searchPlaceholder: 'Search email, username, user ID, or group',
+        empty: 'No group penalties match these filters',
+        user: 'User',
+        group: 'Penalized group',
+        category: 'Matched category',
+        strikes: 'Strikes',
+        status: 'Penalty status',
+        strikeValue: 'Strike {count}',
+        noExpiry: 'No automatic expiry',
+        viewHistory: 'View hit history',
+        release: 'Release current penalty',
+        reset: 'Reset strikes',
+        releaseConfirm: 'Release the current penalty for user {user} in group {group}? The strike count is retained.',
+        resetConfirm: 'Reset strikes for user {user} in group {group}? The current penalty is released while hit history remains.',
+        released: 'Current group penalty released',
+        resetDone: 'Penalty strikes reset',
+        historyTitle: 'Group penalty hit history',
+        historyEmpty: 'No hit history',
+        loadFailed: 'Failed to load group penalties',
+        historyFailed: 'Failed to load penalty history',
+        actionFailed: 'Failed to update group penalty'
       },
       title: 'Risk Control',
       description: 'Configure content moderation and review audit records',
@@ -3618,6 +3670,7 @@ export default {
       blockGroup: 'Block access',
       blocked: 'Blocked',
       blockedLabel: 'blocked',
+      riskGroupLimited: '{count} risk-limited groups',
       defaultRate: 'Default Rate',
       customRate: 'Custom Rate',
       useDefaultRate: 'Use Default',
@@ -8543,7 +8596,110 @@ export default {
 
   // Onboarding Tour
   onboarding: {
+    pageHelp: 'Open page guide',
+    recommended: 'Recommended',
     restartTour: 'Restart Onboarding Tour',
+    mode: {
+      title: 'Choose your setup',
+      eyebrow: 'First visit',
+      subtitle: 'Pick the pace that fits you',
+      beginner: {
+        title: 'Beginner',
+        description: 'Follow five short tasks to inspect channels, create a key, and make the first call.',
+        meta: 'About 3 minutes'
+      },
+      expert: {
+        title: 'Experienced',
+        description: 'Go straight to the console and open page guides from the help button when needed.',
+        meta: 'Skip tasks'
+      },
+      footnote: 'This choice is saved to your account. Guides remain available from the top-right menu.',
+      saveFailed: 'Could not save your setup choice. Try again.'
+    },
+    journey: {
+      open: 'Open beginner tasks',
+      eyebrow: 'BEGINNER QUEST',
+      title: 'First-call tasks',
+      progress: 'Progress',
+      missions: {
+        groups: {
+          title: 'Understand groups',
+          description: 'A group decides which account pool a key uses.',
+          action: 'Learn about groups'
+        },
+        monitor: {
+          title: 'Inspect channels',
+          description: 'Check whether the recommended group is usable now.',
+          action: 'Check channel status'
+        },
+        key: {
+          title: 'Create a key',
+          description: 'Choose a group and create your first API key.',
+          action: 'Continue creating key'
+        },
+        client: {
+          title: 'Configure a client',
+          description: 'Find the endpoint, key, and common client settings.',
+          action: 'Open usage guide'
+        },
+        first_call: {
+          title: 'Make the first call',
+          description: 'Send one real request and the system will verify it.',
+          action: 'View request setup'
+        }
+      },
+      complete: {
+        title: 'Training complete',
+        description: 'You completed the first-call workflow.'
+      }
+    },
+    keys: {
+      recommendedGroup: '{name} is the default recommendation, but it may not be available right now.',
+      inspectStatus: 'Check current status',
+      tour: {
+        nameTitle: 'Name the key',
+        nameDescription: 'Use a client or purpose name so the key is easy to identify later.',
+        groupTitle: 'Groups choose the service source',
+        groupDescription: 'Each key uses one group. Its billing, models, and available accounts come from that group.',
+        recommendedTitle: 'Recommended is not the same as available',
+        recommendedDescription: 'The PLUS shared pool is the default choice. Check channel status for schedulable accounts before creating the key.',
+        submitTitle: 'Create the key',
+        submitDescription: 'A name and group are enough. You can configure limits later.',
+        clientTitle: 'Open the usage guide',
+        clientDescription: 'This shows the API endpoint, key, and client configuration.',
+        firstCallTitle: 'Send the first request',
+        firstCallDescription: 'Configure a client from the guide and send a request. The task completes automatically after success.'
+      }
+    },
+    monitor: {
+      returnToKey: 'Return to key creation',
+      tour: {
+        overviewTitle: 'Check overall status first',
+        overviewDescription: 'Pause setup when the overall status is degraded, then refresh and check again.',
+        groupsTitle: 'Focus on schedulable accounts',
+        groupsDescription: 'Find the PRO shared pool. A value above zero means it can accept requests now; a recommendation is not a live health signal.',
+        historyTitle: 'Review recent stability',
+        historyDescription: 'Availability and latency show recent stability. Open a card for details.'
+      }
+    },
+    accounts: {
+      tour: {
+        modesTitle: 'Choose how the account will be used',
+        modesDescription: '<b>Private</b> is only for you; <b>Shared</b> joins the public pool; <b>Carpool</b> shares access by member and billing period.',
+        createTitle: 'Add one account',
+        createDescription: 'The next step opens the account form for explanation only. No credentials will be submitted.',
+        shareTitle: 'Choose private or shared',
+        shareDescription: '<b>Private</b> goes to your dedicated group. <b>Shared</b> joins the public pool after validation. Manual API keys and cookies remain private-only.',
+        proxyTitle: 'Use a proxy only when needed',
+        proxyDescription: 'Save an HTTP or SOCKS5 proxy under More → Private Proxy Pool, then bind it here. Leave this empty when no fixed egress is required.',
+        toolsTitle: 'Proxy pool and import tools',
+        toolsDescription: 'More contains Private Proxy Pool, Credential Import, and Data Import. Use credential import for bulk accounts and data import for JSON, TXT, or ZIP backups.',
+        statusTitle: 'Check status after upload',
+        statusDescription: 'Confirm sharing, proxy, capacity, and scheduling are healthy. Test or reauthorize an account when something is abnormal.',
+        carpoolTitle: 'Manage carpools separately',
+        carpoolDescription: 'Create or join a carpool, bind accounts, and inspect member quotas. Member subscriptions remain active until the user leaves, is removed, or the carpool is deleted.'
+      }
+    },
     dontShowAgain: "Don't show again",
     dontShowAgainTitle: 'Permanently close onboarding guide',
     confirmDontShow: "Are you sure you don't want to see the onboarding guide again?\n\nYou can restart it anytime from the user menu in the top right corner.",
@@ -8805,6 +8961,7 @@ export default {
     noActiveSubscription: 'No active subscription',
     tabTopUp: 'Top Up',
     tabSubscribe: 'Subscribe',
+    tabCardStore: 'Card Store',
     noPlans: 'No subscription plans available',
     notAvailable: 'Top-up is currently unavailable',
     confirmSubscription: 'Confirm Subscription',

@@ -385,8 +385,8 @@ export default {
         antigravityUserAgentVersionPlaceholder: '1.23.2',
         antigravityUserAgentVersionHint: 'Leave empty to use ANTIGRAVITY_USER_AGENT_VERSION or the built-in default 1.23.2; when set, the admin setting takes precedence.',
         openaiCodexUserAgent: 'OpenAI Codex UA',
-        openaiCodexUserAgentPlaceholder: 'codex-tui/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color (codex-tui; 0.125.0)',
-        openaiCodexUserAgentHint: 'Used to bypass Cloudflare browser-UA challenges on the OpenAI upstream. Only applies when the client User-Agent is detected as a browser (Mozilla/...). Leave empty to use the built-in default.',
+        openaiCodexUserAgentPlaceholder: 'codex_cli_rs/0.144.1 (Ubuntu 22.4.0; x86_64) xterm-256color',
+        openaiCodexUserAgentHint: 'Used to bypass Cloudflare browser-UA challenges on the OpenAI upstream. Only applies when the client User-Agent is detected as a browser (Mozilla/...). Leave empty to use the built-in default. Prefer a codex_cli_rs identity: the upstream schedules capacity per originator, and identities in a load-shed bucket get server_is_overloaded, which puts the account into cooldown.',
         codexHardeningTitle: "Codex Settings",
         codexClientRestrictionTitle: "Codex client restriction",
         codexHardeningDesc:
@@ -946,6 +946,20 @@ export default {
           testSuccess: 'Google Drive storage test passed (upload, access, delete all OK)',
           testFailed: 'Google Drive storage test failed'
         }
+      },
+      openaiExperimentalPrompt: {
+        title: 'OpenAI Experimental System Instruction',
+        description: 'Configure the OpenAI system instruction that applies only to enabled groups and users who unlocked the entitlement.',
+        promptLabel: 'System instruction',
+        promptPlaceholder: 'Enter the system instruction to inject into OpenAI requests. Leave empty to disable injection.',
+        promptHint: 'Up to 40,000 bytes. An empty value disables injection even when a group toggle is on.',
+        priceLabel: 'One-time unlock price',
+        priceHint: 'Users can pay from their balance in Profile or unlock it with an administrator-issued feature code.',
+        safetyHint: 'Disabled by default and limited to OpenAI. Group switches and failover are evaluated against the actual selected group.',
+        invalidPrice: 'Enter a valid price between 0 and 1,000,000.',
+        saved: 'OpenAI experimental system instruction settings saved',
+        loadFailed: 'Failed to load OpenAI experimental system instruction settings',
+        saveFailed: 'Failed to save OpenAI experimental system instruction settings'
       },
       overloadCooldown: {
         title: '529 Overload Cooldown',

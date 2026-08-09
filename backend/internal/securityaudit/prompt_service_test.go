@@ -3,12 +3,14 @@ package securityaudit
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/service"
 )
 
 type staticSettingRepository struct {
@@ -66,6 +68,58 @@ func TestPromptServiceStartReportsDependencyFailureWithoutPanic(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	require.NoError(t, service.Shutdown(ctx))
+}
+
+func TestPromptServiceBlockingLatestTurnOnlyUsesNarrowSnapshot(t *testing.T) {
+	seen := make([]string, 0, 2)
+	evaluator := newGuardEvaluator(PromptScannerFunc(func(_ context.Context, _ ActiveEndpoint, chunk string, _ []string) (*NormalizedResult, error) {
+		seen = append(seen, chunk)
+		return &NormalizedResult{Decision: EventPass, RiskLevel: RiskLow, Action: ActionAllow, ScannerScores: map[string]float64{}, ScannerEvidence: map[string]string{}}, nil
+	}), nil, NewAtomicMetrics(), 2, 2)
+	service := &PromptService{
+		config: &fakeConfigStore{active: true, cfg: ActiveConfig{
+			RiskControlEnabled: true, Enabled: true, BlockingEnabled: true, BlockingLatestTurnOnly: true, AllGroups: true,
+			Scanners: AllScannerIDs, Endpoints: []ActiveEndpoint{{ID: "guard-1", Enabled: true, TimeoutMS: 1000, InputLimit: 4096}},
+		}},
+		evaluator: evaluator,
+	}
+	decision, err := service.Evaluate(context.Background(), Request{Protocol: "openai_chat_completions", Body: []byte(`{"messages":[{"role":"system","content":"system instruction"},{"role":"user","content":"older user input"},{"role":"assistant","content":"previous output"},{"role":"user","content":"latest user input"}]}`)})
+	require.NoError(t, err)
+	require.Equal(t, DecisionAllow, decision.Kind)
+	require.Equal(t, []string{"latest user input", "previous output"}, seen)
+}
+
+func TestPromptServiceTestPromptRunsWithoutRepositorySideEffects(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"Safety: Safe\nCategories: None"}}]}`))
+	}))
+	defer server.Close()
+
+	service := &PromptService{
+		config: &fakeConfigStore{active: true, cfg: ActiveConfig{
+			RiskControlEnabled: true,
+			Enabled:            true,
+			EnforcementMode:    EnforcementEnforce,
+			Scanners:           AllScannerIDs,
+			Endpoints: []ActiveEndpoint{{
+				ID: "guard-1", BaseURL: server.URL, Model: DefaultGuardModel,
+				Enabled: true, TimeoutMS: 1000, InputLimit: 4096,
+			}},
+		}},
+		scanner: NewOpenAICompatibleScanner(),
+		clock:   realClock{},
+		// A nil repository is intentional: this endpoint must not create jobs,
+		// events, fingerprints, profiles, or punishments.
+		repo: nil,
+	}
+
+	result, err := service.TestPrompt(context.Background(), "普通测试提示词")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Result)
+	require.Equal(t, EventPass, result.Result.Decision)
+	require.True(t, result.Result.Shadow)
 }
 
 func TestPromptServiceRejectsInvalidDeleteConfirmationClaims(t *testing.T) {

@@ -222,6 +222,7 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	oldStatus := user.Status
 	oldRole := user.Role
 	oldRPMLimit := user.RPMLimit
+	oldDeveloperAPIEnabled := user.DeveloperAPIEnabled
 	oldAllowedGroups := append([]int64(nil), user.AllowedGroups...)
 	oldBlockedGroups := append([]int64(nil), user.BlockedGroups...)
 
@@ -268,6 +269,9 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	if input.RPMLimit != nil {
 		user.RPMLimit = *input.RPMLimit
 	}
+	if input.DeveloperAPIEnabled != nil {
+		user.DeveloperAPIEnabled = *input.DeveloperAPIEnabled
+	}
 
 	if input.AllowedGroups != nil {
 		user.AllowedGroups = *input.AllowedGroups
@@ -296,7 +300,7 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	if s.authCacheInvalidator != nil {
 		// RPMLimit 直接参与 billing_cache_service.checkRPM 的三级级联，
 		// Group grants and blocks participate in API Key authorization; invalidate immediately.
-		if user.Concurrency != oldConcurrency || user.Status != oldStatus || user.Role != oldRole || user.RPMLimit != oldRPMLimit || !sameInt64Set(user.AllowedGroups, oldAllowedGroups) || !sameInt64Set(user.BlockedGroups, oldBlockedGroups) {
+		if user.Concurrency != oldConcurrency || user.Status != oldStatus || user.Role != oldRole || user.RPMLimit != oldRPMLimit || user.DeveloperAPIEnabled != oldDeveloperAPIEnabled || !sameInt64Set(user.AllowedGroups, oldAllowedGroups) || !sameInt64Set(user.BlockedGroups, oldBlockedGroups) {
 			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, user.ID)
 		}
 	}
@@ -569,21 +573,7 @@ func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, 
 }
 
 func (s *adminServiceImpl) tryAccrueAffiliateRebateForAdminRecharge(ctx context.Context, userID int64, operation string, amount float64) {
-	if operation != "add" || amount <= 0 || s.settingService == nil || s.affiliateService == nil {
-		return
-	}
-	if !s.settingService.IsAffiliateAdminRechargeEnabled(ctx) {
-		return
-	}
-
-	rebate, err := s.affiliateService.AccrueInviteRebate(ctx, userID, amount)
-	if err != nil {
-		logger.LegacyPrintf("service.admin", "affiliate rebate failed for admin recharge: user_id=%d amount=%.8f err=%v", userID, amount, err)
-		return
-	}
-	if rebate > 0 {
-		logger.LegacyPrintf("service.admin", "affiliate rebate accrued for admin recharge: user_id=%d amount=%.8f rebate=%.8f", userID, amount, rebate)
-	}
+	return
 }
 
 func (s *adminServiceImpl) GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error) {
@@ -1238,8 +1228,20 @@ func (s *adminServiceImpl) GetRedeemCode(ctx context.Context, id int64) (*Redeem
 }
 
 func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *GenerateRedeemCodesInput) ([]RedeemCode, error) {
+	if input == nil {
+		return nil, errors.New("generate redeem codes input is required")
+	}
 	if input.ExpiresAt != nil && !input.ExpiresAt.After(time.Now()) {
 		return nil, ErrRedeemCodeExpired
+	}
+	if input.Type == RedeemTypeFeature && input.FeatureKey != FeatureKeyOpenAIExperimentalPrompt {
+		return nil, infraerrors.BadRequest("REDEEM_CODE_FEATURE_INVALID", "unsupported feature key")
+	}
+	if input.Type != RedeemTypeFeature && input.FeatureKey != "" {
+		return nil, infraerrors.BadRequest("REDEEM_CODE_FEATURE_INVALID", "feature key is only valid for feature codes")
+	}
+	if input.Type == RedeemTypeFeature {
+		input.Value = 0
 	}
 
 	// 如果是订阅类型，验证必须有 GroupID
@@ -1264,11 +1266,12 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 			return nil, err
 		}
 		code := RedeemCode{
-			Code:      codeValue,
-			Type:      input.Type,
-			Value:     input.Value,
-			Status:    StatusUnused,
-			ExpiresAt: input.ExpiresAt,
+			Code:       codeValue,
+			Type:       input.Type,
+			FeatureKey: input.FeatureKey,
+			Value:      input.Value,
+			Status:     StatusUnused,
+			ExpiresAt:  input.ExpiresAt,
 		}
 		// 订阅类型专用字段
 		if input.Type == RedeemTypeSubscription {

@@ -54,6 +54,9 @@ type ChannelMonitorRequestTemplate func(*sql.Selector)
 // CompositeModelRoute is the predicate function for compositemodelroute builders.
 type CompositeModelRoute func(*sql.Selector)
 
+// DeveloperToken is the predicate function for developertoken builders.
+type DeveloperToken func(*sql.Selector)
+
 // EmailBroadcast is the predicate function for emailbroadcast builders.
 type EmailBroadcast func(*sql.Selector)
 

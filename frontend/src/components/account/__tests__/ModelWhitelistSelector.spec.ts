@@ -60,7 +60,7 @@ vi.mock('@/utils/apiError', () => ({
 vi.mock('@/components/account/ModelProbeModal.vue', () => ({
   default: {
     name: 'ModelProbeModal',
-    props: ['show', 'defaultPlatform'],
+    props: ['show', 'defaultPlatform', 'accountScope'],
     emits: ['close', 'apply'],
     template: `
       <div v-if="show" data-test="probe-modal">
@@ -73,7 +73,7 @@ vi.mock('@/components/account/ModelProbeModal.vue', () => ({
 vi.mock('../ModelProbeModal.vue', () => ({
   default: {
     name: 'ModelProbeModal',
-    props: ['show', 'defaultPlatform'],
+    props: ['show', 'defaultPlatform', 'accountScope'],
     emits: ['close', 'apply'],
     template: `
       <div v-if="show" data-test="probe-modal">
@@ -94,6 +94,31 @@ vi.mock('vue-i18n', async () => {
 })
 
 describe('ModelWhitelistSelector', () => {
+  it('把用户范围传给探测弹窗并隐藏管理员同步入口', async () => {
+    const wrapper = mount(ModelWhitelistSelector, {
+      props: {
+        modelValue: [],
+        platform: 'openai',
+        accountScope: 'user',
+        syncCredentials: {
+          platform: 'openai',
+          type: 'apikey',
+          api_key: 'sk-test'
+        }
+      },
+      global: {
+        stubs: {
+          ModelIcon: true,
+          Icon: true
+        }
+      }
+    })
+
+    expect(wrapper.text()).not.toContain('admin.accounts.syncUpstreamModels')
+    await wrapper.findAll('button').find(button => button.text().includes('admin.accounts.modelProbe.openButton'))!.trigger('click')
+    expect(wrapper.getComponent({ name: 'ModelProbeModal' }).props('accountScope')).toBe('user')
+  })
+
   it('通过探测弹窗把模型合并到白名单', async () => {
     const wrapper = mount(ModelWhitelistSelector, {
       props: {

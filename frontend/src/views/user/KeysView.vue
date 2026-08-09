@@ -35,6 +35,13 @@
       <template #actions>
         <div class="flex justify-end gap-3">
         <UiIconButton
+          :label="t('onboarding.pageHelp')"
+          data-guide="keys-help"
+          @click="startKeyPageTutorial('key')"
+        >
+          <Icon name="questionCircle" size="md" />
+        </UiIconButton>
+        <UiIconButton
           :label="t('common.refresh')"
           @click="refreshKeyPageData"
           :disabled="loading"
@@ -369,6 +376,7 @@
               <!-- Use Key Button -->
               <button
                 @click="openUseKeyModal(row)"
+		        data-guide="use-key"
 	                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-[var(--app-muted)] transition-colors hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary-hover)]"
               >
                 <Icon name="terminal" size="sm" />
@@ -455,7 +463,7 @@
       @close="closeModals"
     >
       <form id="key-form" @submit.prevent="handleSubmit" class="space-y-5">
-        <div>
+        <div data-guide="key-name-field">
           <label class="input-label">{{ t('keys.nameLabel') }}</label>
           <input
             v-model="formData.name"
@@ -467,7 +475,7 @@
           />
         </div>
 
-        <div>
+        <div data-guide="key-group-field">
           <div class="mb-1.5 flex min-w-0 items-center justify-between gap-3">
             <label class="input-label mb-0">{{ t('keys.groupLabel') }}</label>
             <button
@@ -492,30 +500,64 @@
             data-tour="key-form-group"
           >
             <template #selected="{ option }">
-              <GroupBadge
-                v-if="option"
-                :name="(option as unknown as GroupOption).label"
-                :platform="(option as unknown as GroupOption).platform"
-                :scope="(option as unknown as GroupOption).scope"
-                :subscription-type="(option as unknown as GroupOption).subscriptionType"
-                :rate-multiplier="(option as unknown as GroupOption).rate"
-                :user-rate-multiplier="(option as unknown as GroupOption).userRate"
-              />
-	              <span v-else class="text-[var(--app-muted)]">{{ t('keys.selectGroup') }}</span>
+              <div v-if="option" class="flex min-w-0 items-center gap-2">
+                <GroupBadge
+                  :name="(option as unknown as GroupOption).label"
+                  :platform="(option as unknown as GroupOption).platform"
+                  :scope="(option as unknown as GroupOption).scope"
+                  :subscription-type="(option as unknown as GroupOption).subscriptionType"
+                  :rate-multiplier="(option as unknown as GroupOption).rate"
+                  :user-rate-multiplier="(option as unknown as GroupOption).userRate"
+                />
+                <span
+                  v-if="(option as unknown as GroupOption).recommended"
+                  class="shrink-0 rounded bg-[var(--app-primary-soft)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--app-primary)]"
+                >
+                  {{ t('onboarding.recommended') }}
+                </span>
+              </div>
+		              <span v-else class="text-[var(--app-muted)]">{{ t('keys.selectGroup') }}</span>
             </template>
             <template #option="{ option, selected }">
-              <GroupOptionItem
-                :name="(option as unknown as GroupOption).label"
-                :platform="(option as unknown as GroupOption).platform"
-                :scope="(option as unknown as GroupOption).scope"
-                :subscription-type="(option as unknown as GroupOption).subscriptionType"
-                :rate-multiplier="(option as unknown as GroupOption).rate"
-                :user-rate-multiplier="(option as unknown as GroupOption).userRate"
-                :description="(option as unknown as GroupOption).description"
-                :selected="selected"
-              />
+              <div class="flex min-w-0 items-center gap-2">
+                <GroupOptionItem
+                  class="min-w-0 flex-1"
+                  :name="(option as unknown as GroupOption).label"
+                  :platform="(option as unknown as GroupOption).platform"
+                  :scope="(option as unknown as GroupOption).scope"
+                  :subscription-type="(option as unknown as GroupOption).subscriptionType"
+                  :rate-multiplier="(option as unknown as GroupOption).rate"
+                  :user-rate-multiplier="(option as unknown as GroupOption).userRate"
+                  :description="(option as unknown as GroupOption).description"
+                  :selected="selected"
+                />
+                <span
+                  v-if="(option as unknown as GroupOption).recommended"
+                  class="shrink-0 rounded bg-[var(--app-primary-soft)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--app-primary)]"
+                >
+                  {{ t('onboarding.recommended') }}
+                </span>
+              </div>
             </template>
           </Select>
+          <div
+            v-if="!showEditModal && recommendedGroup"
+            class="mt-2 flex flex-col gap-2 rounded-md border border-[var(--app-primary-border)] bg-[var(--app-primary-soft)] px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+            data-guide="recommended-group"
+          >
+            <p class="text-xs leading-5 text-[var(--app-muted-strong)]">
+              <strong class="text-[var(--app-primary)]">{{ t('onboarding.recommended') }}:</strong>
+              {{ t('onboarding.keys.recommendedGroup', { name: recommendedGroup.name }) }}
+            </p>
+            <button
+              type="button"
+              class="shrink-0 text-left text-xs font-bold text-[var(--app-primary)] hover:text-[var(--app-primary-hover)]"
+              @click="inspectChannelStatus"
+            >
+              {{ t('onboarding.keys.inspectStatus') }}
+              <Icon name="arrowRight" size="xs" class="ml-1 inline-block" />
+            </button>
+          </div>
         </div>
 
         <EndpointCards
@@ -652,6 +694,62 @@
             <button type="button" class="btn btn-secondary w-full sm:w-auto" @click="addGroupRoute">
               <Icon name="plus" size="sm" class="mr-2" />
               {{ t('keys.groupRouting.addRoute') }}
+            </button>
+          </div>
+	        </div>
+
+        <div
+          v-if="hasOpenAIExperimentalPromptRoute"
+          class="rounded-md border border-[var(--app-primary-border)] bg-[var(--app-primary-soft)] p-4"
+          data-test="openai-experimental-prompt-setting"
+        >
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-[var(--app-text)]">
+                {{ t('keys.openAIExperimentalPrompt.title') }}
+              </p>
+              <p class="mt-1 text-xs leading-5 text-[var(--app-muted-strong)]">
+                {{ t('keys.openAIExperimentalPrompt.description') }}
+              </p>
+            </div>
+            <button
+              v-if="openAIExperimentalPromptUnlocked"
+              type="button"
+              role="switch"
+              :aria-checked="formData.openai_experimental_prompt_enabled"
+              :aria-label="t('keys.openAIExperimentalPrompt.title')"
+              :class="[
+                'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+                formData.openai_experimental_prompt_enabled
+                  ? 'bg-[var(--app-primary)]'
+                  : 'bg-[var(--app-border-strong)]'
+              ]"
+              data-test="openai-experimental-prompt-toggle"
+              @click="formData.openai_experimental_prompt_enabled = !formData.openai_experimental_prompt_enabled"
+            >
+              <span
+                :class="[
+                  'inline-block h-4 w-4 rounded-full bg-white transition-transform',
+                  formData.openai_experimental_prompt_enabled ? 'translate-x-6' : 'translate-x-1'
+                ]"
+              />
+            </button>
+          </div>
+          <div
+            v-if="!openAIExperimentalPromptUnlocked"
+            class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--app-primary-border)] pt-3"
+          >
+            <span class="text-xs text-[var(--app-muted-strong)]">
+              {{ t('keys.openAIExperimentalPrompt.locked') }}
+            </span>
+            <button
+              type="button"
+              class="text-xs font-semibold text-[var(--app-primary)] hover:text-[var(--app-primary-hover)]"
+              data-test="openai-experimental-prompt-unlock"
+              @click="openExperimentalPromptUnlock"
+            >
+              {{ t('keys.openAIExperimentalPrompt.unlockAction') }}
+              <Icon name="arrowRight" size="xs" class="ml-1 inline-block" />
             </button>
           </div>
         </div>
@@ -1068,6 +1166,7 @@
             :disabled="submitting"
             class="btn btn-primary"
             data-tour="key-form-submit"
+            data-guide="key-form-submit"
           >
             <svg
               v-if="submitting"
@@ -1279,11 +1378,14 @@
 </template>
 
 <script setup lang="ts">
-	import { ref, reactive, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
+	import { ref, reactive, computed, nextTick, onMounted, onUnmounted, watch, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
+	import { useRoute, useRouter } from 'vue-router'
 	import { useAppStore } from '@/stores/app'
+	import { useAuthStore } from '@/stores/auth'
 	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
+import { usePageTutorial } from '@/composables/usePageTutorial'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
 const { t } = useI18n()
@@ -1312,6 +1414,7 @@ import { maskApiKey } from '@/utils/maskApiKey'
 import { buildCcSwitchImportDeeplink } from '@/utils/ccswitchImport'
 import { openImagePlayground } from '@/utils/imagePlaygroundImport'
 import { platformLabel } from '@/utils/platformColors'
+import type { DriveStep } from 'driver.js'
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -1330,6 +1433,7 @@ interface GroupOption {
   subscriptionType: SubscriptionType
   platform: GroupPlatform
   scope?: GroupScope
+  recommended?: boolean
 }
 
 const privateRouterValue = -1000
@@ -1351,7 +1455,11 @@ const defaultGroupRoute = (groupId: number | null = null): ApiKeyGroupRouteForm 
 })
 
 const appStore = useAppStore()
+const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
+const route = useRoute()
+const router = useRouter()
+const { startPageTutorial } = usePageTutorial()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
 const allColumns = computed<Column[]>(() => [
@@ -1515,10 +1623,158 @@ const formData = ref({
   rate_limit_7d: null as number | null,
   enable_group_routes: false,
   group_routes: [defaultGroupRoute()] as ApiKeyGroupRouteForm[],
+  openai_experimental_prompt_enabled: false,
   enable_expiration: false,
   expiration_preset: '30' as '7' | '30' | '90' | 'custom',
   expiration_date: ''
 })
+
+const KEY_DRAFT_MAX_AGE_MS = 30 * 60 * 1000
+
+function keyDraftStorageKey(): string {
+  return `ikik_key_draft_${authStore.user?.id ?? 'guest'}_v1`
+}
+
+function persistKeyDraft(): void {
+  sessionStorage.setItem(keyDraftStorageKey(), JSON.stringify({
+    saved_at: Date.now(),
+    form_data: formData.value
+  }))
+}
+
+function restoreKeyDraft(): boolean {
+  if (route.query.draft !== 'key') return false
+  const raw = sessionStorage.getItem(keyDraftStorageKey())
+  if (!raw) return false
+  try {
+    const draft = JSON.parse(raw) as {
+      saved_at?: number
+      form_data?: Partial<typeof formData.value>
+    }
+    if (!draft.saved_at || Date.now() - draft.saved_at > KEY_DRAFT_MAX_AGE_MS || !draft.form_data) {
+      sessionStorage.removeItem(keyDraftStorageKey())
+      return false
+    }
+    formData.value = {
+      ...formData.value,
+      ...draft.form_data,
+      group_routes: Array.isArray(draft.form_data.group_routes)
+        ? draft.form_data.group_routes
+        : [defaultGroupRoute()]
+    }
+    showCreateModal.value = true
+    sessionStorage.removeItem(keyDraftStorageKey())
+    return true
+  } catch {
+    sessionStorage.removeItem(keyDraftStorageKey())
+    return false
+  }
+}
+
+async function inspectChannelStatus(): Promise<void> {
+  persistKeyDraft()
+  showCreateModal.value = false
+  onboardingStore.completeMission('groups')
+  await router.push({
+    path: '/monitor',
+    query: { guide: 'monitor', return: '/keys', draft: 'key' }
+  })
+}
+
+function clearGuideQuery(): void {
+  if (!route.query.guide) return
+  const query = { ...route.query }
+  delete query.guide
+  void router.replace({ path: route.path, query })
+}
+
+async function startKeyPageTutorial(kind: 'groups' | 'key' | 'client' | 'first_call' = 'key'): Promise<void> {
+  if ((kind === 'groups' || kind === 'key') && !showCreateModal.value) {
+    openCreateModal()
+  }
+  await nextTick()
+
+  let steps: DriveStep[]
+  if (kind === 'groups') {
+    steps = [{
+      element: '[data-guide="key-group-field"]',
+      popover: {
+        title: t('onboarding.keys.tour.groupTitle'),
+        description: t('onboarding.keys.tour.groupDescription'),
+        side: 'bottom',
+        align: 'start'
+      }
+    }]
+    if (recommendedGroup.value) {
+      steps.push({
+        element: '[data-guide="recommended-group"]',
+        popover: {
+          title: t('onboarding.keys.tour.recommendedTitle'),
+          description: t('onboarding.keys.tour.recommendedDescription'),
+          side: 'top',
+          align: 'start'
+        }
+      })
+    }
+  } else if (kind === 'client' && apiKeys.value.length > 0) {
+    steps = [{
+      element: '[data-guide="use-key"]',
+      popover: {
+        title: t('onboarding.keys.tour.clientTitle'),
+        description: t('onboarding.keys.tour.clientDescription'),
+        side: 'left',
+        align: 'center'
+      }
+    }]
+  } else if (kind === 'first_call' && apiKeys.value.length > 0) {
+    steps = [{
+      element: '[data-guide="use-key"]',
+      popover: {
+        title: t('onboarding.keys.tour.firstCallTitle'),
+        description: t('onboarding.keys.tour.firstCallDescription'),
+        side: 'left',
+        align: 'center'
+      }
+    }]
+  } else {
+    steps = [{
+      element: '[data-guide="key-name-field"]',
+      popover: {
+        title: t('onboarding.keys.tour.nameTitle'),
+        description: t('onboarding.keys.tour.nameDescription'),
+        side: 'bottom',
+        align: 'start'
+      }
+    }, {
+      element: '[data-guide="key-group-field"]',
+      popover: {
+        title: t('onboarding.keys.tour.groupTitle'),
+        description: t('onboarding.keys.tour.groupDescription'),
+        side: 'bottom',
+        align: 'start'
+      }
+    }, {
+      element: '[data-guide="key-form-submit"]',
+      popover: {
+        title: t('onboarding.keys.tour.submitTitle'),
+        description: t('onboarding.keys.tour.submitDescription'),
+        side: 'top',
+        align: 'end'
+      }
+    }]
+  }
+
+  await startPageTutorial(steps, () => {
+    if (kind === 'groups') onboardingStore.completeMission('groups')
+    if (kind === 'client' && apiKeys.value[0]) {
+      onboardingStore.completeMission('client')
+      openUseKeyModal(apiKeys.value[0])
+    }
+    if (kind === 'first_call' && apiKeys.value[0]) openUseKeyModal(apiKeys.value[0])
+    onboardingStore.setMissionPanelOpen(kind === 'groups' || kind === 'client')
+  })
+  clearGuideQuery()
+}
 
 // 自定义Key验证
 const customKeyError = computed(() => {
@@ -1562,6 +1818,12 @@ const getGroupOptionDescription = (group: Group): string | null => {
   }
   return group.description
 }
+
+const recommendedGroup = computed<Group | null>(() => {
+  return groups.value.find((group) => (
+    group.is_shared_pool && group.required_account_level?.toLowerCase() === 'plus'
+  )) ?? groups.value.find((group) => /plus.*共享|共享.*plus/i.test(group.name)) ?? null
+})
 
 const onFilterChange = () => {
   pagination.value.page = 1
@@ -1623,7 +1885,8 @@ const realGroupOptions = computed<GroupOption[]>(() =>
     userRate: userGroupRates.value[group.id] ?? null,
     subscriptionType: group.subscription_type,
     platform: group.platform,
-    scope: group.scope
+    scope: group.scope,
+    recommended: group.id === recommendedGroup.value?.id
   }))
 )
 
@@ -1635,7 +1898,9 @@ const privateGroupOptions = computed<GroupOption[]>(() => {
 })
 
 const groupOptions = computed<GroupOption[]>(() => {
-  const options = [...realGroupOptions.value]
+  const options = [...realGroupOptions.value].sort((left, right) => (
+    Number(Boolean(right.recommended)) - Number(Boolean(left.recommended))
+  ))
   if (!privateRouterOption.value) return options
   return [
     privateRouterOption.value,
@@ -1665,6 +1930,38 @@ const privateRouterRoutes = (): ApiKeyGroupRoute[] =>
       enabled: route.enabled,
       cooldown_seconds: route.cooldown_seconds
     }))
+
+const selectedFormGroupIDs = computed<number[]>(() => {
+  if (formData.value.enable_group_routes) {
+    return formData.value.group_routes
+      .filter((route): route is ApiKeyGroupRouteForm & { group_id: number } => route.enabled && route.group_id !== null)
+      .map((route) => route.group_id)
+  }
+  if (formData.value.group_id === privateRouterValue) {
+    return privateGroups.value.map((group) => group.id)
+  }
+  return formData.value.group_id !== null && formData.value.group_id > 0
+    ? [formData.value.group_id]
+    : []
+})
+
+const hasOpenAIExperimentalPromptRoute = computed(() => {
+  const selected = new Set(selectedFormGroupIDs.value)
+  return groups.value.some((group) => (
+    selected.has(group.id) &&
+    group.platform === 'openai' &&
+    group.openai_experimental_prompt_enabled === true
+  ))
+})
+
+const openAIExperimentalPromptUnlocked = computed(() => (
+  authStore.user?.openai_experimental_prompt_unlocked === true
+))
+
+const openExperimentalPromptUnlock = async () => {
+  formData.value.openai_experimental_prompt_enabled = false
+  await router.push('/profile')
+}
 
 const isPrivateRouterRoutes = (routes: ApiKeyGroupRoute[] | ApiKeyGroupRouteForm[] | undefined): boolean => {
   if (!routes || routes.length === 0) return false
@@ -1774,8 +2071,10 @@ const resolvePrimaryGroupId = (routes: ApiKeyGroupRoute[] | null): number | null
   )).group_id
 }
 
-const defaultCreateGroupId = (): number | null =>
-  privateRouterOption.value ? privateRouterValue : null
+const defaultCreateGroupId = (): number | null => {
+  if (recommendedGroup.value) return recommendedGroup.value.id
+  return privateRouterOption.value ? privateRouterValue : null
+}
 
 // Group dropdown search
 const groupSearchQuery = ref('')
@@ -1840,6 +2139,12 @@ const loadApiKeys = async () => {
     apiKeys.value = response.items
     pagination.value.total = response.total
     pagination.value.pages = response.pages
+    if (
+      authStore.user?.onboarding_mode === 'beginner' &&
+      response.items.some((key) => Boolean(key.last_used_at))
+    ) {
+      onboardingStore.completeMission('first_call')
+    }
 
     // Load usage stats for all API keys in the list
     if (response.items.length > 0) {
@@ -1893,6 +2198,9 @@ const loadPublicSettings = async () => {
 const openUseKeyModal = (key: ApiKey) => {
   selectedKey.value = key
   showUseKeyModal.value = true
+  if (authStore.user?.onboarding_mode === 'beginner') {
+    onboardingStore.completeMission('client')
+  }
 }
 
 const closeUseKeyModal = () => {
@@ -1927,6 +2235,7 @@ const openCreateModal = () => {
   formData.value.group_id = defaultCreateGroupId()
   formData.value.enable_group_routes = false
   formData.value.group_routes = [defaultGroupRoute()]
+  formData.value.openai_experimental_prompt_enabled = false
   showCreateModal.value = true
 }
 
@@ -1954,6 +2263,7 @@ const editKey = (key: ApiKey) => {
     rate_limit_7d: key.rate_limit_7d || null,
     enable_group_routes: !usesPrivateRouter && (key.group_routes?.length ?? 0) > 1,
     group_routes: groupRoutes,
+    openai_experimental_prompt_enabled: key.openai_experimental_prompt_enabled === true,
     enable_expiration: hasExpiration,
     expiration_preset: 'custom',
     expiration_date: key.expires_at ? formatDateTimeLocal(key.expires_at) : ''
@@ -2136,6 +2446,7 @@ const handleSubmit = async () => {
         name: formData.value.name,
         group_id: primaryGroupId,
         group_routes: groupRoutes,
+        openai_experimental_prompt_enabled: formData.value.openai_experimental_prompt_enabled,
         status: formData.value.status,
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
@@ -2157,9 +2468,14 @@ const handleSubmit = async () => {
         quota,
         expiresInDays,
         rateLimitData,
-        groupRoutes
+        groupRoutes,
+        formData.value.openai_experimental_prompt_enabled
       )
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
+      if (authStore.user?.onboarding_mode === 'beginner') {
+        onboardingStore.completeMission('key')
+        onboardingStore.setMissionPanelOpen(true)
+      }
       // Only advance tour if active, on submit step, and creation succeeded
       if (onboardingStore.isCurrentStep('[data-tour="key-form-submit"]')) {
         onboardingStore.nextStep(500)
@@ -2216,11 +2532,13 @@ const closeModals = () => {
     rate_limit_1d: null,
     rate_limit_7d: null,
     enable_group_routes: false,
-    group_routes: [defaultGroupRoute()],
+	    group_routes: [defaultGroupRoute()],
+	    openai_experimental_prompt_enabled: false,
     enable_expiration: false,
     expiration_preset: '30',
     expiration_date: ''
-  }
+	  }
+	  sessionStorage.removeItem(keyDraftStorageKey())
 }
 
 // Show reset quota confirmation dialog
@@ -2381,15 +2699,41 @@ function formatResetTime(resetAt: string | null): string {
   return `${mins}m`
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadSavedColumns()
-  loadApiKeys()
-  loadGroups()
-  loadUserGroupRates()
-  loadPublicSettings()
   document.addEventListener('click', closeGroupSelector)
   resetTimer = setInterval(() => { now.value = new Date() }, 60000)
+  await Promise.all([
+    loadApiKeys(),
+    loadGroups(),
+    loadUserGroupRates(),
+    loadPublicSettings()
+  ])
+  restoreKeyDraft()
+  const guide = route.query.guide
+  if (guide === 'groups' || guide === 'key' || guide === 'client' || guide === 'first_call') {
+    await startKeyPageTutorial(guide)
+  }
 })
+
+watch(
+  () => route.query.guide,
+  async (guide, previousGuide) => {
+    if (guide === previousGuide) return
+    if (guide === 'groups' || guide === 'key' || guide === 'client' || guide === 'first_call') {
+      await startKeyPageTutorial(guide)
+    }
+  }
+)
+
+watch(
+  [hasOpenAIExperimentalPromptRoute, openAIExperimentalPromptUnlocked],
+  ([hasEligibleRoute, unlocked]) => {
+    if (!hasEligibleRoute || !unlocked) {
+      formData.value.openai_experimental_prompt_enabled = false
+    }
+  }
+)
 
 onUnmounted(() => {
   document.removeEventListener('click', closeGroupSelector)

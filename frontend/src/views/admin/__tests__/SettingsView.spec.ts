@@ -14,6 +14,8 @@ const {
   getStreamTimeoutSettings,
   getRectifierSettings,
   getBetaPolicySettings,
+  getOpenAIExperimentalPromptSettings,
+  updateOpenAIExperimentalPromptSettings,
   getUpstreamBillingProbeSettings,
   updateUpstreamBillingProbeSettings,
   getOllamaCloudUsageSettings,
@@ -38,6 +40,11 @@ const {
   getStreamTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
   getBetaPolicySettings: vi.fn(),
+  getOpenAIExperimentalPromptSettings: vi.fn().mockResolvedValue({
+    prompt: "",
+    price_cents: 660,
+  }),
+  updateOpenAIExperimentalPromptSettings: vi.fn().mockImplementation(async (payload) => payload),
   getUpstreamBillingProbeSettings: vi.fn().mockResolvedValue({
     enabled: true,
     interval_minutes: 30,
@@ -74,6 +81,8 @@ vi.mock("@/api", () => ({
       getStreamTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
+      getOpenAIExperimentalPromptSettings,
+      updateOpenAIExperimentalPromptSettings,
     },
     accounts: {
       getUpstreamBillingProbeSettings,

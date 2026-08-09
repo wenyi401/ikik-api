@@ -3,6 +3,7 @@
 package user
 
 import (
+	"fmt"
 	"time"
 
 	"entgo.io/ent"
@@ -43,6 +44,16 @@ const (
 	FieldConcurrency = "concurrency"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldDeveloperAPIEnabled holds the string denoting the developer_api_enabled field in the database.
+	FieldDeveloperAPIEnabled = "developer_api_enabled"
+	// FieldOpenaiExperimentalPromptUnlocked holds the string denoting the openai_experimental_prompt_unlocked field in the database.
+	FieldOpenaiExperimentalPromptUnlocked = "openai_experimental_prompt_unlocked"
+	// FieldOnboardingMode holds the string denoting the onboarding_mode field in the database.
+	FieldOnboardingMode = "onboarding_mode"
+	// FieldShareCardText holds the string denoting the share_card_text field in the database.
+	FieldShareCardText = "share_card_text"
+	// FieldShareCardTextColor holds the string denoting the share_card_text_color field in the database.
+	FieldShareCardTextColor = "share_card_text_color"
 	// FieldUsername holds the string denoting the username field in the database.
 	FieldUsername = "username"
 	// FieldNotes holds the string denoting the notes field in the database.
@@ -79,6 +90,8 @@ const (
 	FieldFrozenBalance = "frozen_balance"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
+	// EdgeDeveloperTokens holds the string denoting the developer_tokens edge name in mutations.
+	EdgeDeveloperTokens = "developer_tokens"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
 	EdgeRedeemCodes = "redeem_codes"
 	// EdgeSubscriptions holds the string denoting the subscriptions edge name in mutations.
@@ -126,6 +139,13 @@ const (
 	APIKeysInverseTable = "api_keys"
 	// APIKeysColumn is the table column denoting the api_keys relation/edge.
 	APIKeysColumn = "user_id"
+	// DeveloperTokensTable is the table that holds the developer_tokens relation/edge.
+	DeveloperTokensTable = "developer_tokens"
+	// DeveloperTokensInverseTable is the table name for the DeveloperToken entity.
+	// It exists in this package in order to avoid circular dependency with the "developertoken" package.
+	DeveloperTokensInverseTable = "developer_tokens"
+	// DeveloperTokensColumn is the table column denoting the developer_tokens relation/edge.
+	DeveloperTokensColumn = "user_id"
 	// RedeemCodesTable is the table that holds the redeem_codes relation/edge.
 	RedeemCodesTable = "redeem_codes"
 	// RedeemCodesInverseTable is the table name for the RedeemCode entity.
@@ -274,6 +294,11 @@ var Columns = []string{
 	FieldPreferPointsBilling,
 	FieldConcurrency,
 	FieldStatus,
+	FieldDeveloperAPIEnabled,
+	FieldOpenaiExperimentalPromptUnlocked,
+	FieldOnboardingMode,
+	FieldShareCardText,
+	FieldShareCardTextColor,
 	FieldUsername,
 	FieldNotes,
 	FieldTotpSecretEncrypted,
@@ -352,6 +377,18 @@ var (
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	StatusValidator func(string) error
+	// DefaultDeveloperAPIEnabled holds the default value on creation for the "developer_api_enabled" field.
+	DefaultDeveloperAPIEnabled bool
+	// DefaultOpenaiExperimentalPromptUnlocked holds the default value on creation for the "openai_experimental_prompt_unlocked" field.
+	DefaultOpenaiExperimentalPromptUnlocked bool
+	// DefaultShareCardText holds the default value on creation for the "share_card_text" field.
+	DefaultShareCardText string
+	// ShareCardTextValidator is a validator for the "share_card_text" field. It is called by the builders before save.
+	ShareCardTextValidator func(string) error
+	// DefaultShareCardTextColor holds the default value on creation for the "share_card_text_color" field.
+	DefaultShareCardTextColor string
+	// ShareCardTextColorValidator is a validator for the "share_card_text_color" field. It is called by the builders before save.
+	ShareCardTextColorValidator func(string) error
 	// DefaultUsername holds the default value on creation for the "username" field.
 	DefaultUsername string
 	// UsernameValidator is a validator for the "username" field. It is called by the builders before save.
@@ -381,6 +418,33 @@ var (
 	// DefaultFrozenBalance holds the default value on creation for the "frozen_balance" field.
 	DefaultFrozenBalance float64
 )
+
+// OnboardingMode defines the type for the "onboarding_mode" enum field.
+type OnboardingMode string
+
+// OnboardingModeUnset is the default value of the OnboardingMode enum.
+const DefaultOnboardingMode = OnboardingModeUnset
+
+// OnboardingMode values.
+const (
+	OnboardingModeUnset    OnboardingMode = "unset"
+	OnboardingModeBeginner OnboardingMode = "beginner"
+	OnboardingModeExpert   OnboardingMode = "expert"
+)
+
+func (om OnboardingMode) String() string {
+	return string(om)
+}
+
+// OnboardingModeValidator is a validator for the "onboarding_mode" field enum values. It is called by the builders before save.
+func OnboardingModeValidator(om OnboardingMode) error {
+	switch om {
+	case OnboardingModeUnset, OnboardingModeBeginner, OnboardingModeExpert:
+		return nil
+	default:
+		return fmt.Errorf("user: invalid enum value for onboarding_mode field: %q", om)
+	}
+}
 
 // OrderOption defines the ordering options for the User queries.
 type OrderOption func(*sql.Selector)
@@ -458,6 +522,31 @@ func ByConcurrency(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByDeveloperAPIEnabled orders the results by the developer_api_enabled field.
+func ByDeveloperAPIEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDeveloperAPIEnabled, opts...).ToFunc()
+}
+
+// ByOpenaiExperimentalPromptUnlocked orders the results by the openai_experimental_prompt_unlocked field.
+func ByOpenaiExperimentalPromptUnlocked(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOpenaiExperimentalPromptUnlocked, opts...).ToFunc()
+}
+
+// ByOnboardingMode orders the results by the onboarding_mode field.
+func ByOnboardingMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOnboardingMode, opts...).ToFunc()
+}
+
+// ByShareCardText orders the results by the share_card_text field.
+func ByShareCardText(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldShareCardText, opts...).ToFunc()
+}
+
+// ByShareCardTextColor orders the results by the share_card_text_color field.
+func ByShareCardTextColor(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldShareCardTextColor, opts...).ToFunc()
 }
 
 // ByUsername orders the results by the username field.
@@ -556,6 +645,20 @@ func ByAPIKeysCount(opts ...sql.OrderTermOption) OrderOption {
 func ByAPIKeys(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newAPIKeysStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByDeveloperTokensCount orders the results by developer_tokens count.
+func ByDeveloperTokensCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newDeveloperTokensStep(), opts...)
+	}
+}
+
+// ByDeveloperTokens orders the results by developer_tokens terms.
+func ByDeveloperTokens(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newDeveloperTokensStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
 
@@ -829,6 +932,13 @@ func newAPIKeysStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(APIKeysInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, APIKeysTable, APIKeysColumn),
+	)
+}
+func newDeveloperTokensStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(DeveloperTokensInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, DeveloperTokensTable, DeveloperTokensColumn),
 	)
 }
 func newRedeemCodesStep() *sqlgraph.Step {

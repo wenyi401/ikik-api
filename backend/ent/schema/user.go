@@ -68,6 +68,20 @@ func (User) Fields() []ent.Field {
 		field.String("status").
 			MaxLen(20).
 			Default(domain.StatusActive),
+		field.Bool("developer_api_enabled").
+			Default(true),
+		field.Bool("openai_experimental_prompt_unlocked").
+			Default(false).
+			Comment("用户是否已解锁 OpenAI 实验性系统指令权益"),
+		field.Enum("onboarding_mode").
+			Values("unset", "beginner", "expert").
+			Default("unset"),
+		field.String("share_card_text").
+			MaxLen(80).
+			Default(""),
+		field.String("share_card_text_color").
+			MaxLen(7).
+			Default("#08775c"),
 
 		// Optional profile fields (added later; default '' in DB migration)
 		field.String("username").
@@ -141,6 +155,8 @@ func (User) Fields() []ent.Field {
 func (User) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("api_keys", APIKey.Type),
+		edge.To("developer_tokens", DeveloperToken.Type).
+			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("redeem_codes", RedeemCode.Type),
 		edge.To("subscriptions", UserSubscription.Type),
 		edge.To("assigned_subscriptions", UserSubscription.Type),

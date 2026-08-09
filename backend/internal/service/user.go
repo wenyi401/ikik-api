@@ -7,30 +7,35 @@ import (
 )
 
 type User struct {
-	ID                  int64
-	Email               string
-	Username            string
-	Notes               string
-	AvatarURL           string
-	AvatarSource        string
-	AvatarMIME          string
-	AvatarByteSize      int
-	AvatarSHA256        string
-	PasswordHash        string
-	Role                string
-	Balance             float64
-	RechargeBalance     float64
-	InviteIncomeBalance float64
-	ShareIncomeBalance  float64
-	PointsBalance       float64
-	PreferPointsBilling bool
-	FrozenBalance       float64
-	Concurrency         int
-	Status              string
-	AllowedGroups       []int64
-	BlockedGroups       []int64
-	RiskGroupBlocks     []UserRiskGroupBlock
-	TokenVersion        int64 // Incremented on password change to invalidate existing tokens
+	ID                               int64
+	Email                            string
+	Username                         string
+	Notes                            string
+	AvatarURL                        string
+	AvatarSource                     string
+	AvatarMIME                       string
+	AvatarByteSize                   int
+	AvatarSHA256                     string
+	PasswordHash                     string
+	Role                             string
+	Balance                          float64
+	RechargeBalance                  float64
+	InviteIncomeBalance              float64
+	ShareIncomeBalance               float64
+	PointsBalance                    float64
+	PreferPointsBilling              bool
+	FrozenBalance                    float64
+	Concurrency                      int
+	Status                           string
+	DeveloperAPIEnabled              bool
+	OpenAIExperimentalPromptUnlocked bool
+	OnboardingMode                   string
+	ShareCardText                    string
+	ShareCardTextColor               string
+	AllowedGroups                    []int64
+	BlockedGroups                    []int64
+	RiskGroupBlocks                  []UserRiskGroupBlock
+	TokenVersion                     int64 // Incremented on password change to invalidate existing tokens
 	// TokenVersionResolved indicates TokenVersion already contains the fingerprint-derived
 	// value expected in JWT claims and refresh-token state.
 	TokenVersionResolved bool

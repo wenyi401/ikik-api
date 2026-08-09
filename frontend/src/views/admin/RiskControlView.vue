@@ -223,6 +223,7 @@
         </div>
 
         <AdaptiveRiskProfiles v-if="configForm.mode === 'adaptive'" class="mt-6" />
+        <GroupPenaltyWorkspace class="mt-6" />
 
         <div class="risk-section">
           <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700">
@@ -1536,6 +1537,7 @@ import Toggle from '@/components/common/Toggle.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import AdaptiveRiskProfiles from '@/components/admin/risk-control/AdaptiveRiskProfiles.vue'
+import GroupPenaltyWorkspace from '@/components/admin/risk-control/GroupPenaltyWorkspace.vue'
 import { adminAPI } from '@/api/admin'
 import type {
   ContentModerationAPIKeyLoad,

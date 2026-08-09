@@ -12,16 +12,19 @@
         :wechat-enabled="wechatOAuthEnabled"
         :wechat-open-enabled="wechatOAuthOpenEnabled"
         :wechat-mp-enabled="wechatOAuthMPEnabled"
+        :has-main-content="hasMainContent"
       >
         <template #main-after>
-          <ProfileBalanceNotifyCard
-            v-if="user && balanceLowNotifyEnabled"
-            :enabled="user.balance_notify_enabled ?? true"
-            :threshold="user.balance_notify_threshold"
-            :extra-emails="user.balance_notify_extra_emails ?? []"
-            :system-default-threshold="systemDefaultThreshold"
-            :user-email="user.email"
-          />
+          <div class="space-y-5">
+            <ProfileBalanceNotifyCard
+              v-if="user && balanceLowNotifyEnabled"
+              :enabled="user.balance_notify_enabled ?? true"
+              :threshold="user.balance_notify_threshold"
+              :extra-emails="user.balance_notify_extra_emails ?? []"
+              :system-default-threshold="systemDefaultThreshold"
+              :user-email="user.email"
+            />
+          </div>
         </template>
 
         <template #side-after>
@@ -42,6 +45,8 @@
             </div>
           </div>
 
+          <ProfileExperimentalPromptCard />
+
           <ProfilePasswordForm />
 
           <ProfileTotpCard />
@@ -57,6 +62,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@/components/icons'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import ProfileBalanceNotifyCard from '@/components/user/profile/ProfileBalanceNotifyCard.vue'
+import ProfileExperimentalPromptCard from '@/components/user/profile/ProfileExperimentalPromptCard.vue'
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
 import ProfilePasswordForm from '@/components/user/profile/ProfilePasswordForm.vue'
 import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
@@ -78,6 +84,9 @@ const wechatOAuthOpenEnabled = ref<boolean | undefined>(undefined)
 const wechatOAuthMPEnabled = ref<boolean | undefined>(undefined)
 const oidcOAuthEnabled = ref(false)
 const oidcOAuthProviderName = ref('OIDC')
+const hasMainContent = computed(() => Boolean(
+  user.value && balanceLowNotifyEnabled.value
+))
 
 onMounted(async () => {
   const profileRefresh = authStore.refreshUser().catch((error) => {

@@ -35,7 +35,13 @@ func (e *Enqueuer) Enqueue(ctx context.Context, req Request) error {
 		LogInfo(EventEnqueueSkipped, mergeLogFields(baseFields, map[string]any{"status": "skipped", "error_code": "group_out_of_scope"}))
 		return nil
 	}
-	snapshot, err := ExtractPromptSnapshot(req)
+	var snapshot PromptSnapshot
+	var err error
+	if cfg.AsyncLatestUserOnly {
+		snapshot, err = ExtractLatestUserPromptSnapshot(req)
+	} else {
+		snapshot, err = ExtractPromptSnapshot(req)
+	}
 	if errors.Is(err, ErrNoPromptText) {
 		LogInfo(EventEnqueueSkipped, mergeLogFields(baseFields, map[string]any{"status": "skipped", "error_code": "no_user_text"}))
 		return nil
@@ -48,11 +54,18 @@ func (e *Enqueuer) Enqueue(ctx context.Context, req Request) error {
 	assessment := AssessLocalPrompt(snapshot.ScanText)
 	snapshot.PromptHash = assessment.NormalizedHash
 	decision := PromptAuditAdmissionDecision{RunRemote: true}
-	if admission, ok := e.repo.(PromptAuditAdmissionRepository); ok {
-		decision, err = admission.PreparePromptAudit(ctx, snapshot.UserID, snapshot.RequestID, snapshot.PromptHash, assessment.RequiresRemoteReview)
+	if cfg.Enforces() {
+		if admission, ok := e.repo.(PromptAuditAdmissionRepository); ok {
+			decision, err = admission.PreparePromptAudit(ctx, snapshot.UserID, snapshot.RequestID, snapshot.PromptHash, assessment.RequiresRemoteReview)
+			if err != nil {
+				decision = PromptAuditAdmissionDecision{RunRemote: true}
+			}
+		}
+	} else if admission, ok := e.repo.(interface {
+		PreparePromptAuditShadow(context.Context, int64, string, bool) (PromptAuditAdmissionDecision, error)
+	}); ok {
+		decision, err = admission.PreparePromptAuditShadow(ctx, snapshot.UserID, snapshot.RequestID, assessment.RequiresRemoteReview)
 		if err != nil {
-			// Fail open into remote audit. A profile lookup failure must not silently
-			// turn off prompt auditing.
 			decision = PromptAuditAdmissionDecision{RunRemote: true}
 		}
 	}

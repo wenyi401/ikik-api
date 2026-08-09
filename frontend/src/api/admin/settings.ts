@@ -1289,6 +1289,28 @@ export interface WebSearchTestResult {
   query: string;
 }
 
+export interface OpenAIExperimentalPromptSettings {
+  prompt: string;
+  price_cents: number;
+}
+
+export async function getOpenAIExperimentalPromptSettings(): Promise<OpenAIExperimentalPromptSettings> {
+  const { data } = await apiClient.get<OpenAIExperimentalPromptSettings>(
+    "/admin/settings/openai-experimental-prompt",
+  );
+  return data;
+}
+
+export async function updateOpenAIExperimentalPromptSettings(
+  settings: OpenAIExperimentalPromptSettings,
+): Promise<OpenAIExperimentalPromptSettings> {
+  const { data } = await apiClient.put<OpenAIExperimentalPromptSettings>(
+    "/admin/settings/openai-experimental-prompt",
+    settings,
+  );
+  return data;
+}
+
 export async function getWebSearchEmulationConfig(): Promise<WebSearchEmulationConfig> {
   const { data } = await apiClient.get<WebSearchEmulationConfig>(
     "/admin/settings/web-search-emulation",
@@ -1447,6 +1469,8 @@ export const settingsAPI = {
   updateBetaPolicySettings,
   getWebSearchEmulationConfig,
   updateWebSearchEmulationConfig,
+  getOpenAIExperimentalPromptSettings,
+  updateOpenAIExperimentalPromptSettings,
   testWebSearchEmulation,
   resetWebSearchUsage,
 };

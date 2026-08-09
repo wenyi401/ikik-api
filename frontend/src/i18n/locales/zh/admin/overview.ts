@@ -491,6 +491,10 @@ export default {
       copyPassword: '复制密码',
       creating: '创建中...',
       updating: '更新中...',
+      developerApi: {
+        title: '开发者账号 API',
+        description: '允许该用户创建带权限范围的令牌。所有正常用户默认开启，仅在需要限制时关闭。'
+      },
       columns: {
         user: '用户',
         id: 'ID',
@@ -1061,6 +1065,8 @@ export default {
       },
       openaiMessages: {
         title: 'OpenAI Messages 调度配置',
+        experimentalPromptEnabled: '启用实验性系统指令',
+        experimentalPromptHint: '仅当系统设置已配置指令且用户拥有该权益时注入；只影响命中的 OpenAI 分组。',
         allowDispatch: '允许 /v1/messages 调度',
         allowDispatchHint: '启用后，此 OpenAI 分组的 API Key 可以通过 /v1/messages 端点调度请求',
         familyMappingTitle: '系列默认映射',

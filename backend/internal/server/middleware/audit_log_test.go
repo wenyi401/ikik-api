@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/service"
 )
 
 func TestDeriveAuditAction(t *testing.T) {
@@ -132,12 +132,16 @@ func TestPromptAuditAdminOperationsUseOmittedBodiesAndAllowlistedDetails(t *test
 
 func TestPromptAuditMutationAuditRoutesHaveStableActionsAndOmitBodies(t *testing.T) {
 	expected := map[string]string{
-		"PUT /api/v1/admin/prompt-audit/config":                   "admin.prompt_audit.config.update",
-		"POST /api/v1/admin/prompt-audit/endpoints/probe":         "admin.prompt_audit.endpoint.probe",
-		"DELETE /api/v1/admin/prompt-audit/events/:id":            "admin.prompt_audit.event.delete",
-		"POST /api/v1/admin/prompt-audit/events/batch-delete":     "admin.prompt_audit.events.batch_delete",
-		"POST /api/v1/admin/prompt-audit/events/delete-preview":   "admin.prompt_audit.events.delete_preview",
-		"POST /api/v1/admin/prompt-audit/events/delete-by-filter": "admin.prompt_audit.events.filter_delete",
+		"PUT /api/v1/admin/prompt-audit/config":                            "admin.prompt_audit.config.update",
+		"POST /api/v1/admin/prompt-audit/endpoints/probe":                  "admin.prompt_audit.endpoint.probe",
+		"POST /api/v1/admin/prompt-audit/test":                             "admin.prompt_audit.test",
+		"DELETE /api/v1/admin/prompt-audit/events/:id":                     "admin.prompt_audit.event.delete",
+		"POST /api/v1/admin/prompt-audit/events/batch-delete":              "admin.prompt_audit.events.batch_delete",
+		"POST /api/v1/admin/prompt-audit/events/delete-preview":            "admin.prompt_audit.events.delete_preview",
+		"POST /api/v1/admin/prompt-audit/events/delete-by-filter":          "admin.prompt_audit.events.filter_delete",
+		"POST /api/v1/admin/prompt-audit/knowledge":                        "admin.prompt_audit.knowledge.create",
+		"PUT /api/v1/admin/prompt-audit/knowledge/:id":                     "admin.prompt_audit.knowledge.update",
+		"PUT /api/v1/admin/prompt-audit/knowledge/observations/:id/review": "admin.prompt_audit.observation.review",
 	}
 	for route, action := range expected {
 		require.Equal(t, action, auditActionOverrides[route])

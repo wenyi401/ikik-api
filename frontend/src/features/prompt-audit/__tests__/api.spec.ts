@@ -17,6 +17,10 @@ describe('Prompt Audit API', () => {
     client.get.mockResolvedValue({ data: { process_status: 'running' } })
     await promptAuditAPI.getRuntime()
     expect(client.get).toHaveBeenCalledWith('/admin/prompt-audit/runtime')
+
+    client.post.mockResolvedValue({ data: { result: { decision: 'pass' }, chunk_total: 1, latency_ms: 5 } })
+    await promptAuditAPI.testPrompt('测试提示词')
+    expect(client.post).toHaveBeenCalledWith('/admin/prompt-audit/test', { prompt: '测试提示词' })
   })
 
   it('sends a temporary probe token only in the request and never invents response credentials', async () => {
@@ -40,5 +44,23 @@ describe('Prompt Audit API', () => {
     expect(client.post).toHaveBeenCalledWith('/admin/prompt-audit/events/delete-by-filter', expect.objectContaining({
       snapshot_max_id: 10, filter_hash: 'a'.repeat(64), confirmation_token: 'opaque-token', confirm: true,
     }))
+  })
+
+  it('uses the shadow knowledge routes without any enforcement payload', async () => {
+    client.get.mockResolvedValue({ data: { items: [], total: 0 } })
+    await promptAuditAPI.listKnowledgeObservations({ page: 1, page_size: 20, review_status: 'unreviewed' })
+    expect(client.get).toHaveBeenCalledWith('/admin/prompt-audit/knowledge/observations', {
+      params: { page: 1, page_size: 20, review_status: 'unreviewed' },
+    })
+
+    client.put.mockResolvedValue({ data: { id: 9, review_status: 'confirmed' } })
+    await promptAuditAPI.reviewKnowledgeObservation(9, {
+      status: 'confirmed', topic: 'cheat_development', category: 'cheat_automation', note: '人工确认',
+    })
+    expect(client.put).toHaveBeenCalledWith('/admin/prompt-audit/knowledge/observations/9/review', {
+      status: 'confirmed', topic: 'cheat_development', category: 'cheat_automation', note: '人工确认',
+    })
+    expect(JSON.stringify(client.put.mock.calls.at(-1))).not.toContain('ban')
+    expect(JSON.stringify(client.put.mock.calls.at(-1))).not.toContain('penalty')
   })
 })

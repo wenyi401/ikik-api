@@ -478,7 +478,7 @@ func (s *CarpoolService) ensureNoActiveCarpoolForUser(ctx context.Context, userI
 	return nil
 }
 
-func (s *CarpoolService) ensureUserCarpoolGroupSubscription(ctx context.Context, userID int64, platform string, validityDays int, notes string, riskControl bool) (*Group, *UserSubscription, error) {
+func (s *CarpoolService) ensureUserCarpoolGroupSubscription(ctx context.Context, userID int64, platform string, notes string, riskControl bool) (*Group, *UserSubscription, error) {
 	if s == nil || s.groupRepo == nil || s.userRepo == nil || s.subscriptionService == nil {
 		return nil, nil, ErrServiceUnavailable
 	}
@@ -489,16 +489,16 @@ func (s *CarpoolService) ensureUserCarpoolGroupSubscription(ctx context.Context,
 	if !group.IsActive() || !group.IsSubscriptionType() || group.OwnerUserID == nil || *group.OwnerUserID != userID {
 		return nil, nil, ErrGroupNotAllowed
 	}
-	if validityDays <= 0 {
-		validityDays = group.DefaultValidityDays
-	}
-	if validityDays <= 0 {
-		validityDays = UserCarpoolGroupDefaultValidityDays
+	if group.DefaultValidityDays != UserCarpoolGroupDefaultValidityDays {
+		group.DefaultValidityDays = UserCarpoolGroupDefaultValidityDays
+		if err := s.groupRepo.Update(ctx, group); err != nil {
+			return nil, nil, fmt.Errorf("set permanent user carpool group validity: %w", err)
+		}
 	}
 	sub, _, err := s.subscriptionService.AssignOrExtendSubscription(ctx, &AssignSubscriptionInput{
 		UserID:       userID,
 		GroupID:      group.ID,
-		ValidityDays: validityDays,
+		ValidityDays: UserCarpoolGroupDefaultValidityDays,
 		Notes:        strings.TrimSpace(notes),
 	})
 	if err != nil {
@@ -663,7 +663,7 @@ func (s *CarpoolService) CreatePool(ctx context.Context, ownerUserID int64, req 
 	}
 
 	now := time.Now().UTC()
-	_, sub, err := s.ensureUserCarpoolGroupSubscription(ctx, ownerUserID, platform, req.DurationDays, "carpool owner auto-assignment", pool.RiskControlEnabled)
+	_, sub, err := s.ensureUserCarpoolGroupSubscription(ctx, ownerUserID, platform, "carpool owner auto-assignment", pool.RiskControlEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("assign owner carpool subscription: %w", err)
 	}
@@ -1085,7 +1085,7 @@ func (s *CarpoolService) ConfirmJoinPaid(ctx context.Context, ownerUserID, poolI
 	}
 
 	now := time.Now().UTC()
-	userGroup, sub, err := s.ensureUserCarpoolGroupSubscription(ctx, request.UserID, pool.Platform, pool.DurationDays, fmt.Sprintf("carpool pool %d member activation", poolID), pool.RiskControlEnabled)
+	userGroup, sub, err := s.ensureUserCarpoolGroupSubscription(ctx, request.UserID, pool.Platform, fmt.Sprintf("carpool pool %d member activation", poolID), pool.RiskControlEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("assign carpool member subscription: %w", err)
 	}
@@ -1351,7 +1351,7 @@ func (s *CarpoolService) ensureCarpoolPoolGroup(ctx context.Context, pool *Carpo
 			Scope:               GroupScopePublic,
 			SubscriptionType:    SubscriptionTypeSubscription,
 			WeeklyLimitUSD:      positiveFloat64Ptr(s.carpoolGroupWeeklyLimit(ctx, pool.ID, pool.PerMemberWeeklyLimitUSD)),
-			DefaultValidityDays: pool.DurationDays,
+			DefaultValidityDays: UserCarpoolGroupDefaultValidityDays,
 		}
 		if err := s.groupRepo.Create(ctx, group); err != nil {
 			return pool, nil, repaired, fmt.Errorf("recreate carpool group: %w", err)
@@ -1399,8 +1399,8 @@ func (s *CarpoolService) ensureCarpoolPoolGroup(ctx context.Context, pool *Carpo
 			group.SubscriptionType = SubscriptionTypeSubscription
 			groupChanged = true
 		}
-		if group.DefaultValidityDays <= 0 && pool.DurationDays > 0 {
-			group.DefaultValidityDays = pool.DurationDays
+		if group.DefaultValidityDays != UserCarpoolGroupDefaultValidityDays {
+			group.DefaultValidityDays = UserCarpoolGroupDefaultValidityDays
 			groupChanged = true
 		}
 		expectedWeekly := positiveFloat64Ptr(s.carpoolGroupWeeklyLimit(ctx, pool.ID, pool.PerMemberWeeklyLimitUSD))
@@ -1729,15 +1729,7 @@ func carpoolMemberSubscriptionWindow(pool *CarpoolPool, member CarpoolMember) (t
 	} else if pool != nil && !pool.CreatedAt.IsZero() {
 		startAt = pool.CreatedAt.UTC()
 	}
-	durationDays := 30
-	if pool != nil && pool.DurationDays > 0 {
-		durationDays = pool.DurationDays
-	}
-	expiresAt := startAt.AddDate(0, 0, durationDays)
-	if expiresAt.After(MaxExpiresAt) {
-		expiresAt = MaxExpiresAt
-	}
-	return startAt, expiresAt
+	return startAt, MaxExpiresAt
 }
 
 func (s *CarpoolService) requireOwnerPool(ctx context.Context, ownerUserID, poolID int64) (*CarpoolPool, error) {

@@ -2,7 +2,6 @@ package service
 
 import (
 	"fmt"
-
 	"net/smtp"
 )
 
@@ -28,12 +27,32 @@ func (s *EmailService) SendEmailWithConfigAndContentType(config *SMTPConfig, to,
 	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: %s\r\n\r\n%s",
 		from, to, subject, contentType, body)
 
-	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
-	auth := smtp.PlainAuth("", config.Username, config.Password, config.Host)
-
-	if config.UseTLS {
-		return s.sendMailTLS(addr, auth, config.From, to, []byte(msg), config.Host)
+	client, err := s.connectSMTP(config)
+	if err != nil {
+		return err
 	}
+	defer func() { _ = client.Close() }()
 
-	return s.sendMailPlain(addr, auth, config.From, to, []byte(msg), config.Host)
+	auth := smtp.PlainAuth("", config.Username, config.Password, config.Host)
+	if err = client.Auth(auth); err != nil {
+		return fmt.Errorf("smtp auth: %w", err)
+	}
+	if err = client.Mail(sanitizeEmailHeader(config.From)); err != nil {
+		return fmt.Errorf("smtp mail: %w", err)
+	}
+	if err = client.Rcpt(to); err != nil {
+		return fmt.Errorf("smtp rcpt: %w", err)
+	}
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("smtp data: %w", err)
+	}
+	if _, err = w.Write([]byte(msg)); err != nil {
+		return fmt.Errorf("write msg: %w", err)
+	}
+	if err = w.Close(); err != nil {
+		return fmt.Errorf("close writer: %w", err)
+	}
+	_ = client.Quit()
+	return nil
 }

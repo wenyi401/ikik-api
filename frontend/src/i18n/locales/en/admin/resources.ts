@@ -250,7 +250,10 @@ export default {
       concurrency: 'Concurrency',
       subscription: 'Subscription',
       invitation: 'Invitation',
+      feature: 'Feature entitlement',
       invitationHint: 'Invitation codes are used to restrict user registration. They are automatically marked as used after use.',
+      openaiExperimentalPrompt: 'OpenAI experimental instruction',
+      openaiExperimentalPromptHint: 'Users can unlock the OpenAI experimental system instruction from their profile after redeeming this code. The instruction and price are configured in system settings.',
       unused: 'Unused',
       used: 'Used',
       columns: {
@@ -316,6 +319,7 @@ export default {
         concurrency: 'Concurrency',
         subscription: 'Subscription',
         invitation: 'Invitation',
+        feature: 'Feature entitlement',
         // Admin adjustment types (created when admin modifies user balance/concurrency)
         admin_balance: 'Balance (Admin)',
         admin_concurrency: 'Concurrency (Admin)'

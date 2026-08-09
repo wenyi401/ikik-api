@@ -36,8 +36,17 @@ type fakeAdmissionPromptEngine struct {
 	err     error
 }
 
+type fakeEnforcementAdmissionPromptEngine struct {
+	*fakeAdmissionPromptEngine
+	enforcementMode EnforcementMode
+}
+
 func (f *fakeAdmissionPromptEngine) IsPromptAuditUserBlocked(context.Context, int64) (bool, error) {
 	return f.blocked, f.err
+}
+
+func (f *fakeEnforcementAdmissionPromptEngine) PromptAuditEnforcementMode() EnforcementMode {
+	return f.enforcementMode
 }
 
 func (f *fakePromptEngine) EffectiveMode() Mode { return f.mode }
@@ -96,6 +105,23 @@ func TestCoordinatorBlocksPromptAuditQuarantinedUserBeforeDispatch(t *testing.T)
 	require.False(t, decision.AllowNextStage)
 	require.Zero(t, legacy.calls.Load())
 	require.Zero(t, prompt.enqueues.Load())
+}
+
+func TestCoordinatorShadowModeIgnoresPromptAuditQuarantine(t *testing.T) {
+	legacy := &fakeLegacyEngine{}
+	prompt := &fakeEnforcementAdmissionPromptEngine{
+		fakeAdmissionPromptEngine: &fakeAdmissionPromptEngine{
+			fakePromptEngine: &fakePromptEngine{mode: ModeAsync},
+			blocked:          true,
+		},
+		enforcementMode: EnforcementShadow,
+	}
+
+	decision := NewCoordinator(legacy, prompt).Check(context.Background(), Request{UserID: 42})
+
+	require.True(t, decision.AllowNextStage)
+	require.Equal(t, int64(1), prompt.enqueues.Load())
+	require.Equal(t, int64(1), legacy.calls.Load())
 }
 
 func TestCoordinatorAdmissionLookupFailureFailsOpen(t *testing.T) {

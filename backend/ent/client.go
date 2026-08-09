@@ -27,6 +27,7 @@ import (
 	"ikik-api/ent/channelmonitorhistory"
 	"ikik-api/ent/channelmonitorrequesttemplate"
 	"ikik-api/ent/compositemodelroute"
+	"ikik-api/ent/developertoken"
 	"ikik-api/ent/emailbroadcast"
 	"ikik-api/ent/errorpassthroughrule"
 	"ikik-api/ent/group"
@@ -105,6 +106,8 @@ type Client struct {
 	ChannelMonitorRequestTemplate *ChannelMonitorRequestTemplateClient
 	// CompositeModelRoute is the client for interacting with the CompositeModelRoute builders.
 	CompositeModelRoute *CompositeModelRouteClient
+	// DeveloperToken is the client for interacting with the DeveloperToken builders.
+	DeveloperToken *DeveloperTokenClient
 	// EmailBroadcast is the client for interacting with the EmailBroadcast builders.
 	EmailBroadcast *EmailBroadcastClient
 	// ErrorPassthroughRule is the client for interacting with the ErrorPassthroughRule builders.
@@ -196,6 +199,7 @@ func (c *Client) init() {
 	c.ChannelMonitorHistory = NewChannelMonitorHistoryClient(c.config)
 	c.ChannelMonitorRequestTemplate = NewChannelMonitorRequestTemplateClient(c.config)
 	c.CompositeModelRoute = NewCompositeModelRouteClient(c.config)
+	c.DeveloperToken = NewDeveloperTokenClient(c.config)
 	c.EmailBroadcast = NewEmailBroadcastClient(c.config)
 	c.ErrorPassthroughRule = NewErrorPassthroughRuleClient(c.config)
 	c.Group = NewGroupClient(c.config)
@@ -336,6 +340,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
 		CompositeModelRoute:           NewCompositeModelRouteClient(cfg),
+		DeveloperToken:                NewDeveloperTokenClient(cfg),
 		EmailBroadcast:                NewEmailBroadcastClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
@@ -403,6 +408,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ChannelMonitorHistory:         NewChannelMonitorHistoryClient(cfg),
 		ChannelMonitorRequestTemplate: NewChannelMonitorRequestTemplateClient(cfg),
 		CompositeModelRoute:           NewCompositeModelRouteClient(cfg),
+		DeveloperToken:                NewDeveloperTokenClient(cfg),
 		EmailBroadcast:                NewEmailBroadcastClient(cfg),
 		ErrorPassthroughRule:          NewErrorPassthroughRuleClient(cfg),
 		Group:                         NewGroupClient(cfg),
@@ -468,8 +474,8 @@ func (c *Client) Use(hooks ...Hook) {
 		c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent,
 		c.BatchImageItem, c.BatchImageJob, c.ChannelMonitor,
 		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
-		c.ChannelMonitorRequestTemplate, c.CompositeModelRoute, c.EmailBroadcast,
-		c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
+		c.ChannelMonitorRequestTemplate, c.CompositeModelRoute, c.DeveloperToken,
+		c.EmailBroadcast, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
 		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
 		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
 		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.ShopBalanceLedger,
@@ -490,8 +496,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent,
 		c.BatchImageItem, c.BatchImageJob, c.ChannelMonitor,
 		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
-		c.ChannelMonitorRequestTemplate, c.CompositeModelRoute, c.EmailBroadcast,
-		c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
+		c.ChannelMonitorRequestTemplate, c.CompositeModelRoute, c.DeveloperToken,
+		c.EmailBroadcast, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
 		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
 		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
 		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.ShopBalanceLedger,
@@ -539,6 +545,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ChannelMonitorRequestTemplate.mutate(ctx, m)
 	case *CompositeModelRouteMutation:
 		return c.CompositeModelRoute.mutate(ctx, m)
+	case *DeveloperTokenMutation:
+		return c.DeveloperToken.mutate(ctx, m)
 	case *EmailBroadcastMutation:
 		return c.EmailBroadcast.mutate(ctx, m)
 	case *ErrorPassthroughRuleMutation:
@@ -3154,6 +3162,157 @@ func (c *CompositeModelRouteClient) mutate(ctx context.Context, m *CompositeMode
 		return (&CompositeModelRouteDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown CompositeModelRoute mutation op: %q", m.Op())
+	}
+}
+
+// DeveloperTokenClient is a client for the DeveloperToken schema.
+type DeveloperTokenClient struct {
+	config
+}
+
+// NewDeveloperTokenClient returns a client for the DeveloperToken from the given config.
+func NewDeveloperTokenClient(c config) *DeveloperTokenClient {
+	return &DeveloperTokenClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `developertoken.Hooks(f(g(h())))`.
+func (c *DeveloperTokenClient) Use(hooks ...Hook) {
+	c.hooks.DeveloperToken = append(c.hooks.DeveloperToken, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `developertoken.Intercept(f(g(h())))`.
+func (c *DeveloperTokenClient) Intercept(interceptors ...Interceptor) {
+	c.inters.DeveloperToken = append(c.inters.DeveloperToken, interceptors...)
+}
+
+// Create returns a builder for creating a DeveloperToken entity.
+func (c *DeveloperTokenClient) Create() *DeveloperTokenCreate {
+	mutation := newDeveloperTokenMutation(c.config, OpCreate)
+	return &DeveloperTokenCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of DeveloperToken entities.
+func (c *DeveloperTokenClient) CreateBulk(builders ...*DeveloperTokenCreate) *DeveloperTokenCreateBulk {
+	return &DeveloperTokenCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *DeveloperTokenClient) MapCreateBulk(slice any, setFunc func(*DeveloperTokenCreate, int)) *DeveloperTokenCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &DeveloperTokenCreateBulk{err: fmt.Errorf("calling to DeveloperTokenClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*DeveloperTokenCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &DeveloperTokenCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for DeveloperToken.
+func (c *DeveloperTokenClient) Update() *DeveloperTokenUpdate {
+	mutation := newDeveloperTokenMutation(c.config, OpUpdate)
+	return &DeveloperTokenUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *DeveloperTokenClient) UpdateOne(_m *DeveloperToken) *DeveloperTokenUpdateOne {
+	mutation := newDeveloperTokenMutation(c.config, OpUpdateOne, withDeveloperToken(_m))
+	return &DeveloperTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *DeveloperTokenClient) UpdateOneID(id int64) *DeveloperTokenUpdateOne {
+	mutation := newDeveloperTokenMutation(c.config, OpUpdateOne, withDeveloperTokenID(id))
+	return &DeveloperTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for DeveloperToken.
+func (c *DeveloperTokenClient) Delete() *DeveloperTokenDelete {
+	mutation := newDeveloperTokenMutation(c.config, OpDelete)
+	return &DeveloperTokenDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *DeveloperTokenClient) DeleteOne(_m *DeveloperToken) *DeveloperTokenDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *DeveloperTokenClient) DeleteOneID(id int64) *DeveloperTokenDeleteOne {
+	builder := c.Delete().Where(developertoken.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &DeveloperTokenDeleteOne{builder}
+}
+
+// Query returns a query builder for DeveloperToken.
+func (c *DeveloperTokenClient) Query() *DeveloperTokenQuery {
+	return &DeveloperTokenQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeDeveloperToken},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a DeveloperToken entity by its id.
+func (c *DeveloperTokenClient) Get(ctx context.Context, id int64) (*DeveloperToken, error) {
+	return c.Query().Where(developertoken.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *DeveloperTokenClient) GetX(ctx context.Context, id int64) *DeveloperToken {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a DeveloperToken.
+func (c *DeveloperTokenClient) QueryUser(_m *DeveloperToken) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(developertoken.Table, developertoken.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, developertoken.UserTable, developertoken.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *DeveloperTokenClient) Hooks() []Hook {
+	hooks := c.hooks.DeveloperToken
+	return append(hooks[:len(hooks):len(hooks)], developertoken.Hooks[:]...)
+}
+
+// Interceptors returns the client interceptors.
+func (c *DeveloperTokenClient) Interceptors() []Interceptor {
+	inters := c.inters.DeveloperToken
+	return append(inters[:len(inters):len(inters)], developertoken.Interceptors[:]...)
+}
+
+func (c *DeveloperTokenClient) mutate(ctx context.Context, m *DeveloperTokenMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&DeveloperTokenCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&DeveloperTokenUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&DeveloperTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&DeveloperTokenDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown DeveloperToken mutation op: %q", m.Op())
 	}
 }
 
@@ -7362,6 +7521,22 @@ func (c *UserClient) QueryAPIKeys(_m *User) *APIKeyQuery {
 	return query
 }
 
+// QueryDeveloperTokens queries the developer_tokens edge of a User.
+func (c *UserClient) QueryDeveloperTokens(_m *User) *DeveloperTokenQuery {
+	query := (&DeveloperTokenClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(developertoken.Table, developertoken.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.DeveloperTokensTable, user.DeveloperTokensColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryRedeemCodes queries the redeem_codes edge of a User.
 func (c *UserClient) QueryRedeemCodes(_m *User) *RedeemCodeQuery {
 	query := (&RedeemCodeClient{config: c.config}).Query()
@@ -8598,7 +8773,7 @@ type (
 		AuthIdentity, AuthIdentityChannel, BatchImageEvent, BatchImageItem,
 		BatchImageJob, ChannelMonitor, ChannelMonitorDailyRollup,
 		ChannelMonitorHistory, ChannelMonitorRequestTemplate, CompositeModelRoute,
-		EmailBroadcast, ErrorPassthroughRule, Group, IdempotencyRecord,
+		DeveloperToken, EmailBroadcast, ErrorPassthroughRule, Group, IdempotencyRecord,
 		IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
 		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
 		RedeemCode, SecuritySecret, Setting, ShopBalanceLedger, ShopCardKey,
@@ -8612,7 +8787,7 @@ type (
 		AuthIdentity, AuthIdentityChannel, BatchImageEvent, BatchImageItem,
 		BatchImageJob, ChannelMonitor, ChannelMonitorDailyRollup,
 		ChannelMonitorHistory, ChannelMonitorRequestTemplate, CompositeModelRoute,
-		EmailBroadcast, ErrorPassthroughRule, Group, IdempotencyRecord,
+		DeveloperToken, EmailBroadcast, ErrorPassthroughRule, Group, IdempotencyRecord,
 		IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
 		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
 		RedeemCode, SecuritySecret, Setting, ShopBalanceLedger, ShopCardKey,

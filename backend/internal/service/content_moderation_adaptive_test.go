@@ -290,7 +290,7 @@ func TestAdaptiveRiskEventOnlyPenalizesAtConfiguredCategoryThreshold(t *testing.
 	}
 	svc := &ContentModerationService{repo: repo}
 	cfg := defaultContentModerationConfig()
-	cfg.AdaptivePolicy.EnforcementMode = ContentModerationEnforcementShadow
+	cfg.AdaptivePolicy.EnforcementMode = ContentModerationEnforcementEnforce
 	cfg.GroupPenalty.Enabled = true
 	cfg.GroupPenalty.TargetGroupIDs = []int64{16}
 	cfg.GroupPenalty.Categories = []string{ContentModerationRiskCategoryCheatAutomation}
@@ -322,6 +322,7 @@ func TestAdaptiveRiskEventEvaluatesEachCategoryIndependently(t *testing.T) {
 	}
 	svc := &ContentModerationService{repo: repo}
 	cfg := defaultContentModerationConfig()
+	cfg.AdaptivePolicy.EnforcementMode = ContentModerationEnforcementEnforce
 	cfg.GroupPenalty.Enabled = true
 	cfg.GroupPenalty.TargetGroupIDs = []int64{16}
 	cfg.GroupPenalty.Categories = []string{ContentModerationRiskCategoryCheatAutomation}
@@ -343,6 +344,29 @@ func TestAdaptiveRiskEventEvaluatesEachCategoryIndependently(t *testing.T) {
 	require.Equal(t, []string{"record", "penalty"}, repo.calls)
 	require.Equal(t, ContentModerationRiskCategoryCheatAutomation, repo.penaltyEvent.Category)
 	require.InDelta(t, 0.91, repo.penaltyEvent.Score, 0.0001)
+}
+
+func TestAdaptiveRiskEventShadowModeNeverAppliesGroupPenalty(t *testing.T) {
+	repo := &contentModerationAdaptiveRiskPenaltyRepoStub{
+		contentModerationTestRepo: &contentModerationTestRepo{},
+		recordApplied:             true,
+		profile:                   &ContentModerationRiskProfile{UserID: 7},
+		penalty:                   &ContentModerationGroupPenalty{UserID: 7, GroupID: 16},
+	}
+	svc := &ContentModerationService{repo: repo}
+	cfg := defaultContentModerationConfig()
+	cfg.AdaptivePolicy.EnforcementMode = ContentModerationEnforcementShadow
+	cfg.GroupPenalty.Enabled = true
+	cfg.GroupPenalty.TargetGroupIDs = []int64{16}
+	cfg.GroupPenalty.Categories = []string{ContentModerationRiskCategoryCheatAutomation}
+	event := &ContentModerationRiskEvent{
+		RequestID: "req-shadow", UserID: 7, Flagged: true,
+		Category: ContentModerationRiskCategoryCheatAutomation, Score: 1,
+	}
+
+	svc.recordAdaptiveRiskEvent(context.Background(), cfg, event)
+
+	require.Equal(t, []string{"record"}, repo.calls)
 }
 
 func TestDecayContentModerationRiskScore(t *testing.T) {

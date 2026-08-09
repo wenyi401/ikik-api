@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/pagination"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 )
 
 type userHandlerRepoStub struct {
@@ -178,6 +178,80 @@ func TestUserHandlerUpdateProfileReturnsAvatarURL(t *testing.T) {
 	require.Equal(t, 0, resp.Code)
 	require.Equal(t, "https://cdn.example.com/avatar.png", resp.Data.AvatarURL)
 	require.Equal(t, "handler-avatar", resp.Data.Username)
+}
+
+func TestUserHandlerUpdateProfileReturnsOnboardingMode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &userHandlerRepoStub{
+		user: &service.User{
+			ID:             12,
+			Email:          "guide@example.com",
+			Username:       "guide-user",
+			Role:           service.RoleUser,
+			Status:         service.StatusActive,
+			OnboardingMode: "unset",
+		},
+	}
+	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil, nil, nil)
+
+	body := []byte(`{"onboarding_mode":"beginner"}`)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/user", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 12})
+
+	handler.UpdateProfile(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var resp struct {
+		Code int `json:"code"`
+		Data struct {
+			OnboardingMode string `json:"onboarding_mode"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, 0, resp.Code)
+	require.Equal(t, "beginner", resp.Data.OnboardingMode)
+}
+
+func TestUserHandlerUpdateProfileReturnsShareCardCustomization(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &userHandlerRepoStub{
+		user: &service.User{
+			ID:                 13,
+			Email:              "share-card@example.com",
+			Username:           "share-card-user",
+			Role:               service.RoleUser,
+			Status:             service.StatusActive,
+			ShareCardTextColor: "#08775c",
+		},
+	}
+	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), nil, nil, nil, nil, nil)
+
+	body := []byte(`{"share_card_text":"持续创造","share_card_text_color":"#2563EB"}`)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/user", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 13})
+
+	handler.UpdateProfile(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var resp struct {
+		Code int `json:"code"`
+		Data struct {
+			ShareCardText      string `json:"share_card_text"`
+			ShareCardTextColor string `json:"share_card_text_color"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, 0, resp.Code)
+	require.Equal(t, "持续创造", resp.Data.ShareCardText)
+	require.Equal(t, "#2563eb", resp.Data.ShareCardTextColor)
 }
 
 func TestUserHandlerGetProfileReturnsIdentitySummaries(t *testing.T) {

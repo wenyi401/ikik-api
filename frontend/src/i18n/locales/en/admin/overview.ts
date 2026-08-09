@@ -491,6 +491,10 @@ export default {
       copyPassword: 'Copy password',
       creating: 'Creating...',
       updating: 'Updating...',
+      developerApi: {
+        title: 'Developer account API',
+        description: 'Allow this user to create scoped tokens. Enabled by default for all active users; disable only when access must be restricted.'
+      },
       form: {
         emailLabel: 'Email',
         emailPlaceholder: 'Enter email',
@@ -1063,6 +1067,8 @@ export default {
       },
       openaiMessages: {
         title: 'OpenAI Messages Dispatch',
+        experimentalPromptEnabled: 'Enable experimental system instruction',
+        experimentalPromptHint: 'Injected only when the system instruction is configured and the user owns the feature; applies only to this OpenAI group.',
         allowDispatch: 'Allow /v1/messages dispatch',
         allowDispatchHint: 'When enabled, API keys in this OpenAI group can dispatch requests through /v1/messages endpoint',
         familyMappingTitle: 'Family Default Mapping',

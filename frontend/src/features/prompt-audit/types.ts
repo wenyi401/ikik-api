@@ -1,4 +1,5 @@
 export type PromptAuditMode = 'off' | 'async_audit' | 'blocking'
+export type PromptAuditEnforcementMode = 'shadow' | 'enforce'
 export type PromptDecision = 'pass' | 'flag' | 'critical'
 export type PromptRiskLevel = 'low' | 'medium' | 'high' | 'critical'
 
@@ -23,6 +24,9 @@ export interface PromptAuditEndpointDraft extends PromptAuditEndpoint {
 export interface PromptAuditConfig {
   enabled: boolean
   blocking_enabled: boolean
+  blocking_latest_turn_only: boolean
+  async_latest_user_only: boolean
+  enforcement_mode: PromptAuditEnforcementMode
   store_pass_events: boolean
   effective_mode: PromptAuditMode
   strategy: 'priority'
@@ -46,6 +50,9 @@ export interface PromptAuditUpdateRequest {
   expected_config_version: number
   enabled: boolean
   blocking_enabled: boolean
+  blocking_latest_turn_only: boolean
+  async_latest_user_only: boolean
+  enforcement_mode: PromptAuditEnforcementMode
   store_pass_events: boolean
   strategy: 'priority'
   worker_count: number
@@ -77,6 +84,28 @@ export interface PromptProbeResult {
   retryable: boolean
   checked_at: string
   token_applied: boolean
+}
+
+export interface PromptAuditTestResult {
+  result: {
+    decision: PromptDecision
+    risk_level: PromptRiskLevel
+    action: 'Allow' | 'Warn' | 'Block'
+    safety: string
+    categories: string[]
+    matched_scanners: string[]
+    scanner_scores: Record<string, number>
+    scanner_evidence: Record<string, string>
+    scanner_backend: string
+    scanner_version: string
+    guard_endpoint_id: string
+    policy_id: string
+    policy_version: number
+    chunk_total: number
+    latency_ms: number
+  }
+  chunk_total: number
+  latency_ms: number
 }
 
 export interface PromptQueueStats {
@@ -267,4 +296,151 @@ export interface PromptLoadErrors {
   groups: string
   events: string
 	profiles: string
+}
+
+export type RiskKnowledgeTopic =
+  | 'cheat_development' | 'cheat_usage' | 'reverse_engineering' | 'license_cracking'
+  | 'detection_bypass' | 'account_automation' | 'third_party_scripts'
+  | 'credential_abuse' | 'benign_research'
+export type RiskDomainCategory =
+  | 'none' | 'cheat_automation' | 'auth_reverse_engineering' | 'exploit_reverse_engineering'
+  | 'credential_theft' | 'safety_bypass' | 'account_automation' | 'cyber_abuse'
+export type RiskKnowledgeDisposition = 'safe' | 'review' | 'risk'
+export type RiskKnowledgeIntent = 'neutral' | 'educational' | 'defensive' | 'operational' | 'evasion' | 'unknown'
+export type RiskKnowledgeActionability = 'none' | 'low' | 'medium' | 'high'
+export type RiskKnowledgeAuthorization = 'authorized' | 'unauthorized' | 'unknown'
+export type RiskObservationReviewStatus = 'unreviewed' | 'confirmed' | 'false_positive' | 'inconclusive'
+
+export interface RiskKnowledgeEntry {
+  id: number
+  entry_key: string
+  topic: RiskKnowledgeTopic
+  category: RiskDomainCategory
+  disposition: RiskKnowledgeDisposition
+  intent: RiskKnowledgeIntent
+  actionability: RiskKnowledgeActionability
+  authorization: RiskKnowledgeAuthorization
+  language: 'zh' | 'en' | 'multilingual'
+  title: string
+  example_text: string
+  aliases: string[]
+  rationale: string
+  enabled: boolean
+  source_type: 'seed' | 'admin' | 'audit_review'
+  source_event_id?: number
+  revision: number
+  created_by?: number
+  updated_by?: number
+  created_at: string
+  updated_at: string
+}
+
+export type RiskKnowledgeWriteInput = Omit<RiskKnowledgeEntry,
+  'id' | 'entry_key' | 'revision' | 'created_by' | 'updated_by' | 'created_at' | 'updated_at'>
+
+export interface RiskKnowledgeSummary {
+  version: number
+  total: number
+  enabled: number
+  risk: number
+  safe: number
+  review: number
+  unreviewed_observations: number
+  topic_counts: Record<string, number>
+  last_updated?: string
+}
+
+export interface RiskKnowledgeEntryPage {
+  items: RiskKnowledgeEntry[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+  version: number
+}
+
+export interface RiskKnowledgeMatch {
+  entry_id: number
+  entry_key: string
+  topic: RiskKnowledgeTopic
+  category: RiskDomainCategory
+  disposition: RiskKnowledgeDisposition
+  intent: RiskKnowledgeIntent
+  actionability: RiskKnowledgeActionability
+  authorization: RiskKnowledgeAuthorization
+  score: number
+  evidence: string
+  title: string
+}
+
+export interface RiskObservation {
+  id: number
+  request_id: string
+  user_id?: number
+  group_id?: number
+  incident_fingerprint: string
+  candidate: {
+    review: boolean
+    signals: string[]
+    confidence: number
+    knowledge_version: number
+    knowledge_matches: RiskKnowledgeMatch[]
+  }
+  adjudication: {
+    schema_version: number
+    verdict: 'safe' | 'review' | 'confirmed' | 'abstain'
+    category: RiskDomainCategory
+    intent: RiskKnowledgeIntent
+    actionability: RiskKnowledgeActionability
+    authorization: RiskKnowledgeAuthorization
+    confidence: number
+    evidence: Array<{ quote: string; signal: string }>
+    reason_code: string
+    model?: string
+  }
+  recommendation: string
+  would_protect: boolean
+  would_strike: boolean
+  reason_code: string
+  policy_version: number
+  adjudicator_model: string
+  knowledge_version: number
+  knowledge_match_ids: number[]
+  mode: 'shadow'
+  review_status: RiskObservationReviewStatus
+  review_label?: {
+    topic?: RiskKnowledgeTopic
+    category?: RiskDomainCategory
+    disposition?: RiskKnowledgeDisposition
+  }
+  reviewed_by?: number
+  reviewed_at?: string
+  review_note: string
+  observed_at: string
+  created_at: string
+  audit: {
+    event_id?: number
+    username: string
+    group_name: string
+    model: string
+    redacted_preview: string
+    full_prompt: string
+    guard_decision: string
+    guard_risk_level: string
+  }
+}
+
+export interface RiskObservationPage {
+  items: RiskObservation[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface RiskObservationReviewInput {
+  status: Exclude<RiskObservationReviewStatus, 'unreviewed'>
+  topic?: RiskKnowledgeTopic
+  category?: RiskDomainCategory
+  note: string
 }

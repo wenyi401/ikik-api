@@ -410,20 +410,89 @@ type ContentModerationRiskRepository interface {
 }
 
 type ContentModerationGroupPenalty struct {
-	UserID        int64
-	GroupID       int64
-	StrikeCount   int
-	BlockedUntil  *time.Time
-	Permanent     bool
-	LastCategory  string
-	LastRequestID string
-	LastScore     float64
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	UserID        int64      `json:"user_id"`
+	GroupID       int64      `json:"group_id"`
+	StrikeCount   int        `json:"strike_count"`
+	BlockedUntil  *time.Time `json:"blocked_until,omitempty"`
+	Permanent     bool       `json:"permanent"`
+	LastCategory  string     `json:"last_category"`
+	LastRequestID string     `json:"last_request_id"`
+	LastScore     float64    `json:"last_score"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
+
+type ContentModerationGroupPenaltyRecord struct {
+	ContentModerationGroupPenalty
+	UserEmail     string `json:"user_email"`
+	Username      string `json:"username"`
+	UserStatus    string `json:"user_status"`
+	GroupName     string `json:"group_name"`
+	GroupPlatform string `json:"group_platform"`
+	Active        bool   `json:"active"`
+}
+
+type ContentModerationGroupPenaltyEvent struct {
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id"`
+	GroupID   int64     `json:"group_id"`
+	RequestID string    `json:"request_id"`
+	Category  string    `json:"category"`
+	Score     float64   `json:"score"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ContentModerationGroupPenaltyOverview struct {
+	Total       int64 `json:"total"`
+	Active      int64 `json:"active"`
+	Expired     int64 `json:"expired"`
+	Permanent   int64 `json:"permanent"`
+	TodayEvents int64 `json:"today_events"`
+}
+
+type ContentModerationGroupPenaltyFilter struct {
+	Pagination pagination.PaginationParams
+	Status     string
+	Search     string
+	Category   string
+	GroupID    *int64
+}
+
+type ContentModerationGroupPenaltiesPage struct {
+	Items    []ContentModerationGroupPenaltyRecord `json:"items"`
+	Overview ContentModerationGroupPenaltyOverview `json:"overview"`
+	Total    int64                                 `json:"total"`
+	Page     int                                   `json:"page"`
+	PageSize int                                   `json:"page_size"`
+	Pages    int                                   `json:"pages"`
+}
+
+type ContentModerationGroupPenaltyEventsPage struct {
+	Items    []ContentModerationGroupPenaltyEvent `json:"items"`
+	Total    int64                                `json:"total"`
+	Page     int                                  `json:"page"`
+	PageSize int                                  `json:"page_size"`
+	Pages    int                                  `json:"pages"`
+}
+
+type ContentModerationGroupPenaltyActionResult struct {
+	UserID      int64 `json:"user_id"`
+	GroupID     int64 `json:"group_id"`
+	Affected    bool  `json:"affected"`
+	StrikeCount int   `json:"strike_count"`
 }
 
 type ContentModerationGroupPenaltyRepository interface {
 	ApplyUserGroupPenaltyForRisk(ctx context.Context, event ContentModerationRiskEvent, firstBlockHours int, secondBlockHours int) (*ContentModerationGroupPenalty, bool, error)
+}
+
+type ContentModerationGroupPenaltyAdminRepository interface {
+	ListUserGroupPenalties(ctx context.Context, filter ContentModerationGroupPenaltyFilter) ([]ContentModerationGroupPenaltyRecord, *pagination.PaginationResult, error)
+	GetUserGroupPenaltyOverview(ctx context.Context) (*ContentModerationGroupPenaltyOverview, error)
+	ListUserGroupPenaltyEvents(ctx context.Context, userID, groupID int64, params pagination.PaginationParams) ([]ContentModerationGroupPenaltyEvent, *pagination.PaginationResult, error)
+	ReleaseUserGroupPenalty(ctx context.Context, userID, groupID int64) (*ContentModerationGroupPenaltyActionResult, error)
+	ResetUserGroupPenalty(ctx context.Context, userID, groupID int64) (*ContentModerationGroupPenaltyActionResult, error)
+	ReleaseAllUserGroupPenalties(ctx context.Context, userID int64) (int64, error)
 }
 
 func (p ContentModerationAdaptivePolicy) SampleRate(profile *ContentModerationRiskProfile) int {
@@ -671,7 +740,7 @@ func (s *ContentModerationService) recordAdaptiveRiskEvent(ctx context.Context, 
 	if !applied || !event.Flagged || profile == nil {
 		return
 	}
-	if cfg.GroupPenalty.Enabled {
+	if cfg.AdaptivePolicy.EnforcementMode == ContentModerationEnforcementEnforce && cfg.GroupPenalty.Enabled {
 		category, score, matched := cfg.GroupPenalty.matchingCategory(event.Category, event.Score, event.CategoryScores)
 		if matched {
 			penaltyEvent := *event
@@ -718,6 +787,71 @@ func (s *ContentModerationService) recordAdaptiveRiskEvent(ctx context.Context, 
 	if disableErr == nil && disabled && s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, event.UserID)
 	}
+}
+
+func (s *ContentModerationService) ListGroupPenalties(ctx context.Context, filter ContentModerationGroupPenaltyFilter) (*ContentModerationGroupPenaltiesPage, error) {
+	repo, ok := s.repo.(ContentModerationGroupPenaltyAdminRepository)
+	if !ok {
+		return nil, fmt.Errorf("content moderation group penalty repository is unavailable")
+	}
+	items, page, err := repo.ListUserGroupPenalties(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	overview, err := repo.GetUserGroupPenaltyOverview(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &ContentModerationGroupPenaltiesPage{
+		Items: items, Overview: *overview, Total: page.Total, Page: page.Page, PageSize: page.PageSize, Pages: page.Pages,
+	}, nil
+}
+
+func (s *ContentModerationService) ListGroupPenaltyEvents(ctx context.Context, userID, groupID int64, params pagination.PaginationParams) (*ContentModerationGroupPenaltyEventsPage, error) {
+	if userID <= 0 || groupID <= 0 {
+		return nil, fmt.Errorf("invalid user or group id")
+	}
+	repo, ok := s.repo.(ContentModerationGroupPenaltyAdminRepository)
+	if !ok {
+		return nil, fmt.Errorf("content moderation group penalty repository is unavailable")
+	}
+	items, page, err := repo.ListUserGroupPenaltyEvents(ctx, userID, groupID, params)
+	if err != nil {
+		return nil, err
+	}
+	return &ContentModerationGroupPenaltyEventsPage{
+		Items: items, Total: page.Total, Page: page.Page, PageSize: page.PageSize, Pages: page.Pages,
+	}, nil
+}
+
+func (s *ContentModerationService) ReleaseGroupPenalty(ctx context.Context, userID, groupID int64) (*ContentModerationGroupPenaltyActionResult, error) {
+	if userID <= 0 || groupID <= 0 {
+		return nil, fmt.Errorf("invalid user or group id")
+	}
+	repo, ok := s.repo.(ContentModerationGroupPenaltyAdminRepository)
+	if !ok {
+		return nil, fmt.Errorf("content moderation group penalty repository is unavailable")
+	}
+	result, err := repo.ReleaseUserGroupPenalty(ctx, userID, groupID)
+	if err == nil && result != nil && result.Affected && s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
+	}
+	return result, err
+}
+
+func (s *ContentModerationService) ResetGroupPenalty(ctx context.Context, userID, groupID int64) (*ContentModerationGroupPenaltyActionResult, error) {
+	if userID <= 0 || groupID <= 0 {
+		return nil, fmt.Errorf("invalid user or group id")
+	}
+	repo, ok := s.repo.(ContentModerationGroupPenaltyAdminRepository)
+	if !ok {
+		return nil, fmt.Errorf("content moderation group penalty repository is unavailable")
+	}
+	result, err := repo.ResetUserGroupPenalty(ctx, userID, groupID)
+	if err == nil && result != nil && result.Affected && s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
+	}
+	return result, err
 }
 
 func (s *ContentModerationService) applyUserGroupPenaltyForRisk(ctx context.Context, event *ContentModerationRiskEvent, policy ContentModerationGroupPenaltyPolicy) {

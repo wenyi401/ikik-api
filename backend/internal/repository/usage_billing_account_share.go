@@ -316,12 +316,8 @@ func resolveAccountShareInvite(ctx context.Context, tx *sql.Tx, cmd *service.Usa
 	if cmd == nil || cmd.BalanceCost <= 0 || !policy.InviteShareRatio.IsPositive() {
 		return accountInviteSnapshot{}, nil
 	}
-	enabled, err := isAccountShareAffiliateEnabled(ctx, tx)
-	if err != nil || !enabled {
-		return accountInviteSnapshot{}, err
-	}
 	var out accountInviteSnapshot
-	err = tx.QueryRowContext(ctx, `
+	err := tx.QueryRowContext(ctx, `
 		SELECT ua.inviter_id,
 			COALESCE(ua.inviter_bound_at, ua.created_at),
 			ua.invite_reward_expires_at
@@ -340,15 +336,6 @@ func resolveAccountShareInvite(ctx context.Context, tx *sql.Tx, cmd *service.Usa
 		return accountInviteSnapshot{}, nil
 	}
 	return out, err
-}
-
-func isAccountShareAffiliateEnabled(ctx context.Context, tx *sql.Tx) (bool, error) {
-	var raw string
-	err := tx.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = $1 LIMIT 1`, service.SettingKeyAffiliateEnabled).Scan(&raw)
-	if errors.Is(err, sql.ErrNoRows) {
-		return service.AffiliateEnabledDefault, nil
-	}
-	return strings.EqualFold(strings.TrimSpace(raw), "true"), err
 }
 
 type accountShareSettlementInput struct {

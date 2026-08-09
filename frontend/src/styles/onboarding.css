@@ -28,6 +28,9 @@
 
 /* 2. Popover Container */
 .driver-popover.theme-tour-popover {
+  --guide-control: #08775c;
+  --guide-control-hover: #065f4a;
+  --guide-control-foreground: #ffffff;
   position: fixed !important;
   z-index: 100000000 !important;
   background-color: #ffffff !important;
@@ -196,11 +199,11 @@
 }
 
 .theme-tour-popover .driver-popover-next-btn {
-  background-color: #10a37f !important;
-  color: #ffffff !important;
+  background-color: var(--guide-control) !important;
+  color: var(--guide-control-foreground) !important;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
 }
-.theme-tour-popover .driver-popover-next-btn:hover { background-color: #0d8f70 !important; }
+.theme-tour-popover .driver-popover-next-btn:hover { background-color: var(--guide-control-hover) !important; }
 
 .theme-tour-popover .driver-popover-prev-btn {
   background-color: white !important;

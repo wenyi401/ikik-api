@@ -1,0 +1,451 @@
+openapi: 3.1.0
+info:
+  title: IKIK Developer Account API
+  version: 1.1.0
+  description: Scoped API for user-owned OAuth account automation and QQ bot read access.
+servers:
+  - url: /api/developer/v1
+security:
+  - developerToken: []
+paths:
+  /health:
+    get:
+      summary: Validate a developer token
+      responses:
+        '200':
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /account-imports:
+    post:
+      summary: Import owned OAuth accounts
+      description: Requires accounts:write. Public mode additionally requires accounts:share.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountImportRequest'
+            examples:
+              openaiRefreshToken:
+                value:
+                  accounts:
+                    - external_id: account-001
+                      name: OpenAI Account
+                      platform: openai
+                      type: oauth
+                      credentials:
+                        refresh_token: '***'
+                  share_mode: public
+                  proxy_id: 123
+      responses:
+        '200':
+          description: Per-item import result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountImportEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /account-tasks/{task_id}:
+    get:
+      summary: Get an owned asynchronous account task
+      description: Requires accounts:read.
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Task status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /accounts:
+    get:
+      summary: List owned accounts
+      description: Requires accounts:read.
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 20 }
+        - name: platform
+          in: query
+          schema: { type: string }
+        - name: type
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: privacy_mode
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Paginated owned accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountListEnvelope'
+  /accounts/{id}:
+    parameters:
+      - $ref: '#/components/parameters/AccountID'
+    get:
+      summary: Get an owned account
+      description: Requires accounts:read.
+      responses:
+        '200':
+          description: Owned account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Delete an owned account
+      description: Requires accounts:write.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /accounts/{id}/sharing:
+    put:
+      summary: Change sharing mode for an owned account
+      description: Requires accounts:share. Public mode returns an asynchronous task.
+      parameters:
+        - $ref: '#/components/parameters/AccountID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [mode]
+              properties:
+                mode:
+                  type: string
+                  enum: [private, public]
+      responses:
+        '200':
+          description: Updated private account or new public-share task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccessEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /bot/profile:
+    get:
+      summary: Get the token owner's bot profile
+      description: Requires bot:access.
+      responses:
+        '200': { $ref: '#/components/responses/GenericSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /bot/usage/stats:
+    get:
+      summary: Get the token owner's dashboard usage summary
+      description: Requires bot:access.
+      responses:
+        '200': { $ref: '#/components/responses/GenericSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /bot/usage/trend:
+    get:
+      summary: Get the token owner's usage trend
+      description: Requires bot:access.
+      parameters:
+        - { name: period, in: query, schema: { type: string, enum: [today, week] } }
+        - { name: start_date, in: query, schema: { type: string, format: date } }
+        - { name: end_date, in: query, schema: { type: string, format: date } }
+        - { name: granularity, in: query, schema: { type: string, enum: [hour, day] } }
+        - { name: timezone, in: query, schema: { type: string } }
+      responses:
+        '200': { $ref: '#/components/responses/GenericSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /bot/channels:
+    get:
+      summary: Get configured channel monitors and matching shared-pool capacity
+      description: Requires bot:access. Returns enabled monitor health plus schedulable account, concurrency, 5-hour, and 7-day quota summaries for matching public shared groups.
+      responses:
+        '200': { $ref: '#/components/responses/GenericSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /bot/channels/openai:
+    get:
+      summary: Get OpenAI service status
+      description: Requires bot:access.
+      responses:
+        '200': { $ref: '#/components/responses/GenericSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /bot/channels/providers:
+    get:
+      summary: Get Claude, Grok, and Gemini service status
+      description: Requires bot:access.
+      responses:
+        '200': { $ref: '#/components/responses/GenericSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /bot/accounts/summary:
+    get:
+      summary: Get owned account counts
+      description: Requires bot:access. Returns counts only, never account details.
+      responses:
+        '200': { $ref: '#/components/responses/GenericSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /bot/sharing:
+    get:
+      summary: Get owned-account sharing status and settlement statistics
+      description: Requires bot:access.
+      parameters:
+        - { name: start_date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: end_date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: granularity, in: query, schema: { type: string, enum: [hour, day, week, month] } }
+      responses:
+        '200': { $ref: '#/components/responses/GenericSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+components:
+  securitySchemes:
+    developerToken:
+      type: http
+      scheme: bearer
+      bearerFormat: ikd_ token
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    AccountID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+  responses:
+    BadRequest:
+      description: Invalid request or missing idempotency key
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Unauthorized:
+      description: Invalid or expired developer token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Forbidden:
+      description: Required scope is missing
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    NotFound:
+      description: Owned resource was not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    GenericSuccess:
+      description: Successful scoped response
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/GenericSuccessEnvelope' }
+  schemas:
+    SuccessEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: { type: integer, const: 0 }
+        message: { type: string, const: success }
+        data: {}
+    GenericSuccessEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+    ErrorEnvelope:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: integer }
+        message: { type: string }
+        reason: { type: string }
+        metadata:
+          type: object
+          additionalProperties: { type: string }
+    HealthEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [status, version]
+              properties:
+                status: { type: string, const: ok }
+                version: { type: string, const: v1 }
+    AccountImportRequest:
+      type: object
+      additionalProperties: false
+      required: [accounts]
+      properties:
+        accounts:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/AccountImportItem'
+        share_mode:
+          type: string
+          enum: [private, public]
+          default: private
+        proxy_id:
+          type: [integer, 'null']
+          format: int64
+    AccountImportItem:
+      type: object
+      additionalProperties: false
+      required: [platform, type, credentials]
+      properties:
+        external_id: { type: string, maxLength: 128 }
+        name: { type: string }
+        notes: { type: string }
+        platform: { type: string }
+        type: { type: string, const: oauth }
+        credentials:
+          type: object
+          additionalProperties: true
+        extra:
+          type: object
+          additionalProperties: true
+    AccountImportResultItem:
+      type: object
+      required: [index, status]
+      properties:
+        index: { type: integer }
+        external_id: { type: string }
+        account_id: { type: integer, format: int64 }
+        status: { type: string, enum: [created, failed] }
+        error_code: { type: string }
+        error: { type: string }
+    AccountImportEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [total, created, failed, items]
+              properties:
+                total: { type: integer }
+                created: { type: integer }
+                failed: { type: integer }
+                items:
+                  type: array
+                  items: { $ref: '#/components/schemas/AccountImportResultItem' }
+                share_task: { $ref: '#/components/schemas/AccountTask' }
+                share_error: { type: string }
+    AccountTask:
+      type: object
+      required: [id, scope, operation, status, total, processed, success, failed, created_by]
+      properties:
+        id: { type: integer, format: int64 }
+        scope: { type: string, const: user }
+        operation: { type: string }
+        status: { type: string, enum: [pending, running, succeeded, failed, canceled] }
+        total: { type: integer }
+        processed: { type: integer }
+        success: { type: integer }
+        failed: { type: integer }
+        created_by: { type: integer, format: int64 }
+        owner_user_id: { type: integer, format: int64 }
+        error_message: { type: [string, 'null'] }
+        items:
+          type: array
+          items: { type: object, additionalProperties: true }
+    TaskEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/AccountTask' }
+    Account:
+      type: object
+      description: Redacted owned-account representation. Credential secrets are never returned by these routes.
+      additionalProperties: true
+      required: [id, name, platform, type]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        platform: { type: string }
+        type: { type: string }
+        share_mode: { type: string }
+        share_status: { type: string }
+    AccountEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: { $ref: '#/components/schemas/Account' }
+    AccountListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [items, total, page, page_size, pages]
+              properties:
+                items:
+                  type: array
+                  items: { $ref: '#/components/schemas/Account' }
+                total: { type: integer, format: int64 }
+                page: { type: integer }
+                page_size: { type: integer }
+                pages: { type: integer }
+    DeleteEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [deleted, account_id]
+              properties:
+                deleted: { type: boolean, const: true }
+                account_id: { type: integer, format: int64 }

@@ -257,6 +257,7 @@ export default {
         concurrency: '并发数',
         subscription: '订阅',
         invitation: '邀请码',
+        feature: '功能权益',
         // 管理员在用户管理页面调整余额/并发时产生的记录
         admin_balance: '余额（管理员）',
         admin_concurrency: '并发数（管理员）'
@@ -266,6 +267,9 @@ export default {
       concurrency: '并发数',
       subscription: '订阅',
       invitation: '邀请码',
+      feature: '功能权益',
+      openaiExperimentalPrompt: 'OpenAI 实验性指令',
+      openaiExperimentalPromptHint: '生成兑换后，用户可在个人中心解锁 OpenAI 实验性系统指令。指令内容和价格由系统设置统一配置。',
       invitationHint: '邀请码用于限制用户注册，使用后自动标记为已使用。',
       allTypes: '全部类型',
       allStatus: '全部状态',

@@ -19,10 +19,13 @@ const mockUser = {
   concurrency: 10,
   rpm_limit: 0,
   status: 'active',
+  share_card_text: '保持好奇，持续创造',
+  share_card_text_color: '#08775c',
   allowed_groups: null,
   balance_notify_enabled: false,
   balance_notify_threshold: null,
   balance_notify_extra_emails: [],
+  openai_experimental_prompt_unlocked: false,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
   run_mode: 'standard'
@@ -55,6 +58,7 @@ const mockGroups = [
     },
     require_oauth_only: false,
     require_privacy_set: false,
+    openai_experimental_prompt_enabled: true,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z'
   },
@@ -84,6 +88,7 @@ const mockGroups = [
     },
     require_oauth_only: false,
     require_privacy_set: false,
+    openai_experimental_prompt_enabled: false,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z'
   }
@@ -146,6 +151,25 @@ let mockBatchTaskID = 1
 let mockApiKeyID = 2000
 let mockUsageLogID = 3000
 let mockPromptSubmissionID = 3
+let mockRedeemCodeID = 1
+let mockExperimentalPromptSettings = {
+  prompt: '请优先遵循当前分组配置的实验性系统指令，并保持回答准确、清晰。',
+  price_cents: 660
+}
+const mockRedeemCodes: Array<Record<string, unknown>> = [
+  {
+    id: mockRedeemCodeID,
+    code: 'IKIK-OPENAI-LOCAL',
+    type: 'feature',
+    value: 0,
+    status: 'unused',
+    used_by: null,
+    used_at: null,
+    feature_key: 'openai_experimental_prompt',
+    created_at: '2026-08-08T00:00:00Z',
+    updated_at: '2026-08-08T00:00:00Z'
+  }
+]
 let mockPromptTranslationConfig = {
   enabled: true,
   group_id: 1,
@@ -270,7 +294,31 @@ let mockRiskConfig: Record<string, unknown> = {
     high_risk_threshold: 60,
     critical_threshold: 80,
     notification_cooldown_hours: 24
-  }
+  },
+  group_penalty: {
+    enabled: true,
+    target_group_ids: [1],
+    categories: ['gateway_abuse/account_automation', 'gateway_abuse/auth_reverse_engineering', 'gateway_abuse/exploit_reverse_engineering', 'gateway_abuse/cheat_automation'],
+    category_thresholds: {
+      'gateway_abuse/account_automation': 0.8,
+      'gateway_abuse/auth_reverse_engineering': 0.8,
+      'gateway_abuse/exploit_reverse_engineering': 0.82,
+      'gateway_abuse/cheat_automation': 0.82
+    },
+    first_block_hours: 24,
+    second_block_hours: 36
+  },
+  group_penalty_category_options: [
+    { category: 'gateway_abuse/safety_bypass', label_zh: '安全绕过', label_en: 'Safety bypass' },
+    { category: 'gateway_abuse/credential_theft', label_zh: '凭据窃取', label_en: 'Credential theft' },
+    { category: 'gateway_abuse/account_automation', label_zh: '账号自动化或第三方脚本', label_en: 'Account automation or third-party scripting' },
+    { category: 'gateway_abuse/auth_reverse_engineering', label_zh: '认证机制逆向', label_en: 'Authentication reverse engineering' },
+    { category: 'gateway_abuse/exploit_reverse_engineering', label_zh: '漏洞利用逆向', label_en: 'Exploit reverse engineering' },
+    { category: 'gateway_abuse/cheat_automation', label_zh: '外挂或作弊自动化', label_en: 'Cheat or game automation' },
+    { category: 'policy/violence_terrorism_or_hate', label_zh: '暴力、恐怖主义或仇恨内容', label_en: 'Violence, terrorism or hate content' },
+    { category: 'policy/weapons', label_zh: '武器相关内容', label_en: 'Weapons-related content' },
+    { category: 'policy/cyber_abuse', label_zh: '网络攻击或暴力破解', label_en: 'Cyber abuse or brute-force attacks' }
+  ]
 }
 
 const mockRiskProfiles: Array<Record<string, unknown>> = [
@@ -302,6 +350,53 @@ const mockRiskProfiles: Array<Record<string, unknown>> = [
     score_updated_at: nowISO(), created_at: nowISO(), updated_at: nowISO()
   }
 ]
+
+const mockGroupPenalties: Array<Record<string, unknown>> = [
+  {
+    user_id: 128, user_email: 'critical@example.com', username: 'critical-user', user_status: 'active',
+    group_id: 1, group_name: 'OpenAI Local', group_platform: 'openai', strike_count: 2,
+    blocked_until: new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString(), permanent: false,
+    last_category: 'gateway_abuse/cheat_automation', last_request_id: 'req-local-risk-2', last_score: 0.96,
+    active: true, created_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(), updated_at: nowISO()
+  },
+  {
+    user_id: 109, user_email: 'watch@example.com', username: 'watch-user', user_status: 'active',
+    group_id: 1, group_name: 'OpenAI Local', group_platform: 'openai', strike_count: 1,
+    blocked_until: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), permanent: false,
+    last_category: 'gateway_abuse/auth_reverse_engineering', last_request_id: 'req-local-risk-1', last_score: 0.88,
+    active: false, created_at: new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString()
+  }
+]
+
+const mockGroupPenaltyEvents: Array<Record<string, unknown>> = [
+  { id: 1, user_id: 109, group_id: 1, request_id: 'req-local-risk-1', category: 'gateway_abuse/auth_reverse_engineering', score: 0.88, created_at: new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString() },
+  { id: 2, user_id: 128, group_id: 1, request_id: 'req-local-risk-2', category: 'gateway_abuse/cheat_automation', score: 0.96, created_at: nowISO() }
+]
+
+let mockPromptAuditConfig: Record<string, unknown> = {
+  enabled: true,
+  blocking_enabled: false,
+  blocking_latest_turn_only: false,
+  async_latest_user_only: true,
+  enforcement_mode: 'shadow',
+  store_pass_events: false,
+  effective_mode: 'async_audit',
+  strategy: 'priority',
+  worker_count: 4,
+  queue_capacity: 1000,
+  scanners: ['violent', 'non_violent_illegal_acts', 'sexual_content_or_sexual_acts', 'pii', 'suicide_and_self_harm', 'unethical_acts', 'politically_sensitive_topics', 'copyright_violation', 'jailbreak'],
+  all_groups: true,
+  group_ids: [],
+  endpoints: [{
+    id: 'guard-local', name: '本地 Qwen3Guard', protocol: 'openai_compatible', base_url: 'http://127.0.0.1:8000',
+    model: 'sileader/qwen3guard:0.6b', timeout_ms: 3000, input_limit: 4000, enabled: true,
+    has_token: false, token_status: 'missing'
+  }],
+  config_version: 1,
+  updated_at: nowISO(),
+  updated_by: 1,
+  change_summary: '{}'
+}
 
 function nowISO(): string {
   return new Date().toISOString()
@@ -429,23 +524,49 @@ function resolveMockGroup(groupId: unknown): Record<string, unknown> | null {
   return mockGroups.find((group) => group.id === Number(groupId)) || null
 }
 
+function normalizeMockApiKeyRoutes(routes: unknown, fallbackGroup: Record<string, unknown> | null): Array<Record<string, unknown>> {
+  if (!Array.isArray(routes)) {
+    return fallbackGroup ? [{
+      group_id: fallbackGroup.id,
+      priority: 100,
+      weight: 1,
+      enabled: true,
+      cooldown_seconds: 0,
+      group: fallbackGroup
+    }] : []
+  }
+  return routes.map((route) => {
+    const item = route && typeof route === 'object' ? route as Record<string, unknown> : {}
+    const group = resolveMockGroup(item.group_id)
+    return { ...item, group }
+  })
+}
+
+function mockApiKeyRoutesSupportExperimentalPrompt(routes: Array<Record<string, unknown>>): boolean {
+  return routes.some((route) => {
+    const group = route.group && typeof route.group === 'object'
+      ? route.group as Record<string, unknown>
+      : resolveMockGroup(route.group_id)
+    return route.enabled !== false &&
+      group?.platform === 'openai' &&
+      group.openai_experimental_prompt_enabled === true
+  })
+}
+
 function createMockApiKey(payload: Record<string, unknown> = {}): Record<string, unknown> {
   const createdAt = nowISO()
   const group = resolveMockGroup(payload.group_id ?? 1)
+  const groupRoutes = normalizeMockApiKeyRoutes(payload.group_routes, group)
   const key = {
     id: ++mockApiKeyID,
     user_id: mockUser.id,
     key: String(payload.custom_key || `sk-local-${mockApiKeyID.toString(16)}${'a'.repeat(42)}`),
     name: String(payload.name || `Local Key ${mockApiKeyID}`),
     group_id: group ? group.id : null,
-    group_routes: payload.group_routes || (group ? [{
-      group_id: group.id,
-      priority: 100,
-      weight: 1,
-      enabled: true,
-      cooldown_seconds: 0,
-      group
-    }] : []),
+    group_routes: groupRoutes,
+    openai_experimental_prompt_enabled: payload.openai_experimental_prompt_enabled === true &&
+      mockUser.openai_experimental_prompt_unlocked === true &&
+      mockApiKeyRoutesSupportExperimentalPrompt(groupRoutes),
     status: payload.status || 'active',
     ip_whitelist: payload.ip_whitelist || [],
     ip_blacklist: payload.ip_blacklist || [],
@@ -772,6 +893,35 @@ function mockTrend(granularity: string): Array<Record<string, unknown>> {
   })
 }
 
+function mockProfileActivityTrend(startDate: string, endDate: string): Array<Record<string, unknown>> {
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(startDate)
+    ? new Date(`${startDate}T00:00:00`)
+    : new Date(Date.now() - 364 * 24 * 60 * 60 * 1000)
+  const end = /^\d{4}-\d{2}-\d{2}$/.test(endDate)
+    ? new Date(`${endDate}T00:00:00`)
+    : new Date()
+  const trend: Array<Record<string, unknown>> = []
+
+  for (let cursor = new Date(start), index = 0; cursor <= end; cursor.setDate(cursor.getDate() + 1), index += 1) {
+    const active = index % 11 !== 0 && index % 17 !== 0
+    const wave = Math.sin(index / 12) * 0.35 + 0.65
+    const totalTokens = active ? Math.round((32000 + (index % 9) * 14000) * wave) : 0
+    trend.push({
+      date: new Date(cursor).toISOString().slice(0, 10),
+      requests: active ? 3 + (index % 12) : 0,
+      input_tokens: Math.round(totalTokens * 0.64),
+      output_tokens: Math.round(totalTokens * 0.24),
+      cache_creation_tokens: Math.round(totalTokens * 0.04),
+      cache_read_tokens: Math.round(totalTokens * 0.08),
+      total_tokens: totalTokens,
+      cost: Number((totalTokens / 1_000_000 * 2.4).toFixed(4)),
+      actual_cost: Number((totalTokens / 1_000_000 * 1.68).toFixed(4))
+    })
+  }
+
+  return trend
+}
+
 function mockModelStats(): Array<Record<string, unknown>> {
   return [
     {
@@ -1009,6 +1159,105 @@ function localMockApiPlugin(enabled: boolean): Plugin {
           return
         }
 
+        if (path === '/api/v1/user/profile' && req.method === 'GET') {
+          sendJson(res, 200, success(mockUser))
+          return
+        }
+
+        if (path === '/api/v1/user' && req.method === 'PUT') {
+          const body = await readBody(req)
+          const payload = parseJsonBody<{
+            share_card_text?: string
+            share_card_text_color?: string
+          }>(body)
+          if (typeof payload.share_card_text === 'string') {
+            mockUser.share_card_text = payload.share_card_text.trim().slice(0, 80)
+          }
+          if (typeof payload.share_card_text_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(payload.share_card_text_color)) {
+            mockUser.share_card_text_color = payload.share_card_text_color.toLowerCase()
+          }
+          sendJson(res, 200, success(mockUser))
+          return
+        }
+
+        if (path === '/api/v1/features/openai-experimental-prompt' && req.method === 'GET') {
+          sendJson(res, 200, success({
+            feature_key: 'openai_experimental_prompt',
+            unlocked: mockUser.openai_experimental_prompt_unlocked,
+            configured: mockExperimentalPromptSettings.prompt.trim().length > 0,
+            price_cents: mockExperimentalPromptSettings.price_cents
+          }))
+          return
+        }
+
+        if (path === '/api/v1/features/openai-experimental-prompt/purchase' && req.method === 'POST') {
+          if (!mockExperimentalPromptSettings.prompt.trim()) {
+            sendJson(res, 400, { code: 400, message: '该功能尚未配置' })
+            return
+          }
+          if (mockUser.openai_experimental_prompt_unlocked) {
+            sendJson(res, 409, { code: 409, message: '该功能已解锁' })
+            return
+          }
+          const price = mockExperimentalPromptSettings.price_cents / 100
+          if (mockUser.balance < price) {
+            sendJson(res, 400, { code: 400, message: '余额不足' })
+            return
+          }
+          mockUser.balance = Number((mockUser.balance - price).toFixed(2))
+          mockUser.openai_experimental_prompt_unlocked = true
+          sendJson(res, 200, success({
+            feature_key: 'openai_experimental_prompt',
+            unlocked: true,
+            configured: true,
+            price_cents: mockExperimentalPromptSettings.price_cents
+          }))
+          return
+        }
+
+        if (path === '/api/v1/redeem' && req.method === 'POST') {
+          const payload = parseJsonBody<{ code?: string }>(await readBody(req))
+          const code = String(payload.code || '').trim().toUpperCase()
+          const redeemCode = mockRedeemCodes.find(item => String(item.code).toUpperCase() === code)
+          if (!redeemCode || redeemCode.status !== 'unused') {
+            sendJson(res, 400, { code: 400, message: '兑换码无效或已使用' })
+            return
+          }
+          redeemCode.status = 'used'
+          redeemCode.used_by = mockUser.id
+          redeemCode.used_at = nowISO()
+          redeemCode.updated_at = nowISO()
+          if (redeemCode.type === 'feature' && redeemCode.feature_key === 'openai_experimental_prompt') {
+            mockUser.openai_experimental_prompt_unlocked = true
+          }
+          sendJson(res, 200, success({
+            message: '兑换成功',
+            type: redeemCode.type,
+            value: redeemCode.value
+          }))
+          return
+        }
+
+        if (path === '/api/v1/usage/dashboard/trend' && req.method === 'GET') {
+          const startDate = url.searchParams.get('start_date') || ''
+          const endDate = url.searchParams.get('end_date') || ''
+          sendJson(res, 200, success({
+            trend: mockProfileActivityTrend(startDate, endDate),
+            start_date: startDate,
+            end_date: endDate,
+            granularity: url.searchParams.get('granularity') || 'day'
+          }))
+          return
+        }
+
+        if (path === '/api/v1/usage/dashboard/stats' && req.method === 'GET') {
+          sendJson(res, 200, success({
+            ...mockDashboardStats(),
+            total_tokens: 28460000
+          }))
+          return
+        }
+
         if (path === '/api/v1/auth/session') {
           sendJson(res, 401, { code: 401, message: 'no local mock session' })
           return
@@ -1049,6 +1298,167 @@ function localMockApiPlugin(enabled: boolean): Plugin {
 
         if (path === '/api/v1/admin/settings') {
           sendJson(res, 200, success(localPublicSettings(req)))
+          return
+        }
+
+        if (path === '/api/v1/admin/settings/openai-experimental-prompt') {
+          if (req.method === 'PUT') {
+            const payload = parseJsonBody<{ prompt?: string; price_cents?: number }>(await readBody(req))
+            const priceCents = Number(payload.price_cents)
+            if (!Number.isInteger(priceCents) || priceCents < 0 || priceCents > 100000000) {
+              sendJson(res, 400, { code: 400, message: '价格配置无效' })
+              return
+            }
+            mockExperimentalPromptSettings = {
+              prompt: String(payload.prompt || '').trim(),
+              price_cents: priceCents
+            }
+          }
+          sendJson(res, 200, success(mockExperimentalPromptSettings))
+          return
+        }
+
+        if (path === '/api/v1/admin/redeem-codes' && req.method === 'GET') {
+          const type = url.searchParams.get('type')
+          const status = url.searchParams.get('status')
+          const search = String(url.searchParams.get('search') || '').trim().toLowerCase()
+          const items = mockRedeemCodes.filter(item => {
+            if (type && item.type !== type) return false
+            if (status && item.status !== status) return false
+            return !search || String(item.code).toLowerCase().includes(search)
+          })
+          sendJson(res, 200, success(paginateItems(items, url)))
+          return
+        }
+
+        if (path === '/api/v1/admin/redeem-codes/generate' && req.method === 'POST') {
+          const payload = parseJsonBody<{
+            count?: number
+            type?: string
+            value?: number
+            feature_key?: string
+          }>(await readBody(req))
+          const count = Math.min(100, Math.max(1, Math.trunc(Number(payload.count) || 1)))
+          const created = Array.from({ length: count }, (_, index) => {
+            const id = ++mockRedeemCodeID
+            const createdAt = nowISO()
+            const item: Record<string, unknown> = {
+              id,
+              code: `IKIK-LOCAL-${id.toString(36).toUpperCase()}-${(index + 1).toString().padStart(2, '0')}`,
+              type: String(payload.type || 'balance'),
+              value: Number(payload.value || 0),
+              status: 'unused',
+              used_by: null,
+              used_at: null,
+              created_at: createdAt,
+              updated_at: createdAt
+            }
+            if (item.type === 'feature') {
+              item.feature_key = String(payload.feature_key || 'openai_experimental_prompt')
+            }
+            return item
+          })
+          mockRedeemCodes.unshift(...created)
+          sendJson(res, 200, success(created))
+          return
+        }
+
+        if (path === '/api/v1/admin/prompt-audit/config') {
+          if (req.method === 'PUT') {
+            const payload = parseJsonBody(await readBody(req))
+            const endpoints = Array.isArray(payload.endpoints)
+              ? payload.endpoints.map((value) => {
+                  const endpoint = value as Record<string, unknown>
+                  return {
+                    ...endpoint,
+                    has_token: Boolean(endpoint.token) || Boolean(endpoint.has_token),
+                    token_status: endpoint.token ? 'configured' : (endpoint.token_status || 'missing'),
+                    token: undefined,
+                    clear_token: undefined
+                  }
+                })
+              : mockPromptAuditConfig.endpoints
+            const enabled = Boolean(payload.enabled)
+            const enforcementMode = String(payload.enforcement_mode || 'shadow')
+            const blockingEnabled = enabled && enforcementMode === 'enforce' && Boolean(payload.blocking_enabled)
+            mockPromptAuditConfig = {
+              ...mockPromptAuditConfig,
+              ...payload,
+              endpoints,
+              blocking_enabled: blockingEnabled,
+              effective_mode: enabled ? (blockingEnabled ? 'blocking' : 'async_audit') : 'off',
+              config_version: Number(mockPromptAuditConfig.config_version || 1) + 1,
+              updated_at: nowISO(),
+              updated_by: mockUser.id
+            }
+          }
+          sendJson(res, 200, success(mockPromptAuditConfig))
+          return
+        }
+
+        if (path === '/api/v1/admin/prompt-audit/runtime' && req.method === 'GET') {
+          sendJson(res, 200, success({
+            process_status: mockPromptAuditConfig.enabled ? 'running' : 'disabled',
+            effective_mode: mockPromptAuditConfig.effective_mode,
+            expected_config_version: mockPromptAuditConfig.config_version,
+            active_config_version: mockPromptAuditConfig.config_version,
+            config_loaded_at: mockPromptAuditConfig.updated_at,
+            worker_total: mockPromptAuditConfig.worker_count,
+            worker_active: 0,
+            queue_capacity: mockPromptAuditConfig.queue_capacity,
+            queue: { staging: 0, queued: 0, processing: 0, retry: 0, done: 12, failed: 0, active: 0 },
+            processed_total: 12,
+            failed_total: 0,
+            enqueued_total: 12,
+            dropped_total: 0,
+            database_status: 'ok',
+            redis_status: 'ok',
+            endpoints: {},
+            guard_metrics: { total: 12, allowed: 10, flagged: 1, blocked: 1, unavailable: 0, invalid: 0, timeouts: 0, failovers: 0, bulkhead_full: 0, record_failed: 0 }
+          }))
+          return
+        }
+
+        if (path === '/api/v1/admin/prompt-audit/events' && req.method === 'GET') {
+          sendJson(res, 200, success(paginateItems([], url)))
+          return
+        }
+
+        if (path === '/api/v1/admin/prompt-audit/profiles' && req.method === 'GET') {
+          sendJson(res, 200, success(paginateItems([], url)))
+          return
+        }
+
+        if (path === '/api/v1/admin/prompt-audit/endpoints/probe' && req.method === 'POST') {
+          sendJson(res, 200, success({ ok: true, status: 'healthy', message: '本地审计节点可用', latency_ms: 18, http_status: 200, retryable: false, checked_at: nowISO(), token_applied: false }))
+          return
+        }
+
+        if (path === '/api/v1/admin/prompt-audit/test' && req.method === 'POST') {
+          const payload = parseJsonBody<{ prompt?: string }>(await readBody(req))
+          const prompt = String(payload.prompt || '')
+          const blocked = /(外挂|作弊|逆向|暴力破解|cheat|reverse engineering|brute force)/i.test(prompt)
+          sendJson(res, 200, success({
+            result: {
+              decision: blocked ? 'critical' : 'pass',
+              risk_level: blocked ? 'critical' : 'low',
+              action: blocked ? 'Block' : 'Allow',
+              safety: blocked ? 'Unsafe' : 'Safe',
+              categories: blocked ? ['unethical_acts'] : [],
+              matched_scanners: blocked ? ['unethical_acts'] : [],
+              scanner_scores: blocked ? { unethical_acts: 0.96 } : {},
+              scanner_evidence: {},
+              scanner_backend: 'local-mock-qwen3guard',
+              scanner_version: 'mock-1',
+              guard_endpoint_id: 'guard-local',
+              policy_id: 'priority',
+              policy_version: 1,
+              chunk_total: 1,
+              latency_ms: 24
+            },
+            chunk_total: 1,
+            latency_ms: 24
+          }))
           return
         }
 
@@ -1112,6 +1522,68 @@ function localMockApiPlugin(enabled: boolean): Plugin {
 
         if (path === '/api/v1/admin/risk-control/logs') {
           sendJson(res, 200, success(paginateItems([], url)))
+          return
+        }
+
+        if (path === '/api/v1/admin/risk-control/group-penalties' && req.method === 'GET') {
+          const status = url.searchParams.get('status') || 'all'
+          const search = (url.searchParams.get('search') || '').toLowerCase()
+          const category = url.searchParams.get('category') || ''
+          const groupID = Number(url.searchParams.get('group_id') || 0)
+          const filtered = mockGroupPenalties.filter((penalty) => {
+            const matchesStatus = status === 'all' || (status === 'active' && penalty.active) ||
+              (status === 'expired' && !penalty.active && !penalty.permanent) || (status === 'permanent' && penalty.permanent)
+            const haystack = `${penalty.user_email} ${penalty.username} ${penalty.user_id} ${penalty.group_name}`.toLowerCase()
+            return matchesStatus && (!search || haystack.includes(search)) &&
+              (!category || penalty.last_category === category) && (!groupID || Number(penalty.group_id) === groupID)
+          })
+          const today = new Date().toISOString().slice(0, 10)
+          sendJson(res, 200, success({
+            ...paginateItems(filtered, url),
+            overview: {
+              total: mockGroupPenalties.length,
+              active: mockGroupPenalties.filter((item) => item.active).length,
+              expired: mockGroupPenalties.filter((item) => !item.active && !item.permanent).length,
+              permanent: mockGroupPenalties.filter((item) => item.permanent).length,
+              today_events: mockGroupPenaltyEvents.filter((item) => String(item.created_at).slice(0, 10) === today).length
+            }
+          }))
+          return
+        }
+
+        const groupPenaltyEventsMatch = path.match(/^\/api\/v1\/admin\/risk-control\/group-penalties\/(\d+)\/(\d+)\/events$/)
+        if (groupPenaltyEventsMatch && req.method === 'GET') {
+          const userID = Number(groupPenaltyEventsMatch[1])
+          const groupID = Number(groupPenaltyEventsMatch[2])
+          const items = mockGroupPenaltyEvents.filter((item) => Number(item.user_id) === userID && Number(item.group_id) === groupID)
+          sendJson(res, 200, success(paginateItems(items, url)))
+          return
+        }
+
+        const groupPenaltyReleaseMatch = path.match(/^\/api\/v1\/admin\/risk-control\/group-penalties\/(\d+)\/(\d+)\/release$/)
+        if (groupPenaltyReleaseMatch && req.method === 'POST') {
+          const userID = Number(groupPenaltyReleaseMatch[1])
+          const groupID = Number(groupPenaltyReleaseMatch[2])
+          const penalty = mockGroupPenalties.find((item) => Number(item.user_id) === userID && Number(item.group_id) === groupID)
+          const affected = Boolean(penalty?.active)
+          if (penalty) {
+            penalty.active = false
+            penalty.permanent = false
+            penalty.blocked_until = nowISO()
+            penalty.updated_at = nowISO()
+          }
+          sendJson(res, 200, success({ user_id: userID, group_id: groupID, affected, strike_count: Number(penalty?.strike_count || 0) }))
+          return
+        }
+
+        const groupPenaltyResetMatch = path.match(/^\/api\/v1\/admin\/risk-control\/group-penalties\/(\d+)\/(\d+)$/)
+        if (groupPenaltyResetMatch && req.method === 'DELETE') {
+          const userID = Number(groupPenaltyResetMatch[1])
+          const groupID = Number(groupPenaltyResetMatch[2])
+          const index = mockGroupPenalties.findIndex((item) => Number(item.user_id) === userID && Number(item.group_id) === groupID)
+          const strikeCount = index >= 0 ? Number(mockGroupPenalties[index].strike_count || 0) : 0
+          if (index >= 0) mockGroupPenalties.splice(index, 1)
+          sendJson(res, 200, success({ user_id: userID, group_id: groupID, affected: index >= 0, strike_count: strikeCount }))
           return
         }
 
@@ -1681,7 +2153,7 @@ function localMockApiPlugin(enabled: boolean): Plugin {
             period_start_at: url.searchParams.get('period_start_at'),
             period_end_at: url.searchParams.get('period_end_at'),
             period_rebate: 6.84,
-            effective_rebate_rate_percent: 12.5,
+            invite_share_ratio_percent: 12.5,
             invitees: [
               {
                 user_id: 2,
@@ -1862,7 +2334,18 @@ function localMockApiPlugin(enabled: boolean): Plugin {
 
         if (path === '/api/v1/keys' && req.method === 'POST') {
           const body = await readBody(req)
-          sendJson(res, 200, success(createMockApiKey(parseJsonBody(body))))
+          const payload = parseJsonBody(body)
+          const group = resolveMockGroup(payload.group_id ?? 1)
+          const routes = normalizeMockApiKeyRoutes(payload.group_routes, group)
+          if (payload.openai_experimental_prompt_enabled === true && mockUser.openai_experimental_prompt_unlocked !== true) {
+            sendJson(res, 403, { code: 403, message: '请先解锁实验性指令' })
+            return
+          }
+          if (payload.openai_experimental_prompt_enabled === true && !mockApiKeyRoutesSupportExperimentalPrompt(routes)) {
+            sendJson(res, 400, { code: 400, message: '请选择支持实验性指令的 OpenAI 分组' })
+            return
+          }
+          sendJson(res, 200, success(createMockApiKey(payload)))
           return
         }
 
@@ -1886,8 +2369,25 @@ function localMockApiPlugin(enabled: boolean): Plugin {
             const group = Object.prototype.hasOwnProperty.call(payload, 'group_id')
               ? resolveMockGroup(payload.group_id)
               : resolveMockGroup(key.group_id)
+            const routesChanged = Object.prototype.hasOwnProperty.call(payload, 'group_id') ||
+              Object.prototype.hasOwnProperty.call(payload, 'group_routes')
+            const groupRoutes = Object.prototype.hasOwnProperty.call(payload, 'group_routes')
+              ? normalizeMockApiKeyRoutes(payload.group_routes, group)
+              : key.group_routes as Array<Record<string, unknown>>
+            if (payload.openai_experimental_prompt_enabled === true && mockUser.openai_experimental_prompt_unlocked !== true) {
+              sendJson(res, 403, { code: 403, message: '请先解锁实验性指令' })
+              return
+            }
+            if (payload.openai_experimental_prompt_enabled === true && !mockApiKeyRoutesSupportExperimentalPrompt(groupRoutes)) {
+              sendJson(res, 400, { code: 400, message: '请选择支持实验性指令的 OpenAI 分组' })
+              return
+            }
+            if (routesChanged && !mockApiKeyRoutesSupportExperimentalPrompt(groupRoutes)) {
+              payload.openai_experimental_prompt_enabled = false
+            }
             Object.assign(key, payload, {
               group_id: group ? group.id : null,
+              group_routes: groupRoutes,
               group,
               updated_at: nowISO()
             })

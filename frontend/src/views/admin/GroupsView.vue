@@ -1244,6 +1244,31 @@
             {{ t("admin.groups.openaiMessages.title") }}
           </h4>
 
+          <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t("admin.groups.openaiMessages.experimentalPromptEnabled") }}
+                </label>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.groups.openaiMessages.experimentalPromptHint") }}
+                </p>
+              </div>
+              <button
+                type="button"
+                :aria-pressed="createForm.openai_experimental_prompt_enabled"
+                @click="createForm.openai_experimental_prompt_enabled = !createForm.openai_experimental_prompt_enabled"
+                class="relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                :class="createForm.openai_experimental_prompt_enabled ? 'bg-amber-500' : 'bg-gray-300 dark:bg-dark-600'"
+              >
+                <span
+                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                  :class="createForm.openai_experimental_prompt_enabled ? 'translate-x-6' : 'translate-x-1'"
+                />
+              </button>
+            </div>
+          </div>
+
           <!-- 允许 Messages 调度开关 -->
           <div class="flex items-center justify-between">
             <label class="text-sm text-gray-600 dark:text-gray-400">{{
@@ -2617,6 +2642,31 @@
             {{ t("admin.groups.openaiMessages.title") }}
           </h4>
 
+          <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t("admin.groups.openaiMessages.experimentalPromptEnabled") }}
+                </label>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.groups.openaiMessages.experimentalPromptHint") }}
+                </p>
+              </div>
+              <button
+                type="button"
+                :aria-pressed="editForm.openai_experimental_prompt_enabled"
+                @click="editForm.openai_experimental_prompt_enabled = !editForm.openai_experimental_prompt_enabled"
+                class="relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                :class="editForm.openai_experimental_prompt_enabled ? 'bg-amber-500' : 'bg-gray-300 dark:bg-dark-600'"
+              >
+                <span
+                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                  :class="editForm.openai_experimental_prompt_enabled ? 'translate-x-6' : 'translate-x-1'"
+                />
+              </button>
+            </div>
+          </div>
+
           <!-- 允许 Messages 调度开关 -->
           <div class="flex items-center justify-between">
             <label class="text-sm text-gray-600 dark:text-gray-400">{{
@@ -3789,6 +3839,7 @@ const createForm = reactive({
   fallback_group_id_on_invalid_request: null as number | null,
   // OpenAI Messages 调度配置（仅 openai 平台使用）
   allow_messages_dispatch: false,
+  openai_experimental_prompt_enabled: false,
   opus_mapped_model: createMessagesDispatchDefaults.opus_mapped_model,
   sonnet_mapped_model: createMessagesDispatchDefaults.sonnet_mapped_model,
   haiku_mapped_model: createMessagesDispatchDefaults.haiku_mapped_model,
@@ -4125,6 +4176,7 @@ const editForm = reactive({
   fallback_group_id_on_invalid_request: null as number | null,
   // OpenAI Messages 调度配置（仅 openai 平台使用）
   allow_messages_dispatch: false,
+  openai_experimental_prompt_enabled: false,
   default_mapped_model: '',
   opus_mapped_model: editMessagesDispatchDefaults.opus_mapped_model,
   sonnet_mapped_model: editMessagesDispatchDefaults.sonnet_mapped_model,
@@ -4445,6 +4497,8 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.is_exclusive = group.is_exclusive;
   editForm.is_shared_pool = group.is_shared_pool ?? false;
+  editForm.openai_experimental_prompt_enabled =
+    group.openai_experimental_prompt_enabled ?? false;
   editForm.status = group.status;
   editForm.subscription_type = group.subscription_type || "standard";
   editForm.daily_limit_usd = group.daily_limit_usd;

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
+import ExternalPurchasePanel from '@/components/payment/ExternalPurchasePanel.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 
 const routeState = vi.hoisted(() => ({
@@ -20,6 +21,10 @@ const showWarning = vi.hoisted(() => vi.fn())
 const fetchPublicSettings = vi.hoisted(() => vi.fn())
 const getCheckoutInfo = vi.hoisted(() => vi.fn())
 const bridgeInvoke = vi.hoisted(() => vi.fn())
+const publicSettingsState = vi.hoisted(() => ({
+  cached: null as Record<string, unknown> | null,
+  loaded: false,
+}))
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
@@ -69,8 +74,12 @@ vi.mock('@/stores/subscriptions', () => ({
 
 vi.mock('@/stores', () => ({
   useAppStore: () => ({
-    cachedPublicSettings: null,
-    publicSettingsLoaded: false,
+    get cachedPublicSettings() {
+      return publicSettingsState.cached
+    },
+    get publicSettingsLoaded() {
+      return publicSettingsState.loaded
+    },
     fetchPublicSettings,
     showError,
     showInfo,
@@ -205,6 +214,8 @@ describe('PaymentView WeChat JSAPI flow', () => {
     showWarning.mockReset()
     getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture())
     bridgeInvoke.mockReset()
+    publicSettingsState.cached = null
+    publicSettingsState.loaded = false
     window.localStorage.clear()
     ;(window as Window & { WeixinJSBridge?: { invoke: typeof bridgeInvoke } }).WeixinJSBridge = {
       invoke: bridgeInvoke,
@@ -417,5 +428,122 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(showWarning).toHaveBeenCalledWith('payment.errors.mobilePaymentFallbackToQr')
     expect(showError).not.toHaveBeenCalled()
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toContain('weixin://wxpay/bizpayurl?pr=fallback-native')
+  })
+
+  it('keeps top-up and card-store tabs when internal payment and external purchase are both available', async () => {
+    routeState.query = {}
+    publicSettingsState.cached = {
+      payment_enabled: true,
+      purchase_subscription_enabled: true,
+      purchase_subscription_url: 'https://cards.example.com/buy',
+    }
+    publicSettingsState.loaded = true
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          Teleport: true,
+          Transition: false,
+          AppLayout: { template: '<div><slot /></div>' },
+          UiPage: { template: '<div><slot /></div>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    const tabs = wrapper.findAll('[role="tab"]')
+    expect(tabs).toHaveLength(2)
+    expect(tabs[0].text()).toBe('payment.tabTopUp')
+    expect(tabs[1].text()).toBe('payment.tabCardStore')
+    expect(wrapper.find('external-purchase-panel-stub').exists()).toBe(false)
+
+    await tabs[1].trigger('click')
+
+    const cardStore = wrapper.getComponent(ExternalPurchasePanel)
+    expect(cardStore.props('purchaseUrl')).toBe('https://cards.example.com/buy')
+  })
+
+  it('shows only the card store when external purchase is enabled without a payment provider', async () => {
+    routeState.query = {}
+    publicSettingsState.cached = {
+      payment_enabled: true,
+      purchase_subscription_enabled: true,
+      purchase_subscription_url: 'https://cards.example.com/buy',
+    }
+    publicSettingsState.loaded = true
+    getCheckoutInfo.mockResolvedValue({
+      data: {
+        ...checkoutInfoFixture().data,
+        methods: {},
+      },
+    })
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          Teleport: true,
+          Transition: false,
+          AppLayout: { template: '<div><slot /></div>' },
+          UiPage: { template: '<div><slot /></div>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0)
+    expect(wrapper.getComponent(ExternalPurchasePanel).props('purchaseUrl')).toBe('https://cards.example.com/buy')
+    expect(wrapper.text()).not.toContain('payment.rechargeAccount')
+  })
+
+  it('keeps the original subscription page when the external card store is disabled', async () => {
+    routeState.query = { tab: 'subscription' }
+    publicSettingsState.cached = {
+      payment_enabled: true,
+      purchase_subscription_enabled: false,
+      purchase_subscription_url: '',
+    }
+    publicSettingsState.loaded = true
+    getCheckoutInfo.mockResolvedValue(checkoutInfoWithPlansFixture())
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          Teleport: true,
+          Transition: false,
+          AppLayout: { template: '<div><slot /></div>' },
+          UiPage: { template: '<div><slot /></div>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('external-purchase-panel-stub').exists()).toBe(false)
+    expect(wrapper.find('subscription-plan-card-stub').exists()).toBe(true)
+  })
+
+  it('keeps the card store available when checkout info cannot be loaded', async () => {
+    routeState.query = {}
+    publicSettingsState.cached = {
+      payment_enabled: true,
+      purchase_subscription_enabled: true,
+      purchase_subscription_url: 'https://cards.example.com/buy',
+    }
+    publicSettingsState.loaded = true
+    getCheckoutInfo.mockRejectedValue(new Error('checkout unavailable'))
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          Teleport: true,
+          Transition: false,
+          AppLayout: { template: '<div><slot /></div>' },
+          UiPage: { template: '<div><slot /></div>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.getComponent(ExternalPurchasePanel).props('purchaseUrl')).toBe('https://cards.example.com/buy')
+    expect(showError).not.toHaveBeenCalled()
   })
 })

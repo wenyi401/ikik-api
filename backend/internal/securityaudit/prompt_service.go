@@ -10,18 +10,22 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"ikik-api/internal/riskengine"
 )
 
 type PromptService struct {
-	config    ConfigStore
-	repo      *PostgreSQLRepository
-	payload   *RedisPayloadStore
-	enqueuer  *Enqueuer
-	runner    *Runner
-	evaluator *GuardEvaluator
-	scanner   *OpenAICompatibleScanner
-	metrics   *AtomicMetrics
-	clock     Clock
+	config       ConfigStore
+	repo         *PostgreSQLRepository
+	payload      *RedisPayloadStore
+	enqueuer     *Enqueuer
+	runner       *Runner
+	evaluator    *GuardEvaluator
+	scanner      *OpenAICompatibleScanner
+	metrics      *AtomicMetrics
+	knowledge    *riskengine.KnowledgeRepository
+	observations *riskengine.ShadowRepository
+	clock        Clock
 
 	lifecycleMu  sync.Mutex
 	cancel       context.CancelFunc
@@ -30,6 +34,23 @@ type PromptService struct {
 	enqueueSlots chan struct{}
 	probeMu      sync.RWMutex
 	probes       map[string]ProbeResult
+}
+
+func ProvidePromptService(
+	config ConfigStore,
+	repo *PostgreSQLRepository,
+	payload *RedisPayloadStore,
+	scanner *OpenAICompatibleScanner,
+	metrics *AtomicMetrics,
+	knowledge *riskengine.KnowledgeRepository,
+	observations *riskengine.ShadowRepository,
+	observer *riskengine.KnowledgeShadowService,
+) *PromptService {
+	service := NewPromptService(config, repo, payload, scanner, metrics)
+	service.knowledge = knowledge
+	service.observations = observations
+	service.runner.SetRiskKnowledgeObserver(observer)
+	return service
 }
 
 func NewPromptService(
@@ -107,6 +128,19 @@ func (s *PromptService) EffectiveMode() Mode {
 	return s.config.EffectiveMode()
 }
 
+func (s *PromptService) PromptAuditEnforcementMode() EnforcementMode {
+	if s == nil || s.config == nil {
+		return EnforcementShadow
+	}
+	if cfg, ok := s.config.Active(); ok {
+		if cfg.Enforces() {
+			return EnforcementEnforce
+		}
+		return EnforcementShadow
+	}
+	return s.config.Public().EnforcementMode
+}
+
 func (s *PromptService) IsPromptAuditUserBlocked(ctx context.Context, userID int64) (bool, error) {
 	if s == nil || s.repo == nil {
 		return false, nil
@@ -163,7 +197,7 @@ func (s *PromptService) Evaluate(ctx context.Context, req Request) (*PromptDecis
 	if cfg.EffectiveMode() != ModeBlocking || !cfg.IncludesGroup(req.GroupID) {
 		return &PromptDecision{Kind: DecisionAllow, AllowNextStage: true}, nil
 	}
-	snapshot, err := ExtractPromptSnapshot(req)
+	snapshot, err := ExtractBlockingPromptSnapshot(req, cfg.BlockingLatestTurnOnly)
 	if errors.Is(err, ErrNoPromptText) {
 		return &PromptDecision{Kind: DecisionAllow, AllowNextStage: true}, nil
 	}
@@ -298,6 +332,47 @@ func (s *PromptService) Probe(ctx context.Context, request ProbeRequest) ProbeRe
 	return s.finishProbe(endpoint.ID, started, ProbeResult{Status: "failed", ErrorCode: code, Message: "审计节点探测失败", HTTPStatus: resp.StatusCode, Retryable: retryable, TokenApplied: tokenApplied})
 }
 
+type PromptAuditTestResult struct {
+	Result     *NormalizedResult `json:"result"`
+	ChunkTotal int               `json:"chunk_total"`
+	LatencyMS  int               `json:"latency_ms"`
+}
+
+func (s *PromptService) TestPrompt(ctx context.Context, prompt string) (*PromptAuditTestResult, error) {
+	if s == nil || s.config == nil || s.scanner == nil {
+		return nil, errors.New("prompt audit test service unavailable")
+	}
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		return nil, errors.New("prompt audit test prompt is empty")
+	}
+	cfg, ok := s.config.Active()
+	if !ok || len(cfg.EnabledEndpoints()) == 0 {
+		return nil, errors.New("prompt audit has no enabled endpoint")
+	}
+	started := s.clock.Now()
+	endpoints := cfg.EnabledEndpoints()
+	chunks := SplitRunes(prompt, minimumInputLimit(endpoints))
+	results := make([]*NormalizedResult, 0, len(chunks))
+	for _, chunk := range chunks {
+		result, err := scanWithFailover(ctx, s.scanner, cfg.Scanners, endpoints, chunk, nil)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
+		if result.Action == ActionBlock {
+			break
+		}
+	}
+	aggregated, err := AggregateResults(results, s.clock.Now().Sub(started))
+	if err != nil {
+		return nil, err
+	}
+	aggregated.ChunkTotal = len(chunks)
+	aggregated.Shadow = true
+	return &PromptAuditTestResult{Result: aggregated, ChunkTotal: len(chunks), LatencyMS: aggregated.LatencyMS}, nil
+}
+
 func modelsResponseReady(body []byte, model string) bool {
 	var response struct {
 		Data []struct {
@@ -353,7 +428,7 @@ func (s *PromptService) resolveProbeEndpoint(input UpdateEndpoint) (ActiveEndpoi
 	if limit == 0 {
 		limit = DefaultInputLimit
 	}
-	storage := storageConfig{Enabled: false, Strategy: "priority", WorkerCount: DefaultWorkerCount, QueueCapacity: DefaultQueueCapacity, Scanners: append([]string(nil), AllScannerIDs...), AllGroups: true,
+	storage := storageConfig{Enabled: false, EnforcementMode: EnforcementShadow, Strategy: "priority", WorkerCount: DefaultWorkerCount, QueueCapacity: DefaultQueueCapacity, Scanners: append([]string(nil), AllScannerIDs...), AllGroups: true,
 		Endpoints: []StorageEndpoint{{ID: strings.TrimSpace(input.ID), Name: strings.TrimSpace(input.Name), Protocol: "openai_compatible", BaseURL: baseURL, Model: model, TimeoutMS: timeout, InputLimit: limit}}}
 	if storage.Endpoints[0].ID == "" {
 		storage.Endpoints[0].ID = "probe"
@@ -393,6 +468,48 @@ func (s *PromptService) probeSnapshot() map[string]ProbeResult {
 
 func (s *PromptService) ListEvents(ctx context.Context, filter EventFilter, page, pageSize int) (*EventPage, error) {
 	return s.repo.ListEvents(ctx, filter, page, pageSize)
+}
+
+func (s *PromptService) KnowledgeSummary(ctx context.Context) (*riskengine.KnowledgeSummary, error) {
+	if s == nil || s.knowledge == nil {
+		return nil, errors.New("risk knowledge repository unavailable")
+	}
+	return s.knowledge.Summary(ctx)
+}
+
+func (s *PromptService) ListKnowledge(ctx context.Context, filter riskengine.KnowledgeFilter, page, pageSize int) (*riskengine.KnowledgeEntryPage, error) {
+	if s == nil || s.knowledge == nil {
+		return nil, errors.New("risk knowledge repository unavailable")
+	}
+	return s.knowledge.List(ctx, filter, page, pageSize)
+}
+
+func (s *PromptService) CreateKnowledge(ctx context.Context, input riskengine.KnowledgeWriteInput, actorID int64) (*riskengine.KnowledgeEntry, int, error) {
+	if s == nil || s.knowledge == nil {
+		return nil, 0, errors.New("risk knowledge repository unavailable")
+	}
+	return s.knowledge.Create(ctx, input, actorID)
+}
+
+func (s *PromptService) UpdateKnowledge(ctx context.Context, id int64, input riskengine.KnowledgeWriteInput, actorID int64) (*riskengine.KnowledgeEntry, int, error) {
+	if s == nil || s.knowledge == nil {
+		return nil, 0, errors.New("risk knowledge repository unavailable")
+	}
+	return s.knowledge.Update(ctx, id, input, actorID)
+}
+
+func (s *PromptService) ListKnowledgeObservations(ctx context.Context, filter riskengine.ObservationFilter, page, pageSize int) (*riskengine.ObservationPage, error) {
+	if s == nil || s.observations == nil {
+		return nil, errors.New("risk observation repository unavailable")
+	}
+	return s.observations.ListObservations(ctx, filter, page, pageSize)
+}
+
+func (s *PromptService) ReviewKnowledgeObservation(ctx context.Context, id int64, input riskengine.ObservationReviewInput, actorID int64) (*riskengine.Observation, error) {
+	if s == nil || s.observations == nil {
+		return nil, errors.New("risk observation repository unavailable")
+	}
+	return s.observations.ReviewObservation(ctx, id, input, actorID)
 }
 
 func (s *PromptService) ListPromptAuditUserProfiles(ctx context.Context, page, pageSize int, blockedOnly bool, keyword string) (*PromptAuditUserProfilePage, error) {

@@ -230,6 +230,11 @@ func DefaultMappedModel(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldDefaultMappedModel, v))
 }
 
+// OpenaiExperimentalPromptEnabled applies equality check predicate on the "openai_experimental_prompt_enabled" field. It's identical to OpenaiExperimentalPromptEnabledEQ.
+func OpenaiExperimentalPromptEnabled(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldOpenaiExperimentalPromptEnabled, v))
+}
+
 // RpmLimit applies equality check predicate on the "rpm_limit" field. It's identical to RpmLimitEQ.
 func RpmLimit(v int) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRpmLimit, v))
@@ -1778,6 +1783,16 @@ func DefaultMappedModelEqualFold(v string) predicate.Group {
 // DefaultMappedModelContainsFold applies the ContainsFold predicate on the "default_mapped_model" field.
 func DefaultMappedModelContainsFold(v string) predicate.Group {
 	return predicate.Group(sql.FieldContainsFold(FieldDefaultMappedModel, v))
+}
+
+// OpenaiExperimentalPromptEnabledEQ applies the EQ predicate on the "openai_experimental_prompt_enabled" field.
+func OpenaiExperimentalPromptEnabledEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldOpenaiExperimentalPromptEnabled, v))
+}
+
+// OpenaiExperimentalPromptEnabledNEQ applies the NEQ predicate on the "openai_experimental_prompt_enabled" field.
+func OpenaiExperimentalPromptEnabledNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldOpenaiExperimentalPromptEnabled, v))
 }
 
 // RpmLimitEQ applies the EQ predicate on the "rpm_limit" field.

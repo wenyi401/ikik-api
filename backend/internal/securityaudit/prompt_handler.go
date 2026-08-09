@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/response"
+	"ikik-api/internal/riskengine"
 	"ikik-api/internal/server/middleware"
 )
 
@@ -28,6 +29,19 @@ type PromptAdminService interface {
 }
 
 type PromptAdminHandler struct{ service PromptAdminService }
+
+type PromptKnowledgeAdminService interface {
+	KnowledgeSummary(context.Context) (*riskengine.KnowledgeSummary, error)
+	ListKnowledge(context.Context, riskengine.KnowledgeFilter, int, int) (*riskengine.KnowledgeEntryPage, error)
+	CreateKnowledge(context.Context, riskengine.KnowledgeWriteInput, int64) (*riskengine.KnowledgeEntry, int, error)
+	UpdateKnowledge(context.Context, int64, riskengine.KnowledgeWriteInput, int64) (*riskengine.KnowledgeEntry, int, error)
+	ListKnowledgeObservations(context.Context, riskengine.ObservationFilter, int, int) (*riskengine.ObservationPage, error)
+	ReviewKnowledgeObservation(context.Context, int64, riskengine.ObservationReviewInput, int64) (*riskengine.Observation, error)
+}
+
+type PromptAuditTestRequest struct {
+	Prompt string `json:"prompt"`
+}
 
 func NewPromptAdminHandler(service PromptAdminService) *PromptAdminHandler {
 	return &PromptAdminHandler{service: service}
@@ -71,8 +85,192 @@ func (h *PromptAdminHandler) ProbeEndpoint(c *gin.Context) {
 	response.Success(c, result)
 }
 
+func (h *PromptAdminHandler) TestPrompt(c *gin.Context) {
+	var request PromptAuditTestRequest
+	if err := c.ShouldBindJSON(&request); err != nil || strings.TrimSpace(request.Prompt) == "" {
+		response.ErrorFrom(c, infraerrors.BadRequest("prompt_audit_test_prompt_required", "请输入需要测试的提示词"))
+		return
+	}
+	tester, ok := h.service.(interface {
+		TestPrompt(context.Context, string) (*PromptAuditTestResult, error)
+	})
+	if !ok {
+		response.ErrorFrom(c, errors.New("prompt audit test service unavailable"))
+		return
+	}
+	result, err := tester.TestPrompt(c.Request.Context(), request.Prompt)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	setPromptAdminAudit(c, "success", "", map[string]any{
+		"decision": result.Result.Decision, "chunk_total": result.ChunkTotal, "latency_ms": result.LatencyMS,
+	})
+	response.Success(c, result)
+}
+
 func (h *PromptAdminHandler) GetRuntime(c *gin.Context) {
 	response.Success(c, h.service.Runtime(c.Request.Context()))
+}
+
+func (h *PromptAdminHandler) GetKnowledgeSummary(c *gin.Context) {
+	service, ok := h.service.(PromptKnowledgeAdminService)
+	if !ok {
+		response.ErrorFrom(c, errors.New("risk knowledge service unavailable"))
+		return
+	}
+	result, err := service.KnowledgeSummary(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *PromptAdminHandler) ListKnowledge(c *gin.Context) {
+	service, ok := h.service.(PromptKnowledgeAdminService)
+	if !ok {
+		response.ErrorFrom(c, errors.New("risk knowledge service unavailable"))
+		return
+	}
+	page, pageSize, ok := promptAdminPagination(c)
+	if !ok {
+		return
+	}
+	filter, err := knowledgeFilterFromQuery(c)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if err := riskengine.ValidateKnowledgeFilter(filter); err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("risk_knowledge_invalid_filter", "知识样本筛选无效"))
+		return
+	}
+	result, err := service.ListKnowledge(c.Request.Context(), filter, page, pageSize)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *PromptAdminHandler) CreateKnowledge(c *gin.Context) {
+	service, ok := h.service.(PromptKnowledgeAdminService)
+	if !ok {
+		response.ErrorFrom(c, errors.New("risk knowledge service unavailable"))
+		return
+	}
+	var input riskengine.KnowledgeWriteInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("risk_knowledge_invalid_request", "知识样本请求无效"))
+		return
+	}
+	input, err := riskengine.NormalizeKnowledgeInput(input)
+	if err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("risk_knowledge_invalid_entry", "知识样本内容无效"))
+		return
+	}
+	entry, version, err := service.CreateKnowledge(c.Request.Context(), input, adminID(c))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	setPromptAdminAudit(c, "success", "", map[string]any{"knowledge_entry_id": entry.ID, "knowledge_version": version})
+	response.Success(c, gin.H{"entry": entry, "version": version})
+}
+
+func (h *PromptAdminHandler) UpdateKnowledge(c *gin.Context) {
+	service, ok := h.service.(PromptKnowledgeAdminService)
+	if !ok {
+		response.ErrorFrom(c, errors.New("risk knowledge service unavailable"))
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.ErrorFrom(c, infraerrors.BadRequest("risk_knowledge_invalid_id", "知识样本 ID 无效"))
+		return
+	}
+	var input riskengine.KnowledgeWriteInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("risk_knowledge_invalid_request", "知识样本请求无效"))
+		return
+	}
+	input, err = riskengine.NormalizeKnowledgeInput(input)
+	if err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("risk_knowledge_invalid_entry", "知识样本内容无效"))
+		return
+	}
+	entry, version, err := service.UpdateKnowledge(c.Request.Context(), id, input, adminID(c))
+	if errors.Is(err, riskengine.ErrKnowledgeEntryNotFound) {
+		response.ErrorFrom(c, infraerrors.NotFound("risk_knowledge_not_found", "知识样本不存在"))
+		return
+	}
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	setPromptAdminAudit(c, "success", "", map[string]any{"knowledge_entry_id": entry.ID, "knowledge_version": version})
+	response.Success(c, gin.H{"entry": entry, "version": version})
+}
+
+func (h *PromptAdminHandler) ListKnowledgeObservations(c *gin.Context) {
+	service, ok := h.service.(PromptKnowledgeAdminService)
+	if !ok {
+		response.ErrorFrom(c, errors.New("risk knowledge service unavailable"))
+		return
+	}
+	page, pageSize, ok := promptAdminPagination(c)
+	if !ok {
+		return
+	}
+	filter, err := observationFilterFromQuery(c)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if err := riskengine.ValidateObservationFilter(filter); err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("risk_observation_invalid_filter", "影子观察筛选无效"))
+		return
+	}
+	result, err := service.ListKnowledgeObservations(c.Request.Context(), filter, page, pageSize)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *PromptAdminHandler) ReviewKnowledgeObservation(c *gin.Context) {
+	service, ok := h.service.(PromptKnowledgeAdminService)
+	if !ok {
+		response.ErrorFrom(c, errors.New("risk knowledge service unavailable"))
+		return
+	}
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.ErrorFrom(c, infraerrors.BadRequest("risk_observation_invalid_id", "影子观察 ID 无效"))
+		return
+	}
+	var input riskengine.ObservationReviewInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("risk_observation_invalid_review", "影子观察复核请求无效"))
+		return
+	}
+	if err := riskengine.ValidateObservationReviewInput(input); err != nil {
+		response.ErrorFrom(c, infraerrors.BadRequest("risk_observation_invalid_review", "影子观察复核内容无效"))
+		return
+	}
+	item, err := service.ReviewKnowledgeObservation(c.Request.Context(), id, input, adminID(c))
+	if errors.Is(err, riskengine.ErrObservationNotFound) {
+		response.ErrorFrom(c, infraerrors.NotFound("risk_observation_not_found", "影子观察不存在"))
+		return
+	}
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	setPromptAdminAudit(c, "success", "", map[string]any{"observation_id": id, "review_status": input.Status})
+	response.Success(c, item)
 }
 
 func (h *PromptAdminHandler) ListEvents(c *gin.Context) {
@@ -261,7 +459,10 @@ func configAuditFields(request UpdateConfigRequest, saved *PublicConfig) map[str
 	}
 	return map[string]any{
 		"enabled": request.Enabled, "blocking_enabled": request.BlockingEnabled,
-		"config_version": version, "endpoint_count": len(request.Endpoints),
+		"blocking_latest_turn_only": request.BlockingLatestTurnOnly,
+		"async_latest_user_only":    request.AsyncLatestUserOnly,
+		"enforcement_mode":          request.EnforcementMode,
+		"config_version":            version, "endpoint_count": len(request.Endpoints),
 		"scanner_count": len(request.Scanners), "all_groups": request.AllGroups,
 		"group_count": len(request.GroupIDs),
 	}
@@ -330,6 +531,51 @@ func optionalPositiveInt64Query(c *gin.Context, key string) (*int64, error) {
 		return nil, infraerrors.BadRequest("prompt_audit_invalid_filter_id", "事件筛选 ID 无效")
 	}
 	return &parsed, nil
+}
+
+func promptAdminPagination(c *gin.Context) (int, int, bool) {
+	page, err := positiveIntQuery(c, "page", 1, 0)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return 0, 0, false
+	}
+	pageSize, err := positiveIntQuery(c, "page_size", 20, 100)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return 0, 0, false
+	}
+	return page, pageSize, true
+}
+
+func knowledgeFilterFromQuery(c *gin.Context) (riskengine.KnowledgeFilter, error) {
+	filter := riskengine.KnowledgeFilter{
+		Topic: riskengine.KnowledgeTopic(c.Query("topic")), Category: riskengine.Category(c.Query("category")),
+		Disposition: riskengine.KnowledgeDisposition(c.Query("disposition")), Keyword: c.Query("keyword"),
+	}
+	if value := strings.TrimSpace(c.Query("enabled")); value != "" {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return filter, infraerrors.BadRequest("risk_knowledge_invalid_filter", "知识样本启用状态无效")
+		}
+		filter.Enabled = &enabled
+	}
+	return filter, nil
+}
+
+func observationFilterFromQuery(c *gin.Context) (riskengine.ObservationFilter, error) {
+	userID, err := optionalPositiveInt64Query(c, "user_id")
+	if err != nil {
+		return riskengine.ObservationFilter{}, err
+	}
+	groupID, err := optionalPositiveInt64Query(c, "group_id")
+	if err != nil {
+		return riskengine.ObservationFilter{}, err
+	}
+	return riskengine.ObservationFilter{
+		ReviewStatus: riskengine.ObservationReviewStatus(c.Query("review_status")),
+		Category:     riskengine.Category(c.Query("category")), UserID: userID, GroupID: groupID,
+		Keyword: c.Query("keyword"),
+	}, nil
 }
 
 func positiveIntQuery(c *gin.Context, key string, defaultValue, maxValue int) (int, error) {

@@ -10,6 +10,7 @@ import (
 	"ikik-api/ent/announcementread"
 	"ikik-api/ent/apikey"
 	"ikik-api/ent/authidentity"
+	"ikik-api/ent/developertoken"
 	"ikik-api/ent/group"
 	"ikik-api/ent/paymentorder"
 	"ikik-api/ent/pendingauthsession"
@@ -262,6 +263,76 @@ func (_u *UserUpdate) SetStatus(v string) *UserUpdate {
 func (_u *UserUpdate) SetNillableStatus(v *string) *UserUpdate {
 	if v != nil {
 		_u.SetStatus(*v)
+	}
+	return _u
+}
+
+// SetDeveloperAPIEnabled sets the "developer_api_enabled" field.
+func (_u *UserUpdate) SetDeveloperAPIEnabled(v bool) *UserUpdate {
+	_u.mutation.SetDeveloperAPIEnabled(v)
+	return _u
+}
+
+// SetNillableDeveloperAPIEnabled sets the "developer_api_enabled" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableDeveloperAPIEnabled(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetDeveloperAPIEnabled(*v)
+	}
+	return _u
+}
+
+// SetOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field.
+func (_u *UserUpdate) SetOpenaiExperimentalPromptUnlocked(v bool) *UserUpdate {
+	_u.mutation.SetOpenaiExperimentalPromptUnlocked(v)
+	return _u
+}
+
+// SetNillableOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableOpenaiExperimentalPromptUnlocked(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetOpenaiExperimentalPromptUnlocked(*v)
+	}
+	return _u
+}
+
+// SetOnboardingMode sets the "onboarding_mode" field.
+func (_u *UserUpdate) SetOnboardingMode(v user.OnboardingMode) *UserUpdate {
+	_u.mutation.SetOnboardingMode(v)
+	return _u
+}
+
+// SetNillableOnboardingMode sets the "onboarding_mode" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableOnboardingMode(v *user.OnboardingMode) *UserUpdate {
+	if v != nil {
+		_u.SetOnboardingMode(*v)
+	}
+	return _u
+}
+
+// SetShareCardText sets the "share_card_text" field.
+func (_u *UserUpdate) SetShareCardText(v string) *UserUpdate {
+	_u.mutation.SetShareCardText(v)
+	return _u
+}
+
+// SetNillableShareCardText sets the "share_card_text" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableShareCardText(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetShareCardText(*v)
+	}
+	return _u
+}
+
+// SetShareCardTextColor sets the "share_card_text_color" field.
+func (_u *UserUpdate) SetShareCardTextColor(v string) *UserUpdate {
+	_u.mutation.SetShareCardTextColor(v)
+	return _u
+}
+
+// SetNillableShareCardTextColor sets the "share_card_text_color" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableShareCardTextColor(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetShareCardTextColor(*v)
 	}
 	return _u
 }
@@ -591,6 +662,21 @@ func (_u *UserUpdate) AddAPIKeys(v ...*APIKey) *UserUpdate {
 	return _u.AddAPIKeyIDs(ids...)
 }
 
+// AddDeveloperTokenIDs adds the "developer_tokens" edge to the DeveloperToken entity by IDs.
+func (_u *UserUpdate) AddDeveloperTokenIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddDeveloperTokenIDs(ids...)
+	return _u
+}
+
+// AddDeveloperTokens adds the "developer_tokens" edges to the DeveloperToken entity.
+func (_u *UserUpdate) AddDeveloperTokens(v ...*DeveloperToken) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddDeveloperTokenIDs(ids...)
+}
+
 // AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by IDs.
 func (_u *UserUpdate) AddRedeemCodeIDs(ids ...int64) *UserUpdate {
 	_u.mutation.AddRedeemCodeIDs(ids...)
@@ -870,6 +956,27 @@ func (_u *UserUpdate) RemoveAPIKeys(v ...*APIKey) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAPIKeyIDs(ids...)
+}
+
+// ClearDeveloperTokens clears all "developer_tokens" edges to the DeveloperToken entity.
+func (_u *UserUpdate) ClearDeveloperTokens() *UserUpdate {
+	_u.mutation.ClearDeveloperTokens()
+	return _u
+}
+
+// RemoveDeveloperTokenIDs removes the "developer_tokens" edge to DeveloperToken entities by IDs.
+func (_u *UserUpdate) RemoveDeveloperTokenIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveDeveloperTokenIDs(ids...)
+	return _u
+}
+
+// RemoveDeveloperTokens removes "developer_tokens" edges to DeveloperToken entities.
+func (_u *UserUpdate) RemoveDeveloperTokens(v ...*DeveloperToken) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveDeveloperTokenIDs(ids...)
 }
 
 // ClearRedeemCodes clears all "redeem_codes" edges to the RedeemCode entity.
@@ -1293,6 +1400,21 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.OnboardingMode(); ok {
+		if err := user.OnboardingModeValidator(v); err != nil {
+			return &ValidationError{Name: "onboarding_mode", err: fmt.Errorf(`ent: validator failed for field "User.onboarding_mode": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ShareCardText(); ok {
+		if err := user.ShareCardTextValidator(v); err != nil {
+			return &ValidationError{Name: "share_card_text", err: fmt.Errorf(`ent: validator failed for field "User.share_card_text": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ShareCardTextColor(); ok {
+		if err := user.ShareCardTextColorValidator(v); err != nil {
+			return &ValidationError{Name: "share_card_text_color", err: fmt.Errorf(`ent: validator failed for field "User.share_card_text_color": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Username(); ok {
 		if err := user.UsernameValidator(v); err != nil {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
@@ -1377,6 +1499,21 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DeveloperAPIEnabled(); ok {
+		_spec.SetField(user.FieldDeveloperAPIEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.OpenaiExperimentalPromptUnlocked(); ok {
+		_spec.SetField(user.FieldOpenaiExperimentalPromptUnlocked, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.OnboardingMode(); ok {
+		_spec.SetField(user.FieldOnboardingMode, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.ShareCardText(); ok {
+		_spec.SetField(user.FieldShareCardText, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ShareCardTextColor(); ok {
+		_spec.SetField(user.FieldShareCardTextColor, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
@@ -1500,6 +1637,51 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikey.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.DeveloperTokensCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeveloperTokensTable,
+			Columns: []string{user.DeveloperTokensColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(developertoken.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedDeveloperTokensIDs(); len(nodes) > 0 && !_u.mutation.DeveloperTokensCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeveloperTokensTable,
+			Columns: []string{user.DeveloperTokensColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(developertoken.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.DeveloperTokensIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeveloperTokensTable,
+			Columns: []string{user.DeveloperTokensColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(developertoken.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -2538,6 +2720,76 @@ func (_u *UserUpdateOne) SetNillableStatus(v *string) *UserUpdateOne {
 	return _u
 }
 
+// SetDeveloperAPIEnabled sets the "developer_api_enabled" field.
+func (_u *UserUpdateOne) SetDeveloperAPIEnabled(v bool) *UserUpdateOne {
+	_u.mutation.SetDeveloperAPIEnabled(v)
+	return _u
+}
+
+// SetNillableDeveloperAPIEnabled sets the "developer_api_enabled" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableDeveloperAPIEnabled(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetDeveloperAPIEnabled(*v)
+	}
+	return _u
+}
+
+// SetOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field.
+func (_u *UserUpdateOne) SetOpenaiExperimentalPromptUnlocked(v bool) *UserUpdateOne {
+	_u.mutation.SetOpenaiExperimentalPromptUnlocked(v)
+	return _u
+}
+
+// SetNillableOpenaiExperimentalPromptUnlocked sets the "openai_experimental_prompt_unlocked" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableOpenaiExperimentalPromptUnlocked(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetOpenaiExperimentalPromptUnlocked(*v)
+	}
+	return _u
+}
+
+// SetOnboardingMode sets the "onboarding_mode" field.
+func (_u *UserUpdateOne) SetOnboardingMode(v user.OnboardingMode) *UserUpdateOne {
+	_u.mutation.SetOnboardingMode(v)
+	return _u
+}
+
+// SetNillableOnboardingMode sets the "onboarding_mode" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableOnboardingMode(v *user.OnboardingMode) *UserUpdateOne {
+	if v != nil {
+		_u.SetOnboardingMode(*v)
+	}
+	return _u
+}
+
+// SetShareCardText sets the "share_card_text" field.
+func (_u *UserUpdateOne) SetShareCardText(v string) *UserUpdateOne {
+	_u.mutation.SetShareCardText(v)
+	return _u
+}
+
+// SetNillableShareCardText sets the "share_card_text" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableShareCardText(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetShareCardText(*v)
+	}
+	return _u
+}
+
+// SetShareCardTextColor sets the "share_card_text_color" field.
+func (_u *UserUpdateOne) SetShareCardTextColor(v string) *UserUpdateOne {
+	_u.mutation.SetShareCardTextColor(v)
+	return _u
+}
+
+// SetNillableShareCardTextColor sets the "share_card_text_color" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableShareCardTextColor(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetShareCardTextColor(*v)
+	}
+	return _u
+}
+
 // SetUsername sets the "username" field.
 func (_u *UserUpdateOne) SetUsername(v string) *UserUpdateOne {
 	_u.mutation.SetUsername(v)
@@ -2863,6 +3115,21 @@ func (_u *UserUpdateOne) AddAPIKeys(v ...*APIKey) *UserUpdateOne {
 	return _u.AddAPIKeyIDs(ids...)
 }
 
+// AddDeveloperTokenIDs adds the "developer_tokens" edge to the DeveloperToken entity by IDs.
+func (_u *UserUpdateOne) AddDeveloperTokenIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddDeveloperTokenIDs(ids...)
+	return _u
+}
+
+// AddDeveloperTokens adds the "developer_tokens" edges to the DeveloperToken entity.
+func (_u *UserUpdateOne) AddDeveloperTokens(v ...*DeveloperToken) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddDeveloperTokenIDs(ids...)
+}
+
 // AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by IDs.
 func (_u *UserUpdateOne) AddRedeemCodeIDs(ids ...int64) *UserUpdateOne {
 	_u.mutation.AddRedeemCodeIDs(ids...)
@@ -3142,6 +3409,27 @@ func (_u *UserUpdateOne) RemoveAPIKeys(v ...*APIKey) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAPIKeyIDs(ids...)
+}
+
+// ClearDeveloperTokens clears all "developer_tokens" edges to the DeveloperToken entity.
+func (_u *UserUpdateOne) ClearDeveloperTokens() *UserUpdateOne {
+	_u.mutation.ClearDeveloperTokens()
+	return _u
+}
+
+// RemoveDeveloperTokenIDs removes the "developer_tokens" edge to DeveloperToken entities by IDs.
+func (_u *UserUpdateOne) RemoveDeveloperTokenIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveDeveloperTokenIDs(ids...)
+	return _u
+}
+
+// RemoveDeveloperTokens removes "developer_tokens" edges to DeveloperToken entities.
+func (_u *UserUpdateOne) RemoveDeveloperTokens(v ...*DeveloperToken) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveDeveloperTokenIDs(ids...)
 }
 
 // ClearRedeemCodes clears all "redeem_codes" edges to the RedeemCode entity.
@@ -3578,6 +3866,21 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.OnboardingMode(); ok {
+		if err := user.OnboardingModeValidator(v); err != nil {
+			return &ValidationError{Name: "onboarding_mode", err: fmt.Errorf(`ent: validator failed for field "User.onboarding_mode": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ShareCardText(); ok {
+		if err := user.ShareCardTextValidator(v); err != nil {
+			return &ValidationError{Name: "share_card_text", err: fmt.Errorf(`ent: validator failed for field "User.share_card_text": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ShareCardTextColor(); ok {
+		if err := user.ShareCardTextColorValidator(v); err != nil {
+			return &ValidationError{Name: "share_card_text_color", err: fmt.Errorf(`ent: validator failed for field "User.share_card_text_color": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Username(); ok {
 		if err := user.UsernameValidator(v); err != nil {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
@@ -3679,6 +3982,21 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DeveloperAPIEnabled(); ok {
+		_spec.SetField(user.FieldDeveloperAPIEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.OpenaiExperimentalPromptUnlocked(); ok {
+		_spec.SetField(user.FieldOpenaiExperimentalPromptUnlocked, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.OnboardingMode(); ok {
+		_spec.SetField(user.FieldOnboardingMode, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.ShareCardText(); ok {
+		_spec.SetField(user.FieldShareCardText, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ShareCardTextColor(); ok {
+		_spec.SetField(user.FieldShareCardTextColor, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
@@ -3802,6 +4120,51 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikey.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.DeveloperTokensCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeveloperTokensTable,
+			Columns: []string{user.DeveloperTokensColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(developertoken.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedDeveloperTokensIDs(); len(nodes) > 0 && !_u.mutation.DeveloperTokensCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeveloperTokensTable,
+			Columns: []string{user.DeveloperTokensColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(developertoken.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.DeveloperTokensIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.DeveloperTokensTable,
+			Columns: []string{user.DeveloperTokensColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(developertoken.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

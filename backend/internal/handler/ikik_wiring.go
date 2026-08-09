@@ -2,9 +2,13 @@ package handler
 
 import "ikik-api/internal/service"
 
-func (h *ChannelMonitorUserHandler) configureIkikExtensions(groupCapacityService *service.GroupCapacityService) {
+func (h *ChannelMonitorUserHandler) configureIkikExtensions(
+	groupCapacityService *service.GroupCapacityService,
+	accountService *service.AccountService,
+) {
 	if h != nil {
 		h.groupCapacityService = groupCapacityService
+		h.accountService = accountService
 	}
 }
 

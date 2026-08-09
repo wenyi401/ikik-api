@@ -520,28 +520,45 @@ export default {
   },
 
   affiliate: {
-    title: 'Affiliate Rebates',
-    description: 'Invite new users and convert your rebate quota into account balance',
+    title: 'Invite Income',
+    description: 'Invite new users and earn real-time balance income when invitees consume the shared account pool',
     yourCode: 'Your Affiliate Code',
     inviteLink: 'Invite Link',
     copyCode: 'Copy Code',
     copyLink: 'Copy Link',
     codeCopied: 'Affiliate code copied',
     linkCopied: 'Invite link copied',
-    loadFailed: 'Failed to load affiliate data',
+    loadFailed: 'Failed to load invite income data',
     transferFailed: 'Failed to transfer affiliate quota',
     stats: {
-      rebateRate: 'My Rebate Rate',
-      rebateRateHint: 'What you earn each time an invitee recharges',
+      rebateRate: 'My Invite Share',
+      rebateRateHint: 'What you earn when invitees consume the shared account pool during the valid period',
       invitedUsers: 'Invited Users',
-      availableQuota: 'Available Rebate Quota',
+      availableQuota: 'Legacy Available Rebate Quota',
+      settlementMode: 'Settlement Mode',
+      realtimeBalance: 'Real-time Balance',
+      realtimeBalanceHint: 'Invite income is credited directly after each usage settlement',
       frozenQuota: 'Frozen',
-      frozenQuotaHint: 'Recently earned rebates pending release',
-      totalQuota: 'Historical Rebate Quota'
+      frozenQuotaHint: 'Legacy recharge rebate quota kept for compatibility',
+      todayQuota: 'Today Invite Income',
+      yesterdayQuota: 'Yesterday Invite Income',
+      last7Quota: 'Last 7 Days Invite Income',
+      periodQuota: 'Period Invite Income',
+      totalQuota: 'Historical Invite Income'
+    },
+    period: {
+      start: 'Start date',
+      end: 'End date',
+      invalid: 'Please choose a valid date range',
+      presets: {
+        today: 'Today',
+        yesterday: 'Yesterday',
+        last7: 'Last 7'
+      }
     },
     transfer: {
-      title: 'Transfer Rebate Quota',
-      description: 'Move available rebate quota into your account balance',
+      title: 'Legacy Rebate Transfer',
+      description: 'Legacy recharge rebate transfer is disabled. New invite income is credited directly to balance.',
       button: 'Transfer to Balance',
       transferring: 'Transferring...',
       empty: 'No available rebate quota',
@@ -551,18 +568,33 @@ export default {
       title: 'Invited Users',
       empty: 'No invited users yet',
       columns: {
+        user: 'User',
         email: 'Email',
         username: 'Username',
-        rebate: 'Rebate',
+        bindSource: 'Bind Source',
+        status: 'Status',
+        periodConsumption: 'Period Consumption',
+        periodRebate: 'Period Income',
+        historyConsumption: 'Historical Consumption',
+        rebate: 'Invite Income',
         joinedAt: 'Joined At'
+      },
+      bindSources: {
+        registration: 'Registration',
+        admin: 'Admin',
+        legacy: 'Historical'
+      },
+      status: {
+        active: 'Active',
+        disabled: 'Disabled'
       }
     },
     tips: {
       title: 'How It Works',
       line1: 'Share your affiliate code or invite link with new users.',
-      line2: 'When invitees recharge, you receive {rate} of the recharge as rebate quota.',
-      line3: 'Transfer rebate quota to balance at any time.',
-      line4: 'Newly earned rebates may have a waiting period before they can be transferred.'
+      line2: 'When invitees consume the shared account pool during the valid period, you receive {rate} as invite income.',
+      line3: 'Invite income is settled per usage and credited directly to your balance.',
+      line4: 'Legacy recharge rebate freeze and transfer rules are disabled.'
     }
   },
 
@@ -650,6 +682,87 @@ export default {
     passwordTooShort: 'Password must be at least 8 characters long',
     passwordChangeSuccess: 'Password changed successfully',
     passwordChangeFailed: 'Failed to change password',
+    experimentalPrompt: {
+      title: 'OpenAI Experimental System Instruction',
+      description: 'After unlocking, it applies only when you use an OpenAI group with this feature enabled.',
+      serviceStatus: 'Service status',
+      entitlementStatus: 'Entitlement',
+      configured: 'Configured',
+      notConfigured: 'Not available',
+      unlocked: 'Unlocked',
+      locked: 'Locked',
+      unlockedHint: 'Your entitlement is active. Each request is evaluated against the actual selected OpenAI group, so switching groups does not carry it over incorrectly.',
+      price: 'One-time price',
+      priceValue: '{amount} balance',
+      purchase: 'Unlock with balance',
+      insufficientBalance: 'Insufficient balance. You need ${amount} more.',
+      purchaseUnavailable: 'The administrator has not configured the system instruction, so balance purchase is unavailable.',
+      redeemLabel: 'Feature redeem code',
+      redeemPlaceholder: 'Enter redeem code',
+      redeem: 'Redeem and unlock',
+      purchaseSuccess: 'OpenAI experimental system instruction unlocked',
+      redeemSuccess: 'Feature code redeemed and entitlement unlocked',
+      wrongCodeType: 'The code was redeemed successfully, but it was not for this feature. Check your balance or subscriptions for the result.',
+      loadFailed: 'Failed to load the experimental system instruction entitlement',
+      purchaseFailed: 'Failed to unlock with balance',
+      redeemFailed: 'Redemption failed. Check the code and try again.'
+    },
+    developerTokens: {
+      title: 'Developer Tokens',
+      description: 'Scoped credentials for automating your own account imports and sharing requests.',
+      create: 'Create token',
+      createTitle: 'Create developer token',
+      createdTitle: 'Developer token created',
+      name: 'Token name',
+      namePlaceholder: 'Example: account sync service',
+      nameRequired: 'Enter a token name',
+      permissions: 'Permissions',
+      scopeRequired: 'Select at least one permission',
+      expiry: 'Expiration',
+      empty: 'No developer tokens',
+      emptyHint: 'Create a scoped token when an integration is ready.',
+      accessDisabledTitle: 'Developer API access not granted',
+      accessDisabledDescription: 'This entry always appears under Account Management. Contact an administrator to enable developer tokens for this account.',
+      plaintextToken: 'Token',
+      oneTimeWarning: 'This token is shown only once. Store it securely before closing this dialog.',
+      savedToken: 'I have stored it',
+      copy: 'Copy token',
+      copied: 'Developer token copied',
+      revoke: 'Revoke',
+      revokeNamed: 'Revoke {name}',
+      revokeTitle: 'Revoke developer token',
+      revokeConfirm: 'Revoke “{name}”? Integrations using it will stop immediately.',
+      revoked: 'Developer token revoked',
+      loadFailed: 'Failed to load developer tokens',
+      createFailed: 'Failed to create developer token',
+      revokeFailed: 'Failed to revoke developer token',
+      neverUsed: 'Never used',
+      lastUsed: 'Last used {time}',
+      expires: 'Expires {time}',
+      status: {
+        active: 'Active',
+        expired: 'Expired',
+        revoked: 'Revoked'
+      },
+      scopes: {
+        read: {
+          label: 'Read accounts',
+          description: 'List owned accounts and inspect asynchronous task status.'
+        },
+        write: {
+          label: 'Manage accounts',
+          description: 'Import OAuth accounts and delete owned accounts.'
+        },
+        share: {
+          label: 'Request sharing',
+          description: 'Submit owned accounts for public sharing or return them to private mode.'
+        },
+        access: {
+          label: 'QQ bot access',
+          description: 'Allow the bot to read your profile, usage, channel, account, and sharing statistics.'
+        }
+      }
+    },
     // TOTP 2FA
     totp: {
       title: 'Two-Factor Authentication (2FA)',

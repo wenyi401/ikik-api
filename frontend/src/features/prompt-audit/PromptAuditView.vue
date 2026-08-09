@@ -51,6 +51,7 @@
               />
               <div v-if="loadErrors.groups" role="alert" class="mt-5 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">{{ loadErrors.groups }}</div>
               <PolicyPanel :draft="draft" :groups="groups" @update:draft="replaceDraft" />
+              <PromptTestPanel />
             </template>
           </div>
 
@@ -101,6 +102,10 @@
               @unblock="unblockProfile"
             />
           </div>
+
+          <div v-show="activeTab === 'knowledge'" data-test="tab-panel-knowledge">
+            <KnowledgeWorkspace :active="activeTab === 'knowledge'" />
+          </div>
         </main>
       </template>
     </div>
@@ -109,7 +114,8 @@
       <div class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
           <SaveToggle :label="t('admin.promptAudit.saveBar.enabled')" :model-value="draft.enabled" data-test="enabled-toggle" @update:model-value="setEnabled" />
-          <SaveToggle :label="t('admin.promptAudit.saveBar.blocking')" :model-value="draft.blocking_enabled" :disabled="!draft.enabled" data-test="blocking-toggle" @update:model-value="setBlocking" />
+          <SaveToggle :label="t('admin.promptAudit.saveBar.blocking')" :model-value="draft.blocking_enabled" :disabled="!draft.enabled || draft.enforcement_mode !== 'enforce'" data-test="blocking-toggle" @update:model-value="setBlocking" />
+          <SaveToggle :label="t('admin.promptAudit.saveBar.blockingLatestTurnOnly')" :model-value="draft.blocking_latest_turn_only" :disabled="!draft.enabled || !draft.blocking_enabled || draft.enforcement_mode !== 'enforce'" data-test="blocking-latest-turn-only-toggle" @update:model-value="replaceDraft({ ...draft!, blocking_latest_turn_only: $event })" />
           <SaveToggle :label="t('admin.promptAudit.saveBar.storePass')" :model-value="draft.store_pass_events" data-test="store-pass-toggle" @update:model-value="replaceDraft({ ...draft!, store_pass_events: $event })" />
         </div>
         <div class="flex items-center gap-3">
@@ -167,10 +173,12 @@ import { extractApiErrorCode, extractApiErrorMessage } from '@/utils/apiError'
 import RuntimeOverview from './components/RuntimeOverview.vue'
 import EndpointPool from './components/EndpointPool.vue'
 import PolicyPanel from './components/PolicyPanel.vue'
+import PromptTestPanel from './components/PromptTestPanel.vue'
 import EventWorkspace from './components/EventWorkspace.vue'
 import EventDetailDialog from './components/EventDetailDialog.vue'
 import FilterDeleteDialog from './components/FilterDeleteDialog.vue'
 import ProfileWorkspace from './components/ProfileWorkspace.vue'
+import KnowledgeWorkspace from './components/KnowledgeWorkspace.vue'
 import promptAuditAPI from './api'
 import type {
   PromptAuditDraft,
@@ -190,10 +198,11 @@ import { buildUpdateRequest, cloneData, configToDraft, draftFingerprint, emptyEv
 
 const { t, locale } = useI18n()
 const appStore = useAppStore()
-type PromptAuditPageTab = 'config' | 'events' | 'profiles'
+type PromptAuditPageTab = 'config' | 'events' | 'profiles' | 'knowledge'
 const activeTab = ref<PromptAuditPageTab>('events')
 const pageTabs = computed(() => [
   { id: 'events' as const, label: t('admin.promptAudit.tabs.events') },
+	{ id: 'knowledge' as const, label: t('admin.promptAudit.tabs.knowledge') },
 	{ id: 'profiles' as const, label: t('admin.promptAudit.tabs.profiles') },
   { id: 'config' as const, label: t('admin.promptAudit.tabs.config') },
 ])

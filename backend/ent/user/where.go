@@ -125,6 +125,26 @@ func Status(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldStatus, v))
 }
 
+// DeveloperAPIEnabled applies equality check predicate on the "developer_api_enabled" field. It's identical to DeveloperAPIEnabledEQ.
+func DeveloperAPIEnabled(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDeveloperAPIEnabled, v))
+}
+
+// OpenaiExperimentalPromptUnlocked applies equality check predicate on the "openai_experimental_prompt_unlocked" field. It's identical to OpenaiExperimentalPromptUnlockedEQ.
+func OpenaiExperimentalPromptUnlocked(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldOpenaiExperimentalPromptUnlocked, v))
+}
+
+// ShareCardText applies equality check predicate on the "share_card_text" field. It's identical to ShareCardTextEQ.
+func ShareCardText(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldShareCardText, v))
+}
+
+// ShareCardTextColor applies equality check predicate on the "share_card_text_color" field. It's identical to ShareCardTextColorEQ.
+func ShareCardTextColor(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldShareCardTextColor, v))
+}
+
 // Username applies equality check predicate on the "username" field. It's identical to UsernameEQ.
 func Username(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldUsername, v))
@@ -848,6 +868,176 @@ func StatusEqualFold(v string) predicate.User {
 // StatusContainsFold applies the ContainsFold predicate on the "status" field.
 func StatusContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldStatus, v))
+}
+
+// DeveloperAPIEnabledEQ applies the EQ predicate on the "developer_api_enabled" field.
+func DeveloperAPIEnabledEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDeveloperAPIEnabled, v))
+}
+
+// DeveloperAPIEnabledNEQ applies the NEQ predicate on the "developer_api_enabled" field.
+func DeveloperAPIEnabledNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldDeveloperAPIEnabled, v))
+}
+
+// OpenaiExperimentalPromptUnlockedEQ applies the EQ predicate on the "openai_experimental_prompt_unlocked" field.
+func OpenaiExperimentalPromptUnlockedEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldOpenaiExperimentalPromptUnlocked, v))
+}
+
+// OpenaiExperimentalPromptUnlockedNEQ applies the NEQ predicate on the "openai_experimental_prompt_unlocked" field.
+func OpenaiExperimentalPromptUnlockedNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldOpenaiExperimentalPromptUnlocked, v))
+}
+
+// OnboardingModeEQ applies the EQ predicate on the "onboarding_mode" field.
+func OnboardingModeEQ(v OnboardingMode) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldOnboardingMode, v))
+}
+
+// OnboardingModeNEQ applies the NEQ predicate on the "onboarding_mode" field.
+func OnboardingModeNEQ(v OnboardingMode) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldOnboardingMode, v))
+}
+
+// OnboardingModeIn applies the In predicate on the "onboarding_mode" field.
+func OnboardingModeIn(vs ...OnboardingMode) predicate.User {
+	return predicate.User(sql.FieldIn(FieldOnboardingMode, vs...))
+}
+
+// OnboardingModeNotIn applies the NotIn predicate on the "onboarding_mode" field.
+func OnboardingModeNotIn(vs ...OnboardingMode) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldOnboardingMode, vs...))
+}
+
+// ShareCardTextEQ applies the EQ predicate on the "share_card_text" field.
+func ShareCardTextEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldShareCardText, v))
+}
+
+// ShareCardTextNEQ applies the NEQ predicate on the "share_card_text" field.
+func ShareCardTextNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldShareCardText, v))
+}
+
+// ShareCardTextIn applies the In predicate on the "share_card_text" field.
+func ShareCardTextIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldShareCardText, vs...))
+}
+
+// ShareCardTextNotIn applies the NotIn predicate on the "share_card_text" field.
+func ShareCardTextNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldShareCardText, vs...))
+}
+
+// ShareCardTextGT applies the GT predicate on the "share_card_text" field.
+func ShareCardTextGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldShareCardText, v))
+}
+
+// ShareCardTextGTE applies the GTE predicate on the "share_card_text" field.
+func ShareCardTextGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldShareCardText, v))
+}
+
+// ShareCardTextLT applies the LT predicate on the "share_card_text" field.
+func ShareCardTextLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldShareCardText, v))
+}
+
+// ShareCardTextLTE applies the LTE predicate on the "share_card_text" field.
+func ShareCardTextLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldShareCardText, v))
+}
+
+// ShareCardTextContains applies the Contains predicate on the "share_card_text" field.
+func ShareCardTextContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldShareCardText, v))
+}
+
+// ShareCardTextHasPrefix applies the HasPrefix predicate on the "share_card_text" field.
+func ShareCardTextHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldShareCardText, v))
+}
+
+// ShareCardTextHasSuffix applies the HasSuffix predicate on the "share_card_text" field.
+func ShareCardTextHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldShareCardText, v))
+}
+
+// ShareCardTextEqualFold applies the EqualFold predicate on the "share_card_text" field.
+func ShareCardTextEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldShareCardText, v))
+}
+
+// ShareCardTextContainsFold applies the ContainsFold predicate on the "share_card_text" field.
+func ShareCardTextContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldShareCardText, v))
+}
+
+// ShareCardTextColorEQ applies the EQ predicate on the "share_card_text_color" field.
+func ShareCardTextColorEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldShareCardTextColor, v))
+}
+
+// ShareCardTextColorNEQ applies the NEQ predicate on the "share_card_text_color" field.
+func ShareCardTextColorNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldShareCardTextColor, v))
+}
+
+// ShareCardTextColorIn applies the In predicate on the "share_card_text_color" field.
+func ShareCardTextColorIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldShareCardTextColor, vs...))
+}
+
+// ShareCardTextColorNotIn applies the NotIn predicate on the "share_card_text_color" field.
+func ShareCardTextColorNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldShareCardTextColor, vs...))
+}
+
+// ShareCardTextColorGT applies the GT predicate on the "share_card_text_color" field.
+func ShareCardTextColorGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldShareCardTextColor, v))
+}
+
+// ShareCardTextColorGTE applies the GTE predicate on the "share_card_text_color" field.
+func ShareCardTextColorGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldShareCardTextColor, v))
+}
+
+// ShareCardTextColorLT applies the LT predicate on the "share_card_text_color" field.
+func ShareCardTextColorLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldShareCardTextColor, v))
+}
+
+// ShareCardTextColorLTE applies the LTE predicate on the "share_card_text_color" field.
+func ShareCardTextColorLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldShareCardTextColor, v))
+}
+
+// ShareCardTextColorContains applies the Contains predicate on the "share_card_text_color" field.
+func ShareCardTextColorContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldShareCardTextColor, v))
+}
+
+// ShareCardTextColorHasPrefix applies the HasPrefix predicate on the "share_card_text_color" field.
+func ShareCardTextColorHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldShareCardTextColor, v))
+}
+
+// ShareCardTextColorHasSuffix applies the HasSuffix predicate on the "share_card_text_color" field.
+func ShareCardTextColorHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldShareCardTextColor, v))
+}
+
+// ShareCardTextColorEqualFold applies the EqualFold predicate on the "share_card_text_color" field.
+func ShareCardTextColorEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldShareCardTextColor, v))
+}
+
+// ShareCardTextColorContainsFold applies the ContainsFold predicate on the "share_card_text_color" field.
+func ShareCardTextColorContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldShareCardTextColor, v))
 }
 
 // UsernameEQ applies the EQ predicate on the "username" field.
@@ -1685,6 +1875,29 @@ func HasAPIKeys() predicate.User {
 func HasAPIKeysWith(preds ...predicate.APIKey) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newAPIKeysStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasDeveloperTokens applies the HasEdge predicate on the "developer_tokens" edge.
+func HasDeveloperTokens() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, DeveloperTokensTable, DeveloperTokensColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasDeveloperTokensWith applies the HasEdge predicate on the "developer_tokens" edge with a given conditions (other predicates).
+func HasDeveloperTokensWith(preds ...predicate.DeveloperToken) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newDeveloperTokensStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

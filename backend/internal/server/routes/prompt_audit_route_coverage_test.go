@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/handler"
 	"ikik-api/internal/securityaudit"
 	servermiddleware "ikik-api/internal/server/middleware"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 )
 
 func TestEveryGatewayPOSTRouteIsClassifiedForPromptAuditCoverage(t *testing.T) {
@@ -115,22 +115,28 @@ func TestPromptAuditAdminRoutesRejectUnauthenticatedAndNonAdminRequests(t *testi
 	stepUp := servermiddleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() })
 	RegisterAdminRoutes(router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp, nil)
 
-	for _, tc := range []struct {
-		name       string
-		auth       string
-		wantStatus int
-	}{
-		{name: "unauthenticated", wantStatus: http.StatusUnauthorized},
-		{name: "non-admin", auth: "Bearer user-token", wantStatus: http.StatusForbidden},
+	for _, path := range []string{
+		"/api/v1/admin/prompt-audit/config",
+		"/api/v1/admin/prompt-audit/knowledge/summary",
+		"/api/v1/admin/prompt-audit/knowledge/observations",
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			request := httptest.NewRequest(http.MethodGet, "/api/v1/admin/prompt-audit/config", nil)
-			if tc.auth != "" {
-				request.Header.Set("Authorization", tc.auth)
-			}
-			router.ServeHTTP(recorder, request)
-			require.Equal(t, tc.wantStatus, recorder.Code)
-		})
+		for _, tc := range []struct {
+			name       string
+			auth       string
+			wantStatus int
+		}{
+			{name: "unauthenticated", wantStatus: http.StatusUnauthorized},
+			{name: "non-admin", auth: "Bearer user-token", wantStatus: http.StatusForbidden},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				recorder := httptest.NewRecorder()
+				request := httptest.NewRequest(http.MethodGet, path, nil)
+				if tc.auth != "" {
+					request.Header.Set("Authorization", tc.auth)
+				}
+				router.ServeHTTP(recorder, request)
+				require.Equal(t, tc.wantStatus, recorder.Code)
+			})
+		}
 	}
 }

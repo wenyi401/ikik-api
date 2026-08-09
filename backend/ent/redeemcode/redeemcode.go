@@ -18,6 +18,8 @@ const (
 	FieldCode = "code"
 	// FieldType holds the string denoting the type field in the database.
 	FieldType = "type"
+	// FieldFeatureKey holds the string denoting the feature_key field in the database.
+	FieldFeatureKey = "feature_key"
 	// FieldValue holds the string denoting the value field in the database.
 	FieldValue = "value"
 	// FieldStatus holds the string denoting the status field in the database.
@@ -63,6 +65,7 @@ var Columns = []string{
 	FieldID,
 	FieldCode,
 	FieldType,
+	FieldFeatureKey,
 	FieldValue,
 	FieldStatus,
 	FieldUsedBy,
@@ -91,6 +94,10 @@ var (
 	DefaultType string
 	// TypeValidator is a validator for the "type" field. It is called by the builders before save.
 	TypeValidator func(string) error
+	// DefaultFeatureKey holds the default value on creation for the "feature_key" field.
+	DefaultFeatureKey string
+	// FeatureKeyValidator is a validator for the "feature_key" field. It is called by the builders before save.
+	FeatureKeyValidator func(string) error
 	// DefaultValue holds the default value on creation for the "value" field.
 	DefaultValue float64
 	// DefaultStatus holds the default value on creation for the "status" field.
@@ -119,6 +126,11 @@ func ByCode(opts ...sql.OrderTermOption) OrderOption {
 // ByType orders the results by the type field.
 func ByType(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldType, opts...).ToFunc()
+}
+
+// ByFeatureKey orders the results by the feature_key field.
+func ByFeatureKey(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFeatureKey, opts...).ToFunc()
 }
 
 // ByValue orders the results by the value field.

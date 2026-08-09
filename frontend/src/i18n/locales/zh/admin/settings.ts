@@ -378,8 +378,8 @@ export default {
         antigravityUserAgentVersionPlaceholder: '1.23.2',
         antigravityUserAgentVersionHint: '留空时使用 ANTIGRAVITY_USER_AGENT_VERSION 或内置默认值 1.23.2；填写后后台设置优先。',
         openaiCodexUserAgent: 'OpenAI Codex UA',
-        openaiCodexUserAgentPlaceholder: 'codex-tui/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color (codex-tui; 0.125.0)',
-        openaiCodexUserAgentHint: '用于规避 OpenAI 上游 Cloudflare 对浏览器 UA 的访问质询。仅在检测到客户端 User-Agent 为浏览器（Mozilla/...）时生效，其他客户端原样透传。留空使用内置默认值。',
+        openaiCodexUserAgentPlaceholder: 'codex_cli_rs/0.144.1 (Ubuntu 22.4.0; x86_64) xterm-256color',
+        openaiCodexUserAgentHint: '用于规避 OpenAI 上游 Cloudflare 对浏览器 UA 的访问质询。仅在检测到客户端 User-Agent 为浏览器（Mozilla/...）时生效，其他客户端原样透传。留空使用内置默认值。建议填写 codex_cli_rs 形态：上游按 originator 分桶调度容量，落在降载桶的身份会被回 server_is_overloaded 并触发账号冷却。',
         codexHardeningTitle: 'Codex 设置',
         codexClientRestrictionTitle: 'Codex 客户端限制',
         codexHardeningDesc:
@@ -940,6 +940,20 @@ export default {
           testSuccess: 'Google Drive 存储测试成功（上传、访问、删除均正常）',
           testFailed: 'Google Drive 存储测试失败'
         }
+      },
+      openaiExperimentalPrompt: {
+        title: 'OpenAI 实验性系统指令',
+        description: '统一配置仅对已开启分组、且用户已解锁权益时生效的 OpenAI 系统指令。',
+        promptLabel: '系统指令',
+        promptPlaceholder: '输入要注入 OpenAI 请求的系统指令。留空即停止注入。',
+        promptHint: '最多 40,000 字节。保存空内容后，即使分组开关已开启也不会注入。',
+        priceLabel: '一次性解锁价格',
+        priceHint: '用户可在个人中心用余额购买，也可使用管理员生成的功能兑换码解锁。',
+        safetyHint: '默认关闭，只处理 OpenAI 请求；切换分组或故障转移时会按当前实际分组重新判断。',
+        invalidPrice: '请输入 0 到 1,000,000 元之间的有效价格。',
+        saved: 'OpenAI 实验性系统指令设置已保存',
+        loadFailed: '加载 OpenAI 实验性系统指令设置失败',
+        saveFailed: '保存 OpenAI 实验性系统指令设置失败'
       },
       overloadCooldown: {
         title: '529 过载冷却',

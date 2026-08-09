@@ -6,9 +6,11 @@ import { adminAPI } from '@/api/admin'
 
 const discoveredModelCount = 25
 
-const { probeModelListMock, probeModelsMock } = vi.hoisted(() => ({
+const { probeModelListMock, probeModelsMock, userProbeModelListMock, userProbeModelsMock } = vi.hoisted(() => ({
   probeModelListMock: vi.fn(),
-  probeModelsMock: vi.fn()
+  probeModelsMock: vi.fn(),
+  userProbeModelListMock: vi.fn(),
+  userProbeModelsMock: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -17,6 +19,13 @@ vi.mock('@/api/admin', () => ({
       probeModelList: probeModelListMock,
       probeModels: probeModelsMock
     }
+  }
+}))
+
+vi.mock('@/api/accounts', () => ({
+  accountsAPI: {
+    probeModelList: userProbeModelListMock,
+    probeModels: userProbeModelsMock
   }
 }))
 
@@ -36,11 +45,12 @@ const BaseDialogStub = defineComponent({
   template: '<div v-if="show"><slot /><slot name="footer" /></div>'
 })
 
-function mountModal() {
+function mountModal(accountScope: 'admin' | 'user' = 'admin') {
   return mount(ModelProbeModal, {
     props: {
       show: true,
-      defaultPlatform: 'openai'
+      defaultPlatform: 'openai',
+      accountScope
     },
     global: {
       stubs: {
@@ -60,6 +70,8 @@ describe('ModelProbeModal', () => {
   beforeEach(() => {
     probeModelListMock.mockReset()
     probeModelsMock.mockReset()
+    userProbeModelListMock.mockReset()
+    userProbeModelsMock.mockReset()
     probeModelListMock.mockResolvedValue({
       models: Array.from({ length: discoveredModelCount }, (_, index) => ({ id: `model-${index + 1}` }))
     })
@@ -69,6 +81,39 @@ describe('ModelProbeModal', () => {
         { model: 'model-2', mode: 'responses', ok: false, status: 404, error: 'not found' }
       ]
     })
+    userProbeModelListMock.mockResolvedValue({
+      models: [{ id: 'user-model-1' }]
+    })
+    userProbeModelsMock.mockResolvedValue({
+      results: [{ model: 'user-model-1', mode: 'responses', ok: true, status: 200 }]
+    })
+  })
+
+  it('用户范围只调用用户模型探测接口', async () => {
+    const wrapper = mountModal('user')
+
+    await wrapper.findAll('input')[1].setValue('sk-user-test')
+    await findButton(wrapper, 'admin.accounts.modelProbe.discover').trigger('click')
+    await flushPromises()
+
+    expect(userProbeModelListMock).toHaveBeenCalledWith({
+      platform: 'openai',
+      base_url: '',
+      api_key: 'sk-user-test'
+    })
+    expect(probeModelListMock).not.toHaveBeenCalled()
+
+    await findButton(wrapper, 'admin.accounts.modelProbe.testSelected').trigger('click')
+    await flushPromises()
+
+    expect(userProbeModelsMock).toHaveBeenCalledWith({
+      platform: 'openai',
+      base_url: '',
+      api_key: 'sk-user-test',
+      mode: 'responses',
+      models: ['user-model-1']
+    })
+    expect(probeModelsMock).not.toHaveBeenCalled()
   })
 
   it('发现、验证并只应用验证通过的模型', async () => {

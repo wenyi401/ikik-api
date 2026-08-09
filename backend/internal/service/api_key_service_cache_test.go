@@ -236,28 +236,31 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesMessagesDispatchModelConfig(t 
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
 	groupID := int64(9)
 	apiKey := &APIKey{
-		ID:      1,
-		UserID:  2,
-		GroupID: &groupID,
-		Key:     "k-roundtrip",
-		Name:    "Audit Key",
-		Status:  StatusActive,
+		ID:                              1,
+		UserID:                          2,
+		GroupID:                         &groupID,
+		Key:                             "k-roundtrip",
+		Name:                            "Audit Key",
+		Status:                          StatusActive,
+		OpenAIExperimentalPromptEnabled: true,
 		User: &User{
-			ID:          2,
-			Status:      StatusActive,
-			Role:        RoleUser,
-			Balance:     10,
-			Concurrency: 3,
+			ID:                               2,
+			Status:                           StatusActive,
+			Role:                             RoleUser,
+			Balance:                          10,
+			Concurrency:                      3,
+			OpenAIExperimentalPromptUnlocked: true,
 		},
 		Group: &Group{
-			ID:                    groupID,
-			Name:                  "openai",
-			Platform:              PlatformOpenAI,
-			Status:                StatusActive,
-			SubscriptionType:      SubscriptionTypeStandard,
-			RateMultiplier:        1,
-			AllowMessagesDispatch: true,
-			DefaultMappedModel:    "gpt-5.4",
+			ID:                              groupID,
+			Name:                            "openai",
+			Platform:                        PlatformOpenAI,
+			Status:                          StatusActive,
+			SubscriptionType:                SubscriptionTypeStandard,
+			RateMultiplier:                  1,
+			AllowMessagesDispatch:           true,
+			OpenAIExperimentalPromptEnabled: true,
+			DefaultMappedModel:              "gpt-5.4",
 			MessagesDispatchModelConfig: OpenAIMessagesDispatchModelConfig{
 				OpusMappedModel:   "gpt-5.4-nano",
 				SonnetMappedModel: "gpt-5.3-codex",
@@ -274,7 +277,10 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesMessagesDispatchModelConfig(t 
 
 	require.NotNil(t, roundTrip)
 	require.Equal(t, apiKey.Name, roundTrip.Name)
+	require.True(t, roundTrip.OpenAIExperimentalPromptEnabled)
+	require.True(t, roundTrip.User.OpenAIExperimentalPromptUnlocked)
 	require.NotNil(t, roundTrip.Group)
+	require.True(t, roundTrip.Group.OpenAIExperimentalPromptEnabled)
 	require.Equal(t, apiKey.Group.MessagesDispatchModelConfig, roundTrip.Group.MessagesDispatchModelConfig)
 }
 

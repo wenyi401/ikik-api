@@ -137,7 +137,14 @@ func registerPromptAuditRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		promptAudit.GET("/config", h.Admin.PromptAudit.GetConfig)
 		promptAudit.PUT("/config", h.Admin.PromptAudit.UpdateConfig)
 		promptAudit.POST("/endpoints/probe", h.Admin.PromptAudit.ProbeEndpoint)
+		promptAudit.POST("/test", h.Admin.PromptAudit.TestPrompt)
 		promptAudit.GET("/runtime", h.Admin.PromptAudit.GetRuntime)
+		promptAudit.GET("/knowledge/summary", h.Admin.PromptAudit.GetKnowledgeSummary)
+		promptAudit.GET("/knowledge/observations", h.Admin.PromptAudit.ListKnowledgeObservations)
+		promptAudit.PUT("/knowledge/observations/:id/review", h.Admin.PromptAudit.ReviewKnowledgeObservation)
+		promptAudit.GET("/knowledge", h.Admin.PromptAudit.ListKnowledge)
+		promptAudit.POST("/knowledge", h.Admin.PromptAudit.CreateKnowledge)
+		promptAudit.PUT("/knowledge/:id", h.Admin.PromptAudit.UpdateKnowledge)
 		promptAudit.GET("/events", h.Admin.PromptAudit.ListEvents)
 		promptAudit.GET("/profiles", h.Admin.PromptAudit.ListProfiles)
 		promptAudit.POST("/profiles/:user_id/unblock", h.Admin.PromptAudit.UnblockProfile)
@@ -176,6 +183,10 @@ func registerContentModerationRoutes(admin *gin.RouterGroup, h *handler.Handlers
 		risk.GET("/status", h.Admin.ContentModeration.GetStatus)
 		risk.GET("/logs", h.Admin.ContentModeration.ListLogs)
 		risk.GET("/logs/:log_id", h.Admin.ContentModeration.GetLog)
+		risk.GET("/group-penalties", h.Admin.ContentModeration.ListGroupPenalties)
+		risk.GET("/group-penalties/:user_id/:group_id/events", h.Admin.ContentModeration.ListGroupPenaltyEvents)
+		risk.POST("/group-penalties/:user_id/:group_id/release", h.Admin.ContentModeration.ReleaseGroupPenalty)
+		risk.DELETE("/group-penalties/:user_id/:group_id", h.Admin.ContentModeration.ResetGroupPenalty)
 		risk.POST("/users/:user_id/unban", h.Admin.ContentModeration.UnbanUser)
 		risk.DELETE("/hashes", h.Admin.ContentModeration.DeleteFlaggedHash)
 		risk.DELETE("/hashes/all", h.Admin.ContentModeration.ClearFlaggedHashes)
@@ -570,6 +581,9 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.PUT("/web-search-emulation", h.Admin.Setting.UpdateWebSearchEmulationConfig)
 		adminSettings.POST("/web-search-emulation/test", h.Admin.Setting.TestWebSearchEmulation)
 		adminSettings.POST("/web-search-emulation/reset-usage", h.Admin.Setting.ResetWebSearchUsage)
+		// OpenAI 实验性系统指令配置
+		adminSettings.GET("/openai-experimental-prompt", h.Admin.Setting.GetOpenAIExperimentalPromptSettings)
+		adminSettings.PUT("/openai-experimental-prompt", h.Admin.Setting.UpdateOpenAIExperimentalPromptSettings)
 	}
 }
 

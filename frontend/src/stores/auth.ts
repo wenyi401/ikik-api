@@ -5,8 +5,8 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
-import { authAPI, isTotp2FARequired, type LoginResponse } from '@/api'
-import type { User, LoginRequest, RegisterRequest, AuthResponse } from '@/types'
+import { authAPI, isTotp2FARequired, userAPI, type LoginResponse } from '@/api'
+import type { User, LoginRequest, RegisterRequest, AuthResponse, OnboardingMode } from '@/types'
 
 const AUTH_TOKEN_KEY = 'auth_token'
 const AUTH_USER_KEY = 'auth_user'
@@ -460,6 +460,13 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function updateOnboardingMode(mode: Exclude<OnboardingMode, 'unset'>): Promise<User> {
+    const updatedUser = await userAPI.updateProfile({ onboarding_mode: mode })
+    user.value = updatedUser
+    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser))
+    return updatedUser
+  }
+
   /**
    * Clear all authentication state
    * Internal helper function
@@ -511,6 +518,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     checkAuth,
     refreshUser,
+    updateOnboardingMode,
     setPendingAuthSession,
     clearPendingAuthSession
   }

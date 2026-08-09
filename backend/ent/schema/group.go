@@ -181,6 +181,11 @@ func (Group) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("自定义 /v1/models 展示列表配置；仅用于控制模型列表响应"),
 
+		// OpenAI 实验性系统指令能力。默认关闭，且仍需用户解锁权益后才会注入。
+		field.Bool("openai_experimental_prompt_enabled").
+			Default(false).
+			Comment("是否允许该 OpenAI 分组使用管理员配置的实验性系统指令"),
+
 		// 分组级每分钟请求数上限（0 = 不限制）。设置后优先于用户级兜底生效。
 		field.Int("rpm_limit").
 			Default(0).

@@ -7,7 +7,7 @@ import { apiClient } from './client'
 import { createIdempotencyKey } from './idempotency'
 import type { Account, AccountUsageInfo, AccountUsageStatsResponse, AdminDataImportResult, AdminDataPayload, CodexSessionImportResult, CreateAccountRequest, CreateProxyRequest, OllamaCloudUsageState, PaginatedResponse, Proxy, ProxyQualityCheckResult, UpdateAccountRequest, UpdateProxyRequest, UserAccountQuotaPoolDashboard, WindowStats } from '@/types'
 import type { KiroIDCAuthUrlResponse, KiroTokenInfo } from '@/api/admin/kiro'
-import type { OpenAIQuotaResetResult, OpenAIQuotaUsage } from '@/api/admin/accounts'
+import type { ModelProbeListRequest, ModelProbeListResult, ModelProbeTestRequest, ModelProbeTestResult, OpenAIQuotaResetResult, OpenAIQuotaUsage } from '@/api/admin/accounts'
 import {
   getGrokSSOImportTimeout,
   type GrokSSOToOAuthRequest,
@@ -56,6 +56,16 @@ export async function getQuotaDashboard(options?: {
   const { data } = await apiClient.get<UserAccountQuotaPoolDashboard>('/accounts/quota-dashboard', {
     signal: options?.signal
   })
+  return data
+}
+
+export async function probeModelList(payload: ModelProbeListRequest): Promise<ModelProbeListResult> {
+  const { data } = await apiClient.post<ModelProbeListResult>('/accounts/model-probe/list', payload, { timeout: 45000 })
+  return data
+}
+
+export async function probeModels(payload: ModelProbeTestRequest): Promise<ModelProbeTestResult> {
+  const { data } = await apiClient.post<ModelProbeTestResult>('/accounts/model-probe/test', payload, { timeout: 90000 })
   return data
 }
 
@@ -776,6 +786,8 @@ export const accountsAPI = {
   list,
   getById,
   getQuotaDashboard,
+  probeModelList,
+  probeModels,
   create,
   importAccount,
   importAgentIdentity,
