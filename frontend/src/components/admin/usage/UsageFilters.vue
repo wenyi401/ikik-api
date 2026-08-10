@@ -144,6 +144,11 @@
           <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="emitChange" />
         </div>
 
+        <div class="usage-filter-field">
+          <label class="input-label">{{ t('admin.usage.upstreamModelAudit') }}</label>
+          <Select v-model="filters.upstream_model_mismatch" :options="upstreamModelMismatchOptions" @change="emitChange" />
+        </div>
+
         <!-- Group Filter -->
         <div class="usage-filter-field">
           <label class="input-label">{{ t('admin.usage.group') }}</label>
@@ -216,6 +221,7 @@ const userKeyword = ref('')
 const userResults = ref<SimpleUser[]>([])
 const showUserDropdown = ref(false)
 let userSearchTimeout: ReturnType<typeof setTimeout> | null = null
+let userSearchRequestVersion = 0
 
 const apiKeyKeyword = ref('')
 const apiKeyResults = ref<SimpleApiKey[]>([])
@@ -257,20 +263,30 @@ const billingModeOptions = ref<SelectOption[]>([
   { value: 'image', label: t('admin.usage.billingModeImage') }
 ])
 
+const upstreamModelMismatchOptions = ref<SelectOption[]>([
+  { value: null, label: t('admin.usage.allUpstreamModelAudit') },
+  { value: true, label: t('admin.usage.upstreamModelMismatchOnly') },
+  { value: false, label: t('admin.usage.upstreamModelMatchedOnly') }
+])
+
 const emitChange = () => emit('change')
 
 const debounceUserSearch = () => {
   if (userSearchTimeout) clearTimeout(userSearchTimeout)
+  const requestVersion = ++userSearchRequestVersion
+  const query = userKeyword.value.trim()
   userSearchTimeout = setTimeout(async () => {
-    if (!userKeyword.value) {
+    userSearchTimeout = null
+    if (!query) {
       userResults.value = []
       return
     }
     try {
-      const results = await adminAPI.usage.searchUsers(userKeyword.value)
+      const results = await adminAPI.usage.searchUsers(query)
+      if (requestVersion !== userSearchRequestVersion || query !== userKeyword.value.trim()) return
       userResults.value = results.sort((a, b) => Number(a.deleted) - Number(b.deleted))
     } catch {
-      userResults.value = []
+      if (requestVersion === userSearchRequestVersion) userResults.value = []
     }
   }, 300)
 }
@@ -306,6 +322,11 @@ const selectUser = async (u: SimpleUser) => {
 }
 
 const clearUser = () => {
+  userSearchRequestVersion++
+  if (userSearchTimeout) {
+    clearTimeout(userSearchTimeout)
+    userSearchTimeout = null
+  }
   userKeyword.value = ''
   userResults.value = []
   showUserDropdown.value = false
@@ -444,6 +465,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('click', onDocumentClick)
+  if (userSearchTimeout) clearTimeout(userSearchTimeout)
+  if (apiKeySearchTimeout) clearTimeout(apiKeySearchTimeout)
+  if (accountSearchTimeout) clearTimeout(accountSearchTimeout)
 })
 </script>
 

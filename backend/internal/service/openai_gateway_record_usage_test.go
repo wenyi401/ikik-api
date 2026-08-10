@@ -1302,12 +1302,13 @@ func TestOpenAIGatewayServiceRecordUsage_UsesRequestedModelAndUpstreamModelMetad
 
 	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
 		Result: &OpenAIForwardResult{
-			RequestID:       "resp_billing_model_override",
-			BillingModel:    "gpt-5.1-codex",
-			Model:           "gpt-5.1",
-			UpstreamModel:   "gpt-5.1-codex",
-			ServiceTier:     &serviceTier,
-			ReasoningEffort: &reasoning,
+			RequestID:             "resp_billing_model_override",
+			BillingModel:          "gpt-5.1-codex",
+			Model:                 "gpt-5.1",
+			UpstreamModel:         "gpt-5.1-codex",
+			UpstreamResponseModel: "gpt-5.1-codex",
+			ServiceTier:           &serviceTier,
+			ReasoningEffort:       &reasoning,
 			Usage: OpenAIUsage{
 				InputTokens:  20,
 				OutputTokens: 10,
@@ -1328,6 +1329,10 @@ func TestOpenAIGatewayServiceRecordUsage_UsesRequestedModelAndUpstreamModelMetad
 	require.Equal(t, "gpt-5.1", usageRepo.lastLog.RequestedModel)
 	require.NotNil(t, usageRepo.lastLog.UpstreamModel)
 	require.Equal(t, "gpt-5.1-codex", *usageRepo.lastLog.UpstreamModel)
+	require.NotNil(t, usageRepo.lastLog.UpstreamResponseModel)
+	require.Equal(t, "gpt-5.1-codex", *usageRepo.lastLog.UpstreamResponseModel)
+	require.NotNil(t, usageRepo.lastLog.UpstreamModelMismatch)
+	require.False(t, *usageRepo.lastLog.UpstreamModelMismatch)
 	require.NotNil(t, usageRepo.lastLog.ServiceTier)
 	require.Equal(t, serviceTier, *usageRepo.lastLog.ServiceTier)
 	require.NotNil(t, usageRepo.lastLog.ReasoningEffort)
@@ -1339,6 +1344,36 @@ func TestOpenAIGatewayServiceRecordUsage_UsesRequestedModelAndUpstreamModelMetad
 	require.NotNil(t, usageRepo.lastLog.GroupID)
 	require.Equal(t, int64(11), *usageRepo.lastLog.GroupID)
 	require.Equal(t, 1, userRepo.deductCalls)
+}
+
+func TestOpenAIGatewayServiceRecordUsage_RecordsUpstreamModelMismatch(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:             "resp_model_mismatch",
+			BillingModel:          "gpt-5.1-codex",
+			Model:                 "gpt-5.1",
+			UpstreamModel:         "gpt-5.1-codex",
+			UpstreamResponseModel: "gpt-5.4",
+			Usage: OpenAIUsage{
+				InputTokens:  20,
+				OutputTokens: 10,
+			},
+			Duration: time.Second,
+		},
+		APIKey:  &APIKey{ID: 10},
+		User:    &User{ID: 20},
+		Account: &Account{ID: 30},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.NotNil(t, usageRepo.lastLog.UpstreamModelMismatch)
+	require.True(t, *usageRepo.lastLog.UpstreamModelMismatch)
 }
 
 func TestOpenAIGatewayServiceRecordUsage_BillsMappedRequestsUsingRequestedModel(t *testing.T) {

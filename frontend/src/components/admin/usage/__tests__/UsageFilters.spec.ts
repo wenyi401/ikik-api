@@ -257,5 +257,8 @@ describe('UsageFilters — model options come from prop (no dup request)', () =>
 
     const opts = (wrapper.vm as any).modelOptions as Array<{ value: string | null; label: string }>
     expect(opts.map((o) => o.value)).toEqual([null, 'claude-3', 'gpt-4o'])
+
+    const auditOptions = (wrapper.vm as any).upstreamModelMismatchOptions as Array<{ value: boolean | null; label: string }>
+    expect(auditOptions.map((o) => o.value)).toEqual([null, true, false])
   })
 })
