@@ -89,6 +89,7 @@ export interface ContentModerationConfig {
   adaptive_policy: ContentModerationAdaptivePolicy
   group_penalty?: ContentModerationGroupPenaltyPolicy
   group_penalty_category_options?: ContentModerationGroupPenaltyCategoryOption[]
+  cyber_policy_exclude_from_ban_count: boolean
 }
 
 export type ContentModerationAPIKeyStatusValue = 'unknown' | 'ok' | 'error' | 'frozen'
@@ -197,6 +198,7 @@ export interface UpdateContentModerationConfig {
   model_filter?: ContentModerationModelFilter
   adaptive_policy?: ContentModerationAdaptivePolicy
   group_penalty?: ContentModerationGroupPenaltyPolicy
+  cyber_policy_exclude_from_ban_count?: boolean
 }
 
 export interface ContentModerationRuntimeStatus {

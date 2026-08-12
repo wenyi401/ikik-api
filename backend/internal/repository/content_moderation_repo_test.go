@@ -17,7 +17,7 @@ func TestBuildContentModerationLogWhere_BlockedIncludesAllBlockActions(t *testin
 
 	require.Empty(t, args)
 	sql := strings.Join(where, " AND ")
-	require.Contains(t, sql, "l.action IN ('block', 'keyword_block', 'hash_block')")
+	require.Contains(t, sql, "l.action IN ('block', 'keyword_block', 'hash_block', 'cyber_policy')")
 	require.NotContains(t, sql, "l.action = 'block'")
 }
 
@@ -29,10 +29,10 @@ func TestContentModerationRepositoryCountFlaggedByUserSince_ExcludesHashBlock(t 
 	repo := NewContentModerationRepository(db)
 	since := time.Now().Add(-time.Hour)
 	mock.ExpectQuery(regexp.QuoteMeta("AND action <> 'hash_block'")).
-		WithArgs(int64(1001), since).
+		WithArgs(int64(1001), since, false).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 
-	count, err := repo.CountFlaggedByUserSince(context.Background(), 1001, since)
+	count, err := repo.CountFlaggedByUserSince(context.Background(), 1001, since, false)
 
 	require.NoError(t, err)
 	require.Equal(t, 2, count)

@@ -132,8 +132,12 @@ func sanitizeEncryptedReasoningInputItem(item any) (next any, changed bool, keep
 	}
 
 	itemType, _ := inputItem["type"].(string)
-	if strings.TrimSpace(itemType) != "reasoning" {
+	itemType = strings.TrimSpace(itemType)
+	if itemType != "reasoning" && itemType != "compaction" && itemType != "compaction_summary" {
 		return item, false, true
+	}
+	if (itemType == "compaction" || itemType == "compaction_summary") && inputItem["encrypted_content"] != nil {
+		return nil, true, false
 	}
 
 	if _, has := inputItem["encrypted_content"]; has {

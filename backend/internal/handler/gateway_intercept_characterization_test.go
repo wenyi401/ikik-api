@@ -103,7 +103,7 @@ func (r *passCharModerationRepo) ListLogs(context.Context, service.ContentModera
 	return nil, nil, nil
 }
 
-func (r *passCharModerationRepo) CountFlaggedByUserSince(context.Context, int64, time.Time) (int, error) {
+func (r *passCharModerationRepo) CountFlaggedByUserSince(context.Context, int64, time.Time, bool) (int, error) {
 	return 0, nil
 }
 

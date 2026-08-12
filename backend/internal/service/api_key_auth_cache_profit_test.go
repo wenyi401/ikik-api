@@ -91,3 +91,24 @@ func TestAPIKeyAuthSnapshotOldVersionEvicted(t *testing.T) {
 	require.False(t, used, "版本不匹配的缓存条目必须淘汰并回源重建")
 	require.Nil(t, materialized)
 }
+
+func TestAPIKeyAuthSnapshotGroupRoutePreservesProfitControl(t *testing.T) {
+	apiKey := profitAuthTestAPIKey()
+	apiKey.GroupRoutes = []APIKeyGroupRoute{{
+		ID:       1,
+		APIKeyID: apiKey.ID,
+		GroupID:  apiKey.Group.ID,
+		Enabled:  true,
+		Group:    apiKey.Group,
+	}}
+	svc := &APIKeyService{}
+
+	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
+	restored := svc.snapshotToAPIKey(apiKey.Key, snapshot)
+
+	require.Len(t, restored.GroupRoutes, 1)
+	require.NotNil(t, restored.GroupRoutes[0].Group)
+	require.True(t, restored.GroupRoutes[0].Group.ProfitControlEnabled)
+	require.InDelta(t, 0.2, restored.GroupRoutes[0].Group.ProfitMinMargin, 1e-12)
+	require.InDelta(t, 0.05, restored.GroupRoutes[0].Group.ProfitSafetyBuffer, 1e-12)
+}

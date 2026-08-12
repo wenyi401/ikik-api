@@ -1,10 +1,10 @@
 package admin
 
 import (
+	"github.com/gin-gonic/gin"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 type BackupHandler struct {
@@ -153,12 +153,12 @@ func (h *BackupHandler) GetDownloadURL(c *gin.Context) {
 		response.BadRequest(c, "backup ID is required")
 		return
 	}
-	url, err := h.backupService.GetBackupDownloadURL(c.Request.Context(), backupID)
+	download, err := h.backupService.GetBackupDownloadURL(c.Request.Context(), backupID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, gin.H{"url": url})
+	response.Success(c, download)
 }
 
 // ─── 恢复操作（需要重新输入管理员密码） ───

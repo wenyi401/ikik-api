@@ -364,39 +364,41 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 			return infraerrors.BadRequest("INVALID_RECHARGE_FEE_RATE", "recharge fee rate allows at most 2 decimal places")
 		}
 	}
-	m := map[string]string{
-		SettingPaymentEnabled:                    formatBoolOrEmpty(req.Enabled),
-		SettingMinRechargeAmount:                 formatPositiveFloat(req.MinAmount),
-		SettingMaxRechargeAmount:                 formatPositiveFloat(req.MaxAmount),
-		SettingDailyRechargeLimit:                formatPositiveFloat(req.DailyLimit),
-		SettingOrderTimeoutMinutes:               formatPositiveInt(req.OrderTimeoutMin),
-		SettingMaxPendingOrders:                  formatPositiveInt(req.MaxPendingOrders),
-		SettingBalancePayDisabled:                formatBoolOrEmpty(req.BalanceDisabled),
-		SettingBalanceRechargeMult:               formatPositiveFloat(req.BalanceRechargeMultiplier),
-		SettingSubscriptionUSDToCNYRate:          formatPositiveFloatExact(req.SubscriptionUSDToCNYRate),
-		SettingRechargeFeeRate:                   formatNonNegativeFloat(req.RechargeFeeRate),
-		SettingLoadBalanceStrategy:               derefStr(req.LoadBalanceStrategy),
-		SettingProductNamePrefix:                 derefStr(req.ProductNamePrefix),
-		SettingProductNameSuffix:                 derefStr(req.ProductNameSuffix),
-		SettingHelpImageURL:                      derefStr(req.HelpImageURL),
-		SettingHelpText:                          derefStr(req.HelpText),
-		SettingCancelRateLimitOn:                 formatBoolOrEmpty(req.CancelRateLimitEnabled),
-		SettingCancelRateLimitMax:                formatPositiveInt(req.CancelRateLimitMax),
-		SettingCancelWindowSize:                  formatPositiveInt(req.CancelRateLimitWindow),
-		SettingCancelWindowUnit:                  derefStr(req.CancelRateLimitUnit),
-		SettingCancelWindowMode:                  derefStr(req.CancelRateLimitMode),
-		SettingAlipayForceQRCode:                 formatBoolOrEmpty(req.AlipayForceQRCode),
-		SettingAlipayMobilePrecreateDeepLink:     formatBoolOrEmpty(req.AlipayMobilePrecreateDeepLink),
-		SettingPaymentVisibleMethodAlipaySource:  derefStr(req.VisibleMethodAlipaySource),
-		SettingPaymentVisibleMethodWxpaySource:   derefStr(req.VisibleMethodWxpaySource),
-		SettingPaymentVisibleMethodAlipayEnabled: formatBoolOrEmpty(req.VisibleMethodAlipayEnabled),
-		SettingPaymentVisibleMethodWxpayEnabled:  formatBoolOrEmpty(req.VisibleMethodWxpayEnabled),
+	m := make(map[string]string)
+	set := func(key string, provided bool, value string) {
+		if provided {
+			m[key] = value
+		}
 	}
+	set(SettingPaymentEnabled, req.Enabled != nil, formatBoolOrEmpty(req.Enabled))
+	set(SettingMinRechargeAmount, req.MinAmount != nil, formatPositiveFloat(req.MinAmount))
+	set(SettingMaxRechargeAmount, req.MaxAmount != nil, formatPositiveFloat(req.MaxAmount))
+	set(SettingDailyRechargeLimit, req.DailyLimit != nil, formatPositiveFloat(req.DailyLimit))
+	set(SettingOrderTimeoutMinutes, req.OrderTimeoutMin != nil, formatPositiveInt(req.OrderTimeoutMin))
+	set(SettingMaxPendingOrders, req.MaxPendingOrders != nil, formatPositiveInt(req.MaxPendingOrders))
 	if req.EnabledTypes != nil {
 		m[SettingEnabledPaymentTypes] = strings.Join(req.EnabledTypes, ",")
-	} else {
-		m[SettingEnabledPaymentTypes] = ""
 	}
+	set(SettingBalancePayDisabled, req.BalanceDisabled != nil, formatBoolOrEmpty(req.BalanceDisabled))
+	set(SettingBalanceRechargeMult, req.BalanceRechargeMultiplier != nil, formatPositiveFloat(req.BalanceRechargeMultiplier))
+	set(SettingSubscriptionUSDToCNYRate, req.SubscriptionUSDToCNYRate != nil, formatPositiveFloatExact(req.SubscriptionUSDToCNYRate))
+	set(SettingRechargeFeeRate, req.RechargeFeeRate != nil, formatNonNegativeFloat(req.RechargeFeeRate))
+	set(SettingLoadBalanceStrategy, req.LoadBalanceStrategy != nil, derefStr(req.LoadBalanceStrategy))
+	set(SettingProductNamePrefix, req.ProductNamePrefix != nil, derefStr(req.ProductNamePrefix))
+	set(SettingProductNameSuffix, req.ProductNameSuffix != nil, derefStr(req.ProductNameSuffix))
+	set(SettingHelpImageURL, req.HelpImageURL != nil, derefStr(req.HelpImageURL))
+	set(SettingHelpText, req.HelpText != nil, derefStr(req.HelpText))
+	set(SettingCancelRateLimitOn, req.CancelRateLimitEnabled != nil, formatBoolOrEmpty(req.CancelRateLimitEnabled))
+	set(SettingCancelRateLimitMax, req.CancelRateLimitMax != nil, formatPositiveInt(req.CancelRateLimitMax))
+	set(SettingCancelWindowSize, req.CancelRateLimitWindow != nil, formatPositiveInt(req.CancelRateLimitWindow))
+	set(SettingCancelWindowUnit, req.CancelRateLimitUnit != nil, derefStr(req.CancelRateLimitUnit))
+	set(SettingCancelWindowMode, req.CancelRateLimitMode != nil, derefStr(req.CancelRateLimitMode))
+	set(SettingAlipayForceQRCode, req.AlipayForceQRCode != nil, formatBoolOrEmpty(req.AlipayForceQRCode))
+	set(SettingAlipayMobilePrecreateDeepLink, req.AlipayMobilePrecreateDeepLink != nil, formatBoolOrEmpty(req.AlipayMobilePrecreateDeepLink))
+	set(SettingPaymentVisibleMethodAlipaySource, req.VisibleMethodAlipaySource != nil, derefStr(req.VisibleMethodAlipaySource))
+	set(SettingPaymentVisibleMethodWxpaySource, req.VisibleMethodWxpaySource != nil, derefStr(req.VisibleMethodWxpaySource))
+	set(SettingPaymentVisibleMethodAlipayEnabled, req.VisibleMethodAlipayEnabled != nil, formatBoolOrEmpty(req.VisibleMethodAlipayEnabled))
+	set(SettingPaymentVisibleMethodWxpayEnabled, req.VisibleMethodWxpayEnabled != nil, formatBoolOrEmpty(req.VisibleMethodWxpayEnabled))
 	if receiptCodeOSSFieldsProvided(req) {
 		updates, err := s.buildReceiptCodeOSSUpdates(ctx, req)
 		if err != nil {

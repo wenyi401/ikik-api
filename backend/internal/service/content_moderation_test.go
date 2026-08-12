@@ -119,12 +119,15 @@ func (r *contentModerationTestRepo) GetLogByID(ctx context.Context, logID int64)
 	return nil, nil
 }
 
-func (r *contentModerationTestRepo) CountFlaggedByUserSince(ctx context.Context, userID int64, since time.Time) (int, error) {
+func (r *contentModerationTestRepo) CountFlaggedByUserSince(ctx context.Context, userID int64, since time.Time, excludeCyberPolicy bool) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	count := 0
 	for _, log := range r.logs {
 		if log.UserID == nil || *log.UserID != userID || !log.Flagged || log.Action == ContentModerationActionHashBlock {
+			continue
+		}
+		if excludeCyberPolicy && log.Action == ContentModerationActionCyberPolicy {
 			continue
 		}
 		if log.CreatedAt.IsZero() || log.CreatedAt.Before(since) {
@@ -133,6 +136,10 @@ func (r *contentModerationTestRepo) CountFlaggedByUserSince(ctx context.Context,
 		count++
 	}
 	return count, nil
+}
+
+func (r *contentModerationTestRepo) UpdateLogEmailSent(ctx context.Context, id int64, sent bool) error {
+	return nil
 }
 
 func (r *contentModerationTestRepo) CleanupExpiredLogs(ctx context.Context, hitBefore time.Time, nonHitBefore time.Time) (*ContentModerationCleanupResult, error) {
@@ -1957,4 +1964,88 @@ func contentModerationIntPtr(v int) *int {
 
 func contentModerationStringPtr(v string) *string {
 	return &v
+}
+
+func TestRecordCyberPolicyEvent_RespectsConfiguredGroupAndModelScope(t *testing.T) {
+	groupID := int64(7)
+	tests := []struct {
+		name    string
+		config  string
+		groupID *int64
+		model   string
+		wantLog bool
+	}{
+		{
+			name:    "excluded group",
+			config:  `{"all_groups":false,"group_ids":[8]}`,
+			groupID: &groupID,
+			model:   "gpt-5",
+		},
+		{
+			name:   "ungrouped request excluded by selected groups",
+			config: `{"all_groups":false,"group_ids":[7]}`,
+			model:  "gpt-5",
+		},
+		{
+			name:    "excluded model",
+			config:  `{"all_groups":true,"model_filter":{"type":"include","models":["gpt-4o"]}}`,
+			groupID: &groupID,
+			model:   "gpt-5",
+		},
+		{
+			name:    "included even when pre-audit is disabled",
+			config:  `{"enabled":false,"mode":"off","sample_rate":0,"all_groups":false,"group_ids":[7],"model_filter":{"type":"include","models":["gpt-5"]}}`,
+			groupID: &groupID,
+			model:   "gpt-5",
+			wantLog: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &contentModerationTestRepo{}
+			svc := NewContentModerationService(
+				&contentModerationTestSettingRepo{values: map[string]string{
+					SettingKeyRiskControlEnabled:      "true",
+					SettingKeyContentModerationConfig: tt.config,
+				}},
+				repo, nil, nil, nil, nil, nil, nil,
+			)
+
+			svc.RecordCyberPolicyEvent(context.Background(), CyberPolicyRecordInput{
+				UserID:  1,
+				GroupID: tt.groupID,
+				Model:   tt.model,
+			})
+
+			logs := repo.snapshotLogs()
+			if tt.wantLog {
+				require.Len(t, logs, 1)
+				require.Equal(t, ContentModerationActionCyberPolicy, logs[0].Action)
+				require.Equal(t, tt.model, logs[0].Model)
+				return
+			}
+			require.Empty(t, logs)
+		})
+	}
+}
+
+func TestContentModerationUpdateConfig_CyberPolicyExcludeFromBanCount(t *testing.T) {
+	settingRepo := &contentModerationTestSettingRepo{values: map[string]string{}}
+	svc := NewContentModerationService(settingRepo, nil, nil, nil, nil, nil, nil, nil)
+
+	view, err := svc.GetConfig(context.Background())
+	require.NoError(t, err)
+	require.False(t, view.CyberPolicyExcludeFromBanCount)
+
+	exclude := true
+	view, err = svc.UpdateConfig(context.Background(), UpdateContentModerationConfigInput{
+		CyberPolicyExcludeFromBanCount: &exclude,
+	})
+	require.NoError(t, err)
+	require.True(t, view.CyberPolicyExcludeFromBanCount)
+
+	var saved ContentModerationConfig
+	require.NoError(t, json.Unmarshal([]byte(settingRepo.values[SettingKeyContentModerationConfig]), &saved))
+	require.True(t, saved.CyberPolicyExcludeFromBanCount)
 }
