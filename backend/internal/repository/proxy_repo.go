@@ -125,16 +125,18 @@ func (r *proxyRepository) Update(ctx context.Context, proxyIn *service.Proxy) er
 }
 
 type proxyProbeIdentity struct {
-	protocol string
-	host     string
-	port     int
-	username string
-	password string
-	status   string
+	protocol           string
+	host               string
+	port               int
+	username           string
+	password           string
+	status             string
+	hasExpiresAt       bool
+	expiresAtUnixMicro int64
 }
 
 func proxyProbeIdentityFromService(proxyIn *service.Proxy) proxyProbeIdentity {
-	return proxyProbeIdentity{
+	identity := proxyProbeIdentity{
 		protocol: proxyIn.Protocol,
 		host:     proxyIn.Host,
 		port:     proxyIn.Port,
@@ -142,6 +144,11 @@ func proxyProbeIdentityFromService(proxyIn *service.Proxy) proxyProbeIdentity {
 		password: proxyIn.Password,
 		status:   proxyIn.Status,
 	}
+	if proxyIn.ExpiresAt != nil {
+		identity.hasExpiresAt = true
+		identity.expiresAtUnixMicro = proxyIn.ExpiresAt.UnixMicro()
+	}
+	return identity
 }
 
 func updateProxyAndInvalidateProbeSnapshots(ctx context.Context, client *dbent.Client, proxyIn *service.Proxy) (*dbent.Proxy, error) {
@@ -188,11 +195,11 @@ func updateProxyAndInvalidateProbeSnapshots(ctx context.Context, client *dbent.C
 	if currentIdentity == proxyProbeIdentityFromService(proxyIn) {
 		return updated, nil
 	}
-	accountIDs, err := invalidateProxyProbeSnapshots(ctx, client, proxyIn.ID)
+	accountIDs, err := invalidateProxyProbeSnapshotsAndListBoundAccountIDs(ctx, client, proxyIn.ID)
 	if err != nil {
 		return nil, err
 	}
-	if err := enqueueProxyProbeAccountChanges(ctx, client, accountIDs); err != nil {
+	if err := enqueueProxyAccountChanges(ctx, client, accountIDs); err != nil {
 		return nil, err
 	}
 	return updated, nil
@@ -200,7 +207,7 @@ func updateProxyAndInvalidateProbeSnapshots(ctx context.Context, client *dbent.C
 
 func lockProxyProbeIdentity(ctx context.Context, client *dbent.Client, proxyID int64) (proxyProbeIdentity, error) {
 	rows, err := client.QueryContext(ctx, `
-		SELECT protocol, host, port, COALESCE(username, ''), COALESCE(password, ''), status
+		SELECT protocol, host, port, COALESCE(username, ''), COALESCE(password, ''), status, expires_at
 		FROM proxies
 		WHERE id = $1 AND deleted_at IS NULL
 		FOR NO KEY UPDATE
@@ -215,32 +222,48 @@ func lockProxyProbeIdentity(ctx context.Context, client *dbent.Client, proxyID i
 		}
 		return proxyProbeIdentity{}, service.ErrProxyNotFound
 	}
-	var identity proxyProbeIdentity
-	if err := rows.Scan(&identity.protocol, &identity.host, &identity.port, &identity.username, &identity.password, &identity.status); err != nil {
+	var (
+		identity  proxyProbeIdentity
+		expiresAt sql.NullTime
+	)
+	if err := rows.Scan(&identity.protocol, &identity.host, &identity.port, &identity.username, &identity.password, &identity.status, &expiresAt); err != nil {
 		return proxyProbeIdentity{}, err
+	}
+	if expiresAt.Valid {
+		identity.hasExpiresAt = true
+		identity.expiresAtUnixMicro = expiresAt.Time.UnixMicro()
 	}
 	return identity, rows.Err()
 }
 
-func invalidateProxyProbeSnapshots(ctx context.Context, exec sqlExecutor, proxyID int64) ([]int64, error) {
+// invalidateProxyProbeSnapshotsAndListBoundAccountIDs clears transport-specific
+// probe data and returns every bound account so scheduler metadata is refreshed
+// even when an account had no probe snapshot.
+func invalidateProxyProbeSnapshotsAndListBoundAccountIDs(ctx context.Context, exec sqlExecutor, proxyID int64) ([]int64, error) {
 	rows, err := exec.QueryContext(ctx, `
-		UPDATE accounts
-		SET extra = COALESCE(extra, '{}'::jsonb)
-				- 'upstream_billing_probe'
-				- 'ollama_cloud_usage_snapshot',
-			updated_at = NOW()
-		WHERE proxy_id = $1
-			AND type = 'apikey'
-			AND (
-				(platform = 'openai'
-					AND extra ? 'upstream_billing_probe'
-					AND extra -> 'upstream_billing_probe' <> 'null'::jsonb)
-				OR (platform IN ('openai', 'anthropic')
-					AND extra ? 'ollama_cloud_usage_snapshot'
-					AND extra -> 'ollama_cloud_usage_snapshot' <> 'null'::jsonb)
-			)
-			AND deleted_at IS NULL
-		RETURNING id
+		WITH bound_accounts AS MATERIALIZED (
+			SELECT id
+			FROM accounts
+			WHERE proxy_id = $1 AND deleted_at IS NULL
+		), invalidated AS (
+			UPDATE accounts
+			SET extra = COALESCE(extra, '{}'::jsonb)
+					- 'upstream_billing_probe'
+					- 'ollama_cloud_usage_snapshot',
+				updated_at = NOW()
+			WHERE id IN (SELECT id FROM bound_accounts)
+				AND type = 'apikey'
+				AND (
+					(platform = 'openai'
+						AND extra ? 'upstream_billing_probe'
+						AND extra -> 'upstream_billing_probe' <> 'null'::jsonb)
+					OR (platform IN ('openai', 'anthropic')
+						AND extra ? 'ollama_cloud_usage_snapshot'
+						AND extra -> 'ollama_cloud_usage_snapshot' <> 'null'::jsonb)
+				)
+			RETURNING id
+		)
+		SELECT id FROM bound_accounts ORDER BY id
 	`, proxyID)
 	if err != nil {
 		return nil, err
@@ -260,7 +283,7 @@ func invalidateProxyProbeSnapshots(ctx context.Context, exec sqlExecutor, proxyI
 	return accountIDs, nil
 }
 
-func enqueueProxyProbeAccountChanges(ctx context.Context, exec sqlExecutor, accountIDs []int64) error {
+func enqueueProxyAccountChanges(ctx context.Context, exec sqlExecutor, accountIDs []int64) error {
 	accountIDs = sortedUniqueAccountIDs(accountIDs)
 	for start := 0; start < len(accountIDs); start += proxyProbeOutboxAccountChunkSize {
 		end := start + proxyProbeOutboxAccountChunkSize
@@ -732,11 +755,11 @@ func (r *proxyRepository) sweepOneExpiredProxyOnExec(ctx context.Context, exec s
 		return nil, err
 	}
 	if !change {
-		accountIDs, err := invalidateProxyProbeSnapshots(ctx, exec, proxyID)
+		accountIDs, err := invalidateProxyProbeSnapshotsAndListBoundAccountIDs(ctx, exec, proxyID)
 		if err != nil {
 			return nil, err
 		}
-		if err := enqueueProxyProbeAccountChanges(ctx, exec, accountIDs); err != nil {
+		if err := enqueueProxyAccountChanges(ctx, exec, accountIDs); err != nil {
 			return nil, err
 		}
 		return nil, nil

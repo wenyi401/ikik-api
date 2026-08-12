@@ -130,3 +130,16 @@ func TestValidateOwnedOAuthProxyIDRejectsInactiveProxy(t *testing.T) {
 	require.ErrorIs(t, err, ErrUserPrivateProxyInvalid)
 	require.Nil(t, got)
 }
+
+func TestValidateOwnedOAuthProxyIDRejectsExpiredActiveProxy(t *testing.T) {
+	proxyID := int64(42)
+	past := time.Now().Add(-time.Hour)
+	svc := &AccountService{proxyRepo: &ownedOAuthProxyRepoStub{
+		proxy: &Proxy{ID: proxyID, Status: StatusActive, ExpiresAt: &past},
+	}}
+
+	got, err := svc.ValidateOwnedOAuthProxyID(context.Background(), 1001, &proxyID)
+
+	require.ErrorIs(t, err, ErrUserPrivateProxyInvalid)
+	require.Nil(t, got)
+}

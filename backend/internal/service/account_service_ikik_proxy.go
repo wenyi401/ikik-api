@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	infraerrors "ikik-api/internal/pkg/errors"
 )
@@ -186,7 +187,7 @@ func (s *AccountService) ValidateOwnedProxyID(ctx context.Context, ownerUserID i
 	if err != nil {
 		return nil, err
 	}
-	if proxy.Status != StatusActive {
+	if proxy.Status != StatusActive || proxy.IsExpired(time.Now()) {
 		return nil, ErrUserPrivateProxyInvalid
 	}
 	id := proxy.ID

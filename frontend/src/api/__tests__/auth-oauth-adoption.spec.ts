@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AuthResponse } from '@/types'
 
 const post = vi.fn()
 
@@ -8,12 +9,23 @@ vi.mock('@/api/client', () => ({
   }
 }))
 
+function authBundle(): AuthResponse {
+  const now = Math.floor(Date.now() / 1000)
+  return {
+    access_token: 'access-token-value', expires_in: 900, access_expires_at: now + 900, token_type: 'Bearer',
+    session: { sid: '11111111-1111-4111-8111-111111111111', current: true, login_method: 'password', ip: '', user_agent: '', created_at: now, last_active_at: now, expires_at: now + 30 * 86400 },
+    user: { id: 1, email: 'user@example.com', role: 'user', status: 'active' }
+  } as AuthResponse
+}
+
 describe('oauth adoption auth api', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     post.mockReset()
     post.mockResolvedValue({ data: {} })
     localStorage.clear()
     document.cookie = 'oauth_bind_access_token=; Max-Age=0; path=/'
+    const auth = await import('@/api/authSession')
+    auth.clearAuthentication(false, 'idle')
   })
 
   it('posts adoption decisions when exchanging pending oauth completion', async () => {
@@ -214,7 +226,8 @@ describe('oauth adoption auth api', () => {
   })
 
   it('requests an HttpOnly oauth bind cookie before redirect binding', async () => {
-    localStorage.setItem('auth_token', 'access-token-value')
+    const auth = await import('@/api/authSession')
+    auth.acceptAuthBundle(authBundle(), false)
     const { prepareOAuthBindAccessTokenCookie } = await import('@/api/auth')
 
     await prepareOAuthBindAccessTokenCookie()

@@ -1207,6 +1207,9 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 		return nil, "", infraerrors.BadRequest("SPARK_SHADOW_NO_REFRESH",
 			"cannot refresh spark shadow account; its credentials are managed by the parent account")
 	}
+	if err := service.ValidateAccountProxy(account, time.Now()); err != nil {
+		return nil, "", err
+	}
 
 	var newCredentials map[string]any
 

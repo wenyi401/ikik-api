@@ -147,7 +147,7 @@ func (s *AuthService) loginOrRegisterVerifiedEmailOAuth(
 	}
 	s.RecordSuccessfulLogin(ctx, user.ID)
 
-	tokenPair, err := s.GenerateTokenPair(ctx, user, "")
+	tokenPair, err := s.GenerateTokenPairWithMethod(ctx, user, "", OAuthLoginMethod(providerType))
 	if err != nil {
 		return nil, nil, fmt.Errorf("generate token pair: %w", err)
 	}

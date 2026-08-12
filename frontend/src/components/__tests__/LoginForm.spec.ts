@@ -13,6 +13,27 @@ const mockLogin = vi.fn()
 const mockLogin2FA = vi.fn()
 const mockPush = vi.fn()
 
+function loginResponse() {
+  const now = Math.floor(Date.now() / 1000)
+  return {
+    access_token: 'token',
+    expires_in: 900,
+    access_expires_at: now + 900,
+    token_type: 'Bearer',
+    session: {
+      sid: '11111111-1111-4111-8111-111111111111',
+      current: true,
+      login_method: 'password',
+      ip: '127.0.0.1',
+      user_agent: 'vitest',
+      created_at: now,
+      last_active_at: now,
+      expires_at: now + 30 * 86400
+    },
+    user: { id: 1, username: 'test', email: 'test@example.com', role: 'user', balance: 0, concurrency: 5, status: 'active', allowed_groups: null, created_at: '', updated_at: '' }
+  }
+}
+
 vi.mock('@/api', () => ({
   authAPI: {
     login: (...args: any[]) => mockLogin(...args),
@@ -92,11 +113,7 @@ describe('LoginForm 核心逻辑', () => {
   })
 
   it('成功登录后跳转到 dashboard', async () => {
-    mockLogin.mockResolvedValue({
-      access_token: 'token',
-      token_type: 'Bearer',
-      user: { id: 1, username: 'test', email: 'test@example.com', role: 'user', balance: 0, concurrency: 5, status: 'active', allowed_groups: null, created_at: '', updated_at: '' },
-    })
+    mockLogin.mockResolvedValue(loginResponse())
 
     const wrapper = mount(LoginFormTestComponent)
 
@@ -166,11 +183,7 @@ describe('LoginForm 核心逻辑', () => {
 
     expect(wrapper.find('button').attributes('disabled')).toBeDefined()
 
-    resolveLogin!({
-      access_token: 'token',
-      token_type: 'Bearer',
-      user: { id: 1, username: 'test', email: 'test@example.com', role: 'user', balance: 0, concurrency: 5, status: 'active', allowed_groups: null, created_at: '', updated_at: '' },
-    })
+    resolveLogin!(loginResponse())
     await flushPromises()
 
     expect(wrapper.find('button').attributes('disabled')).toBeUndefined()

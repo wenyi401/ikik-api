@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/authidentity"
 	"ikik-api/ent/authidentitychannel"
@@ -24,8 +26,6 @@ import (
 	"ikik-api/internal/payment"
 	"ikik-api/internal/repository"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -983,7 +983,8 @@ func TestCompleteWeChatOAuthRegistrationBindsIdentityWithoutAdoptionFlags(t *tes
 	require.Equal(t, http.StatusOK, recorder.Code)
 	responseData := decodeJSONBody(t, recorder)
 	require.NotEmpty(t, responseData["access_token"])
-	require.NotEmpty(t, responseData["refresh_token"])
+	require.NotContains(t, responseData, "refresh_token")
+	require.NotNil(t, findCookie(recorder.Result().Cookies(), browserRefreshCookieName))
 
 	userEntity, err := client.User.Query().
 		Where(dbuser.EmailEQ(session.ResolvedEmail)).

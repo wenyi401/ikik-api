@@ -771,9 +771,9 @@ func TestExchangePendingOAuthCompletionExistingLoginWithSuggestedProfileSkipsAdo
 
 	payload := decodeJSONResponseData(t, recorder)
 	require.NotEmpty(t, payload["access_token"])
-	require.NotEmpty(t, payload["refresh_token"])
+	require.NotContains(t, payload, "refresh_token")
+	require.NotNil(t, findCookie(recorder.Result().Cookies(), browserRefreshCookieName))
 	require.NotEqual(t, "legacy-access-token", payload["access_token"])
-	require.NotEqual(t, "legacy-refresh-token", payload["refresh_token"])
 	require.Equal(t, "/dashboard", payload["redirect"])
 	require.Equal(t, "Existing Login Example", payload["suggested_display_name"])
 	require.Equal(t, "https://cdn.example/existing-login.png", payload["suggested_avatar_url"])
@@ -1101,7 +1101,8 @@ func TestCreateOIDCOAuthAccountCreatesUserBindsIdentityAndConsumesSession(t *tes
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &payload))
 	require.NotEmpty(t, payload["access_token"])
-	require.NotEmpty(t, payload["refresh_token"])
+	require.NotContains(t, payload, "refresh_token")
+	require.NotNil(t, findCookie(recorder.Result().Cookies(), browserRefreshCookieName))
 	require.Equal(t, "Bearer", payload["token_type"])
 
 	createdUser, err := client.User.Query().Where(dbuser.EmailEQ("fresh@example.com")).Only(ctx)
@@ -1828,7 +1829,8 @@ func TestBindOIDCOAuthLoginBindsExistingUserAndConsumesSession(t *testing.T) {
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &payload))
 	require.NotEmpty(t, payload["access_token"])
-	require.NotEmpty(t, payload["refresh_token"])
+	require.NotContains(t, payload, "refresh_token")
+	require.NotNil(t, findCookie(recorder.Result().Cookies(), browserRefreshCookieName))
 	require.Equal(t, "Bearer", payload["token_type"])
 
 	identity, err := client.AuthIdentity.Query().
@@ -2361,7 +2363,8 @@ func TestLogin2FACompletesPendingOAuthBindAndConsumesSession(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	payload := decodeJSONResponseData(t, recorder)
 	require.NotEmpty(t, payload["access_token"])
-	require.NotEmpty(t, payload["refresh_token"])
+	require.NotContains(t, payload, "refresh_token")
+	require.NotNil(t, findCookie(recorder.Result().Cookies(), browserRefreshCookieName))
 	accessToken, ok := payload["access_token"].(string)
 	require.True(t, ok)
 	claims, err := handler.authService.ValidateToken(accessToken)

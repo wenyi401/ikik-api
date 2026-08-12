@@ -10,9 +10,25 @@ import (
 )
 
 var (
-	ErrProxyNotFound = infraerrors.NotFound("PROXY_NOT_FOUND", "proxy not found")
-	ErrProxyInUse    = infraerrors.Conflict("PROXY_IN_USE", "proxy is in use by accounts")
+	ErrProxyNotFound           = infraerrors.NotFound("PROXY_NOT_FOUND", "proxy not found")
+	ErrProxyInUse              = infraerrors.Conflict("PROXY_IN_USE", "proxy is in use by accounts")
+	ErrAccountProxyExpired     = infraerrors.BadRequest("ACCOUNT_PROXY_EXPIRED", "bound proxy has expired; renew or replace it before using this account")
+	ErrAccountProxyUnavailable = infraerrors.BadRequest("ACCOUNT_PROXY_UNAVAILABLE", "bound proxy is unavailable; enable or replace it before using this account")
 )
+
+func ValidateAccountProxy(account *Account, now time.Time) error {
+	if account == nil {
+		return ErrAccountNotFound
+	}
+	switch account.ProxyStateAt(now) {
+	case AccountProxyStateExpired:
+		return ErrAccountProxyExpired
+	case AccountProxyStateUnavailable:
+		return ErrAccountProxyUnavailable
+	default:
+		return nil
+	}
+}
 
 type ProxyRepository interface {
 	Create(ctx context.Context, proxy *Proxy) error

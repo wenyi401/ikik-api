@@ -1,11 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import axios from 'axios'
 import type { AxiosInstance } from 'axios'
+import type { AuthResponse } from '@/types'
 
 // 需要在导入 client 之前设置 mock
 vi.mock('@/i18n', () => ({
   getLocale: () => 'zh-CN',
 }))
+
+function authBundle(accessToken = 'my-jwt-token'): AuthResponse {
+  const now = Math.floor(Date.now() / 1000)
+  return {
+    access_token: accessToken, expires_in: 900, access_expires_at: now + 900, token_type: 'Bearer',
+    session: { sid: '11111111-1111-4111-8111-111111111111', current: true, login_method: 'password', ip: '', user_agent: '', created_at: now, last_active_at: now, expires_at: now + 30 * 86400 },
+    user: { id: 1, email: 'user@example.com', role: 'user', status: 'active' }
+  } as AuthResponse
+}
 
 describe('API Client', () => {
   let apiClient: AxiosInstance
@@ -26,7 +36,8 @@ describe('API Client', () => {
 
   describe('请求拦截器', () => {
     it('自动附加 Authorization 头', async () => {
-      localStorage.setItem('auth_token', 'my-jwt-token')
+      const auth = await import('@/api/authSession')
+      auth.acceptAuthBundle(authBundle(), false)
 
       // 拦截实际请求
       const adapter = vi.fn().mockResolvedValue({
@@ -195,9 +206,12 @@ describe('API Client', () => {
   // --- 401 Token 刷新 ---
 
   describe('401 Token 刷新', () => {
-    it('无 refresh_token 时 401 清除 localStorage', async () => {
+    it('refresh cookie 确认 401 时清除旧 Web Storage', async () => {
       localStorage.setItem('auth_token', 'expired-token')
-      // 不设置 refresh_token
+      vi.spyOn(axios, 'post').mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 401, data: { reason: 'AUTH_UNAUTHORIZED' } }
+      })
 
       // Mock window.location
       const originalLocation = window.location
@@ -230,20 +244,12 @@ describe('API Client', () => {
       })
     })
 
-    it('refresh token 被其他标签页轮换后复用最新 token 重试请求', async () => {
-      localStorage.setItem('auth_token', 'expired-token')
-      localStorage.setItem('refresh_token', 'old-refresh-token')
-
-      vi.spyOn(axios, 'post').mockImplementation(async () => {
-        localStorage.setItem('auth_token', 'new-token')
-        localStorage.setItem('refresh_token', 'new-refresh-token')
-        localStorage.setItem('token_expires_at', String(Date.now() + 3600_000))
-        return Promise.reject({
-          response: {
-            status: 401,
-            data: { code: 'REFRESH_TOKEN_INVALID', message: 'invalid refresh token' },
-          },
-        })
+    it('refresh cookie 轮换后用新的内存 access token 重试请求', async () => {
+      const auth = await import('@/api/authSession')
+      auth.acceptAuthBundle(authBundle('expired-token'), false)
+      vi.spyOn(axios, 'post').mockResolvedValue({
+        status: 200,
+        data: { code: 0, data: authBundle('new-token') }
       })
 
       const adapter = vi
@@ -271,20 +277,20 @@ describe('API Client', () => {
       const response = await apiClient.get('/test')
 
       expect(response.data).toEqual({ ok: true })
-      expect(localStorage.getItem('auth_token')).toBe('new-token')
-      expect(localStorage.getItem('refresh_token')).toBe('new-refresh-token')
+      expect(auth.getAccessToken()).toBe('new-token')
+      expect(localStorage.getItem('auth_token')).toBeNull()
+      expect(localStorage.getItem('refresh_token')).toBeNull()
       expect(adapter).toHaveBeenCalledTimes(2)
       const retryConfig = adapter.mock.calls[1][0]
       expect(retryConfig.headers.get('Authorization')).toBe('Bearer new-token')
     })
 
     it('refresh 被限流时保留本地登录态', async () => {
-      localStorage.setItem('auth_token', 'expired-token')
-      localStorage.setItem('refresh_token', 'refresh-token')
-      localStorage.setItem('auth_user', JSON.stringify({ id: 1 }))
-      localStorage.setItem('token_expires_at', String(Date.now() - 1000))
+      const auth = await import('@/api/authSession')
+      auth.acceptAuthBundle(authBundle('expired-token'), false)
 
       vi.spyOn(axios, 'post').mockRejectedValue({
+        isAxiosError: true,
         response: {
           status: 429,
           data: { message: 'rate limit exceeded' },
@@ -306,18 +312,17 @@ describe('API Client', () => {
 
       await expect(apiClient.get('/test')).rejects.toEqual(
         expect.objectContaining({
-          status: 429,
+          status: 0,
           code: 'TOKEN_REFRESH_DEFERRED',
         })
       )
 
-      expect(localStorage.getItem('auth_token')).toBe('expired-token')
-      expect(localStorage.getItem('refresh_token')).toBe('refresh-token')
-      expect(localStorage.getItem('auth_user')).toBe(JSON.stringify({ id: 1 }))
-      expect(localStorage.getItem('token_expires_at')).not.toBeNull()
+      expect(auth.getAccessToken()).toBe('expired-token')
+      expect(localStorage.getItem('auth_token')).toBeNull()
+      expect(localStorage.getItem('refresh_token')).toBeNull()
     })
 
-    it('/auth/session 401 时不清理状态也不强制跳转登录页', async () => {
+    it('/auth/logout 401 时不递归刷新或强制跳转登录页', async () => {
       const originalLocation = window.location
       Object.defineProperty(window, 'location', {
         value: { ...originalLocation, pathname: '/', href: '/' },
@@ -330,14 +335,14 @@ describe('API Client', () => {
           data: { code: 'UNAUTHORIZED', message: 'User session is not available' },
         },
         config: {
-          url: '/auth/session',
+          url: '/auth/logout',
           headers: {},
         },
         code: 'ERR_BAD_REQUEST',
       })
       apiClient.defaults.adapter = adapter
 
-      await expect(apiClient.get('/auth/session')).rejects.toEqual(
+      await expect(apiClient.post('/auth/logout')).rejects.toEqual(
         expect.objectContaining({
           status: 401,
           code: 'UNAUTHORIZED',

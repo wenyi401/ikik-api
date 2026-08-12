@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from '../client'
+import { getCurrentAuthBundle } from '../authSession'
 
 export type Provider = 'openai' | 'anthropic' | 'gemini' | 'grok'
 export type MonitorStatus = 'operational' | 'degraded' | 'failed' | 'error'
@@ -166,19 +167,8 @@ interface DuplicateOperationScope {
 }
 
 function getCurrentAdminID(): string | null {
-  try {
-    const rawUser = globalThis.localStorage?.getItem('auth_user')
-    if (!rawUser) return null
-
-    const user: unknown = JSON.parse(rawUser)
-    if (typeof user !== 'object' || user === null) return null
-
-    const id = (user as { id?: unknown }).id
-    if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0) return null
-    return String(id)
-  } catch {
-    return null
-  }
+  const id = getCurrentAuthBundle()?.user.id
+  return typeof id === 'number' && Number.isSafeInteger(id) && id > 0 ? String(id) : null
 }
 
 function duplicateOperationScope(id: number): DuplicateOperationScope | null {

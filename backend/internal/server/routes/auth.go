@@ -52,7 +52,7 @@ func RegisterAuthRoutes(
 		}), h.Auth.SendVerifyCode)
 		// Token刷新接口添加速率限制：每分钟最多 30 次（Redis 故障时 fail-close）
 		auth.POST("/refresh", rateLimiter.LimitWithOptions("refresh-token", 30, time.Minute, middleware.RateLimitOptions{
-			FailureMode: middleware.RateLimitFailClose,
+			FailureMode: middleware.RateLimitFailOpen,
 		}), h.Auth.RefreshToken)
 		// 登出接口（公开，允许未认证用户调用以撤销Refresh Token）
 		auth.POST("/logout", h.Auth.Logout)
@@ -255,6 +255,9 @@ func RegisterAuthRoutes(
 	authenticated.Use(panelRateLimiter.Global())
 	{
 		authenticated.GET("/auth/me", h.Auth.GetCurrentUser)
+		authenticated.GET("/auth/sessions", h.Auth.GetLoginSessions)
+		authenticated.DELETE("/auth/sessions/:sid", h.Auth.DeleteLoginSession)
+		authenticated.POST("/auth/sessions/revoke-others", h.Auth.RevokeOtherLoginSessions)
 		// 撤销所有会话（需要认证）
 		authenticated.POST("/auth/revoke-all-sessions", h.Auth.RevokeAllSessions)
 		authenticated.POST("/auth/oauth/bind-token", h.Auth.PrepareOAuthBindAccessTokenCookie)

@@ -150,5 +150,8 @@ type UserBlockedGroup func(*sql.Selector)
 // UserPlatformQuota is the predicate function for userplatformquota builders.
 type UserPlatformQuota func(*sql.Selector)
 
+// UserSession is the predicate function for usersession builders.
+type UserSession func(*sql.Selector)
+
 // UserSubscription is the predicate function for usersubscription builders.
 type UserSubscription func(*sql.Selector)

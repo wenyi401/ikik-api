@@ -191,6 +191,14 @@ func validateJWTForAdmin(
 		AbortWithError(c, 401, "TOKEN_REVOKED", "Token has been revoked (password changed)")
 		return false
 	}
+	if err := authService.ValidateBrowserSessionClaims(c.Request.Context(), claims); err != nil {
+		if errors.Is(err, service.ErrServiceUnavailable) {
+			AbortWithError(c, 503, "AUTH_SESSION_UNAVAILABLE", "Authentication session is temporarily unavailable")
+		} else {
+			AbortWithError(c, 401, "AUTH_SESSION_REVOKED", "Login session has been revoked")
+		}
+		return false
+	}
 
 	// 会话绑定校验：IP/UA 任一变化即撤销会话（功能可在系统设置中关闭）
 	if !enforceSessionBinding(c, authService, settingService, auditService, claims) {

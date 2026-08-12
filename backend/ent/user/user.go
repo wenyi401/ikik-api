@@ -122,6 +122,8 @@ const (
 	EdgeOwnedAccounts = "owned_accounts"
 	// EdgeAuthIdentities holds the string denoting the auth_identities edge name in mutations.
 	EdgeAuthIdentities = "auth_identities"
+	// EdgeLoginSessions holds the string denoting the login_sessions edge name in mutations.
+	EdgeLoginSessions = "login_sessions"
 	// EdgePendingAuthSessions holds the string denoting the pending_auth_sessions edge name in mutations.
 	EdgePendingAuthSessions = "pending_auth_sessions"
 	// EdgePlatformQuotas holds the string denoting the platform_quotas edge name in mutations.
@@ -247,6 +249,13 @@ const (
 	AuthIdentitiesInverseTable = "auth_identities"
 	// AuthIdentitiesColumn is the table column denoting the auth_identities relation/edge.
 	AuthIdentitiesColumn = "user_id"
+	// LoginSessionsTable is the table that holds the login_sessions relation/edge.
+	LoginSessionsTable = "user_sessions"
+	// LoginSessionsInverseTable is the table name for the UserSession entity.
+	// It exists in this package in order to avoid circular dependency with the "usersession" package.
+	LoginSessionsInverseTable = "user_sessions"
+	// LoginSessionsColumn is the table column denoting the login_sessions relation/edge.
+	LoginSessionsColumn = "user_id"
 	// PendingAuthSessionsTable is the table that holds the pending_auth_sessions relation/edge.
 	PendingAuthSessionsTable = "pending_auth_sessions"
 	// PendingAuthSessionsInverseTable is the table name for the PendingAuthSession entity.
@@ -872,6 +881,20 @@ func ByAuthIdentities(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByLoginSessionsCount orders the results by login_sessions count.
+func ByLoginSessionsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newLoginSessionsStep(), opts...)
+	}
+}
+
+// ByLoginSessions orders the results by login_sessions terms.
+func ByLoginSessions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newLoginSessionsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByPendingAuthSessionsCount orders the results by pending_auth_sessions count.
 func ByPendingAuthSessionsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -1044,6 +1067,13 @@ func newAuthIdentitiesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(AuthIdentitiesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, AuthIdentitiesTable, AuthIdentitiesColumn),
+	)
+}
+func newLoginSessionsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(LoginSessionsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, LoginSessionsTable, LoginSessionsColumn),
 	)
 }
 func newPendingAuthSessionsStep() *sqlgraph.Step {

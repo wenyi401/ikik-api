@@ -9,12 +9,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/ip"
 	"ikik-api/internal/pkg/response"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 type PasskeyHandler struct {
@@ -121,7 +121,7 @@ func (h *PasskeyHandler) FinishLogin(c *gin.Context) {
 	middleware2.SetAuditActor(c, user.ID, user.Email)
 	c.Set("auth_method", service.AuditAuthMethodPasskey)
 	h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
-	respondWithTokenPair(c, h.authService, user)
+	respondWithTokenPair(c, h.authService, user, "passkey")
 }
 
 func (h *PasskeyHandler) BeginRegistration(c *gin.Context) {

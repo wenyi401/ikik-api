@@ -1886,6 +1886,7 @@ func (r *accountRepository) schedulableAccountsQuery(now time.Time) *dbent.Accou
 		Where(
 			dbaccount.StatusEQ(service.StatusActive),
 			dbaccount.SchedulableEQ(true),
+			usableBoundProxyPredicate(now),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
 			dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
@@ -1948,6 +1949,16 @@ func (r *accountRepository) ListSchedulableCapacityByGroupIDs(ctx context.Contex
 			AND (a.expires_at IS NULL OR a.expires_at > $3 OR a.auto_pause_on_expired = FALSE)
 			AND (a.overload_until IS NULL OR a.overload_until <= $3)
 			AND (a.rate_limit_reset_at IS NULL OR a.rate_limit_reset_at <= $3)
+			AND (
+				a.proxy_id IS NULL OR EXISTS (
+					SELECT 1
+					FROM proxies p
+					WHERE p.id = a.proxy_id
+						AND p.deleted_at IS NULL
+						AND p.status = $2
+						AND (p.expires_at IS NULL OR p.expires_at > $3)
+				)
+			)
 		ORDER BY ag.group_id ASC, ag.priority ASC, a.priority ASC, a.id ASC
 	`, pq.Array(groupIDs), service.StatusActive, time.Now())
 	if err != nil {
@@ -1992,6 +2003,7 @@ func (r *accountRepository) ListSchedulableByPlatform(ctx context.Context, platf
 			dbaccount.PlatformEQ(platform),
 			dbaccount.StatusEQ(service.StatusActive),
 			dbaccount.SchedulableEQ(true),
+			usableBoundProxyPredicate(now),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
 			dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
@@ -2026,6 +2038,7 @@ func (r *accountRepository) ListSchedulableByPlatforms(ctx context.Context, plat
 			dbaccount.PlatformIn(platforms...),
 			dbaccount.StatusEQ(service.StatusActive),
 			dbaccount.SchedulableEQ(true),
+			usableBoundProxyPredicate(now),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
 			dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
@@ -2047,6 +2060,7 @@ func (r *accountRepository) ListSchedulableUngroupedByPlatform(ctx context.Conte
 			dbaccount.StatusEQ(service.StatusActive),
 			dbaccount.SchedulableEQ(true),
 			dbaccount.Not(dbaccount.HasAccountGroups()),
+			usableBoundProxyPredicate(now),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
 			dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
@@ -2071,6 +2085,7 @@ func (r *accountRepository) ListSchedulableUngroupedByPlatforms(ctx context.Cont
 			dbaccount.StatusEQ(service.StatusActive),
 			dbaccount.SchedulableEQ(true),
 			dbaccount.Not(dbaccount.HasAccountGroups()),
+			usableBoundProxyPredicate(now),
 			tempUnschedulablePredicate(),
 			notExpiredPredicate(now),
 			dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
@@ -3049,6 +3064,7 @@ func (r *accountRepository) queryAccountsByGroup(ctx context.Context, groupID in
 		if !opts.ignoreTransientState {
 			now := time.Now()
 			preds = append(preds,
+				usableBoundProxyPredicate(now),
 				tempUnschedulablePredicate(),
 				notExpiredPredicate(now),
 				dbaccount.Or(dbaccount.OverloadUntilIsNil(), dbaccount.OverloadUntilLTE(now)),
@@ -3169,6 +3185,16 @@ func notExpiredPredicate(now time.Time) dbpredicate.Account {
 		dbaccount.ExpiresAtIsNil(),
 		dbaccount.ExpiresAtGT(now),
 		dbaccount.AutoPauseOnExpiredEQ(false),
+	)
+}
+
+func usableBoundProxyPredicate(now time.Time) dbpredicate.Account {
+	return dbaccount.Or(
+		dbaccount.ProxyIDIsNil(),
+		dbaccount.HasProxyWith(
+			dbproxy.StatusEQ(service.StatusActive),
+			dbproxy.Or(dbproxy.ExpiresAtIsNil(), dbproxy.ExpiresAtGT(now)),
+		),
 	)
 }
 

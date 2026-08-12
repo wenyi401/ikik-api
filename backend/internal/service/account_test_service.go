@@ -193,6 +193,16 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Account not found")
 	}
+	if err := ValidateAccountProxy(account, time.Now()); err != nil {
+		switch {
+		case errors.Is(err, ErrAccountProxyExpired):
+			return s.sendErrorAndEnd(c, "ACCOUNT_PROXY_EXPIRED: bound proxy has expired; renew or replace it before testing this account")
+		case errors.Is(err, ErrAccountProxyUnavailable):
+			return s.sendErrorAndEnd(c, "ACCOUNT_PROXY_UNAVAILABLE: bound proxy is unavailable; enable or replace it before testing this account")
+		default:
+			return s.sendErrorAndEnd(c, err.Error())
+		}
+	}
 
 	// Route to platform-specific test method
 	if account.IsOpenAI() {

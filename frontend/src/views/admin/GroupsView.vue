@@ -983,6 +983,94 @@
         </div>
 
         <div v-if="supportsImagePricingPlatform(createForm.platform)" class="border-t pt-4">
+          <div class="mb-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-3 dark:border-dark-600 dark:bg-dark-800/40">
+            <div class="flex items-center justify-between gap-4">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t("admin.groups.imagePricing.allowImageGeneration") }}
+                </p>
+              </div>
+              <button
+                type="button"
+                :aria-label="t('admin.groups.imagePricing.allowImageGeneration')"
+                :aria-pressed="createForm.allow_image_generation"
+                @click="
+                  createForm.allow_image_generation =
+                    !createForm.allow_image_generation;
+                  if (!createForm.allow_image_generation) {
+                    createForm.allow_batch_image_generation = false;
+                  }
+                "
+                :class="[
+                  'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors',
+                  createForm.allow_image_generation
+                    ? 'bg-primary-500'
+                    : 'bg-gray-300 dark:bg-dark-600',
+                ]"
+              >
+                <span
+                  :class="[
+                    'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                    createForm.allow_image_generation
+                      ? 'translate-x-6'
+                      : 'translate-x-1',
+                  ]"
+                />
+              </button>
+            </div>
+            <div class="flex items-center justify-between gap-4">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t("admin.groups.imagePricing.allowBatchImageGeneration") }}
+                </p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{
+                    createForm.platform !== 'gemini'
+                      ? t("admin.groups.imagePricing.batchGeminiOnlyHint")
+                      : createForm.allow_image_generation
+                      ? t("admin.groups.imagePricing.batchSectionHint")
+                      : t("admin.groups.imagePricing.batchDisabledHint")
+                  }}
+                </p>
+              </div>
+              <button
+                type="button"
+                :aria-label="t('admin.groups.imagePricing.allowBatchImageGeneration')"
+                :aria-pressed="createForm.allow_batch_image_generation"
+                :disabled="
+                  !createForm.allow_image_generation ||
+                  createForm.platform !== 'gemini'
+                "
+                @click="
+                  createForm.allow_batch_image_generation =
+                    !createForm.allow_batch_image_generation
+                "
+                :class="[
+                  'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors',
+                  createForm.allow_batch_image_generation &&
+                  createForm.allow_image_generation &&
+                  createForm.platform === 'gemini'
+                    ? 'bg-primary-500'
+                    : 'bg-gray-300 dark:bg-dark-600',
+                  (!createForm.allow_image_generation ||
+                  createForm.platform !== 'gemini')
+                    ? 'cursor-not-allowed opacity-60'
+                    : '',
+                ]"
+              >
+                <span
+                  :class="[
+                    'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                    createForm.allow_batch_image_generation &&
+                    createForm.allow_image_generation &&
+                    createForm.platform === 'gemini'
+                      ? 'translate-x-6'
+                      : 'translate-x-1',
+                  ]"
+                />
+              </button>
+            </div>
+          </div>
           <label
             class="block mb-2 font-medium text-gray-700 dark:text-gray-300"
           >
@@ -2385,6 +2473,94 @@
         </div>
 
         <div v-if="supportsImagePricingPlatform(editForm.platform)" class="border-t pt-4">
+          <div class="mb-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-3 dark:border-dark-600 dark:bg-dark-800/40">
+            <div class="flex items-center justify-between gap-4">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t("admin.groups.imagePricing.allowImageGeneration") }}
+                </p>
+              </div>
+              <button
+                type="button"
+                :aria-label="t('admin.groups.imagePricing.allowImageGeneration')"
+                :aria-pressed="editForm.allow_image_generation"
+                @click="
+                  editForm.allow_image_generation =
+                    !editForm.allow_image_generation;
+                  if (!editForm.allow_image_generation) {
+                    editForm.allow_batch_image_generation = false;
+                  }
+                "
+                :class="[
+                  'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors',
+                  editForm.allow_image_generation
+                    ? 'bg-primary-500'
+                    : 'bg-gray-300 dark:bg-dark-600',
+                ]"
+              >
+                <span
+                  :class="[
+                    'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                    editForm.allow_image_generation
+                      ? 'translate-x-6'
+                      : 'translate-x-1',
+                  ]"
+                />
+              </button>
+            </div>
+            <div class="flex items-center justify-between gap-4">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t("admin.groups.imagePricing.allowBatchImageGeneration") }}
+                </p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{
+                    editForm.platform !== 'gemini'
+                      ? t("admin.groups.imagePricing.batchGeminiOnlyHint")
+                      : editForm.allow_image_generation
+                      ? t("admin.groups.imagePricing.batchSectionHint")
+                      : t("admin.groups.imagePricing.batchDisabledHint")
+                  }}
+                </p>
+              </div>
+              <button
+                type="button"
+                :aria-label="t('admin.groups.imagePricing.allowBatchImageGeneration')"
+                :aria-pressed="editForm.allow_batch_image_generation"
+                :disabled="
+                  !editForm.allow_image_generation ||
+                  editForm.platform !== 'gemini'
+                "
+                @click="
+                  editForm.allow_batch_image_generation =
+                    !editForm.allow_batch_image_generation
+                "
+                :class="[
+                  'relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors',
+                  editForm.allow_batch_image_generation &&
+                  editForm.allow_image_generation &&
+                  editForm.platform === 'gemini'
+                    ? 'bg-primary-500'
+                    : 'bg-gray-300 dark:bg-dark-600',
+                  (!editForm.allow_image_generation ||
+                  editForm.platform !== 'gemini')
+                    ? 'cursor-not-allowed opacity-60'
+                    : '',
+                ]"
+              >
+                <span
+                  :class="[
+                    'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                    editForm.allow_batch_image_generation &&
+                    editForm.allow_image_generation &&
+                    editForm.platform === 'gemini'
+                      ? 'translate-x-6'
+                      : 'translate-x-1',
+                  ]"
+                />
+              </button>
+            </div>
+          </div>
           <label
             class="block mb-2 font-medium text-gray-700 dark:text-gray-300"
           >
@@ -3829,7 +4005,9 @@ const createForm = reactive({
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
   monthly_limit_usd: null as number | null,
-  // 图片生成计费配置（仅 antigravity 平台使用）
+  // 图片生成权限和计费配置
+  allow_image_generation: false,
+  allow_batch_image_generation: false,
   image_price_1k: null as number | null,
   image_price_2k: null as number | null,
   image_price_4k: null as number | null,
@@ -4166,7 +4344,9 @@ const editForm = reactive({
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
   monthly_limit_usd: null as number | null,
-  // 图片生成计费配置（仅 antigravity 平台使用）
+  // 图片生成权限和计费配置
+  allow_image_generation: false,
+  allow_batch_image_generation: false,
   image_price_1k: null as number | null,
   image_price_2k: null as number | null,
   image_price_4k: null as number | null,
@@ -4390,6 +4570,8 @@ const closeCreateModal = () => {
   createForm.daily_limit_usd = null;
   createForm.weekly_limit_usd = null;
   createForm.monthly_limit_usd = null;
+  createForm.allow_image_generation = false;
+  createForm.allow_batch_image_generation = false;
   createForm.image_price_1k = null;
   createForm.image_price_2k = null;
   createForm.image_price_4k = null;
@@ -4504,6 +4686,9 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.daily_limit_usd = group.daily_limit_usd;
   editForm.weekly_limit_usd = group.weekly_limit_usd;
   editForm.monthly_limit_usd = group.monthly_limit_usd;
+  editForm.allow_image_generation = group.allow_image_generation ?? false;
+  editForm.allow_batch_image_generation =
+    group.allow_batch_image_generation ?? false;
   editForm.image_price_1k = group.image_price_1k;
   editForm.image_price_2k = group.image_price_2k;
   editForm.image_price_4k = group.image_price_4k;
@@ -4721,6 +4906,9 @@ watch(
 	if (!sharedPoolPlatforms.has(newVal)) {
 		createForm.is_shared_pool = false;
 	}
+    if (newVal !== "gemini") {
+      createForm.allow_batch_image_generation = false;
+    }
     if (!["anthropic", "antigravity"].includes(newVal)) {
       createForm.fallback_group_id_on_invalid_request = null;
     }
@@ -4745,6 +4933,9 @@ watch(
 	if (!sharedPoolPlatforms.has(newVal)) {
 		editForm.is_shared_pool = false;
 	}
+    if (newVal !== "gemini") {
+      editForm.allow_batch_image_generation = false;
+    }
     if (!["anthropic", "antigravity"].includes(newVal)) {
       editForm.fallback_group_id_on_invalid_request = null;
     }

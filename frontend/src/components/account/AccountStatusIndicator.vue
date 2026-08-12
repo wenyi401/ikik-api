@@ -14,7 +14,7 @@
 
     <!-- Main Status Badge (shown when not rate limited/overloaded) -->
     <template v-else>
-      <div v-if="isTempUnschedulable" class="flex flex-col items-center gap-1">
+      <div v-if="isTempUnschedulable && !hasProxyIssue" class="flex flex-col items-center gap-1">
         <button
           type="button"
           :class="['badge text-xs', statusClass, 'cursor-pointer']"
@@ -27,7 +27,7 @@
           {{ tempUnschedRecoveryText }}
         </span>
       </div>
-      <span v-else :class="['badge text-xs', statusClass]">
+      <span v-else :class="['badge text-xs', statusClass]" :title="proxyStatusTitle || undefined">
         {{ statusText }}
       </span>
     </template>
@@ -194,6 +194,7 @@ const scheduleNextExpiryRefresh = () => {
     props.account.rate_limit_reset_at,
     props.account.overload_until,
     props.account.temp_unschedulable_until,
+    props.account.proxy?.expires_at,
     ...Object.values(modelLimits ?? {}).map((item) => item.rate_limit_reset_at)
   ]
     .map((value) => value ? new Date(value).getTime() : Number.NaN)
@@ -209,6 +210,7 @@ watch(
     props.account.rate_limit_reset_at,
     props.account.overload_until,
     props.account.temp_unschedulable_until,
+    props.account.proxy?.expires_at,
     props.account.extra?.model_rate_limits
   ],
   scheduleNextExpiryRefresh,
@@ -221,7 +223,7 @@ onBeforeUnmount(() => {
 
 // Computed: is rate limited (429)
 const isRateLimited = computed(() => {
-  if (hasError.value) return false
+  if (hasError.value || hasProxyIssue.value) return false
   if (!props.account.rate_limit_reset_at) return false
   return new Date(props.account.rate_limit_reset_at).getTime() > nowMs.value
 })
@@ -304,13 +306,14 @@ const formatScopeName = (scope: string): string => {
 
 // Computed: is overloaded (529)
 const isOverloaded = computed(() => {
-  if (hasError.value) return false
+  if (hasError.value || hasProxyIssue.value) return false
   if (!props.account.overload_until) return false
   return new Date(props.account.overload_until).getTime() > nowMs.value
 })
 
 // Computed: is temp unschedulable
 const isTempUnschedulable = computed(() => {
+  if (hasProxyIssue.value) return false
   if (!props.account.temp_unschedulable_until) return false
   return new Date(props.account.temp_unschedulable_until).getTime() > nowMs.value
 })
@@ -318,6 +321,31 @@ const isTempUnschedulable = computed(() => {
 // Computed: has error status
 const hasError = computed(() => {
   return props.account.status === 'error'
+})
+
+const isProxyExpired = computed(() => {
+  const proxy = props.account.proxy
+  if (!proxy) return false
+  if (proxy.status === 'expired') return true
+  if (!proxy.expires_at) return false
+  const expiresAt = new Date(proxy.expires_at).getTime()
+  return Number.isFinite(expiresAt) && expiresAt <= nowMs.value
+})
+
+const isProxyUnavailable = computed(() => {
+  if (props.account.proxy_id == null) return false
+  if (!props.account.proxy) return true
+  return !isProxyExpired.value && props.account.proxy.status !== 'active'
+})
+
+const hasProxyIssue = computed(() => isProxyExpired.value || isProxyUnavailable.value)
+
+const proxyStatusTitle = computed(() => {
+  if (!hasProxyIssue.value) return ''
+  const name = props.account.proxy?.name || `#${props.account.proxy_id}`
+  return isProxyExpired.value
+    ? t('admin.accounts.status.proxyExpiredHint', { name })
+    : t('admin.accounts.status.proxyUnavailableHint', { name })
 })
 
 const isQuotaExceeded = computed(() => {
@@ -362,6 +390,9 @@ const statusClass = computed(() => {
   if (isTempUnschedulable.value) {
     return 'badge-warning'
   }
+  if (hasProxyIssue.value) {
+    return 'badge-danger'
+  }
   if (props.account.status !== 'active') {
     return props.account.status === 'error' ? 'badge-danger' : 'badge-gray'
   }
@@ -381,6 +412,12 @@ const statusText = computed(() => {
   }
   if (isTempUnschedulable.value) {
     return t('admin.accounts.status.tempUnschedulable')
+  }
+  if (isProxyExpired.value) {
+    return t('admin.accounts.status.proxyExpired')
+  }
+  if (isProxyUnavailable.value) {
+    return t('admin.accounts.status.proxyUnavailable')
   }
   if (props.account.status !== 'active') {
     return t(`admin.accounts.status.${props.account.status}`)

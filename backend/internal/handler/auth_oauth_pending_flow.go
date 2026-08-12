@@ -1606,11 +1606,11 @@ func (h *AuthHandler) transitionPendingOAuthAccountToChoiceState(
 }
 
 func writeOAuthTokenPairResponse(c *gin.Context, tokenPair *service.TokenPair) {
+	writeBrowserRefreshCookie(c, tokenPair)
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  tokenPair.AccessToken,
-		"refresh_token": tokenPair.RefreshToken,
-		"expires_in":    tokenPair.ExpiresIn,
-		"token_type":    "Bearer",
+		"access_token": tokenPair.AccessToken, "expires_in": tokenPair.ExpiresIn,
+		"access_expires_at": tokenPair.AccessExpiresAt, "session": tokenPair.Session,
+		"token_type": "Bearer",
 	})
 }
 
@@ -1677,7 +1677,7 @@ func (h *AuthHandler) bindPendingOAuthLogin(c *gin.Context, provider string) {
 	h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
 	// bindPendingOAuthLogin = 绑定已有账户登录，不动 users.username（用户已有自己的名字）
 	h.maybeSyncDingTalkAfterLogin(c.Request.Context(), session, user.ID)
-	tokenPair, err := h.authService.GenerateTokenPair(c.Request.Context(), user, "")
+	tokenPair, err := h.authService.GenerateTokenPairWithMethod(c.Request.Context(), user, "", service.OAuthLoginMethod(session.ProviderType))
 	if err != nil {
 		response.InternalError(c, "Failed to generate token pair")
 		return
@@ -2029,16 +2029,18 @@ func (h *AuthHandler) ExchangePendingOAuthCompletion(c *gin.Context) {
 	}
 
 	if canIssueTokenPair {
-		tokenPair, err := h.authService.GenerateTokenPair(c.Request.Context(), loginUser, "")
+		tokenPair, err := h.authService.GenerateTokenPairWithMethod(c.Request.Context(), loginUser, "", service.OAuthLoginMethod(session.ProviderType))
 		if err != nil {
 			clearCookies()
 			response.InternalError(c, "Failed to generate token pair")
 			return
 		}
 		h.authService.RecordSuccessfulLogin(c.Request.Context(), loginUser.ID)
+		writeBrowserRefreshCookie(c, tokenPair)
 		payload["access_token"] = tokenPair.AccessToken
-		payload["refresh_token"] = tokenPair.RefreshToken
 		payload["expires_in"] = tokenPair.ExpiresIn
+		payload["access_expires_at"] = tokenPair.AccessExpiresAt
+		payload["session"] = tokenPair.Session
 		payload["token_type"] = "Bearer"
 	}
 

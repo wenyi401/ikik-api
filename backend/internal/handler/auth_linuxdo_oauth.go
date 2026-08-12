@@ -608,11 +608,11 @@ func (h *AuthHandler) CompleteLinuxDoOAuthRegistration(c *gin.Context) {
 	clearOAuthPendingSessionCookie(c, secureCookie)
 	clearOAuthPendingBrowserCookie(c, secureCookie)
 
+	writeBrowserRefreshCookie(c, tokenPair)
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  tokenPair.AccessToken,
-		"refresh_token": tokenPair.RefreshToken,
-		"expires_in":    tokenPair.ExpiresIn,
-		"token_type":    "Bearer",
+		"access_token": tokenPair.AccessToken, "expires_in": tokenPair.ExpiresIn,
+		"access_expires_at": tokenPair.AccessExpiresAt, "session": tokenPair.Session,
+		"token_type": "Bearer",
 	})
 }
 
@@ -822,9 +822,10 @@ func redirectOAuthError(c *gin.Context, frontendCallback string, code string, me
 func redirectOAuthTokenPair(c *gin.Context, frontendCallback string, tokenPair *service.TokenPair, redirectTo string) {
 	fragment := url.Values{}
 	if tokenPair != nil {
+		writeBrowserRefreshCookie(c, tokenPair)
 		fragment.Set("access_token", truncateFragmentValue(tokenPair.AccessToken))
-		fragment.Set("refresh_token", truncateFragmentValue(tokenPair.RefreshToken))
 		fragment.Set("expires_in", strconv.Itoa(tokenPair.ExpiresIn))
+		fragment.Set("access_expires_at", strconv.FormatInt(tokenPair.AccessExpiresAt, 10))
 		fragment.Set("token_type", "Bearer")
 	}
 	if redirect := strings.TrimSpace(redirectTo); redirect != "" {

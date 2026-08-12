@@ -110,6 +110,8 @@ type Tx struct {
 	UserBlockedGroup *UserBlockedGroupClient
 	// UserPlatformQuota is the client for interacting with the UserPlatformQuota builders.
 	UserPlatformQuota *UserPlatformQuotaClient
+	// UserSession is the client for interacting with the UserSession builders.
+	UserSession *UserSessionClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
 
@@ -291,6 +293,7 @@ func (tx *Tx) init() {
 	tx.UserAttributeValue = NewUserAttributeValueClient(tx.config)
 	tx.UserBlockedGroup = NewUserBlockedGroupClient(tx.config)
 	tx.UserPlatformQuota = NewUserPlatformQuotaClient(tx.config)
+	tx.UserSession = NewUserSessionClient(tx.config)
 	tx.UserSubscription = NewUserSubscriptionClient(tx.config)
 }
 

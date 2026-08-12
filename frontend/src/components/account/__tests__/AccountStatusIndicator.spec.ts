@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AccountStatusIndicator from '../AccountStatusIndicator.vue'
-import type { Account } from '@/types'
+import type { Account, Proxy } from '@/types'
 import zh from '@/i18n/locales/zh'
 import en from '@/i18n/locales/en'
 
@@ -53,11 +53,79 @@ function makeAccount(overrides: Partial<Account>): Account {
   }
 }
 
+function makeProxy(overrides: Partial<Proxy> = {}): Proxy {
+  return {
+    id: 9,
+    name: 'private-proxy',
+    protocol: 'http',
+    host: '127.0.0.1',
+    port: 8080,
+    username: null,
+    status: 'active',
+    expires_at: null,
+    created_at: '2026-03-15T00:00:00Z',
+    updated_at: '2026-03-15T00:00:00Z',
+    ...overrides,
+  }
+}
+
 describe('AccountStatusIndicator', () => {
   it('defines admin disabled status translations', () => {
     expect((zh as any).admin.accounts.status.disabled).toBeTruthy()
     expect((zh as any).admin.accounts.status.disabled).not.toBe('admin.accounts.status.disabled')
     expect((en as any).admin.accounts.status.disabled).toBe('Disabled')
+  })
+
+  it('shows an expired bound proxy instead of an active account status', () => {
+    const wrapper = mount(AccountStatusIndicator, {
+      props: {
+        account: makeAccount({
+          proxy_id: 9,
+          proxy: makeProxy({ status: 'expired' })
+        })
+      },
+      global: { stubs: { Icon: true } }
+    })
+
+    expect(wrapper.text()).toContain('admin.accounts.status.proxyExpired')
+    expect(wrapper.text()).not.toContain('admin.accounts.status.active')
+  })
+
+  it('shows an unavailable status when a bound proxy is inactive', () => {
+    const wrapper = mount(AccountStatusIndicator, {
+      props: {
+        account: makeAccount({
+          proxy_id: 9,
+          proxy: makeProxy({ status: 'inactive' })
+        })
+      },
+      global: { stubs: { Icon: true } }
+    })
+
+    expect(wrapper.text()).toContain('admin.accounts.status.proxyUnavailable')
+  })
+
+  it('switches to proxy expired when its deadline passes', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-03-17T00:00:00Z'))
+    const wrapper = mount(AccountStatusIndicator, {
+      props: {
+        account: makeAccount({
+          proxy_id: 9,
+          proxy: makeProxy({ expires_at: '2026-03-17T00:00:10Z' })
+        })
+      },
+      global: { stubs: { Icon: true } }
+    })
+
+    try {
+      expect(wrapper.text()).toContain('admin.accounts.status.active')
+      await vi.advanceTimersByTimeAsync(10_001)
+      expect(wrapper.text()).toContain('admin.accounts.status.proxyExpired')
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+    }
   })
 
   it('renders disabled account status through the admin status key', () => {

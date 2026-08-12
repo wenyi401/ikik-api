@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/service"
 )
 
 func TestAccountUpdatePreservesConcurrentProbeSnapshot(t *testing.T) {
@@ -428,7 +428,7 @@ func TestProxyIdentityUpdateInvalidatesProbeAndRejectsInFlightSnapshot(t *testin
 	}
 }
 
-func TestSweepExpiredProxyWithoutFallbackInvalidatesOnlyExistingProbeSnapshot(t *testing.T) {
+func TestSweepExpiredProxyWithoutFallbackInvalidatesProbeAndAllBoundSchedulerSnapshots(t *testing.T) {
 	ctx := context.Background()
 	tx := testEntTx(t)
 	proxyRepo := newProxyRepositoryWithSQL(tx.Client(), tx)
@@ -483,7 +483,7 @@ func TestSweepExpiredProxyWithoutFallbackInvalidatesOnlyExistingProbeSnapshot(t 
 	}
 
 	payload := latestBulkAccountOutboxPayload(t, ctx, tx)
-	require.Equal(t, []int64{withSnapshot.ID}, payload)
+	require.Equal(t, []int64{withSnapshot.ID, withoutSnapshot.ID, withJSONNull.ID}, payload)
 }
 
 func TestSweepExpiredProxyFallbackRerouteDeletesProbeSnapshot(t *testing.T) {

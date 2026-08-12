@@ -58,10 +58,11 @@ const refreshTokenPrefix = "rt_"
 
 // JWTClaims JWT载荷数据
 type JWTClaims struct {
-	UserID       int64  `json:"user_id"`
-	Email        string `json:"email"`
-	Role         string `json:"role"`
-	TokenVersion int64  `json:"token_version"` // Used to invalidate tokens on password change
+	UserID         int64  `json:"user_id"`
+	Email          string `json:"email"`
+	Role           string `json:"role"`
+	TokenVersion   int64  `json:"token_version"` // Used to invalidate tokens on password change
+	SessionVersion int64  `json:"sv,omitempty"`
 	// SessionID 会话 ID（与 refresh token family 对应），用于单会话撤销与 step-up 授权绑定。
 	SessionID string `json:"sid,omitempty"`
 	// BindingHash 会话指纹哈希（IP+UA），会话绑定开启时校验；空值表示旧 token（平滑升级）。
@@ -853,7 +854,7 @@ func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 	if created {
 		user = s.applyOAuthSignupPromoCode(ctx, user, promoCode)
 	}
-	tokenPair, err := s.GenerateTokenPair(ctx, user, "")
+	tokenPair, err := s.GenerateTokenPairWithMethod(ctx, user, "", OAuthLoginMethod(signupSource))
 	if err != nil {
 		return nil, nil, fmt.Errorf("generate token pair: %w", err)
 	}
@@ -1390,6 +1391,30 @@ func (s *AuthService) generateAccessToken(user *User, sessionID, bindingHash str
 	return tokenString, nil
 }
 
+func (s *AuthService) generateBrowserAccessToken(user *User, sessionID string, sessionVersion int64) (string, time.Time, error) {
+	now := time.Now()
+	expiresAt := now.Add(browserAccessTokenTTL)
+	claims := &JWTClaims{
+		UserID:         user.ID,
+		Email:          user.Email,
+		Role:           user.Role,
+		TokenVersion:   resolvedTokenVersion(user),
+		SessionID:      sessionID,
+		SessionVersion: sessionVersion,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(s.cfg.JWT.Secret))
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("sign token: %w", err)
+	}
+	return tokenString, expiresAt, nil
+}
+
 // GetAccessTokenExpiresIn 返回Access Token的有效期（秒）
 // 用于前端设置刷新定时器
 func (s *AuthService) GetAccessTokenExpiresIn() int {
@@ -1611,20 +1636,33 @@ func (s *AuthService) ResetPassword(ctx context.Context, email, token, newPasswo
 
 // TokenPair 包含Access Token和Refresh Token
 type TokenPair struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"` // Access Token有效期（秒）
+	AccessToken     string            `json:"access_token"`
+	RefreshToken    string            `json:"-"`
+	ExpiresIn       int               `json:"expires_in"`
+	AccessExpiresAt int64             `json:"access_expires_at"`
+	Session         *LoginSessionView `json:"session,omitempty"`
 }
 
 // TokenPairWithUser extends TokenPair with user role for backend mode checks
 type TokenPairWithUser struct {
 	TokenPair
 	UserRole string
+	User     *User
 }
 
 // GenerateTokenPair 生成Access Token和Refresh Token对
 // familyID: 可选的Token家族ID，用于Token轮转时保持家族关系
 func (s *AuthService) GenerateTokenPair(ctx context.Context, user *User, familyID string) (*TokenPair, error) {
+	return s.GenerateTokenPairWithMethod(ctx, user, familyID, "unknown")
+}
+
+// GenerateTokenPairWithMethod creates a browser session with the same login
+// method labels used by New API. Legacy refresh-token families ignore this
+// metadata because they do not have a database-backed session row.
+func (s *AuthService) GenerateTokenPairWithMethod(ctx context.Context, user *User, familyID, loginMethod string) (*TokenPair, error) {
+	if familyID == "" && s.entClient != nil {
+		return s.createBrowserSession(ctx, user, loginMethod)
+	}
 	// 检查 refreshTokenCache 是否可用
 	if s.refreshTokenCache == nil {
 		return nil, errors.New("refresh token cache not configured")
@@ -1657,6 +1695,21 @@ func (s *AuthService) GenerateTokenPair(ctx context.Context, user *User, familyI
 		RefreshToken: refreshToken,
 		ExpiresIn:    s.GetAccessTokenExpiresIn(),
 	}, nil
+}
+
+// OAuthLoginMethod follows New API's session audit labels.
+func OAuthLoginMethod(provider string) string {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	switch provider {
+	case "wechat":
+		return "wechat"
+	case "telegram":
+		return "telegram"
+	case "":
+		return "oauth"
+	default:
+		return "oauth:" + provider
+	}
 }
 
 // generateRefreshToken 生成并存储Refresh Token
@@ -1715,6 +1768,9 @@ func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, fami
 // RefreshTokenPair 使用Refresh Token刷新Token对
 // 实现Token轮转：每次刷新都会生成新的Refresh Token，旧Token立即失效
 func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string) (*TokenPairWithUser, error) {
+	if _, _, ok := splitBrowserRefreshToken(refreshToken); ok && s.entClient != nil {
+		return s.refreshBrowserSession(ctx, refreshToken, "")
+	}
 	// 检查 refreshTokenCache 是否可用
 	if s.refreshTokenCache == nil {
 		return nil, ErrRefreshTokenInvalid
@@ -1801,6 +1857,9 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 
 // RevokeRefreshToken 撤销单个Refresh Token
 func (s *AuthService) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
+	if _, _, ok := splitBrowserRefreshToken(refreshToken); ok && s.entClient != nil {
+		return s.revokeBrowserSessionByToken(ctx, refreshToken, "", "logout")
+	}
 	if s.refreshTokenCache == nil {
 		return nil // No-op if cache not configured
 	}
@@ -1815,6 +1874,10 @@ func (s *AuthService) RevokeRefreshToken(ctx context.Context, refreshToken strin
 // RevokeSessionFamily 撤销单个会话家族（该会话的所有 refresh token）。
 // 用于会话绑定失效等单会话级撤销场景，不影响用户的其他设备会话。
 func (s *AuthService) RevokeSessionFamily(ctx context.Context, familyID string) error {
+	if s != nil && s.entClient != nil && len(familyID) == 36 {
+		_, err := s.entClient.ExecContext(ctx, `UPDATE user_sessions SET status = 'revoked', revoked_at = NOW(), revoked_reason = 'session_revoked', updated_at = NOW() WHERE sid = $1 AND status = 'active'`, familyID)
+		return err
+	}
 	if s.refreshTokenCache == nil || familyID == "" {
 		return nil
 	}
@@ -1824,8 +1887,11 @@ func (s *AuthService) RevokeSessionFamily(ctx context.Context, familyID string) 
 // RevokeAllUserSessions 撤销用户的所有会话（所有Refresh Token）
 // 用于密码更改或用户主动登出所有设备
 func (s *AuthService) RevokeAllUserSessions(ctx context.Context, userID int64) error {
+	if err := s.revokeAllBrowserSessions(ctx, userID, "user_revoked_all"); err != nil {
+		return err
+	}
 	if s.refreshTokenCache == nil {
-		return nil // No-op if cache not configured
+		return nil
 	}
 	return s.refreshTokenCache.DeleteUserRefreshTokens(ctx, userID)
 }

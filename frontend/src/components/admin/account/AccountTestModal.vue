@@ -179,6 +179,7 @@ import { Icon } from '@/components/icons'
 import { useClipboard } from '@/composables/useClipboard'
 import { adminAPI } from '@/api/admin'
 import { buildApiUrl } from '@/api/client'
+import { getAccessToken } from '@/api/authSession'
 import type { Account, ClaudeModel } from '@/types'
 
 const { t } = useI18n()
@@ -350,7 +351,7 @@ const startTest = async () => {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        Authorization: `Bearer ${getAccessToken() ?? ''}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({

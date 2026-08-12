@@ -56,6 +56,7 @@ import (
 	"ikik-api/ent/userattributevalue"
 	"ikik-api/ent/userblockedgroup"
 	"ikik-api/ent/userplatformquota"
+	"ikik-api/ent/usersession"
 	"ikik-api/ent/usersubscription"
 
 	"entgo.io/ent/dialect/sql"
@@ -1413,6 +1414,33 @@ func (f TraverseUserPlatformQuota) Traverse(ctx context.Context, q ent.Query) er
 	return fmt.Errorf("unexpected query type %T. expect *ent.UserPlatformQuotaQuery", q)
 }
 
+// The UserSessionFunc type is an adapter to allow the use of ordinary function as a Querier.
+type UserSessionFunc func(context.Context, *ent.UserSessionQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f UserSessionFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.UserSessionQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.UserSessionQuery", q)
+}
+
+// The TraverseUserSession type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseUserSession func(context.Context, *ent.UserSessionQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseUserSession) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseUserSession) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.UserSessionQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.UserSessionQuery", q)
+}
+
 // The UserSubscriptionFunc type is an adapter to allow the use of ordinary function as a Querier.
 type UserSubscriptionFunc func(context.Context, *ent.UserSubscriptionQuery) (ent.Value, error)
 
@@ -1539,6 +1567,8 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.UserBlockedGroupQuery, predicate.UserBlockedGroup, userblockedgroup.OrderOption]{typ: ent.TypeUserBlockedGroup, tq: q}, nil
 	case *ent.UserPlatformQuotaQuery:
 		return &query[*ent.UserPlatformQuotaQuery, predicate.UserPlatformQuota, userplatformquota.OrderOption]{typ: ent.TypeUserPlatformQuota, tq: q}, nil
+	case *ent.UserSessionQuery:
+		return &query[*ent.UserSessionQuery, predicate.UserSession, usersession.OrderOption]{typ: ent.TypeUserSession, tq: q}, nil
 	case *ent.UserSubscriptionQuery:
 		return &query[*ent.UserSubscriptionQuery, predicate.UserSubscription, usersubscription.OrderOption]{typ: ent.TypeUserSubscription, tq: q}, nil
 	default:

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -26,8 +26,8 @@ func TestProxyUpdateInvalidatesBoundProbeSnapshotsAndEnqueuesOutboxAtomically(t 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`(?s)` + regexp.QuoteMeta("SELECT protocol, host, port") + `.*` + regexp.QuoteMeta("FOR NO KEY UPDATE")).
 		WithArgs(int64(9)).
-		WillReturnRows(sqlmock.NewRows([]string{"protocol", "host", "port", "username", "password", "status"}).
-			AddRow("http", "old.example", 8080, "user", "pass", service.StatusActive))
+		WillReturnRows(sqlmock.NewRows([]string{"protocol", "host", "port", "username", "password", "status", "expires_at"}).
+			AddRow("http", "old.example", 8080, "user", "pass", service.StatusActive, nil))
 	mock.ExpectExec(`(?s)UPDATE "proxies" SET`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`UPDATE "proxies" SET "backup_proxy_id" = NULL WHERE "backup_proxy_id" = \$1`).
 		WithArgs(int64(9)).
@@ -69,8 +69,8 @@ func TestProxyUpdateRollsBackWhenProbeInvalidationOutboxFails(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectQuery(`(?s)` + regexp.QuoteMeta("SELECT protocol, host, port") + `.*` + regexp.QuoteMeta("FOR NO KEY UPDATE")).
 		WithArgs(int64(9)).
-		WillReturnRows(sqlmock.NewRows([]string{"protocol", "host", "port", "username", "password", "status"}).
-			AddRow("http", "old.example", 8080, "", "", service.StatusActive))
+		WillReturnRows(sqlmock.NewRows([]string{"protocol", "host", "port", "username", "password", "status", "expires_at"}).
+			AddRow("http", "old.example", 8080, "", "", service.StatusActive, nil))
 	mock.ExpectExec(`(?s)UPDATE "proxies" SET`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`UPDATE "proxies" SET "backup_proxy_id" = NULL WHERE "backup_proxy_id" = \$1`).
 		WithArgs(int64(9)).
@@ -102,8 +102,8 @@ func TestProxyUpdateSkipsProbeInvalidationForNonIdentityChange(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectQuery(`(?s)` + regexp.QuoteMeta("SELECT protocol, host, port") + `.*` + regexp.QuoteMeta("FOR NO KEY UPDATE")).
 		WithArgs(int64(9)).
-		WillReturnRows(sqlmock.NewRows([]string{"protocol", "host", "port", "username", "password", "status"}).
-			AddRow("http", "same.example", 8080, "", "", service.StatusActive))
+		WillReturnRows(sqlmock.NewRows([]string{"protocol", "host", "port", "username", "password", "status", "expires_at"}).
+			AddRow("http", "same.example", 8080, "", "", service.StatusActive, nil))
 	mock.ExpectExec(`(?s)UPDATE "proxies" SET`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`UPDATE "proxies" SET "backup_proxy_id" = NULL WHERE "backup_proxy_id" = \$1`).
 		WithArgs(int64(9)).
@@ -118,6 +118,16 @@ func TestProxyUpdateSkipsProbeInvalidationForNonIdentityChange(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestProxyProbeIdentityIncludesExpiry(t *testing.T) {
+	first := time.Now().UTC().Truncate(time.Microsecond)
+	second := first.Add(time.Hour)
+	base := &service.Proxy{ID: 9, Protocol: "http", Host: "same.example", Port: 8080, Status: service.StatusActive, ExpiresAt: &first}
+	updated := *base
+	updated.ExpiresAt = &second
+
+	require.NotEqual(t, proxyProbeIdentityFromService(base), proxyProbeIdentityFromService(&updated))
 }
 
 func expectProxyUpdateReload(mock sqlmock.Sqlmock, id int64, host, username, password string) {
@@ -151,7 +161,7 @@ func TestEnqueueProxyAccountChangesChunksLargePayloads(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(1, 1))
 	}
 
-	err = enqueueProxyProbeAccountChanges(context.Background(), db, accountIDs)
+	err = enqueueProxyAccountChanges(context.Background(), db, accountIDs)
 
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())

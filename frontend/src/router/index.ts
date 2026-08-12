@@ -906,9 +906,9 @@ router.beforeEach(async (to, _from, next) => {
 
   const authStore = useAuthStore()
 
-  // Restore auth state from localStorage on first navigation (page refresh)
+  // Wait for the HttpOnly refresh-cookie bootstrap before deciding protected routes.
   if (!authInitialized) {
-    authStore.checkAuth()
+    await authStore.checkAuth()
     authInitialized = true
   }
 

@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/redis/go-redis/v9"
+	"ikik-api/internal/service"
 )
 
 const (
@@ -789,6 +789,8 @@ func buildSchedulerMetadataAccount(account service.Account) service.Account {
 		Name:                    account.Name,
 		Platform:                account.Platform,
 		Type:                    account.Type,
+		ProxyID:                 account.ProxyID,
+		Proxy:                   schedulerProxyAvailabilityMetadata(account.Proxy),
 		Concurrency:             account.Concurrency,
 		LoadFactor:              account.LoadFactor,
 		Priority:                account.Priority,
@@ -812,6 +814,17 @@ func buildSchedulerMetadataAccount(account service.Account) service.Account {
 		GroupIDs:                filterSchedulerGroupIDs(account.GroupIDs, account.AccountGroups),
 		Credentials:             filterSchedulerCredentials(account.Credentials),
 		Extra:                   filterSchedulerExtra(account.Extra),
+	}
+}
+
+func schedulerProxyAvailabilityMetadata(proxy *service.Proxy) *service.Proxy {
+	if proxy == nil {
+		return nil
+	}
+	return &service.Proxy{
+		ID:        proxy.ID,
+		Status:    proxy.Status,
+		ExpiresAt: proxy.ExpiresAt,
 	}
 }
 

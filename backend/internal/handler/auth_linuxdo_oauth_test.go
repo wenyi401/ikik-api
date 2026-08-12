@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/authidentity"
 	"ikik-api/ent/identityadoptiondecision"
@@ -18,8 +20,6 @@ import (
 	"ikik-api/internal/config"
 	servermiddleware "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSanitizeFrontendRedirectPath(t *testing.T) {
@@ -779,7 +779,8 @@ func TestLinuxDoOAuthCallbackDirectlyLogsInNewUserWhenEmailVerificationDisabled(
 	location := recorder.Header().Get("Location")
 	require.Contains(t, location, "/auth/linuxdo/callback#")
 	require.Contains(t, location, "access_token=")
-	require.Contains(t, location, "refresh_token=")
+	require.NotContains(t, location, "refresh_token=")
+	require.NotNil(t, findCookie(recorder.Result().Cookies(), browserRefreshCookieName))
 	fragmentValues := parseOAuthRedirectFragment(t, location)
 	require.Equal(t, "/dashboard", fragmentValues.Get("redirect"))
 	requireCookieCleared(t, recorder, oauthPendingSessionCookieName)
@@ -1106,7 +1107,8 @@ func TestCompleteLinuxDoOAuthRegistrationBindsIdentityWithoutAdoptionFlags(t *te
 	require.Equal(t, http.StatusOK, recorder.Code)
 	responseData := decodeJSONBody(t, recorder)
 	require.NotEmpty(t, responseData["access_token"])
-	require.NotEmpty(t, responseData["refresh_token"])
+	require.NotContains(t, responseData, "refresh_token")
+	require.NotNil(t, findCookie(recorder.Result().Cookies(), browserRefreshCookieName))
 
 	userEntity, err := client.User.Query().
 		Where(dbuser.EmailEQ(session.ResolvedEmail)).

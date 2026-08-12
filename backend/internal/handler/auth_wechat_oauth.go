@@ -588,11 +588,11 @@ func (h *AuthHandler) CompleteWeChatOAuthRegistration(c *gin.Context) {
 	clearOAuthPendingSessionCookie(c, secureCookie)
 	clearOAuthPendingBrowserCookie(c, secureCookie)
 
+	writeBrowserRefreshCookie(c, tokenPair)
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  tokenPair.AccessToken,
-		"refresh_token": tokenPair.RefreshToken,
-		"expires_in":    tokenPair.ExpiresIn,
-		"token_type":    "Bearer",
+		"access_token": tokenPair.AccessToken, "expires_in": tokenPair.ExpiresIn,
+		"access_expires_at": tokenPair.AccessExpiresAt, "session": tokenPair.Session,
+		"token_type": "Bearer",
 	})
 }
 
@@ -618,9 +618,11 @@ func (h *AuthHandler) createWeChatPendingSession(
 			return authErr
 		}
 	} else if tokenPair != nil {
+		writeBrowserRefreshCookie(c, tokenPair)
 		completionResponse["access_token"] = tokenPair.AccessToken
-		completionResponse["refresh_token"] = tokenPair.RefreshToken
 		completionResponse["expires_in"] = tokenPair.ExpiresIn
+		completionResponse["access_expires_at"] = tokenPair.AccessExpiresAt
+		completionResponse["session"] = tokenPair.Session
 		completionResponse["token_type"] = "Bearer"
 	}
 

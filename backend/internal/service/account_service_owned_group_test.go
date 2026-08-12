@@ -1622,6 +1622,7 @@ func TestAccountServiceApproveOwnedPublicShareAllowsProxiedAccount(t *testing.T)
 				OwnerUserID:  &ownerID,
 				Credentials:  map[string]any{"access_token": "token"},
 				ProxyID:      &proxyID,
+				Proxy:        &Proxy{ID: proxyID, Status: StatusActive},
 				ShareMode:    AccountShareModePublic,
 				ShareStatus:  AccountShareStatusPending,
 				Status:       StatusActive,

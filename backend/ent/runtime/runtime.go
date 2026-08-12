@@ -52,6 +52,7 @@ import (
 	"ikik-api/ent/userattributevalue"
 	"ikik-api/ent/userblockedgroup"
 	"ikik-api/ent/userplatformquota"
+	"ikik-api/ent/usersession"
 	"ikik-api/ent/usersubscription"
 	"ikik-api/internal/domain"
 	"time"
@@ -3040,6 +3041,63 @@ func init() {
 	userplatformquotaDescMonthlyUsageUsd := userplatformquotaFields[7].Descriptor()
 	// userplatformquota.DefaultMonthlyUsageUsd holds the default value on creation for the monthly_usage_usd field.
 	userplatformquota.DefaultMonthlyUsageUsd = userplatformquotaDescMonthlyUsageUsd.Default.(float64)
+	usersessionMixin := schema.UserSession{}.Mixin()
+	usersessionMixinFields0 := usersessionMixin[0].Fields()
+	_ = usersessionMixinFields0
+	usersessionFields := schema.UserSession{}.Fields()
+	_ = usersessionFields
+	// usersessionDescCreatedAt is the schema descriptor for created_at field.
+	usersessionDescCreatedAt := usersessionMixinFields0[0].Descriptor()
+	// usersession.DefaultCreatedAt holds the default value on creation for the created_at field.
+	usersession.DefaultCreatedAt = usersessionDescCreatedAt.Default.(func() time.Time)
+	// usersessionDescUpdatedAt is the schema descriptor for updated_at field.
+	usersessionDescUpdatedAt := usersessionMixinFields0[1].Descriptor()
+	// usersession.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	usersession.DefaultUpdatedAt = usersessionDescUpdatedAt.Default.(func() time.Time)
+	// usersession.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	usersession.UpdateDefaultUpdatedAt = usersessionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// usersessionDescSid is the schema descriptor for sid field.
+	usersessionDescSid := usersessionFields[0].Descriptor()
+	// usersession.SidValidator is a validator for the "sid" field. It is called by the builders before save.
+	usersession.SidValidator = usersessionDescSid.Validators[0].(func(string) error)
+	// usersessionDescVersion is the schema descriptor for version field.
+	usersessionDescVersion := usersessionFields[2].Descriptor()
+	// usersession.DefaultVersion holds the default value on creation for the version field.
+	usersession.DefaultVersion = usersessionDescVersion.Default.(int64)
+	// usersessionDescRefreshHash is the schema descriptor for refresh_hash field.
+	usersessionDescRefreshHash := usersessionFields[5].Descriptor()
+	// usersession.RefreshHashValidator is a validator for the "refresh_hash" field. It is called by the builders before save.
+	usersession.RefreshHashValidator = usersessionDescRefreshHash.Validators[0].(func(string) error)
+	// usersessionDescPreviousRefreshHash is the schema descriptor for previous_refresh_hash field.
+	usersessionDescPreviousRefreshHash := usersessionFields[6].Descriptor()
+	// usersession.DefaultPreviousRefreshHash holds the default value on creation for the previous_refresh_hash field.
+	usersession.DefaultPreviousRefreshHash = usersessionDescPreviousRefreshHash.Default.(string)
+	// usersession.PreviousRefreshHashValidator is a validator for the "previous_refresh_hash" field. It is called by the builders before save.
+	usersession.PreviousRefreshHashValidator = usersessionDescPreviousRefreshHash.Validators[0].(func(string) error)
+	// usersessionDescLoginMethod is the schema descriptor for login_method field.
+	usersessionDescLoginMethod := usersessionFields[8].Descriptor()
+	// usersession.DefaultLoginMethod holds the default value on creation for the login_method field.
+	usersession.DefaultLoginMethod = usersessionDescLoginMethod.Default.(string)
+	// usersession.LoginMethodValidator is a validator for the "login_method" field. It is called by the builders before save.
+	usersession.LoginMethodValidator = usersessionDescLoginMethod.Validators[0].(func(string) error)
+	// usersessionDescIP is the schema descriptor for ip field.
+	usersessionDescIP := usersessionFields[9].Descriptor()
+	// usersession.DefaultIP holds the default value on creation for the ip field.
+	usersession.DefaultIP = usersessionDescIP.Default.(string)
+	// usersession.IPValidator is a validator for the "ip" field. It is called by the builders before save.
+	usersession.IPValidator = usersessionDescIP.Validators[0].(func(string) error)
+	// usersessionDescUserAgent is the schema descriptor for user_agent field.
+	usersessionDescUserAgent := usersessionFields[10].Descriptor()
+	// usersession.DefaultUserAgent holds the default value on creation for the user_agent field.
+	usersession.DefaultUserAgent = usersessionDescUserAgent.Default.(string)
+	// usersession.UserAgentValidator is a validator for the "user_agent" field. It is called by the builders before save.
+	usersession.UserAgentValidator = usersessionDescUserAgent.Validators[0].(func(string) error)
+	// usersessionDescRevokedReason is the schema descriptor for revoked_reason field.
+	usersessionDescRevokedReason := usersessionFields[14].Descriptor()
+	// usersession.DefaultRevokedReason holds the default value on creation for the revoked_reason field.
+	usersession.DefaultRevokedReason = usersessionDescRevokedReason.Default.(string)
+	// usersession.RevokedReasonValidator is a validator for the "revoked_reason" field. It is called by the builders before save.
+	usersession.RevokedReasonValidator = usersessionDescRevokedReason.Validators[0].(func(string) error)
 	usersubscriptionMixin := schema.UserSubscription{}.Mixin()
 	usersubscriptionMixinHooks1 := usersubscriptionMixin[1].Hooks()
 	usersubscription.Hooks[0] = usersubscriptionMixinHooks1[0]

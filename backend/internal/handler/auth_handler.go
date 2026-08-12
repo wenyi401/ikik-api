@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"sync"
@@ -92,11 +93,12 @@ func captchaProof(turnstileToken, tencentTicket, tencentRandstr string) service.
 
 // AuthResponse 认证响应格式（匹配前端期望）
 type AuthResponse struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token,omitempty"` // 新增：Refresh Token
-	ExpiresIn    int       `json:"expires_in,omitempty"`    // 新增：Access Token有效期（秒）
-	TokenType    string    `json:"token_type"`
-	User         *dto.User `json:"user"`
+	AccessToken     string                    `json:"access_token"`
+	ExpiresIn       int                       `json:"expires_in,omitempty"`
+	AccessExpiresAt int64                     `json:"access_expires_at"`
+	TokenType       string                    `json:"token_type"`
+	Session         *service.LoginSessionView `json:"session"`
+	User            *dto.User                 `json:"user"`
 }
 
 func ensureLoginUserActive(user *service.User) error {
@@ -111,38 +113,27 @@ func ensureLoginUserActive(user *service.User) error {
 
 // respondWithTokenPair 生成 Token 对并返回认证响应
 // 如果 Token 对生成失败，回退到只返回 Access Token（向后兼容）
-func (h *AuthHandler) respondWithTokenPair(c *gin.Context, user *service.User) {
-	respondWithTokenPair(c, h.authService, user)
+func (h *AuthHandler) respondWithTokenPair(c *gin.Context, user *service.User, loginMethod string) {
+	respondWithTokenPair(c, h.authService, user, loginMethod)
 }
 
-func respondWithTokenPair(c *gin.Context, authService *service.AuthService, user *service.User) {
+func respondWithTokenPair(c *gin.Context, authService *service.AuthService, user *service.User, loginMethod string) {
 	if err := ensureLoginUserActive(user); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	tokenPair, err := authService.GenerateTokenPair(c.Request.Context(), user, "")
+	tokenPair, err := authService.GenerateTokenPairWithMethod(c.Request.Context(), user, "", loginMethod)
 	if err != nil {
 		slog.Error("failed to generate token pair", "error", err, "user_id", user.ID)
-		// 回退到只返回Access Token
-		token, tokenErr := authService.GenerateToken(c.Request.Context(), user)
-		if tokenErr != nil {
-			response.InternalError(c, "Failed to generate token")
-			return
-		}
-		response.Success(c, AuthResponse{
-			AccessToken: token,
-			TokenType:   "Bearer",
-			User:        dto.UserFromService(user),
-		})
+		response.ErrorFrom(c, err)
 		return
 	}
+	writeBrowserRefreshCookie(c, tokenPair)
 	response.Success(c, AuthResponse{
-		AccessToken:  tokenPair.AccessToken,
-		RefreshToken: tokenPair.RefreshToken,
-		ExpiresIn:    tokenPair.ExpiresIn,
-		TokenType:    "Bearer",
-		User:         dto.UserFromService(user),
+		AccessToken: tokenPair.AccessToken, ExpiresIn: tokenPair.ExpiresIn,
+		AccessExpiresAt: tokenPair.AccessExpiresAt, TokenType: "Bearer",
+		Session: tokenPair.Session, User: dto.UserFromService(user),
 	})
 }
 
@@ -204,7 +195,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	h.respondWithTokenPair(c, user)
+	h.respondWithTokenPair(c, user, "unknown")
 }
 
 // SendVerifyCode 发送邮箱验证码
@@ -280,7 +271,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
 
-	h.respondWithTokenPair(c, user)
+	h.respondWithTokenPair(c, user, "password")
 }
 
 // TotpLoginResponse represents the response when 2FA is required
@@ -416,7 +407,7 @@ func (h *AuthHandler) Login2FA(c *gin.Context) {
 		h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
 	}
 
-	h.respondWithTokenPair(c, user)
+	h.respondWithTokenPair(c, user, "2fa")
 }
 
 // GetCurrentUser handles getting current authenticated user
@@ -667,30 +658,37 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 
 // ==================== Token Refresh Endpoints ====================
 
-// RefreshTokenRequest 刷新Token请求
-type RefreshTokenRequest struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
-}
-
 // RefreshTokenResponse 刷新Token响应
 type RefreshTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"` // Access Token有效期（秒）
-	TokenType    string `json:"token_type"`
+	AccessToken     string                    `json:"access_token"`
+	ExpiresIn       int                       `json:"expires_in"`
+	AccessExpiresAt int64                     `json:"access_expires_at"`
+	TokenType       string                    `json:"token_type"`
+	Session         *service.LoginSessionView `json:"session"`
+	User            *dto.User                 `json:"user"`
 }
 
 // RefreshToken 刷新Token
 // POST /api/v1/auth/refresh
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
-	var req RefreshTokenRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	c.Header("Cache-Control", "no-store")
+	refreshToken := readBrowserRefreshCookie(c)
+	if refreshToken == "" {
+		clearBrowserRefreshCookie(c)
+		response.ErrorFrom(c, service.ErrRefreshTokenInvalid)
+		return
+	}
+	if _, ok := service.BrowserRefreshTokenSID(refreshToken); !ok {
+		clearBrowserRefreshCookie(c)
+		response.ErrorFrom(c, service.ErrRefreshTokenInvalid)
 		return
 	}
 
-	result, err := h.authService.RefreshTokenPair(c.Request.Context(), req.RefreshToken)
+	result, err := h.authService.RefreshTokenPairForSession(c.Request.Context(), refreshToken, c.GetHeader("X-Auth-Session"))
 	if err != nil {
+		if errors.Is(err, service.ErrRefreshTokenInvalid) || errors.Is(err, service.ErrLoginSessionRevoked) {
+			clearBrowserRefreshCookie(c)
+		}
 		response.ErrorFrom(c, err)
 		return
 	}
@@ -701,17 +699,12 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
+	writeBrowserRefreshCookie(c, &result.TokenPair)
 	response.Success(c, RefreshTokenResponse{
-		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
-		ExpiresIn:    result.ExpiresIn,
-		TokenType:    "Bearer",
+		AccessToken: result.AccessToken, ExpiresIn: result.ExpiresIn,
+		AccessExpiresAt: result.AccessExpiresAt, TokenType: "Bearer",
+		Session: result.Session, User: dto.UserFromService(result.User),
 	})
-}
-
-// LogoutRequest 登出请求
-type LogoutRequest struct {
-	RefreshToken string `json:"refresh_token,omitempty"` // 可选：撤销指定的Refresh Token
 }
 
 // LogoutResponse 登出响应
@@ -722,23 +715,129 @@ type LogoutResponse struct {
 // Logout 用户登出
 // POST /api/v1/auth/logout
 func (h *AuthHandler) Logout(c *gin.Context) {
-	var req LogoutRequest
-	// 允许空请求体（向后兼容）
-	_ = c.ShouldBindJSON(&req)
+	c.Header("Cache-Control", "no-store")
+	expectedSID := strings.TrimSpace(c.GetHeader("X-Auth-Session"))
+	refreshToken := readBrowserRefreshCookie(c)
+	cookieSID, hasCookieSID := service.BrowserRefreshTokenSID(refreshToken)
+	if expectedSID != "" && hasCookieSID && cookieSID != expectedSID {
+		response.ErrorFrom(c, service.ErrLoginSessionMismatch)
+		return
+	}
 
-	// 如果提供了Refresh Token，撤销它
-	if req.RefreshToken != "" {
-		if err := h.authService.RevokeRefreshToken(c.Request.Context(), req.RefreshToken); err != nil {
-			slog.Debug("failed to revoke refresh token", "error", err)
-			// 不影响登出流程
+	if accessToken := dashboardBearerToken(c.GetHeader("Authorization")); accessToken != "" {
+		if claims, err := h.authService.ValidateToken(accessToken); err == nil && claims.SessionVersion > 0 {
+			if expectedSID != "" && expectedSID != claims.SessionID {
+				response.ErrorFrom(c, service.ErrLoginSessionMismatch)
+				return
+			}
+			if _, err := h.authService.RevokeBrowserSession(c.Request.Context(), claims.UserID, claims.SessionID, "logout"); err != nil {
+				response.ErrorFrom(c, err)
+				return
+			}
+			cookieCleared := false
+			if hasCookieSID && cookieSID == claims.SessionID {
+				if err := h.authService.RevokeBrowserSessionByToken(c.Request.Context(), refreshToken, claims.SessionID, "logout"); err != nil {
+					response.ErrorFrom(c, err)
+					return
+				}
+				clearBrowserRefreshCookie(c)
+				cookieCleared = true
+			}
+			h.consumePendingOAuthSessionOnLogout(c)
+			clearOAuthLogoutCookies(c)
+			response.Success(c, gin.H{"revoked_sid": claims.SessionID, "cookie_cleared": cookieCleared})
+			return
+		}
+	}
+
+	if refreshToken != "" {
+		if err := h.authService.RevokeBrowserSessionByToken(c.Request.Context(), refreshToken, expectedSID, "logout"); err != nil {
+			response.ErrorFrom(c, err)
+			return
 		}
 	}
 	h.consumePendingOAuthSessionOnLogout(c)
 	clearOAuthLogoutCookies(c)
+	clearBrowserRefreshCookie(c)
 
 	response.Success(c, LogoutResponse{
 		Message: "Logged out successfully",
 	})
+}
+
+func dashboardBearerToken(header string) string {
+	parts := strings.Fields(header)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+	return strings.TrimSpace(parts[1])
+}
+
+func requireCurrentBrowserSession(c *gin.Context) (middleware2.AuthSubject, string, bool) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	sid := strings.TrimSpace(c.GetString(middleware2.ContextKeySessionID))
+	if !ok || sid == "" {
+		response.ErrorWithDetails(c, 403, "A dashboard login session is required", "AUTH_SESSION_REQUIRED", nil)
+		return middleware2.AuthSubject{}, "", false
+	}
+	return subject, sid, true
+}
+
+// GetLoginSessions lists active browser sessions for the current user.
+func (h *AuthHandler) GetLoginSessions(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	subject, currentSID, ok := requireCurrentBrowserSession(c)
+	if !ok {
+		return
+	}
+	sessions, err := h.authService.ListBrowserSessions(c.Request.Context(), subject.UserID, currentSID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, sessions)
+}
+
+// DeleteLoginSession revokes one session owned by the current user.
+func (h *AuthHandler) DeleteLoginSession(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	subject, currentSID, ok := requireCurrentBrowserSession(c)
+	if !ok {
+		return
+	}
+	sid := strings.TrimSpace(c.Param("sid"))
+	if sid == "" {
+		response.ErrorWithDetails(c, 400, "Session id is required", "AUTH_SESSION_ID_REQUIRED", nil)
+		return
+	}
+	revoked, err := h.authService.RevokeBrowserSession(c.Request.Context(), subject.UserID, sid, "user_revoked")
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if !revoked {
+		response.ErrorWithDetails(c, 404, "Session not found", "AUTH_SESSION_NOT_FOUND", nil)
+		return
+	}
+	if sid == currentSID {
+		clearBrowserRefreshCookie(c)
+	}
+	response.Success(c, gin.H{"revoked_sid": sid, "current": sid == currentSID})
+}
+
+// RevokeOtherLoginSessions preserves the current session and revokes the rest.
+func (h *AuthHandler) RevokeOtherLoginSessions(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	subject, currentSID, ok := requireCurrentBrowserSession(c)
+	if !ok {
+		return
+	}
+	count, err := h.authService.RevokeOtherBrowserSessions(c.Request.Context(), subject.UserID, currentSID, "user_revoked_others")
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"revoked_count": count})
 }
 
 // RevokeAllSessionsResponse 撤销所有会话响应

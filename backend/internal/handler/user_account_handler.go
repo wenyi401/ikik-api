@@ -1886,6 +1886,9 @@ func (h *UserAccountHandler) refreshOwnedAccount(ctx context.Context, ownerUserI
 	if !account.IsOAuth() {
 		return nil, "", infraerrors.BadRequest("NOT_OAUTH", "cannot refresh non-OAuth account")
 	}
+	if err := service.ValidateAccountProxy(account, time.Now()); err != nil {
+		return nil, "", err
+	}
 
 	var newCredentials map[string]any
 	switch {

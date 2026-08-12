@@ -54,6 +54,7 @@ import (
 	"ikik-api/ent/userattributevalue"
 	"ikik-api/ent/userblockedgroup"
 	"ikik-api/ent/userplatformquota"
+	"ikik-api/ent/usersession"
 	"ikik-api/ent/usersubscription"
 	"reflect"
 	"sync"
@@ -169,6 +170,7 @@ func checkColumn(t, c string) error {
 			userattributevalue.Table:            userattributevalue.ValidColumn,
 			userblockedgroup.Table:              userblockedgroup.ValidColumn,
 			userplatformquota.Table:             userplatformquota.ValidColumn,
+			usersession.Table:                   usersession.ValidColumn,
 			usersubscription.Table:              usersubscription.ValidColumn,
 		})
 	})

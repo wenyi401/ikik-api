@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	_ "ikik-api/ent/runtime"
-	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -63,7 +63,8 @@ func TestListSchedulableAccountLoadsUsesSingleProjectionQuery(t *testing.T) {
 	require.NotContains(t, selectClause, "extra")
 	require.NotContains(t, selectClause, "proxy_id")
 	require.NotContains(t, normalized, "account_groups")
-	require.NotContains(t, normalized, "proxies")
+	require.Contains(t, normalized, "proxies")
+	require.Contains(t, normalized, "proxy_id")
 	for _, predicateColumn := range []string{
 		"status",
 		"schedulable",

@@ -116,8 +116,8 @@ describe('LinuxDoCallbackView', () => {
 
     expect(exchangePendingOAuthCompletion).not.toHaveBeenCalled()
     expect(setToken).toHaveBeenCalledWith('legacy-access-token')
-    expect(localStorage.getItem('refresh_token')).toBe('legacy-refresh-token')
-    expect(localStorage.getItem('token_expires_at')).not.toBeNull()
+    expect(localStorage.getItem('refresh_token')).toBeNull()
+    expect(localStorage.getItem('token_expires_at')).toBeNull()
     expect(showSuccess).toHaveBeenCalledWith('auth.loginSuccess')
     expect(replace).toHaveBeenCalledWith('/legacy-dashboard')
   })

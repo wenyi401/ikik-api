@@ -1,11 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { post } = vi.hoisted(() => ({
-  post: vi.fn()
+const { post, authState } = vi.hoisted(() => ({
+  post: vi.fn(),
+  authState: { adminID: 7 as number | null }
 }))
 
 vi.mock('@/api/client', () => ({
   apiClient: { post }
+}))
+
+vi.mock('@/api/authSession', () => ({
+  getCurrentAuthBundle: () =>
+    authState.adminID === null ? null : { user: { id: authState.adminID } }
 }))
 
 import { duplicate } from '@/api/admin/groups'
@@ -14,7 +20,7 @@ describe('admin group duplicate API', () => {
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
-    localStorage.setItem('auth_user', JSON.stringify({ id: 7 }))
+    authState.adminID = 7
     post.mockReset()
     post.mockResolvedValue({ data: { id: 43, name: 'primary (Copy)', status: 'inactive' } })
     vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('11111111-1111-4111-8111-111111111111')
@@ -68,7 +74,7 @@ describe('admin group duplicate API', () => {
     await expect(duplicate(55)).rejects.toThrow('first admin timeout')
     const firstAdminHeaders = post.mock.calls[0][2].headers
 
-    localStorage.setItem('auth_user', JSON.stringify({ id: 8 }))
+    authState.adminID = 8
     vi.mocked(globalThis.crypto.randomUUID).mockReturnValueOnce(
       '22222222-2222-4222-8222-222222222222'
     )
@@ -86,7 +92,7 @@ describe('admin group duplicate API', () => {
   })
 
   it('does not persist or reuse keys when the current user cannot be parsed', async () => {
-    localStorage.setItem('auth_user', '{invalid json')
+    authState.adminID = null
     post.mockRejectedValueOnce(new Error('network timeout'))
     await expect(duplicate(66)).rejects.toThrow('network timeout')
     const firstHeaders = post.mock.calls[0][2].headers

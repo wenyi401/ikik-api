@@ -67,6 +67,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { accountsAPI } from '@/api'
 import { buildApiUrl } from '@/api/client'
+import { getAccessToken } from '@/api/authSession'
 import FreeModelConnectDialog from '@/components/free-models/FreeModelConnectDialog.vue'
 import FreeModelProviderCard from '@/components/free-models/FreeModelProviderCard.vue'
 import FreeModelStatusDialog from '@/components/free-models/FreeModelStatusDialog.vue'
@@ -590,7 +591,7 @@ async function runSingleAccountModelTest(account: FreeModelAccount, model: strin
   const response = await fetch(buildApiUrl(`/api/v1/accounts/${account.id}/test`), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+      Authorization: `Bearer ${getAccessToken() ?? ''}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({

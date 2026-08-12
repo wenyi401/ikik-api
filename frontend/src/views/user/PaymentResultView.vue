@@ -168,6 +168,7 @@ import {
 import { usePaymentStore } from '@/stores/payment'
 import { paymentAPI, type PublicOrderVerifyResult } from '@/api/payment'
 import { storeAPI } from '@/api/store'
+import { getAccessToken } from '@/api/authSession'
 import { formatStoreDrawReward } from '@/utils/storeRewards'
 import type { OrderStatus, PaymentOrder } from '@/types/payment'
 import type { StoreOrder } from '@/types/store'
@@ -275,8 +276,7 @@ function isPendingStatus(status: string | null | undefined): boolean {
 }
 
 function hasLocalAuthToken(): boolean {
-  if (typeof window === 'undefined') return false
-  return !!window.localStorage.getItem('auth_token')
+  return Boolean(getAccessToken())
 }
 
 function shouldLoadShopOrder(paymentOrder: PaymentOrder | null): paymentOrder is PaymentOrder & { shop_order_id: number } {

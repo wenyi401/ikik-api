@@ -14,6 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/authidentity"
 	"ikik-api/ent/identityadoptiondecision"
@@ -22,9 +25,6 @@ import (
 	"ikik-api/internal/config"
 	servermiddleware "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/stretchr/testify/require"
 )
 
 func TestOIDCSyntheticEmailStableAndDistinct(t *testing.T) {
@@ -836,7 +836,8 @@ func TestCompleteOIDCOAuthRegistrationBindsIdentityWithoutAdoptionFlags(t *testi
 	require.Equal(t, http.StatusOK, recorder.Code)
 	responseData := decodeJSONBody(t, recorder)
 	require.NotEmpty(t, responseData["access_token"])
-	require.NotEmpty(t, responseData["refresh_token"])
+	require.NotContains(t, responseData, "refresh_token")
+	require.NotNil(t, findCookie(recorder.Result().Cookies(), browserRefreshCookieName))
 
 	userEntity, err := client.User.Query().
 		Where(dbuser.EmailEQ(session.ResolvedEmail)).
@@ -959,7 +960,8 @@ func TestTryOIDCVerifiedEmailFastPathCreatesUserAndIdentity(t *testing.T) {
 	location := recorder.Header().Get("Location")
 	require.Contains(t, location, "/auth/oidc/callback")
 	require.Contains(t, location, "access_token=")
-	require.Contains(t, location, "refresh_token=")
+	require.NotContains(t, location, "refresh_token=")
+	require.NotNil(t, findCookie(recorder.Result().Cookies(), browserRefreshCookieName))
 	require.Contains(t, location, "token_type=Bearer")
 
 	user, err := client.User.Query().Where(dbuser.EmailEQ("fastpath@example.com")).Only(ctx)
@@ -1013,7 +1015,8 @@ func TestOIDCOAuthCallbackVerifiedEmailFastPathIssuesTokenWithoutPendingSession(
 	location := recorder.Header().Get("Location")
 	require.Contains(t, location, "/auth/oidc/callback#")
 	require.Contains(t, location, "access_token=")
-	require.Contains(t, location, "refresh_token=")
+	require.NotContains(t, location, "refresh_token=")
+	require.NotNil(t, findCookie(recorder.Result().Cookies(), browserRefreshCookieName))
 	require.Contains(t, location, "token_type=Bearer")
 	fragmentValues := parseOAuthRedirectFragment(t, location)
 	require.Equal(t, "/dashboard", fragmentValues.Get("redirect"))

@@ -24,6 +24,7 @@ import (
 	"ikik-api/ent/user"
 	"ikik-api/ent/userattributevalue"
 	"ikik-api/ent/userplatformquota"
+	"ikik-api/ent/usersession"
 	"ikik-api/ent/usersubscription"
 	"time"
 
@@ -902,6 +903,21 @@ func (_u *UserUpdate) AddAuthIdentities(v ...*AuthIdentity) *UserUpdate {
 	return _u.AddAuthIdentityIDs(ids...)
 }
 
+// AddLoginSessionIDs adds the "login_sessions" edge to the UserSession entity by IDs.
+func (_u *UserUpdate) AddLoginSessionIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddLoginSessionIDs(ids...)
+	return _u
+}
+
+// AddLoginSessions adds the "login_sessions" edges to the UserSession entity.
+func (_u *UserUpdate) AddLoginSessions(v ...*UserSession) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddLoginSessionIDs(ids...)
+}
+
 // AddPendingAuthSessionIDs adds the "pending_auth_sessions" edge to the PendingAuthSession entity by IDs.
 func (_u *UserUpdate) AddPendingAuthSessionIDs(ids ...int64) *UserUpdate {
 	_u.mutation.AddPendingAuthSessionIDs(ids...)
@@ -1292,6 +1308,27 @@ func (_u *UserUpdate) RemoveAuthIdentities(v ...*AuthIdentity) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAuthIdentityIDs(ids...)
+}
+
+// ClearLoginSessions clears all "login_sessions" edges to the UserSession entity.
+func (_u *UserUpdate) ClearLoginSessions() *UserUpdate {
+	_u.mutation.ClearLoginSessions()
+	return _u
+}
+
+// RemoveLoginSessionIDs removes the "login_sessions" edge to UserSession entities by IDs.
+func (_u *UserUpdate) RemoveLoginSessionIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveLoginSessionIDs(ids...)
+	return _u
+}
+
+// RemoveLoginSessions removes "login_sessions" edges to UserSession entities.
+func (_u *UserUpdate) RemoveLoginSessions(v ...*UserSession) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveLoginSessionIDs(ids...)
 }
 
 // ClearPendingAuthSessions clears all "pending_auth_sessions" edges to the PendingAuthSession entity.
@@ -2388,6 +2425,51 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.LoginSessionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.LoginSessionsTable,
+			Columns: []string{user.LoginSessionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersession.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedLoginSessionsIDs(); len(nodes) > 0 && !_u.mutation.LoginSessionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.LoginSessionsTable,
+			Columns: []string{user.LoginSessionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersession.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.LoginSessionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.LoginSessionsTable,
+			Columns: []string{user.LoginSessionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersession.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _u.mutation.PendingAuthSessionsCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -3355,6 +3437,21 @@ func (_u *UserUpdateOne) AddAuthIdentities(v ...*AuthIdentity) *UserUpdateOne {
 	return _u.AddAuthIdentityIDs(ids...)
 }
 
+// AddLoginSessionIDs adds the "login_sessions" edge to the UserSession entity by IDs.
+func (_u *UserUpdateOne) AddLoginSessionIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddLoginSessionIDs(ids...)
+	return _u
+}
+
+// AddLoginSessions adds the "login_sessions" edges to the UserSession entity.
+func (_u *UserUpdateOne) AddLoginSessions(v ...*UserSession) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddLoginSessionIDs(ids...)
+}
+
 // AddPendingAuthSessionIDs adds the "pending_auth_sessions" edge to the PendingAuthSession entity by IDs.
 func (_u *UserUpdateOne) AddPendingAuthSessionIDs(ids ...int64) *UserUpdateOne {
 	_u.mutation.AddPendingAuthSessionIDs(ids...)
@@ -3745,6 +3842,27 @@ func (_u *UserUpdateOne) RemoveAuthIdentities(v ...*AuthIdentity) *UserUpdateOne
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAuthIdentityIDs(ids...)
+}
+
+// ClearLoginSessions clears all "login_sessions" edges to the UserSession entity.
+func (_u *UserUpdateOne) ClearLoginSessions() *UserUpdateOne {
+	_u.mutation.ClearLoginSessions()
+	return _u
+}
+
+// RemoveLoginSessionIDs removes the "login_sessions" edge to UserSession entities by IDs.
+func (_u *UserUpdateOne) RemoveLoginSessionIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveLoginSessionIDs(ids...)
+	return _u
+}
+
+// RemoveLoginSessions removes "login_sessions" edges to UserSession entities.
+func (_u *UserUpdateOne) RemoveLoginSessions(v ...*UserSession) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveLoginSessionIDs(ids...)
 }
 
 // ClearPendingAuthSessions clears all "pending_auth_sessions" edges to the PendingAuthSession entity.
@@ -4864,6 +4982,51 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(authidentity.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.LoginSessionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.LoginSessionsTable,
+			Columns: []string{user.LoginSessionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersession.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedLoginSessionsIDs(); len(nodes) > 0 && !_u.mutation.LoginSessionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.LoginSessionsTable,
+			Columns: []string{user.LoginSessionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersession.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.LoginSessionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.LoginSessionsTable,
+			Columns: []string{user.LoginSessionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersession.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

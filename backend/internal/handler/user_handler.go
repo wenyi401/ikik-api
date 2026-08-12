@@ -141,6 +141,11 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		response.Unauthorized(c, "User not authenticated")
 		return
 	}
+	currentSID := strings.TrimSpace(c.GetString(middleware2.ContextKeySessionID))
+	if currentSID == "" {
+		response.ErrorWithDetails(c, 403, "A dashboard login session is required", "AUTH_SESSION_REQUIRED", nil)
+		return
+	}
 
 	var req ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -158,7 +163,15 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"message": "Password changed successfully"})
+	pair, err := h.authService.AdvanceCurrentBrowserSessionToUserVersion(c.Request.Context(), subject.UserID, currentSID, "password_changed")
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{
+		"access_token": pair.AccessToken, "token_type": "Bearer",
+		"access_expires_at": pair.AccessExpiresAt, "session": pair.Session,
+	})
 }
 
 // UpdateProfile handles updating user profile

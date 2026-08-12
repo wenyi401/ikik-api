@@ -23,6 +23,7 @@ import (
 	"ikik-api/ent/user"
 	"ikik-api/ent/userattributevalue"
 	"ikik-api/ent/userplatformquota"
+	"ikik-api/ent/usersession"
 	"ikik-api/ent/usersubscription"
 	"time"
 
@@ -780,6 +781,21 @@ func (_c *UserCreate) AddAuthIdentities(v ...*AuthIdentity) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddAuthIdentityIDs(ids...)
+}
+
+// AddLoginSessionIDs adds the "login_sessions" edge to the UserSession entity by IDs.
+func (_c *UserCreate) AddLoginSessionIDs(ids ...int64) *UserCreate {
+	_c.mutation.AddLoginSessionIDs(ids...)
+	return _c
+}
+
+// AddLoginSessions adds the "login_sessions" edges to the UserSession entity.
+func (_c *UserCreate) AddLoginSessions(v ...*UserSession) *UserCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddLoginSessionIDs(ids...)
 }
 
 // AddPendingAuthSessionIDs adds the "pending_auth_sessions" edge to the PendingAuthSession entity by IDs.
@@ -1551,6 +1567,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(authidentity.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.LoginSessionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.LoginSessionsTable,
+			Columns: []string{user.LoginSessionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(usersession.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

@@ -2567,6 +2567,58 @@ var (
 			},
 		},
 	}
+	// UserSessionsColumns holds the columns for the "user_sessions" table.
+	UserSessionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "sid", Type: field.TypeString, Unique: true, Size: 36},
+		{Name: "version", Type: field.TypeInt64, Default: 1},
+		{Name: "user_auth_version", Type: field.TypeInt64},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "revoking", "revoked"}, Default: "active"},
+		{Name: "refresh_hash", Type: field.TypeString, Size: 64},
+		{Name: "previous_refresh_hash", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "previous_valid_until", Type: field.TypeTime, Nullable: true},
+		{Name: "login_method", Type: field.TypeString, Size: 32, Default: "unknown"},
+		{Name: "ip", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "user_agent", Type: field.TypeString, Size: 512, Default: ""},
+		{Name: "last_active_at", Type: field.TypeTime},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "revoked_at", Type: field.TypeTime, Nullable: true},
+		{Name: "revoked_reason", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "user_id", Type: field.TypeInt64},
+	}
+	// UserSessionsTable holds the schema information for the "user_sessions" table.
+	UserSessionsTable = &schema.Table{
+		Name:       "user_sessions",
+		Columns:    UserSessionsColumns,
+		PrimaryKey: []*schema.Column{UserSessionsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "user_sessions_users_login_sessions",
+				Columns:    []*schema.Column{UserSessionsColumns[17]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "usersession_user_id_status_last_active_at",
+				Unique:  false,
+				Columns: []*schema.Column{UserSessionsColumns[17], UserSessionsColumns[6], UserSessionsColumns[13]},
+			},
+			{
+				Name:    "usersession_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{UserSessionsColumns[17], UserSessionsColumns[1]},
+			},
+			{
+				Name:    "usersession_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{UserSessionsColumns[14]},
+			},
+		},
+	}
 	// UserSubscriptionsColumns holds the columns for the "user_subscriptions" table.
 	UserSubscriptionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2706,6 +2758,7 @@ var (
 		UserAttributeValuesTable,
 		UserBlockedGroupsTable,
 		UserPlatformQuotasTable,
+		UserSessionsTable,
 		UserSubscriptionsTable,
 	}
 )
@@ -2907,6 +2960,10 @@ func init() {
 	UserPlatformQuotasTable.ForeignKeys[0].RefTable = UsersTable
 	UserPlatformQuotasTable.Annotation = &entsql.Annotation{
 		Table: "user_platform_quotas",
+	}
+	UserSessionsTable.ForeignKeys[0].RefTable = UsersTable
+	UserSessionsTable.Annotation = &entsql.Annotation{
+		Table: "user_sessions",
 	}
 	UserSubscriptionsTable.ForeignKeys[0].RefTable = GroupsTable
 	UserSubscriptionsTable.ForeignKeys[1].RefTable = UsersTable

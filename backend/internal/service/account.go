@@ -146,6 +146,37 @@ type TempUnschedulableRule struct {
 	Description     string   `json:"description"`
 }
 
+type AccountProxyState string
+
+const (
+	AccountProxyStateAvailable   AccountProxyState = "available"
+	AccountProxyStateExpired     AccountProxyState = "expired"
+	AccountProxyStateUnavailable AccountProxyState = "unavailable"
+)
+
+// ProxyStateAt reports whether the account's currently selected transport can
+// be used. A nil proxy is valid only when the account is configured for direct
+// access (proxy_id is nil).
+func (a *Account) ProxyStateAt(now time.Time) AccountProxyState {
+	if a == nil || a.ProxyID == nil {
+		return AccountProxyStateAvailable
+	}
+	if a.Proxy == nil {
+		return AccountProxyStateUnavailable
+	}
+	if a.Proxy.Status == StatusExpired || a.Proxy.IsExpired(now) {
+		return AccountProxyStateExpired
+	}
+	if !a.Proxy.IsActive() {
+		return AccountProxyStateUnavailable
+	}
+	return AccountProxyStateAvailable
+}
+
+func (a *Account) IsProxyUsableAt(now time.Time) bool {
+	return a.ProxyStateAt(now) == AccountProxyStateAvailable
+}
+
 func (a *Account) IsActive() bool {
 	return a.Status == StatusActive
 }
@@ -185,6 +216,9 @@ func (a *Account) IsSchedulableAt(now time.Time) bool {
 	if !a.IsActive() || !a.Schedulable {
 		return false
 	}
+	if !a.IsProxyUsableAt(now) {
+		return false
+	}
 	if a.AutoPauseOnExpired && a.ExpiresAt != nil && !now.Before(*a.ExpiresAt) {
 		return false
 	}
@@ -220,6 +254,9 @@ func (a *Account) IsCredentialUsableForShadow() bool {
 		return false
 	}
 	now := time.Now()
+	if !a.IsProxyUsableAt(now) {
+		return false
+	}
 	if a.AutoPauseOnExpired && a.ExpiresAt != nil && !now.Before(*a.ExpiresAt) {
 		return false
 	}

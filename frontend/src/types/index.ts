@@ -328,11 +328,23 @@ export interface PublicSettings {
   affiliate_enabled: boolean
 }
 
+export interface LoginSession {
+  sid: string
+  current: boolean
+  login_method: string
+  ip: string
+  user_agent: string
+  created_at: number
+  last_active_at: number
+  expires_at: number
+}
+
 export interface AuthResponse {
   access_token: string
-  refresh_token?: string // New: Refresh Token for token renewal
-  expires_in?: number // New: Access Token expiry time in seconds
+  expires_in: number
+  access_expires_at: number
   token_type: string
+  session: LoginSession
   user: User & { run_mode?: 'standard' | 'simple' }
 }
 
@@ -841,6 +853,8 @@ export interface CreateGroupRequest {
   daily_limit_usd?: number | null
   weekly_limit_usd?: number | null
   monthly_limit_usd?: number | null
+  allow_image_generation?: boolean
+  allow_batch_image_generation?: boolean
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
@@ -883,6 +897,8 @@ export interface UpdateGroupRequest {
   daily_limit_usd?: number | null
   weekly_limit_usd?: number | null
   monthly_limit_usd?: number | null
+  allow_image_generation?: boolean
+  allow_batch_image_generation?: boolean
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null

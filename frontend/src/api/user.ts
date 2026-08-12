@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from './client'
+import { applyAuthRotation, type AuthTokenRotation } from './authSession'
 import {
   resolveWeChatOAuthStartStrict,
   prepareOAuthBindAccessTokenCookie,
@@ -60,13 +61,14 @@ export async function updateProfile(profile: {
 export async function changePassword(
   oldPassword: string,
   newPassword: string
-): Promise<{ message: string }> {
+): Promise<AuthTokenRotation> {
   const payload: ChangePasswordRequest = {
     old_password: oldPassword,
     new_password: newPassword
   }
 
-  const { data } = await apiClient.put<{ message: string }>('/user/password', payload)
+  const { data } = await apiClient.put<AuthTokenRotation>('/user/password', payload)
+  applyAuthRotation(data)
   return data
 }
 

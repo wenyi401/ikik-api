@@ -59,6 +59,7 @@ import (
 	"ikik-api/ent/userattributevalue"
 	"ikik-api/ent/userblockedgroup"
 	"ikik-api/ent/userplatformquota"
+	"ikik-api/ent/usersession"
 	"ikik-api/ent/usersubscription"
 
 	"entgo.io/ent"
@@ -170,6 +171,8 @@ type Client struct {
 	UserBlockedGroup *UserBlockedGroupClient
 	// UserPlatformQuota is the client for interacting with the UserPlatformQuota builders.
 	UserPlatformQuota *UserPlatformQuotaClient
+	// UserSession is the client for interacting with the UserSession builders.
+	UserSession *UserSessionClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
 }
@@ -231,6 +234,7 @@ func (c *Client) init() {
 	c.UserAttributeValue = NewUserAttributeValueClient(c.config)
 	c.UserBlockedGroup = NewUserBlockedGroupClient(c.config)
 	c.UserPlatformQuota = NewUserPlatformQuotaClient(c.config)
+	c.UserSession = NewUserSessionClient(c.config)
 	c.UserSubscription = NewUserSubscriptionClient(c.config)
 }
 
@@ -372,6 +376,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		UserAttributeValue:            NewUserAttributeValueClient(cfg),
 		UserBlockedGroup:              NewUserBlockedGroupClient(cfg),
 		UserPlatformQuota:             NewUserPlatformQuotaClient(cfg),
+		UserSession:                   NewUserSessionClient(cfg),
 		UserSubscription:              NewUserSubscriptionClient(cfg),
 	}, nil
 }
@@ -440,6 +445,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		UserAttributeValue:            NewUserAttributeValueClient(cfg),
 		UserBlockedGroup:              NewUserBlockedGroupClient(cfg),
 		UserPlatformQuota:             NewUserPlatformQuotaClient(cfg),
+		UserSession:                   NewUserSessionClient(cfg),
 		UserSubscription:              NewUserSubscriptionClient(cfg),
 	}, nil
 }
@@ -482,7 +488,7 @@ func (c *Client) Use(hooks ...Hook) {
 		c.ShopCardKey, c.ShopCategory, c.ShopDrawCycle, c.ShopOrder, c.ShopProduct,
 		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
 		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserBlockedGroup, c.UserPlatformQuota, c.UserSubscription,
+		c.UserBlockedGroup, c.UserPlatformQuota, c.UserSession, c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -504,7 +510,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.ShopCardKey, c.ShopCategory, c.ShopDrawCycle, c.ShopOrder, c.ShopProduct,
 		c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog,
 		c.User, c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
-		c.UserBlockedGroup, c.UserPlatformQuota, c.UserSubscription,
+		c.UserBlockedGroup, c.UserPlatformQuota, c.UserSession, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -609,6 +615,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.UserBlockedGroup.mutate(ctx, m)
 	case *UserPlatformQuotaMutation:
 		return c.UserPlatformQuota.mutate(ctx, m)
+	case *UserSessionMutation:
+		return c.UserSession.mutate(ctx, m)
 	case *UserSubscriptionMutation:
 		return c.UserSubscription.mutate(ctx, m)
 	default:
@@ -7777,6 +7785,22 @@ func (c *UserClient) QueryAuthIdentities(_m *User) *AuthIdentityQuery {
 	return query
 }
 
+// QueryLoginSessions queries the login_sessions edge of a User.
+func (c *UserClient) QueryLoginSessions(_m *User) *UserSessionQuery {
+	query := (&UserSessionClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(usersession.Table, usersession.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.LoginSessionsTable, user.LoginSessionsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryPendingAuthSessions queries the pending_auth_sessions edge of a User.
 func (c *UserClient) QueryPendingAuthSessions(_m *User) *PendingAuthSessionQuery {
 	query := (&PendingAuthSessionClient{config: c.config}).Query()
@@ -8567,6 +8591,155 @@ func (c *UserPlatformQuotaClient) mutate(ctx context.Context, m *UserPlatformQuo
 	}
 }
 
+// UserSessionClient is a client for the UserSession schema.
+type UserSessionClient struct {
+	config
+}
+
+// NewUserSessionClient returns a client for the UserSession from the given config.
+func NewUserSessionClient(c config) *UserSessionClient {
+	return &UserSessionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `usersession.Hooks(f(g(h())))`.
+func (c *UserSessionClient) Use(hooks ...Hook) {
+	c.hooks.UserSession = append(c.hooks.UserSession, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `usersession.Intercept(f(g(h())))`.
+func (c *UserSessionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.UserSession = append(c.inters.UserSession, interceptors...)
+}
+
+// Create returns a builder for creating a UserSession entity.
+func (c *UserSessionClient) Create() *UserSessionCreate {
+	mutation := newUserSessionMutation(c.config, OpCreate)
+	return &UserSessionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of UserSession entities.
+func (c *UserSessionClient) CreateBulk(builders ...*UserSessionCreate) *UserSessionCreateBulk {
+	return &UserSessionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *UserSessionClient) MapCreateBulk(slice any, setFunc func(*UserSessionCreate, int)) *UserSessionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &UserSessionCreateBulk{err: fmt.Errorf("calling to UserSessionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*UserSessionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &UserSessionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for UserSession.
+func (c *UserSessionClient) Update() *UserSessionUpdate {
+	mutation := newUserSessionMutation(c.config, OpUpdate)
+	return &UserSessionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *UserSessionClient) UpdateOne(_m *UserSession) *UserSessionUpdateOne {
+	mutation := newUserSessionMutation(c.config, OpUpdateOne, withUserSession(_m))
+	return &UserSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *UserSessionClient) UpdateOneID(id int64) *UserSessionUpdateOne {
+	mutation := newUserSessionMutation(c.config, OpUpdateOne, withUserSessionID(id))
+	return &UserSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for UserSession.
+func (c *UserSessionClient) Delete() *UserSessionDelete {
+	mutation := newUserSessionMutation(c.config, OpDelete)
+	return &UserSessionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *UserSessionClient) DeleteOne(_m *UserSession) *UserSessionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *UserSessionClient) DeleteOneID(id int64) *UserSessionDeleteOne {
+	builder := c.Delete().Where(usersession.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &UserSessionDeleteOne{builder}
+}
+
+// Query returns a query builder for UserSession.
+func (c *UserSessionClient) Query() *UserSessionQuery {
+	return &UserSessionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeUserSession},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a UserSession entity by its id.
+func (c *UserSessionClient) Get(ctx context.Context, id int64) (*UserSession, error) {
+	return c.Query().Where(usersession.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *UserSessionClient) GetX(ctx context.Context, id int64) *UserSession {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a UserSession.
+func (c *UserSessionClient) QueryUser(_m *UserSession) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(usersession.Table, usersession.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, usersession.UserTable, usersession.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *UserSessionClient) Hooks() []Hook {
+	return c.hooks.UserSession
+}
+
+// Interceptors returns the client interceptors.
+func (c *UserSessionClient) Interceptors() []Interceptor {
+	return c.inters.UserSession
+}
+
+func (c *UserSessionClient) mutate(ctx context.Context, m *UserSessionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&UserSessionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&UserSessionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&UserSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&UserSessionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown UserSession mutation op: %q", m.Op())
+	}
+}
+
 // UserSubscriptionClient is a client for the UserSubscription schema.
 type UserSubscriptionClient struct {
 	config
@@ -8780,7 +8953,7 @@ type (
 		ShopCategory, ShopDrawCycle, ShopOrder, ShopProduct, SubscriptionPlan,
 		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
 		UserAttributeDefinition, UserAttributeValue, UserBlockedGroup,
-		UserPlatformQuota, UserSubscription []ent.Hook
+		UserPlatformQuota, UserSession, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, APIKeyGroupRoute, Account, AccountGroup, Announcement, AnnouncementRead,
@@ -8794,7 +8967,7 @@ type (
 		ShopCategory, ShopDrawCycle, ShopOrder, ShopProduct, SubscriptionPlan,
 		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
 		UserAttributeDefinition, UserAttributeValue, UserBlockedGroup,
-		UserPlatformQuota, UserSubscription []ent.Interceptor
+		UserPlatformQuota, UserSession, UserSubscription []ent.Interceptor
 	}
 )
 

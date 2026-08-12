@@ -3,10 +3,37 @@ package repository
 import (
 	"strings"
 	"testing"
+	"time"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/service"
 )
+
+func TestSchedulerMetadataAccountKeepsOnlyProxyAvailability(t *testing.T) {
+	proxyID := int64(9)
+	expiresAt := time.Now().Add(time.Hour).UTC()
+	metadata := buildSchedulerMetadataAccount(service.Account{
+		ID:      24,
+		ProxyID: &proxyID,
+		Proxy: &service.Proxy{
+			ID:        proxyID,
+			Name:      "private-proxy",
+			Host:      "proxy.example",
+			Username:  "user",
+			Password:  "secret",
+			Status:    service.StatusActive,
+			ExpiresAt: &expiresAt,
+		},
+	})
+
+	require.Equal(t, &proxyID, metadata.ProxyID)
+	require.NotNil(t, metadata.Proxy)
+	require.Equal(t, service.StatusActive, metadata.Proxy.Status)
+	require.Equal(t, &expiresAt, metadata.Proxy.ExpiresAt)
+	require.Empty(t, metadata.Proxy.Host)
+	require.Empty(t, metadata.Proxy.Username)
+	require.Empty(t, metadata.Proxy.Password)
+}
 
 func TestFilterSchedulerCredentialsKeepsSubscriptionPlanType(t *testing.T) {
 	filtered := filterSchedulerCredentials(map[string]any{
