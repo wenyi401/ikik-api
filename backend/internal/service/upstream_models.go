@@ -229,6 +229,12 @@ func (s *AccountTestService) buildGrokUpstreamModelsRequest(ctx context.Context,
 		}
 	}
 	account.ApplyHeaderOverrides(req.Header)
+	if isOAuth {
+		// Model discovery goes directly to the workspace proxy and requires the
+		// pinned official workspace identity, even when account overrides exist.
+		applyGrokCLIHeaders(req.Header)
+		req.Header.Set("User-Agent", defaultGrokUpstreamUserAgent())
+	}
 	return req, nil
 }
 

@@ -135,17 +135,31 @@ const metaModels = [
 
 // xAI Grok
 const xaiModels = [
+  'grok-4.6',
   'grok-4.5',
   'grok-4', 'grok-4-0709',
   'grok-4.3', 'grok-build-0.1', 'grok-composer-2.5-fast',
   'grok-4.20-0309-reasoning', 'grok-4.20-0309-non-reasoning',
   'grok-4.20-multi-agent-0309',
-  'grok', 'grok-latest', 'grok-4.5-latest', 'grok-build', 'grok-build-latest',
-  'grok-composer', 'composer-2.5',
-  'grok-4.20-reasoning', 'grok-4.20-non-reasoning',
-  'grok-imagine', 'grok-imagine-image-quality',
-  'grok-imagine-image', 'grok-imagine-edit',
-  'grok-imagine-video', 'grok-imagine-video-1.5',
+  'grok-4.20-multi-agent',
+  'grok-4.20-multi-agent-latest',
+  'grok-4.3-latest',
+  'grok',
+  'grok-latest',
+  'grok-4.6-latest',
+  'grok-4.5-latest',
+  'grok-build',
+  'grok-build-latest',
+  'composer-2.5',
+  'grok-4.20-reasoning',
+  'grok-4.20-non-reasoning',
+  'grok-imagine',
+  'grok-imagine-image-quality',
+  'grok-imagine-image',
+  'grok-imagine-edit',
+  'grok-imagine-video',
+  'grok-imagine-video-1.5-preview',
+  'grok-imagine-video-1.5',
   'grok-3-beta', 'grok-3-mini-beta', 'grok-3-fast-beta',
   'grok-2', 'grok-2-vision', 'grok-2-image',
   'grok-beta', 'grok-vision-beta'
@@ -306,6 +320,7 @@ const geminiPresetMappings = [
 ]
 
 const grokPresetMappings = [
+  { label: 'Grok 4.6', from: 'grok-4.6', to: 'grok-4.6', color: 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300' },
   { label: 'Grok 4.5', from: 'grok-4.5', to: 'grok-4.5', color: 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300' },
   { label: 'Grok 4.3', from: 'grok-4.3', to: 'grok-4.3', color: 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300' },
   { label: 'Grok Latest', from: 'grok-latest', to: 'grok-4.5', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400' },
@@ -481,22 +496,25 @@ export function isValidWildcardPattern(pattern: string): boolean {
 }
 
 export function buildModelMappingObject(
-  mode: 'whitelist' | 'mapping',
+  mode: 'whitelist' | 'mapping' | 'combined',
   allowedModels: string[],
   modelMappings: { from: string; to: string }[]
 ): Record<string, string> | null {
   const mapping: Record<string, string> = {}
 
-  if (mode === 'whitelist') {
+  if (mode === 'whitelist' || mode === 'combined') {
     for (const model of allowedModels) {
       // whitelist 模式的本意是"精确模型列表"，如果用户输入了通配符（如 claude-*），
       // 写入 model_mapping 会导致 GetMappedModel() 把真实模型映射成 "claude-*"，从而转发失败。
       // 因此这里跳过包含通配符的条目。
-      if (!model.includes('*')) {
-        mapping[model] = model
+      const normalizedModel = model.trim()
+      if (normalizedModel && !normalizedModel.includes('*')) {
+        mapping[normalizedModel] = normalizedModel
       }
     }
-  } else {
+  }
+
+  if (mode === 'mapping' || mode === 'combined') {
     for (const m of modelMappings) {
       const from = m.from.trim()
       const to = m.to.trim()

@@ -877,8 +877,8 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
 			Kind:               "failover",
 			Message:            upstreamMsg,
 		})
-		s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
-		if s.shouldFailoverUpstreamError(resp.StatusCode) {
+		s.handleGrokAccountUpstreamError(withGrokTeamRateLimitModel(ctx, grokComposerImageBridgeVisionModel), account, resp.StatusCode, resp.Header, respBody)
+		if s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody) {
 			return "", OpenAIUsage{}, &UpstreamFailoverError{
 				StatusCode:             resp.StatusCode,
 				ResponseBody:           respBody,
@@ -889,7 +889,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
 		return "", OpenAIUsage{}, fmt.Errorf("grok composer image bridge upstream error: %s", upstreamMsg)
 	}
 
-	s.updateGrokUsageFromResponse(ctx, account, resp.Header, resp.StatusCode)
+	s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, grokComposerImageBridgeVisionModel), account, resp.Header, resp.StatusCode)
 	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, nil)
 	if err != nil {
 		return "", OpenAIUsage{}, fmt.Errorf("read grok composer image bridge response: %w", err)
@@ -1074,6 +1074,13 @@ func (s *OpenAIGatewayService) updateGrokUsageSnapshot(ctx context.Context, acco
 		stateCtx, cancel = openAIAccountStateContext(ctx)
 		defer cancel()
 	}
+	// Account pointers on the request path are per-request copies (Redis/DB decode),
+	// not a shared in-process cache. Mutating Extra here matches token refresh /
+	// rate-limit writers; do not reuse the same *Account across goroutines.
+	if account.Extra == nil {
+		account.Extra = map[string]any{}
+	}
+	account.Extra[grokQuotaSnapshotExtraKey] = snapshot
 	if s.accountRepo != nil {
 		_ = s.accountRepo.UpdateExtra(stateCtx, accountID, map[string]any{
 			grokQuotaSnapshotExtraKey: snapshot,
@@ -1093,6 +1100,7 @@ func (s *OpenAIGatewayService) updateGrokUsageSnapshot(ctx context.Context, acco
 func (s *OpenAIGatewayService) updateGrokUsageFromResponse(ctx context.Context, account *Account, headers http.Header, statusCode int) {
 	snapshot := parseGrokQuotaSnapshot(headers, statusCode, time.Now())
 	if snapshot != nil {
+		stampGrokQuotaSnapshotForPlan(account, snapshot, grokRequestedModelFromCtx(ctx))
 		s.updateGrokUsageSnapshot(ctx, account, snapshot)
 		return
 	}
@@ -1296,12 +1304,87 @@ func (s *OpenAIGatewayService) rateLimitGrok(ctx context.Context, account *Accou
 	persistGrokRateLimit(ctx, s.accountRepo, account, resetAt)
 }
 
+// grokTeamRateLimitModelContextKey carries the requested upstream model for
+// plan-aware snapshots and model-scoped cooldowns.
+type grokTeamRateLimitModelContextKey struct{}
+
+func withGrokTeamRateLimitModel(ctx context.Context, model string) context.Context {
+	model = strings.TrimSpace(model)
+	if model == "" || ctx == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, grokTeamRateLimitModelContextKey{}, model)
+}
+
+func grokRequestedModelFromCtx(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	model, _ := ctx.Value(grokTeamRateLimitModelContextKey{}).(string)
+	return strings.TrimSpace(model)
+}
+
+func isGrokHeavyTransientModel(requestedModel string) bool {
+	model := strings.ToLower(strings.TrimSpace(xai.ResolveGrokTextResponsesModelID(requestedModel)))
+	return strings.Contains(model, "multi-agent")
+}
+
+func persistGrokTransientModelCooldown(account *Account, decision GrokUpstreamFailureDecision) bool {
+	if account == nil {
+		return false
+	}
+	model := strings.TrimSpace(decision.Model)
+	if model == "" || !isGrokHeavyTransientModel(model) {
+		return false
+	}
+	cooldown := decision.Cooldown
+	if cooldown <= 0 {
+		cooldown = 3 * time.Minute
+	}
+	markGrokModelTransientBlock(account.ID, model, time.Now().Add(cooldown))
+	return true
+}
+
 func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte) {
 	if s == nil || account == nil {
 		return
 	}
 	now := time.Now()
-	s.updateGrokUsageSnapshot(ctx, account, parseGrokQuotaSnapshot(headers, statusCode, now))
+	snapshot := parseGrokQuotaSnapshot(headers, statusCode, now)
+	stampGrokQuotaSnapshotForPlan(account, snapshot, grokRequestedModelFromCtx(ctx))
+	s.updateGrokUsageSnapshot(ctx, account, snapshot)
+
+	// Body-first free-usage / empty / billing / capacity must run before the
+	// status switch so non-429 free-usage bodies still cool the account.
+	// Pool-mode still skips durable mutation unless an explicit temp rule matches.
+	decision := classifyGrokUpstreamFailure(statusCode, responseBody, grokRequestedModelFromCtx(ctx))
+	if decision.ShouldCooldown && decision.Class != GrokFailureNone && decision.Class != GrokFailureRateLimit {
+		if account.IsPoolMode() {
+			// Allow configured temp rules (403) below; skip default body cools.
+		} else {
+			// A free-tier exhaustion message describes a rolling usage window. Use
+			// an upstream absolute reset (or Retry-After) when available; otherwise
+			// apply only a short probe cooldown. Never start a fabricated 24h window
+			// at the instant this error was received.
+			if decision.Class == GrokFailureFreeUsage {
+				if resetAt, limited := grokRateLimitResetAtForAccount(account, parseGrokQuotaSnapshot(headers, statusCode, now), now); limited && resetAt.After(now) {
+					if decision.Model != "" && isGrokModelSpecificFreeUsage(strings.ToLower(decision.Reason), decision.Model) {
+						markGrokModelQuotaBlock(account.ID, decision.Model, resetAt)
+						return
+					}
+					s.rateLimitGrok(ctx, account, resetAt)
+					return
+				}
+			}
+			if s.applyGrokUpstreamFailureDecision(ctx, account, decision) {
+				return
+			}
+		}
+	}
+
+	if statusCode == http.StatusForbidden && s.applyGrokForbiddenPolicy(ctx, account, responseBody) {
+		return
+	}
 	if account.IsPoolMode() {
 		slog.Info("grok_pool_mode_error_state_skipped", "account_id", account.ID, "status_code", statusCode)
 		return

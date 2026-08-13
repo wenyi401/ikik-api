@@ -51,6 +51,7 @@ func ProvideAdminService(
 	privateGroupProvisioner UserPrivateGroupProvisioner,
 	compositeRouteRepo CompositeModelRouteRepository,
 	compositeResolver *CompositeRouteResolver,
+	channelCacheInvalidator ChannelCacheInvalidator,
 ) AdminService {
 	svc := NewAdminService(
 		userRepo,
@@ -74,6 +75,7 @@ func ProvideAdminService(
 		affiliateService,
 		compositeRouteRepo,
 		compositeResolver,
+		channelCacheInvalidator,
 	)
 	return SetAdminUserPrivateGroupProvisioner(svc, privateGroupProvisioner)
 }

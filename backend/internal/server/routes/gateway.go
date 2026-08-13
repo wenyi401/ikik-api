@@ -260,6 +260,58 @@ func RegisterGatewayRoutes(
 		gateway.POST("/videos/extensions", videoExtensionHandler)
 		gateway.GET("/videos/:request_id", videoStatusHandler)
 		gateway.GET("/videos/:request_id/content", videoContentHandler)
+		// xAI Voice APIs (Grok platform only): HTTP TTS/STT + Realtime WS.
+		// Not part of the creation-center product surface — gateway relay only.
+		voiceHandler := func(endpoint string) gin.HandlerFunc {
+			return func(c *gin.Context) {
+				if getGroupPlatform(c) != service.PlatformGrok {
+					service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+					c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Voice API is not supported for this platform"}})
+					return
+				}
+				h.OpenAIGateway.GrokVoice(c, endpoint)
+			}
+		}
+		gateway.POST("/tts", voiceHandler("tts"))
+		gateway.POST("/stt", voiceHandler("stt"))
+		gateway.POST("/custom-voices", voiceHandler("custom-voices"))
+		customVoicePathHandler := func(c *gin.Context) {
+			if getGroupPlatform(c) != service.PlatformGrok {
+				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Voice API is not supported for this platform"}})
+				return
+			}
+			h.OpenAIGateway.GrokVoice(c, grokCustomVoiceEndpoint(c))
+		}
+		gateway.GET("/custom-voices", voiceHandler("custom-voices"))
+		gateway.GET("/custom-voices/:voice_id/audio", customVoicePathHandler)
+		gateway.GET("/custom-voices/:voice_id", customVoicePathHandler)
+		gateway.PATCH("/custom-voices/:voice_id", customVoicePathHandler)
+		gateway.DELETE("/custom-voices/:voice_id", customVoicePathHandler)
+		gateway.GET("/realtime", func(c *gin.Context) {
+			if getGroupPlatform(c) != service.PlatformGrok {
+				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Realtime API is not supported for this platform"}})
+				return
+			}
+			h.OpenAIGateway.GrokRealtime(c)
+		})
+		gateway.POST("/web_search", func(c *gin.Context) {
+			if getGroupPlatform(c) != service.PlatformGrok {
+				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Web Search API is not supported for this platform"}})
+				return
+			}
+			h.Gateway.WebSearch(c)
+		})
+		gateway.POST("/x_search", func(c *gin.Context) {
+			if getGroupPlatform(c) != service.PlatformGrok {
+				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "X Search API is not supported for this platform"}})
+				return
+			}
+			h.Gateway.XSearch(c)
+		})
 	}
 
 	// Gemini 原生 API 兼容层（Gemini SDK/CLI 直连）
@@ -337,6 +389,56 @@ func RegisterGatewayRoutes(
 	r.GET("/videos/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, videoStatusHandler)
 	r.GET("/videos/:request_id/content", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, videoContentHandler)
 
+	rootVoiceHandler := func(endpoint string) gin.HandlerFunc {
+		return func(c *gin.Context) {
+			if getGroupPlatform(c) != service.PlatformGrok {
+				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Voice API is not supported for this platform"}})
+				return
+			}
+			h.OpenAIGateway.GrokVoice(c, endpoint)
+		}
+	}
+	r.POST("/tts", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, rootVoiceHandler("tts"))
+	r.POST("/stt", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, rootVoiceHandler("stt"))
+	r.POST("/custom-voices", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, rootVoiceHandler("custom-voices"))
+	rootCustomVoicePathHandler := func(c *gin.Context) {
+		if getGroupPlatform(c) != service.PlatformGrok {
+			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Voice API is not supported for this platform"}})
+			return
+		}
+		h.OpenAIGateway.GrokVoice(c, grokCustomVoiceEndpoint(c))
+	}
+	r.GET("/custom-voices", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, rootVoiceHandler("custom-voices"))
+	r.GET("/custom-voices/:voice_id/audio", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, rootCustomVoicePathHandler)
+	r.GET("/custom-voices/:voice_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, rootCustomVoicePathHandler)
+	r.PATCH("/custom-voices/:voice_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, rootCustomVoicePathHandler)
+	r.DELETE("/custom-voices/:voice_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, rootCustomVoicePathHandler)
+	r.GET("/realtime", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, func(c *gin.Context) {
+		if getGroupPlatform(c) != service.PlatformGrok {
+			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Realtime API is not supported for this platform"}})
+			return
+		}
+		h.OpenAIGateway.GrokRealtime(c)
+	})
+	r.POST("/web_search", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, func(c *gin.Context) {
+		if getGroupPlatform(c) != service.PlatformGrok {
+			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Web Search API is not supported for this platform"}})
+			return
+		}
+		h.Gateway.WebSearch(c)
+	})
+	r.POST("/x_search", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, func(c *gin.Context) {
+		if getGroupPlatform(c) != service.PlatformGrok {
+			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "X Search API is not supported for this platform"}})
+			return
+		}
+		h.Gateway.XSearch(c)
+	})
 	// Antigravity 模型列表
 	r.GET("/antigravity/models", gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.AntigravityModels)
 
@@ -490,6 +592,16 @@ func compositeGeminiTargetPlatformMiddleware(resolver *service.CompositeRouteRes
 		}
 		c.Next()
 	}
+}
+
+// grokCustomVoiceEndpoint derives the upstream Voice endpoint from the matched
+// route template, so a voice literally named "audio" is not misclassified.
+func grokCustomVoiceEndpoint(c *gin.Context) string {
+	endpoint := "custom-voices/" + c.Param("voice_id")
+	if strings.HasSuffix(c.FullPath(), "/:voice_id/audio") {
+		endpoint += "/audio"
+	}
+	return endpoint
 }
 
 func compositeGeminiModelFromParams(c *gin.Context) string {

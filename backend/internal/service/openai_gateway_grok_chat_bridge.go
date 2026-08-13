@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"ikik-api/internal/pkg/apicompat"
+	"ikik-api/internal/pkg/xai"
 )
 
 const (
@@ -495,8 +496,17 @@ func grokChatResponsesCacheIntentBody(body []byte) ([]byte, error) {
 	return json.Marshal(root)
 }
 
+func grokChatResponsesBridgeModel(model string) bool {
+	switch strings.ToLower(xai.StripGrokProviderPrefix(strings.TrimSpace(model))) {
+	case "grok-4.5", "grok-4.6", "grok-4.6-latest":
+		return true
+	default:
+		return false
+	}
+}
+
 func grokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity string) bool {
-	return strings.TrimSpace(upstreamModel) == "grok-4.5" && strings.TrimSpace(cacheIdentity) != ""
+	return grokChatResponsesBridgeModel(upstreamModel) && strings.TrimSpace(cacheIdentity) != ""
 }
 
 // forwardGrokChatCompletionsViaResponses converts a strictly compatible Chat
@@ -527,7 +537,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	// for non-composer models, so they would be silently dropped. Route them to
 	// Responses even when no prompt-cache identity is available.
 	hasImageInput := openAIJSONValueMayContainImageInput(gjson.GetBytes(body, "messages"))
-	if !grokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity) && (!hasImageInput || strings.TrimSpace(upstreamModel) != "grok-4.5") {
+	if !grokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity) && (!hasImageInput || !grokChatResponsesBridgeModel(upstreamModel)) {
 		return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel)
 	}
 
@@ -617,8 +627,8 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 			Kind:               "failover",
 			Message:            upstreamMsg,
 		})
-		s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
-		if s.shouldFailoverUpstreamError(resp.StatusCode) {
+		s.handleGrokAccountUpstreamError(withGrokTeamRateLimitModel(ctx, upstreamModel), account, resp.StatusCode, resp.Header, respBody)
+		if s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody) {
 			return nil, &UpstreamFailoverError{
 				StatusCode:             resp.StatusCode,
 				ResponseBody:           respBody,
@@ -629,7 +639,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 		return s.handleChatCompletionsErrorResponse(resp, c, account, billingModel)
 	}
 
-	s.updateGrokUsageFromResponse(ctx, account, resp.Header, resp.StatusCode)
+	s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, upstreamModel), account, resp.Header, resp.StatusCode)
 
 	var result *OpenAIForwardResult
 	if clientStream {
