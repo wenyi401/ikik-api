@@ -82,8 +82,10 @@ type OpenAIAccountScheduleRequest struct {
 	RequiredTransport       OpenAIUpstreamTransport
 	RequiredCapability      OpenAIEndpointCapability
 	RequiredImageCapability OpenAIImagesCapability
-	RequireCompact          bool
-	ExcludedIDs             map[int64]struct{}
+	// RequireCompact is only for legacy /responses/compact capability filtering
+	// and compact_model_mapping; native remote compaction v2 leaves it false.
+	RequireCompact bool
+	ExcludedIDs    map[int64]struct{}
 }
 
 type OpenAIAccountScheduleDecision struct {
@@ -2102,6 +2104,8 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 	// Dedicated image scheduling is outside token profit control. Every other
 	// scheduler entry installs the gate defensively for internal callers that
 	// did not pass through a handler pricing-context setup.
+	// 分组利润控制：handler 入口已固定 pricingAt；不经 handler 的内部调用在此兜底。
+	// 图片/视频调度不在利润门范围，原生 remote compaction v2 等文本请求仍须装门。
 	if requiredImageCapability == "" {
 		ctx = s.withOpenAIProfitControlGate(ctx, groupID)
 	}

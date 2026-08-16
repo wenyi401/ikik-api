@@ -45,6 +45,9 @@ const messages: Record<string, string> = {
   'admin.groups.accountsRateLimited': 'Limited:',
   'admin.groups.accountsTotal': 'Total:',
   'admin.groups.accountsUnit': 'accounts',
+  'admin.groups.usageToday': 'Today',
+  'admin.groups.usageYesterday': 'Yesterday',
+  'admin.groups.usageTotal': 'Total',
 }
 
 vi.mock('@/api/admin', () => ({
@@ -154,6 +157,9 @@ const DataTableStub = {
       <div data-test="rows">{{ data.map((row) => row.name).join(',') }}</div>
       <div v-if="data[0]" data-test="account-count">
         <slot name="cell-account_count" :row="data[0]" :value="data[0].account_count" />
+      </div>
+      <div v-if="data.length" data-test="usage-cell">
+        <slot name="cell-usage" :row="data[0]" />
       </div>
     </div>
   `,
@@ -403,10 +409,26 @@ describe('admin GroupsView column settings', () => {
     await openColumnSettings(wrapper)
     await clickColumnToggle(wrapper, 'Usage')
     expect(getUsageSummary).toHaveBeenCalledTimes(1)
+    expect(getUsageSummary).toHaveBeenCalledWith()
     expect(getCapacitySummary).not.toHaveBeenCalled()
 
     await clickColumnToggle(wrapper, 'Capacity')
     expect(getUsageSummary).toHaveBeenCalledTimes(1)
     expect(getCapacitySummary).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders yesterday usage between today and total', async () => {
+    getUsageSummary.mockResolvedValue([
+      { group_id: 1, today_cost: 1.25, yesterday_cost: 2.5, total_cost: 9.75 },
+    ])
+
+    const wrapper = await mountView()
+    const text = wrapper.get('[data-test="usage-cell"]').text()
+
+    expect(text).toContain('Today$1.25')
+    expect(text).toContain('Yesterday$2.50')
+    expect(text).toContain('Total$9.75')
+    expect(text.indexOf('Today')).toBeLessThan(text.indexOf('Yesterday'))
+    expect(text.indexOf('Yesterday')).toBeLessThan(text.indexOf('Total'))
   })
 })
