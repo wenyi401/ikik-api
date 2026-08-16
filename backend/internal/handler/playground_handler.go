@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -32,6 +34,12 @@ type PlaygroundHandler struct {
 	gateway             *GatewayHandler
 	openaiGateway       *OpenAIGatewayHandler
 	cfg                 *config.Config
+}
+
+type playgroundModelsResponse struct {
+	GroupID      int64    `json:"group_id"`
+	Models       []string `json:"models"`
+	DefaultModel string   `json:"default_model"`
 }
 
 func NewPlaygroundHandler(
@@ -115,6 +123,50 @@ func (h *PlaygroundHandler) ChatCompletions(c *gin.Context) {
 	h.gateway.ChatCompletions(c)
 }
 
+// Models lists text models currently available to the authenticated user in a
+// selected group. The result uses the same account pool and custom model-list
+// rules as the billed playground request path.
+//
+// GET /api/v1/playground/models?group_id=123
+func (h *PlaygroundHandler) Models(c *gin.Context) {
+	if h == nil || h.apiKeyService == nil || h.gateway == nil {
+		playgroundError(c, http.StatusServiceUnavailable, "api_error", "Playground is not available")
+		return
+	}
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		playgroundError(c, http.StatusUnauthorized, "authentication_error", "User not authenticated")
+		return
+	}
+	groupID, err := strconv.ParseInt(strings.TrimSpace(c.Query("group_id")), 10, 64)
+	if err != nil || groupID <= 0 {
+		playgroundError(c, http.StatusBadRequest, "invalid_request_error", "group_id is invalid")
+		return
+	}
+	group, err := h.resolveAvailableGroup(c.Request.Context(), subject.UserID, groupID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if group == nil {
+		playgroundError(c, http.StatusForbidden, "permission_error", "Group is not available")
+		return
+	}
+	if group.ClaudeCodeOnly {
+		playgroundError(c, http.StatusBadRequest, "invalid_request_error", "Selected group only supports Claude Code requests")
+		return
+	}
+	models := h.availableTextModels(c.Request.Context(), group)
+	if len(models) == 0 {
+		playgroundError(c, http.StatusNotFound, "not_found_error", "Selected group has no text model available")
+		return
+	}
+	defaultModel := h.preferredTextModel(group, models)
+	c.JSON(http.StatusOK, playgroundModelsResponse{
+		GroupID: group.ID, Models: models, DefaultModel: defaultModel,
+	})
+}
+
 func sanitizePlaygroundChatBody(body []byte) (int64, []byte, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(body, &raw); err != nil {
@@ -163,6 +215,90 @@ func (h *PlaygroundHandler) resolveAvailableGroup(ctx context.Context, userID, g
 		}
 	}
 	return nil, nil
+}
+
+func (h *PlaygroundHandler) availableTextModels(ctx context.Context, group *service.Group) []string {
+	if h == nil || h.gateway == nil || group == nil {
+		return nil
+	}
+	var models []string
+	if group.Platform == service.PlatformComposite {
+		models = h.gateway.compositeAvailableModels(ctx, &group.ID)
+	} else if h.gateway.gatewayService != nil {
+		models = h.gateway.gatewayService.GetAvailableModels(ctx, &group.ID, group.Platform)
+	}
+	fallback := defaultModelIDsForPlatform(group.Platform)
+	if group.CustomModelsListEnabled() {
+		models = filterModelsByCustomList(customModelsListSource(group.Platform, models, fallback), fallback, group.ModelsListConfig.Models)
+	} else if len(models) == 0 {
+		models = fallback
+	}
+	models = playgroundTextModels(models)
+	sort.SliceStable(models, func(i, j int) bool {
+		left, right := playgroundModelScore(models[i]), playgroundModelScore(models[j])
+		if left == right {
+			return models[i] < models[j]
+		}
+		return left < right
+	})
+	return models
+}
+
+func (h *PlaygroundHandler) preferredTextModel(group *service.Group, models []string) string {
+	if group != nil {
+		if preferred := strings.TrimSpace(group.DefaultMappedModel); preferred != "" {
+			for _, model := range models {
+				if model == preferred {
+					return model
+				}
+			}
+		}
+	}
+	if len(models) == 0 {
+		return ""
+	}
+	return models[0]
+}
+
+func playgroundTextModels(models []string) []string {
+	result := make([]string, 0, len(models))
+	seen := make(map[string]struct{}, len(models))
+	for _, model := range models {
+		model = strings.TrimSpace(model)
+		lower := strings.ToLower(model)
+		if model == "" || strings.Contains(model, "*") {
+			continue
+		}
+		if strings.Contains(lower, "image") || strings.Contains(lower, "video") ||
+			strings.Contains(lower, "embedding") || strings.Contains(lower, "whisper") ||
+			strings.Contains(lower, "tts") || strings.Contains(lower, "audio") {
+			continue
+		}
+		if _, exists := seen[model]; exists {
+			continue
+		}
+		seen[model] = struct{}{}
+		result = append(result, model)
+	}
+	return result
+}
+
+func playgroundModelScore(model string) int {
+	lower := strings.ToLower(model)
+	score := 20
+	for _, marker := range []string{"flash", "mini", "nano", "haiku", "air", "fast"} {
+		if strings.Contains(lower, marker) {
+			score -= 8
+			break
+		}
+	}
+	for _, marker := range []string{"opus", "pro", "max"} {
+		if strings.Contains(lower, marker) {
+			score += 5
+			break
+		}
+	}
+	return score
 }
 
 func (h *PlaygroundHandler) getOrCreatePlaygroundKey(ctx context.Context, userID int64, group *service.Group) (*service.APIKey, error) {

@@ -149,11 +149,12 @@ function buildAccount() {
   } as any
 }
 
-function mountModal(account = buildAccount()) {
+function mountModal(account = buildAccount(), accountScope: 'admin' | 'user' = 'admin') {
   return mount(EditAccountModal, {
     props: {
       show: true,
       account,
+      accountScope,
       proxies: [],
       groups: []
     },
@@ -261,6 +262,30 @@ describe('EditAccountModal', () => {
 
     expect(updateUserAccountMock).toHaveBeenCalledTimes(1)
     expect(updateUserAccountMock.mock.calls[0]?.[1]).not.toHaveProperty('account_level')
+  })
+
+  it('rehydrates and preserves a user-scoped Codex fingerprint mode', async () => {
+    const account = buildAccount()
+    account.type = 'oauth'
+    account.credentials = {
+      access_token: 'oauth-token'
+    }
+    account.extra = {
+      codex_fingerprint_mode: 'off'
+    }
+    updateUserAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateUserAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account, 'user')
+    const select = wrapper.get('[data-testid="edit-codex-fingerprint-mode-select"]')
+    expect((select.element as HTMLSelectElement).value).toBe('off')
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateUserAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateUserAccountMock.mock.calls[0]?.[1]?.extra?.codex_fingerprint_mode).toBe('off')
   })
 
   it('allows a user OAuth account with a proxy to enter the public pool', async () => {

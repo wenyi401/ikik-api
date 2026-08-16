@@ -176,13 +176,15 @@ func (r *ModelPricingResolver) applyFirstTokenTier(resolved *ResolvedPricing, co
 	if resolved == nil || len(resolved.Intervals) == 0 {
 		return
 	}
-	first := resolved.Intervals[0]
-	for _, interval := range resolved.Intervals[1:] {
-		if interval.MinTokens < first.MinTokens {
-			first = interval
+	// Only an interval beginning at zero represents the base range. A lone
+	// long-context interval (for example 272k+) must never replace the flat
+	// price when long-context billing is disabled.
+	for i := range resolved.Intervals {
+		if resolved.Intervals[i].MinTokens == 0 {
+			resolved.BasePricing = intervalToModelPricing(&resolved.Intervals[i], resolved.SupportsCacheBreakdown, config)
+			break
 		}
 	}
-	resolved.BasePricing = intervalToModelPricing(&first, resolved.SupportsCacheBreakdown, config)
 	resolved.Intervals = nil
 }
 

@@ -15,16 +15,14 @@
         :has-main-content="hasMainContent"
       >
         <template #main-after>
-          <div class="space-y-5">
-            <ProfileBalanceNotifyCard
-              v-if="user && balanceLowNotifyEnabled"
-              :enabled="user.balance_notify_enabled ?? true"
-              :threshold="user.balance_notify_threshold"
-              :extra-emails="user.balance_notify_extra_emails ?? []"
-              :system-default-threshold="systemDefaultThreshold"
-              :user-email="user.email"
-            />
-          </div>
+          <ProfileBalanceNotifyCard
+            v-if="user && balanceLowNotifyEnabled"
+            :enabled="user.balance_notify_enabled ?? true"
+            :threshold="user.balance_notify_threshold"
+            :extra-emails="user.balance_notify_extra_emails ?? []"
+            :system-default-threshold="systemDefaultThreshold"
+            :user-email="user.email"
+          />
         </template>
 
         <template #side-after>
@@ -84,9 +82,7 @@ const wechatOAuthOpenEnabled = ref<boolean | undefined>(undefined)
 const wechatOAuthMPEnabled = ref<boolean | undefined>(undefined)
 const oidcOAuthEnabled = ref(false)
 const oidcOAuthProviderName = ref('OIDC')
-const hasMainContent = computed(() => Boolean(
-  user.value && balanceLowNotifyEnabled.value
-))
+const hasMainContent = computed(() => Boolean(user.value && balanceLowNotifyEnabled.value))
 
 onMounted(async () => {
   const profileRefresh = authStore.refreshUser().catch((error) => {

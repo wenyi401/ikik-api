@@ -3106,11 +3106,16 @@ const syncFormFromAccount = (newAccount: Account | null) => {
       }
       if (newAccount.type === 'oauth') {
         codexCLIOnlyAppServerEnabled.value = extra?.codex_cli_only_allow_app_server === true
-        const fpMode = extra?.codex_fingerprint_mode as string | undefined
-        codexFingerprintMode.value = (['off', 'device', 'session', 'full'].includes(fpMode || '')
-          ? fpMode as CodexFingerprintMode
-          : 'off')
       }
+    }
+    // 指纹收敛是用户账号编辑也可配置的字段，必须在 admin/user 两种范围都
+    // 从账号 extra 回填；否则用户重开弹窗会看到默认 off，并在下次保存
+    // 其他字段时误删已保存的 off/device/full。
+    if (newAccount.type === 'oauth') {
+      const fpMode = extra?.codex_fingerprint_mode as string | undefined
+      codexFingerprintMode.value = (['off', 'device', 'session', 'full'].includes(fpMode || '')
+        ? fpMode as CodexFingerprintMode
+        : 'off')
     }
   }
   if (newAccount.platform === 'anthropic' && newAccount.type === 'apikey') {

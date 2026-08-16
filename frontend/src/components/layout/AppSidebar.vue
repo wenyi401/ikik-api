@@ -815,6 +815,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
       expandOnly: true,
       children: [
         { path: '/profile', label: t('nav.profile'), icon: UserIcon },
+        { path: '/pet', label: t('nav.pet'), icon: GiftIcon },
         { path: '/withdrawals', label: t('nav.withdrawals'), icon: WithdrawalIcon, hideInSimpleMode: true },
         { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
         { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },

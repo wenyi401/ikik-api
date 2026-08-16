@@ -83,6 +83,7 @@ type Handlers struct {
 	ReceiptCode      *ReceiptCodeHandler
 	Withdrawal       *WithdrawalHandler
 	Shop             *ShopHandler
+	Pet              *PetHandler
 }
 
 // BuildInfo contains build-time information

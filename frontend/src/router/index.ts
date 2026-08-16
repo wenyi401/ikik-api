@@ -330,6 +330,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/pet',
+    name: 'PetHall',
+    component: () => import('@/views/user/PetHallView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Pet Hall',
+      titleKey: 'pet.hallTitle',
+      descriptionKey: 'pet.hallDescription'
+    }
+  },
+  {
     path: '/developer-api',
     name: 'UserDeveloperApi',
     component: () => import('@/views/user/DeveloperApiView.vue'),

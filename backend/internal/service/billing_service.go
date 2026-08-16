@@ -1092,6 +1092,18 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	totalContext := input.Tokens.InputTokens + input.Tokens.CacheCreationTokens + input.Tokens.CacheReadTokens
 
 	pricing := input.Resolver.GetIntervalPricing(resolved, totalContext)
+	if input.LongContextBillingEnabled != nil && !*input.LongContextBillingEnabled {
+		// The account-level opt-out gates every long-context mechanism, including
+		// channel intervals. Prefer an explicit zero-based tier when present;
+		// otherwise retain the configured flat/base price.
+		pricing = resolved.BasePricing
+		for i := range resolved.Intervals {
+			if resolved.Intervals[i].MinTokens == 0 {
+				pricing = intervalToModelPricing(&resolved.Intervals[i], resolved.SupportsCacheBreakdown, resolved.channelPricing)
+				break
+			}
+		}
+	}
 	if pricing == nil {
 		return nil, fmt.Errorf("no pricing available for model: %s: %w", input.Model, ErrModelPricingUnavailable)
 	}

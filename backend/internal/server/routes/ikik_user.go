@@ -53,8 +53,18 @@ func registerIkikUserRoutes(
 	}
 
 	playground := authenticated.Group("/playground")
+	playground.GET("/models", h.Playground.Models)
 	playground.POST("/chat/completions", h.Playground.ChatCompletions)
 	authenticated.GET("/prompt-library", h.ServiceStatus.GetPromptLibrary)
+
+	pet := authenticated.Group("/pet")
+	pet.GET("/assets", h.Pet.ListAssets)
+	pet.POST("/assets/import", h.Pet.ImportAsset)
+	pet.GET("/assets/:id/spritesheet", h.Pet.ServeAsset)
+	pet.DELETE("/assets/:id", h.Pet.DeleteAsset)
+	pet.GET("/preferences", h.Pet.GetPreferences)
+	pet.PUT("/preferences", h.Pet.SavePreferences)
+	pet.GET("/activity/stream", h.Pet.ActivityStream)
 
 	usage := authenticated.Group("/usage")
 	usage.GET("/dashboard/account-sharing", h.Usage.DashboardAccountSharing)

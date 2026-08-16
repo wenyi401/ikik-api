@@ -213,6 +213,7 @@ func ProvideHandlers(
 	receiptCodeHandler *ReceiptCodeHandler,
 	withdrawalHandler *WithdrawalHandler,
 	shopHandler *ShopHandler,
+	petHandler *PetHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *IkikHandlerRuntimeWiring,
@@ -247,6 +248,7 @@ func ProvideHandlers(
 		ReceiptCode:      receiptCodeHandler,
 		Withdrawal:       withdrawalHandler,
 		Shop:             shopHandler,
+		Pet:              petHandler,
 	}
 }
 
@@ -276,6 +278,8 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
+	ProvidePetAssistantService,
+	NewPetHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,

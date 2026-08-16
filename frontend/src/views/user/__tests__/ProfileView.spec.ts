@@ -101,6 +101,7 @@ describe('ProfileView', () => {
     expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-password-form')
     expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-experimental-prompt-card')
     expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-totp-card')
+    expect(wrapper.get('[data-testid="profile-shell"]').html()).not.toContain('profile-pet')
     expect(wrapper.get('[data-testid="profile-info-card"]').attributes('data-has-main-content')).toBe('false')
   })
 

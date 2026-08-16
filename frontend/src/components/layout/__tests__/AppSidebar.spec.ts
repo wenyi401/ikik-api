@@ -48,3 +48,15 @@ describe('AppSidebar developer API navigation', () => {
     )
   })
 })
+
+describe('AppSidebar pet navigation', () => {
+  it('keeps Pet hall under personal center', () => {
+    const personalCenterStart = componentSource.indexOf("path: '/self/profile-center'")
+    const additionalMenuStart = componentSource.indexOf("path: '/self/extras'")
+    const petEntry = componentSource.indexOf("{ path: '/pet', label: t('nav.pet'), icon: GiftIcon }")
+
+    expect(personalCenterStart).toBeGreaterThanOrEqual(0)
+    expect(petEntry).toBeGreaterThan(personalCenterStart)
+    expect(petEntry).toBeLessThan(additionalMenuStart)
+  })
+})

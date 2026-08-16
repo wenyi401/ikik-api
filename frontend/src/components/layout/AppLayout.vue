@@ -19,6 +19,11 @@
       @select="selectOnboardingMode"
     />
     <BeginnerMissionDock v-if="showBeginnerJourney" />
+    <PetWidget
+      v-if="showPet"
+      :avoid-right-dock="showBeginnerJourney"
+      :sidebar-collapsed="sidebarCollapsed"
+    />
   </div>
 </template>
 
@@ -36,6 +41,8 @@ import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 import OnboardingModeDialog from '@/components/Guide/OnboardingModeDialog.vue'
 import BeginnerMissionDock from '@/components/Guide/BeginnerMissionDock.vue'
+import PetWidget from '@/features/pet/PetWidget.vue'
+import { usePetStore } from '@/stores/pet'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
@@ -51,6 +58,10 @@ const showModeDialog = computed(() => (
 const showBeginnerJourney = computed(() => (
   !isAdmin.value && authStore.user?.onboarding_mode === 'beginner'
 ))
+// The pet is a global signed-in experience; admin-only access remains enforced
+// by the knowledge-management routes and API handlers.
+const showPet = computed(() => Boolean(authStore.user))
+const petStore = usePetStore()
 
 const { replayTour } = useOnboardingTour({
   storageKey: isAdmin.value ? 'admin_guide' : 'user_guide',
@@ -89,6 +100,12 @@ onMounted(() => {
     }
     replayTour()
   })
+  if (showPet.value) void petStore.initialize()
+})
+
+watch(showPet, (visible) => {
+  if (visible) void petStore.initialize()
+  else petStore.dispose()
 })
 
 defineExpose({ replayTour })

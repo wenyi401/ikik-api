@@ -4,6 +4,7 @@ import checker from 'vite-plugin-checker'
 import { resolve } from 'path'
 import type { Plugin } from 'vite'
 import type { IncomingMessage, ServerResponse } from 'http'
+import awesomeCodexPetCatalog from './src/features/pet/awesome-codex-pet-catalog.json'
 
 const mockUser = {
   id: 1,
@@ -28,8 +29,10 @@ const mockUser = {
   openai_experimental_prompt_unlocked: false,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
+  onboarding_mode: 'advanced',
   run_mode: 'standard'
 }
+let mockAuthenticatedUser: Record<string, unknown> | null = null
 
 const mockGroups = [
   {
@@ -156,6 +159,24 @@ let mockExperimentalPromptSettings = {
   prompt: '请优先遵循当前分组配置的实验性系统指令，并保持回答准确、清晰。',
   price_cents: 660
 }
+let mockPetPreferences = {
+  selected_asset_id: 'baf63c4a-f555-5eaf-acb7-47eaabdd1382' as string | null,
+  assistant_group_id: 1 as number | null,
+  assistant_model: 'gpt-5.5',
+  enabled: false,
+  size: 'medium',
+  anchor: 'bottom-right',
+  reduced_motion: false,
+  activity_reactions: true,
+  position_x: null as number | null,
+  position_y: null as number | null
+}
+const mockPetAssets: Array<Record<string, unknown>> = awesomeCodexPetCatalog.map((asset) => ({
+  ...asset,
+  asset_url: asset.id === 'baf63c4a-f555-5eaf-acb7-47eaabdd1382'
+    ? '/pets/shinobu-kocho--wangfan002.webp'
+    : asset.asset_url
+}))
 const mockRedeemCodes: Array<Record<string, unknown>> = [
   {
     id: mockRedeemCodeID,
@@ -1022,6 +1043,28 @@ function success(data: unknown): Record<string, unknown> {
   return { code: 0, message: 'success', data }
 }
 
+function localAuthResponse(user: Record<string, unknown>): Record<string, unknown> {
+  const now = Math.floor(Date.now() / 1000)
+  const expiresAt = now + 2_592_000
+  return {
+    access_token: 'local-mock-access-token',
+    expires_in: 2_592_000,
+    access_expires_at: expiresAt,
+    token_type: 'Bearer',
+    session: {
+      sid: 'local-mock-session',
+      current: true,
+      login_method: 'password',
+      ip: '127.0.0.1',
+      user_agent: 'local-mock',
+      created_at: now,
+      last_active_at: now,
+      expires_at: expiresAt
+    },
+    user
+  }
+}
+
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let body = ''
@@ -1105,13 +1148,8 @@ function localMockApiPlugin(enabled: boolean): Plugin {
             sendJson(res, 401, { code: 401, message: 'invalid email or password' })
             return
           }
-          sendJson(res, 200, success({
-            access_token: 'local-mock-access-token',
-            refresh_token: 'local-mock-refresh-token',
-            expires_in: 2592000,
-            token_type: 'Bearer',
-            user: mockUser
-          }))
+          mockAuthenticatedUser = mockUser
+          sendJson(res, 200, success(localAuthResponse(mockUser)))
           return
         }
 
@@ -1139,23 +1177,81 @@ function localMockApiPlugin(enabled: boolean): Plugin {
             email: payload.email || 'user@local.test',
             role: 'user'
           }
-          sendJson(res, 200, success({
-            access_token: 'local-mock-access-token',
-            refresh_token: 'local-mock-refresh-token',
-            expires_in: 2592000,
-            token_type: 'Bearer',
-            user
-          }))
+          mockAuthenticatedUser = user
+          sendJson(res, 200, success(localAuthResponse(user)))
           return
         }
 
         if (path === '/api/v1/auth/logout' && req.method === 'POST') {
+          mockAuthenticatedUser = null
           sendJson(res, 200, success({ message: 'logged out' }))
           return
         }
 
         if (path === '/api/v1/auth/me') {
-          sendJson(res, 200, success(mockUser))
+          if (!mockAuthenticatedUser) {
+            sendJson(res, 401, { code: 401, message: 'no local mock session' })
+            return
+          }
+          sendJson(res, 200, success(mockAuthenticatedUser))
+          return
+        }
+
+        if (path === '/api/v1/pet/assets' && req.method === 'GET') {
+          sendJson(res, 200, success(mockPetAssets))
+          return
+        }
+
+        if (path === '/api/v1/pet/assets/import' && req.method === 'POST') {
+          await readBody(req)
+          const asset = {
+            id: `local-pet-${Date.now()}`,
+            pet_key: 'local-preview',
+            display_name: '本地预览宠物',
+            description: '仅用于本地界面验收的导入结果',
+            sprite_version: 2,
+            sha256: 'local-preview',
+            size_bytes: 458752,
+            width: 1536,
+            height: 2288,
+            license: 'User supplied',
+            created_at: nowISO(),
+            asset_url: '',
+            is_builtin: false
+          }
+          mockPetAssets.unshift(asset)
+          sendJson(res, 200, success(asset))
+          return
+        }
+
+        const petAssetMatch = path.match(/^\/api\/v1\/pet\/assets\/([^/]+)$/)
+        if (petAssetMatch && req.method === 'DELETE') {
+          const index = mockPetAssets.findIndex(asset => String(asset.id) === decodeURIComponent(petAssetMatch[1]))
+          if (index >= 0) mockPetAssets.splice(index, 1)
+          if (mockPetPreferences.selected_asset_id === decodeURIComponent(petAssetMatch[1])) {
+            mockPetPreferences.selected_asset_id = null
+          }
+          sendJson(res, 200, success({ deleted: index >= 0 }))
+          return
+        }
+
+        if (path === '/api/v1/pet/preferences') {
+          if (req.method === 'PUT') {
+            const payload = parseJsonBody<Record<string, unknown>>(await readBody(req))
+            mockPetPreferences = { ...mockPetPreferences, ...payload } as typeof mockPetPreferences
+          }
+          sendJson(res, 200, success(mockPetPreferences))
+          return
+        }
+
+        if (path === '/api/v1/pet/activity/stream' && req.method === 'GET') {
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+          res.setHeader('Cache-Control', 'no-cache')
+          res.setHeader('Connection', 'keep-alive')
+          res.write(': connected\n\n')
+          const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 15_000)
+          req.on('close', () => clearInterval(heartbeat))
           return
         }
 
@@ -1264,12 +1360,11 @@ function localMockApiPlugin(enabled: boolean): Plugin {
         }
 
         if (path === '/api/v1/auth/refresh' && req.method === 'POST') {
-          sendJson(res, 200, success({
-            access_token: 'local-mock-access-token',
-            refresh_token: 'local-mock-refresh-token',
-            expires_in: 2592000,
-            token_type: 'Bearer'
-          }))
+          if (!mockAuthenticatedUser) {
+            sendJson(res, 401, { code: 401, message: 'no local mock session' })
+            return
+          }
+          sendJson(res, 200, success(localAuthResponse(mockAuthenticatedUser)))
           return
         }
 
@@ -2912,6 +3007,22 @@ function localMockApiPlugin(enabled: boolean): Plugin {
             }))
             return
           }
+        }
+
+        if (path === '/api/v1/playground/models' && req.method === 'GET') {
+          const groupID = Number(url.searchParams.get('group_id'))
+          const group = mockGroups.find(item => item.id === groupID)
+          const models = group?.models_list_config.models || []
+          if (!group || models.length === 0) {
+            sendJson(res, 404, { message: 'Selected group has no text model available' })
+            return
+          }
+          sendJson(res, 200, {
+            group_id: groupID,
+            models,
+            default_model: group.default_mapped_model || models[0]
+          })
+          return
         }
 
         if (path === '/api/v1/playground/chat/completions' && req.method === 'POST') {

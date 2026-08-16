@@ -114,6 +114,77 @@ func TestGetIntervalPricing_NoMatch_FallsBackToBase(t *testing.T) {
 	require.Equal(t, basePricing, result)
 }
 
+func TestApplyFirstTokenTierDoesNotPromoteLongContextOnlyInterval(t *testing.T) {
+	r := NewModelPricingResolver(nil, &BillingService{})
+	basePricing := &ModelPricing{
+		InputPricePerToken:     5e-6,
+		OutputPricePerToken:    30e-6,
+		CacheReadPricePerToken: 0.5e-6,
+	}
+	resolved := &ResolvedPricing{
+		BasePricing: basePricing,
+		Intervals: []PricingInterval{{
+			MinTokens:      272000,
+			InputPrice:     testPtrFloat64(10e-6),
+			OutputPrice:    testPtrFloat64(45e-6),
+			CacheReadPrice: testPtrFloat64(0),
+		}},
+	}
+
+	r.applyFirstTokenTier(resolved, &ChannelModelPricing{})
+
+	require.Same(t, basePricing, resolved.BasePricing)
+	require.Empty(t, resolved.Intervals)
+	require.InDelta(t, 5e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, 0.5e-6, resolved.BasePricing.CacheReadPricePerToken, 1e-12)
+}
+
+func TestCalculateCostUnifiedAccountOptOutSkipsChannelLongContextInterval(t *testing.T) {
+	resolver := NewModelPricingResolver(nil, &BillingService{})
+	channelPricing := &ChannelModelPricing{}
+	resolved := &ResolvedPricing{
+		Mode: BillingModeToken,
+		BasePricing: &ModelPricing{
+			InputPricePerToken:         5e-6,
+			OutputPricePerToken:        30e-6,
+			CacheCreationPricePerToken: 6.25e-6,
+			CacheReadPricePerToken:     0.5e-6,
+			SupportsCacheBreakdown:     true,
+		},
+		SupportsCacheBreakdown: true,
+		channelPricing:         channelPricing,
+		Intervals: []PricingInterval{{
+			MinTokens:       272000,
+			InputPrice:      testPtrFloat64(10e-6),
+			OutputPrice:     testPtrFloat64(45e-6),
+			CacheWritePrice: testPtrFloat64(1e-6),
+			CacheReadPrice:  testPtrFloat64(0),
+		}},
+	}
+	tokens := UsageTokens{InputTokens: 100000, CacheReadTokens: 200000, OutputTokens: 1000}
+	disabled := false
+	enabled := true
+	billing := &BillingService{}
+
+	baseCost, err := billing.CalculateCostUnified(CostInput{
+		Model: "gpt-5.6-sol", Tokens: tokens, RateMultiplier: 1,
+		Resolver: resolver, Resolved: resolved, LongContextBillingEnabled: &disabled,
+	})
+	require.NoError(t, err)
+	require.InDelta(t, 0.5, baseCost.InputCost, 1e-12)
+	require.InDelta(t, 0.1, baseCost.CacheReadCost, 1e-12)
+	require.InDelta(t, 0.03, baseCost.OutputCost, 1e-12)
+
+	highCost, err := billing.CalculateCostUnified(CostInput{
+		Model: "gpt-5.6-sol", Tokens: tokens, RateMultiplier: 1,
+		Resolver: resolver, Resolved: resolved, LongContextBillingEnabled: &enabled,
+	})
+	require.NoError(t, err)
+	require.InDelta(t, 1.0, highCost.InputCost, 1e-12)
+	require.Zero(t, highCost.CacheReadCost)
+	require.InDelta(t, 0.045, highCost.OutputCost, 1e-12)
+}
+
 func TestGPT56ExplicitZeroCacheWritePriceIsPreserved(t *testing.T) {
 	bs := &BillingService{}
 	resolver := NewModelPricingResolver(nil, bs)
