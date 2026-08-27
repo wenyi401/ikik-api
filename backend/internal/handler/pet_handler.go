@@ -90,7 +90,7 @@ func (h *PetHandler) ServeAsset(c *gin.Context) {
 	}
 	defer reader.Close()
 	c.Header("Content-Type", "image/webp")
-	c.Header("Cache-Control", "private, max-age=86400, immutable")
+	c.Header("Cache-Control", "private, max-age=31536000, immutable")
 	c.Header("ETag", `"`+asset.SHA256+`"`)
 	c.DataFromReader(http.StatusOK, asset.SizeBytes, "image/webp", reader, nil)
 }

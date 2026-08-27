@@ -816,6 +816,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
       children: [
         { path: '/profile', label: t('nav.profile'), icon: UserIcon },
         { path: '/pet', label: t('nav.pet'), icon: GiftIcon },
+        { path: '/merchant-sso', label: t('nav.merchantSso'), icon: GlobeIcon },
         { path: '/withdrawals', label: t('nav.withdrawals'), icon: WithdrawalIcon, hideInSimpleMode: true },
         { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
         { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
@@ -955,7 +956,8 @@ const adminNavItems = computed((): NavItem[] => {
       ],
     },
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
-    { path: '/admin/token-leaderboard', label: t('nav.tokenLeaderboard'), icon: ChartIcon }
+    { path: '/admin/token-leaderboard', label: t('nav.tokenLeaderboard'), icon: ChartIcon },
+    { path: '/admin/merchant-sso', label: t('nav.merchantSso'), icon: GlobeIcon }
   ]
 
   const visible = applyFeatureFlags(baseItems)

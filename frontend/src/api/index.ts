@@ -25,6 +25,7 @@ export { passkeyAPI, type PasskeyCredentialSummary } from './passkey'
 export { default as announcementsAPI } from './announcements'
 export { channelMonitorUserAPI } from './channelMonitor'
 export { petAPI } from './pet'
+export { merchantSsoAPI } from './merchantSso'
 
 // Admin APIs
 export { adminAPI } from './admin'

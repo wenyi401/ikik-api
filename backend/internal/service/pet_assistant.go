@@ -20,6 +20,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/image/webp"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -189,6 +190,7 @@ type PetAssistantService struct {
 	storage        PetAssetStorage
 	answerProvider PetAnswerProvider
 	remoteClient   *http.Client
+	catalogFetch   singleflight.Group
 }
 
 func NewPetAssistantService(repo PetRepository, storage PetAssetStorage, answerProvider PetAnswerProvider) *PetAssistantService {
@@ -240,30 +242,104 @@ func (s *PetAssistantService) OpenAsset(ctx context.Context, userID int64, asset
 		return nil, nil, err
 	}
 	if strings.HasPrefix(asset.StorageKey, petCatalogURLPrefix) {
-		req, requestErr := http.NewRequestWithContext(ctx, http.MethodGet, asset.StorageKey, nil)
-		if requestErr != nil {
-			return nil, nil, requestErr
-		}
-		client := s.remoteClient
-		if client == nil {
-			client = http.DefaultClient
-		}
-		response, requestErr := client.Do(req)
-		if requestErr != nil {
-			return nil, nil, requestErr
-		}
-		if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-			_ = response.Body.Close()
-			return nil, nil, fmt.Errorf("catalog pet returned HTTP %d", response.StatusCode)
-		}
-		if response.ContentLength > PetSpritesheetMaxBytes {
-			_ = response.Body.Close()
-			return nil, nil, fmt.Errorf("catalog pet spritesheet is too large")
-		}
-		return response.Body, asset, nil
+		reader, openErr := s.openCatalogAsset(ctx, asset)
+		return reader, asset, openErr
 	}
 	r, err := s.storage.Open(ctx, asset.StorageKey)
 	return r, asset, err
+}
+
+// openCatalogAsset lazily mirrors a built-in spritesheet into the persistent
+// pet asset directory. The database keeps the upstream URL as provenance, but
+// every request after the first one is served from local storage.
+func (s *PetAssistantService) openCatalogAsset(ctx context.Context, asset *PetAsset) (io.ReadCloser, error) {
+	if s == nil || s.storage == nil || asset == nil {
+		return nil, fmt.Errorf("pet asset storage is unavailable")
+	}
+	cacheKey, err := petCatalogCacheKey(asset)
+	if err != nil {
+		return nil, err
+	}
+	if reader, openErr := s.storage.Open(ctx, cacheKey); openErr == nil {
+		return reader, nil
+	}
+
+	_, err, _ = s.catalogFetch.Do(cacheKey, func() (any, error) {
+		// Another request may have completed the download between the first Open
+		// and joining this singleflight call.
+		if reader, openErr := s.storage.Open(ctx, cacheKey); openErr == nil {
+			_ = reader.Close()
+			return struct{}{}, nil
+		}
+		data, downloadErr := s.downloadCatalogAsset(ctx, asset)
+		if downloadErr != nil {
+			return nil, downloadErr
+		}
+		if putErr := s.storage.Put(ctx, cacheKey, data); putErr != nil {
+			return nil, fmt.Errorf("cache catalog pet: %w", putErr)
+		}
+		return struct{}{}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	reader, err := s.storage.Open(ctx, cacheKey)
+	if err != nil {
+		return nil, fmt.Errorf("open cached catalog pet: %w", err)
+	}
+	return reader, nil
+}
+
+func (s *PetAssistantService) downloadCatalogAsset(ctx context.Context, asset *PetAsset) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, asset.StorageKey, nil)
+	if err != nil {
+		return nil, err
+	}
+	client := s.remoteClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+	response, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("catalog pet returned HTTP %d", response.StatusCode)
+	}
+	if response.ContentLength > PetSpritesheetMaxBytes {
+		return nil, fmt.Errorf("catalog pet spritesheet is too large")
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, PetSpritesheetMaxBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("download catalog pet: %w", err)
+	}
+	if len(data) == 0 || len(data) > PetSpritesheetMaxBytes {
+		return nil, fmt.Errorf("catalog pet spritesheet is too large")
+	}
+	if asset.SizeBytes > 0 && int64(len(data)) != asset.SizeBytes {
+		return nil, fmt.Errorf("catalog pet size mismatch: expected %d bytes, got %d", asset.SizeBytes, len(data))
+	}
+	sum := sha256.Sum256(data)
+	if !strings.EqualFold(hex.EncodeToString(sum[:]), strings.TrimSpace(asset.SHA256)) {
+		return nil, fmt.Errorf("catalog pet checksum mismatch")
+	}
+	if len(data) < 12 || string(data[:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
+		return nil, fmt.Errorf("catalog pet is not WebP")
+	}
+	return data, nil
+}
+
+func petCatalogCacheKey(asset *PetAsset) (string, error) {
+	if asset == nil {
+		return "", fmt.Errorf("pet asset is missing")
+	}
+	checksum := strings.ToLower(strings.TrimSpace(asset.SHA256))
+	decoded, err := hex.DecodeString(checksum)
+	if err != nil || len(decoded) != sha256.Size {
+		return "", fmt.Errorf("catalog pet checksum is invalid")
+	}
+	return path.Join("catalog", checksum+".webp"), nil
 }
 
 func (s *PetAssistantService) DeleteAsset(ctx context.Context, userID int64, assetID string) error {

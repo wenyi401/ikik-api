@@ -84,6 +84,7 @@ type Handlers struct {
 	Withdrawal       *WithdrawalHandler
 	Shop             *ShopHandler
 	Pet              *PetHandler
+	MerchantSSO      *MerchantSSOHandler
 }
 
 // BuildInfo contains build-time information

@@ -22,6 +22,16 @@ func registerIkikAdminRoutes(
 
 	admin.GET("/modules", h.Admin.Module.List)
 
+	if h.MerchantSSO != nil {
+		merchantSSO := admin.Group("/merchant-sso/integrations")
+		merchantSSO.GET("", h.MerchantSSO.AdminList)
+		merchantSSO.POST("", h.MerchantSSO.AdminCreate)
+		merchantSSO.PUT("/:id", h.MerchantSSO.AdminUpdate)
+		merchantSSO.POST("/:id/sync-users", h.MerchantSSO.AdminSyncUsers)
+		merchantSSO.POST("/:id/hmac-secret", h.MerchantSSO.AdminGenerateHMACSecret)
+		merchantSSO.GET("/:id/bindings", h.MerchantSSO.AdminListBindings)
+	}
+
 	carpools := admin.Group("/carpools")
 	carpools.GET("", h.Admin.Carpool.List)
 	carpools.GET("/:id", h.Admin.Carpool.Get)

@@ -507,6 +507,7 @@ export default {
     redeem: '兑换',
     affiliate: '邀请返利',
     profile: '个人资料',
+    merchantSso: '商家服务',
     developerApi: '开发者 API',
     withdrawals: '提现',
     users: '用户管理',

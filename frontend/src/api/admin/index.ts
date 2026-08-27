@@ -39,6 +39,7 @@ import riskControlAPI from './riskControl'
 import carpoolsAPI from './carpools'
 import modulesAPI from './modules'
 import auditAPI from './audit'
+import merchantSsoAPI from './merchantSso'
 
 /**
  * Unified admin API object for convenient access
@@ -79,7 +80,8 @@ export const adminAPI = {
   riskControl: riskControlAPI,
   carpools: carpoolsAPI,
   modules: modulesAPI,
-  audit: auditAPI
+  audit: auditAPI,
+  merchantSso: merchantSsoAPI
 }
 
 export {
@@ -118,7 +120,8 @@ export {
   riskControlAPI,
   carpoolsAPI,
   modulesAPI,
-  auditAPI
+  auditAPI,
+  merchantSsoAPI
 }
 
 export default adminAPI

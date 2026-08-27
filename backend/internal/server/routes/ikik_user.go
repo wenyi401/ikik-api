@@ -66,6 +66,13 @@ func registerIkikUserRoutes(
 	pet.PUT("/preferences", h.Pet.SavePreferences)
 	pet.GET("/activity/stream", h.Pet.ActivityStream)
 
+	if h.MerchantSSO != nil {
+		merchantSSO := authenticated.Group("/merchant-sso")
+		merchantSSO.GET("/integrations", h.MerchantSSO.ListUserIntegrations)
+		merchantSSO.GET("/:merchant_code/login", h.MerchantSSO.Login)
+		merchantSSO.POST("/:merchant_code/login", h.MerchantSSO.Login)
+	}
+
 	usage := authenticated.Group("/usage")
 	usage.GET("/dashboard/account-sharing", h.Usage.DashboardAccountSharing)
 

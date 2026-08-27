@@ -342,6 +342,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/merchant-sso',
+    name: 'MerchantSso',
+    component: () => import('@/views/user/MerchantSsoView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Merchant Services',
+      titleKey: 'nav.merchantSso'
+    }
+  },
+  {
     path: '/developer-api',
     name: 'UserDeveloperApi',
     component: () => import('@/views/user/DeveloperApiView.vue'),
@@ -734,6 +745,17 @@ const routes: RouteRecordRaw[] = [
       title: 'Plugin Modules',
       titleKey: 'admin.modules.title',
       descriptionKey: 'admin.modules.description'
+    }
+  },
+  {
+    path: '/admin/merchant-sso',
+    name: 'AdminMerchantSso',
+    component: () => import('@/views/admin/MerchantSsoView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Merchant Login Integration',
+      titleKey: 'nav.merchantSso'
     }
   },
   {

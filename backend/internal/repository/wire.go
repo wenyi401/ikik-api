@@ -82,6 +82,7 @@ var ProviderSet = wire.NewSet(
 	NewAnnouncementRepository,
 	NewAnnouncementReadRepository,
 	NewPetRepository,
+	NewMerchantSSORepository,
 	NewPetAssetStorage,
 	NewUsageLogRepository,
 	NewUsageBillingRepository,

@@ -4,12 +4,19 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"image"
 	"image/color"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestPetSearchTokensChineseNGrams(t *testing.T) {
@@ -44,6 +51,116 @@ func TestGroundedPetAnswerProviderRefusesWithoutCitation(t *testing.T) {
 	}
 	if !answer.Refused || !strings.Contains(answer.Content, "没有可靠依据") {
 		t.Fatalf("expected grounded refusal, got %#v", answer)
+	}
+}
+
+func TestPetCatalogAssetDownloadsOnceThenUsesPersistentStorage(t *testing.T) {
+	data := []byte("RIFF0000WEBP")
+	sum := sha256.Sum256(data)
+	var requests atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		_, _ = w.Write(data)
+	}))
+	defer upstream.Close()
+
+	storage := newMemoryPetAssetStorage()
+	asset := &PetAsset{
+		StorageKey: upstream.URL, SHA256: hex.EncodeToString(sum[:]), SizeBytes: int64(len(data)),
+	}
+	firstService := NewPetAssistantService(nil, storage, nil)
+	reader, err := firstService.openCatalogAsset(context.Background(), asset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := io.ReadAll(reader)
+	_ = reader.Close()
+	if err != nil || !bytes.Equal(got, data) {
+		t.Fatalf("unexpected cached body %q, err=%v", got, err)
+	}
+
+	// A new service instance simulates a process restart. The local asset must
+	// still be reusable without contacting GitHub again.
+	secondService := NewPetAssistantService(nil, storage, nil)
+	reader, err = secondService.openCatalogAsset(context.Background(), asset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = reader.Close()
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("upstream requested %d times, want 1", got)
+	}
+}
+
+func TestPetCatalogAssetSingleflightPreventsDuplicateDownloads(t *testing.T) {
+	data := []byte("RIFF0000WEBP")
+	sum := sha256.Sum256(data)
+	var requests atomic.Int32
+	release := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		<-release
+		_, _ = w.Write(data)
+	}))
+	defer upstream.Close()
+
+	storage := newMemoryPetAssetStorage()
+	service := NewPetAssistantService(nil, storage, nil)
+	asset := &PetAsset{
+		StorageKey: upstream.URL, SHA256: hex.EncodeToString(sum[:]), SizeBytes: int64(len(data)),
+	}
+	const workers = 8
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	errs := make(chan error, workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			reader, err := service.openCatalogAsset(context.Background(), asset)
+			if err == nil {
+				_ = reader.Close()
+			}
+			errs <- err
+		}()
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for requests.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	close(release)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("concurrent upstream requests = %d, want 1", got)
+	}
+}
+
+func TestPetCatalogAssetRejectsChecksumMismatch(t *testing.T) {
+	data := []byte("RIFF0000WEBP")
+	badSum := sha256.Sum256([]byte("different"))
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(data)
+	}))
+	defer upstream.Close()
+	storage := newMemoryPetAssetStorage()
+	service := NewPetAssistantService(nil, storage, nil)
+	asset := &PetAsset{
+		StorageKey: upstream.URL, SHA256: hex.EncodeToString(badSum[:]), SizeBytes: int64(len(data)),
+	}
+	if _, err := service.openCatalogAsset(context.Background(), asset); err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
+		t.Fatalf("expected checksum mismatch, got %v", err)
+	}
+	cacheKey, err := petCatalogCacheKey(asset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := storage.Open(context.Background(), cacheKey); err == nil {
+		t.Fatal("invalid upstream content must not be cached")
 	}
 }
 
@@ -124,4 +241,37 @@ func petContainsString(items []string, want string) bool {
 		}
 	}
 	return false
+}
+
+type memoryPetAssetStorage struct {
+	mu    sync.Mutex
+	files map[string][]byte
+}
+
+func newMemoryPetAssetStorage() *memoryPetAssetStorage {
+	return &memoryPetAssetStorage{files: make(map[string][]byte)}
+}
+
+func (s *memoryPetAssetStorage) Put(_ context.Context, key string, data []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.files[key] = append([]byte(nil), data...)
+	return nil
+}
+
+func (s *memoryPetAssetStorage) Open(_ context.Context, key string) (io.ReadCloser, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, ok := s.files[key]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+	return io.NopCloser(bytes.NewReader(append([]byte(nil), data...))), nil
+}
+
+func (s *memoryPetAssetStorage) Delete(_ context.Context, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.files, key)
+	return nil
 }

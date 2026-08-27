@@ -507,6 +507,7 @@ export default {
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
     profile: 'Profile',
+    merchantSso: 'Merchant Services',
     developerApi: 'Developer API',
     withdrawals: 'Withdrawals',
     users: 'Users',
