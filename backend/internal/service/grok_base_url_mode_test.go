@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"testing"
 
-	"ikik-api/internal/pkg/xai"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/xai"
 )
 
 type grokBaseURLSettingRepoStub struct{ values map[string]string }

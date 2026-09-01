@@ -7,7 +7,9 @@
       :disabled="disabled"
       :aria-expanded="isOpen"
       :aria-haspopup="true"
-      aria-label="Select option"
+      :id="id"
+      :aria-label="ariaLabel ?? 'Select option'"
+      :aria-describedby="ariaDescribedby"
       :class="[
         'select-trigger',
         isOpen && 'select-trigger-open',
@@ -21,6 +23,18 @@
         <slot name="selected" :option="selectedOption">
           {{ selectedLabel }}
         </slot>
+      </span>
+      <span
+        v-if="clearable && hasValue && !disabled"
+        class="select-clear"
+        role="button"
+        tabindex="-1"
+        aria-label="Clear selection"
+        @click.stop="clearSelection"
+        @mousedown.stop
+        @keydown.enter.stop.prevent="clearSelection"
+      >
+        <Icon name="x" size="sm" />
       </span>
       <span class="select-icon">
         <Icon
@@ -46,13 +60,14 @@
           @keydown="onDropdownKeyDown"
         >
           <!-- Search input -->
-          <div v-if="searchable" class="select-search">
+          <div v-if="isSearchable" class="select-search">
             <Icon name="search" size="sm" class="text-gray-400" />
             <input
               ref="searchInputRef"
               v-model="searchQuery"
               type="text"
               :placeholder="searchPlaceholderText"
+              :aria-label="searchPlaceholderText"
               class="select-search-input"
               @click.stop
             />
@@ -96,7 +111,7 @@
 
             <!-- Empty state -->
             <div v-if="filteredOptions.length === 0" class="select-empty">
-              {{ emptyTextDisplay }}
+              {{ props.loading ? t('common.loading') : emptyTextDisplay }}
             </div>
           </div>
         </div>
@@ -124,32 +139,42 @@ export interface SelectOption {
 
 interface Props {
   modelValue: string | number | boolean | null | undefined
-  options: SelectOption[] | Array<Record<string, unknown>>
+  options: any[]
   placeholder?: string
   disabled?: boolean
   error?: boolean
-  searchable?: boolean
+  searchable?: boolean | 'auto'
   searchPlaceholder?: string
   emptyText?: string
   valueKey?: string
   labelKey?: string
   creatable?: boolean
   creatablePrefix?: string
+  clearable?: boolean
+  id?: string
+  ariaLabel?: string
+  ariaDescribedby?: string
+  remote?: boolean
+  loading?: boolean
 }
 
 interface Emits {
   (e: 'update:modelValue', value: string | number | boolean | null): void
   (e: 'change', value: string | number | boolean | null, option: SelectOption | null): void
+  (e: 'search', query: string): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   error: false,
-  searchable: false,
+  searchable: 'auto',
   creatable: false,
   creatablePrefix: '',
+  clearable: false,
   valueKey: 'value',
-  labelKey: 'label'
+  labelKey: 'label',
+  remote: false,
+  loading: false
 })
 
 const emit = defineEmits<Emits>()
@@ -164,18 +189,29 @@ const dropdownRef = ref<HTMLElement | null>(null)
 const optionsListRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<'bottom' | 'top'>('bottom')
 const triggerRect = ref<DOMRect | null>(null)
+const dropdownViewportPadding = 8
+const dropdownMinimumWidth = 200
 
 // i18n placeholders
 const placeholderText = computed(() => props.placeholder ?? t('common.selectOption'))
 const searchPlaceholderText = computed(() => props.searchPlaceholder ?? t('common.searchPlaceholder'))
 const emptyTextDisplay = computed(() => props.emptyText ?? t('common.noOptionsFound'))
 
+const REMOTE_SEARCH_DEBOUNCE_MS = 300
+let remoteSearchTimer: ReturnType<typeof setTimeout> | null = null
+
+const isSearchable = computed(() => {
+  if (props.remote) return true
+  if (props.searchable === 'auto') return props.options.length > 5
+  return props.searchable
+})
+
 // Computed style for teleported dropdown
 const dropdownStyle = computed(() => {
   if (!triggerRect.value) return {}
 
   const rect = triggerRect.value
-  const viewportPadding = 8
+  const viewportPadding = dropdownViewportPadding
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || rect.right
   const availableWidth = Math.max(0, viewportWidth - viewportPadding * 2)
   const preferredWidth = Math.min(Math.max(rect.width, 320), availableWidth)
@@ -186,7 +222,7 @@ const dropdownStyle = computed(() => {
   const style: Record<string, string> = {
     position: 'fixed',
     left: `${left}px`,
-    minWidth: `${Math.min(Math.max(rect.width, 200), availableWidth)}px`,
+    minWidth: `${Math.min(Math.max(rect.width, dropdownMinimumWidth), availableWidth)}px`,
     maxWidth: `${Math.max(0, viewportWidth - left - viewportPadding)}px`,
     zIndex: '100000020'
   }
@@ -243,9 +279,13 @@ const selectedLabel = computed(() => {
   return placeholderText.value
 })
 
+const hasValue = computed(
+  () => props.modelValue !== null && props.modelValue !== undefined && props.modelValue !== ''
+)
+
 const filteredOptions = computed(() => {
   let opts = props.options as any[]
-  if (props.searchable && searchQuery.value) {
+  if (isSearchable.value && searchQuery.value && !props.remote) {
     const query = searchQuery.value.toLowerCase()
     opts = opts.filter((opt) => {
       // Match label
@@ -337,7 +377,7 @@ watch(isOpen, (open) => {
         : initialIdx
     }
 
-    if (props.searchable) {
+    if (isSearchable.value) {
       nextTick(() => searchInputRef.value?.focus())
     }
     // Add scroll listener to update position
@@ -346,9 +386,24 @@ watch(isOpen, (open) => {
   } else {
     searchQuery.value = ''
     focusedIndex.value = -1
+    // 关闭时取消仍在排队的远程搜索（避免关闭后尾随 emit 一次 search(''))。
+    if (remoteSearchTimer) {
+      clearTimeout(remoteSearchTimer)
+      remoteSearchTimer = null
+    }
     window.removeEventListener('scroll', updateTriggerRect, { capture: true })
     window.removeEventListener('resize', calculateDropdownPosition)
   }
+})
+
+// 远程搜索：输入防抖后交给父组件请求（!isOpen 抑制关闭重置 searchQuery 触发的空 query）。
+watch(searchQuery, (query) => {
+  if (!props.remote || !isOpen.value) return
+  if (remoteSearchTimer) clearTimeout(remoteSearchTimer)
+  remoteSearchTimer = setTimeout(() => {
+    remoteSearchTimer = null
+    emit('search', query.trim())
+  }, REMOTE_SEARCH_DEBOUNCE_MS)
 })
 
 const selectOption = (option: any) => {
@@ -357,6 +412,12 @@ const selectOption = (option: any) => {
   emit('change', value, option)
   isOpen.value = false
   triggerRef.value?.focus()
+}
+
+const clearSelection = () => {
+  if (props.disabled) return
+  emit('update:modelValue', null)
+  emit('change', null, null)
 }
 
 // Keyboards
@@ -430,6 +491,10 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('scroll', updateTriggerRect, { capture: true })
   window.removeEventListener('resize', calculateDropdownPosition)
+  if (remoteSearchTimer) {
+    clearTimeout(remoteSearchTimer)
+    remoteSearchTimer = null
+  }
 })
 </script>
 

@@ -213,6 +213,7 @@ type SystemSettings struct {
 	ChannelMonitorMode                   string `json:"channel_monitor_mode"`
 	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
 	ChannelMonitorHideThroughput         bool   `json:"channel_monitor_hide_throughput"`
+	ChannelMonitorShowQuota              bool   `json:"channel_monitor_show_quota"`
 
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled bool              `json:"available_channels_enabled"`
@@ -225,6 +226,8 @@ type SystemSettings struct {
 	CarpoolBaseServiceFeeUSD float64           `json:"carpool_base_service_fee_usd"`
 	CarpoolSystemProxyFeeUSD float64           `json:"carpool_system_proxy_fee_usd"`
 	CarpoolRiskControlFeeUSD float64           `json:"carpool_risk_control_fee_usd"`
+
+	PluginManagementEnabled bool `json:"plugin_management_enabled"`
 
 	// Claude Code version check
 	MinClaudeCodeVersion string
@@ -248,7 +251,10 @@ type SystemSettings struct {
 	EnableClientDatelineNormalization      bool   // 是否对 Anthropic OAuth/SetupToken 请求体做客户端 dateline 归一化（默认 true）
 	RewriteMessageCacheControl             bool   // 是否改写 messages[*].content[*].cache_control（默认 false）
 	AntigravityUserAgentVersion            string // Antigravity 上游 User-Agent 版本号；空值使用配置/默认值
-	OpenAICodexUserAgent                   string // OpenAI Codex 上游完整 User-Agent；空值使用内置默认
+	OpenAICodexUserAgent                   string // OpenAI Codex 上游完整 User-Agent；空值由 Codex 客户端版本号拼出标准 TUI UA
+	OpenAICodexClientVersion               string // 出站声明的 Codex 客户端版本号（管理员覆写）；空值跟随自动同步值
+	OpenAICodexClientVersionSynced         string // 自动同步到的官方最新稳定版版本号（只读展示）
+	OpenAICodexVersionAutoSyncEnabled      bool   // 是否启用 Codex 客户端版本号自动同步（默认 true）
 	MinCodexVersion                        string // codex_cli_only 最低 Codex 引擎版本；空=不检查
 	MaxCodexVersion                        string // codex_cli_only 最高 Codex 引擎版本；空=不检查
 	CodexCLIOnlyBlacklist                  string // codex_cli_only 全局黑名单 JSON（[]AllowedClientEntry，OR deny）
@@ -389,6 +395,7 @@ type PublicSettings struct {
 	ChannelMonitorMode                   string `json:"channel_monitor_mode"`
 	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
 	ChannelMonitorHideThroughput         bool   `json:"channel_monitor_hide_throughput"`
+	ChannelMonitorShowQuota              bool   `json:"channel_monitor_show_quota"`
 
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled bool    `json:"available_channels_enabled"`
@@ -399,6 +406,8 @@ type PublicSettings struct {
 	CarpoolBaseServiceFeeUSD float64 `json:"carpool_base_service_fee_usd"`
 	CarpoolSystemProxyFeeUSD float64 `json:"carpool_system_proxy_fee_usd"`
 	CarpoolRiskControlFeeUSD float64 `json:"carpool_risk_control_fee_usd"`
+
+	PluginManagementEnabled bool `json:"plugin_management_enabled"`
 
 	// Affiliate (邀请返利) feature toggle
 	AffiliateEnabled bool `json:"affiliate_enabled"`
@@ -568,6 +577,23 @@ type RateLimit429CooldownSettings struct {
 	Enabled bool `json:"enabled"`
 	// CooldownSeconds 默认回避时长（秒）
 	CooldownSeconds int `json:"cooldown_seconds"`
+}
+
+// OpenAIAPIKeyHealthBreakerSettings controls cross-instance failure counting for OpenAI pool API keys.
+type OpenAIAPIKeyHealthBreakerSettings struct {
+	Enabled          bool `json:"enabled"`
+	WindowMinutes    int  `json:"window_minutes"`
+	FailureThreshold int  `json:"failure_threshold"`
+	CooldownMinutes  int  `json:"cooldown_minutes"`
+}
+
+func DefaultOpenAIAPIKeyHealthBreakerSettings() *OpenAIAPIKeyHealthBreakerSettings {
+	return &OpenAIAPIKeyHealthBreakerSettings{
+		Enabled:          false,
+		WindowMinutes:    2,
+		FailureThreshold: 10,
+		CooldownMinutes:  5,
+	}
 }
 
 // DefaultOverloadCooldownSettings 返回默认的过载冷却配置（启用，10分钟）

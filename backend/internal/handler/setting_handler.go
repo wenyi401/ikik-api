@@ -107,6 +107,7 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		ChannelMonitorMode:                   settings.ChannelMonitorMode,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		ChannelMonitorHideThroughput:         settings.ChannelMonitorHideThroughput,
+		ChannelMonitorShowQuota:              settings.ChannelMonitorShowQuota,
 
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
 		FreeModelsEnabled:        settings.FreeModelsEnabled,
@@ -115,8 +116,9 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		CarpoolSystemProxyFeeUSD: settings.CarpoolSystemProxyFeeUSD,
 		CarpoolRiskControlFeeUSD: settings.CarpoolRiskControlFeeUSD,
 
-		ModelPlazaEnabled:     settings.ModelPlazaEnabled,
-		ModelPlazaRequireAuth: settings.ModelPlazaRequireAuth,
+		ModelPlazaEnabled:       settings.ModelPlazaEnabled,
+		ModelPlazaRequireAuth:   settings.ModelPlazaRequireAuth,
+		PluginManagementEnabled: settings.PluginManagementEnabled,
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 

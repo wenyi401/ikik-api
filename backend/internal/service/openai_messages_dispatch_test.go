@@ -3,8 +3,8 @@ package service
 import (
 	"testing"
 
-	"ikik-api/internal/pkg/xai"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/xai"
 )
 
 func TestNormalizeOpenAIMessagesDispatchModelConfig(t *testing.T) {
@@ -66,6 +66,28 @@ func TestSanitizeGroupMessagesDispatchFields_ClearsNonOpenAIPlatform(t *testing.
 	sanitizeGroupMessagesDispatchFields(group)
 
 	require.False(t, group.AllowMessagesDispatch)
+	require.Empty(t, group.DefaultMappedModel)
+	require.Equal(t, OpenAIMessagesDispatchModelConfig{}, group.MessagesDispatchModelConfig)
+}
+
+func TestSanitizeGroupMessagesDispatchFields_PreservesCompositeDispatchToggle(t *testing.T) {
+	t.Parallel()
+
+	group := &Group{
+		Platform:              PlatformComposite,
+		AllowMessagesDispatch: true,
+		DefaultMappedModel:    "gpt-5.6-sol",
+		MessagesDispatchModelConfig: OpenAIMessagesDispatchModelConfig{
+			SonnetMappedModel: "gpt-5.3-codex",
+			ExactModelMappings: map[string]string{
+				"claude-fable-5": "gpt-5.6-sol",
+			},
+		},
+	}
+
+	sanitizeGroupMessagesDispatchFields(group)
+
+	require.True(t, group.AllowMessagesDispatch)
 	require.Empty(t, group.DefaultMappedModel)
 	require.Equal(t, OpenAIMessagesDispatchModelConfig{}, group.MessagesDispatchModelConfig)
 }

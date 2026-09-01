@@ -27,7 +27,7 @@
                     : t('admin.accounts.autoRefresh')"
                   @click="
                     showAutoRefreshDropdown = !showAutoRefreshDropdown;
-                    showColumnDropdown = false
+                    showAccountToolsDropdown = false
                   "
                 >
                   <Icon name="refresh" size="sm" :class="[autoRefreshEnabled ? 'animate-spin' : '']" />
@@ -58,52 +58,89 @@
                 </div>
               </div>
 
-              <!-- Column Settings Dropdown -->
-              <div class="relative" ref="columnDropdownRef">
+              <!-- More Tools Dropdown -->
+              <div class="relative" ref="accountToolsDropdownRef">
                 <UiIconButton
-                  :label="t('admin.users.columnSettings')"
-                  @click="
-                    showColumnDropdown = !showColumnDropdown;
-                    showAutoRefreshDropdown = false
-                  "
+                  :label="t('admin.accounts.moreActions')"
+                  :aria-expanded="showAccountToolsDropdown"
+                  @click="toggleAccountToolsDropdown"
                 >
-                  <Icon name="grid" size="md" />
+                  <Icon name="more" size="md" />
                 </UiIconButton>
-                <!-- Dropdown menu -->
-                <div
-                  v-if="showColumnDropdown"
-                  class="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
-                >
-                  <div class="max-h-80 overflow-y-auto p-2">
-                    <button
-                      v-for="col in toggleableColumns"
-                      :key="col.key"
-                      @click="toggleColumn(col.key)"
-                      class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-                    >
-                      <span>{{ col.label }}</span>
-                      <Icon v-if="isColumnVisible(col.key)" name="check" size="sm" class="text-primary-500" />
-                    </button>
+                <Teleport to="body">
+                  <div
+                    v-if="showAccountToolsDropdown"
+                    class="fixed z-[9999] origin-top-right overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-dark-700 dark:bg-dark-800"
+                    :style="accountToolsDropdownStyle"
+                    @click.stop
+                  >
+                    <div class="overflow-y-auto p-2" :style="{ maxHeight: `${accountToolsDropdownPosition.maxHeight}px` }">
+                      <div class="px-2 py-2 text-xs font-semibold uppercase text-gray-400">
+                        {{ t('admin.accounts.dataActions') }}
+                      </div>
+                      <button class="account-tools-menu-item" @click="openSyncFromCrs">
+                        <span class="account-tools-menu-icon bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
+                          <Icon name="sync" size="sm" />
+                        </span>
+                        <span>{{ t('admin.accounts.syncFromCrs') }}</span>
+                      </button>
+                      <button class="account-tools-menu-item" @click="openCredentialImport">
+                        <span class="account-tools-menu-icon bg-cyan-50 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300">
+                          <Icon name="upload" size="sm" />
+                        </span>
+                        <span>{{ t('admin.accounts.credentialImport') }}</span>
+                      </button>
+                      <button class="account-tools-menu-item" @click="openImportData">
+                        <span class="account-tools-menu-icon bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
+                          <Icon name="upload" size="sm" />
+                        </span>
+                        <span>{{ t('admin.accounts.dataImport') }}</span>
+                      </button>
+                      <button class="account-tools-menu-item" @click="openExportDataDialogFromMenu">
+                        <span class="account-tools-menu-icon bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300">
+                          <Icon name="download" size="sm" />
+                        </span>
+                        <span class="flex-1 text-left">
+                          {{ selIds.length ? t('admin.accounts.dataExportSelected') : t('admin.accounts.dataExport') }}
+                        </span>
+                        <span v-if="selIds.length" class="rounded-full bg-primary-100 px-2 py-0.5 text-xs text-primary-700">
+                          {{ t('admin.accounts.selectedCount', { count: selIds.length }) }}
+                        </span>
+                      </button>
+                      <div class="my-2 border-t border-gray-100 dark:border-dark-700" />
+                      <div class="px-2 py-2 text-xs font-semibold uppercase text-gray-400">
+                        {{ t('admin.accounts.toolActions') }}
+                      </div>
+                      <button class="account-tools-menu-item" @click="openErrorPassthrough">
+                        <span class="account-tools-menu-icon bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300">
+                          <Icon name="shield" size="sm" />
+                        </span>
+                        <span>{{ t('admin.errorPassthrough.title') }}</span>
+                      </button>
+                      <button class="account-tools-menu-item" @click="openTLSFingerprintProfiles">
+                        <span class="account-tools-menu-icon bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                          <Icon name="lock" size="sm" />
+                        </span>
+                        <span>{{ t('admin.tlsFingerprintProfiles.title') }}</span>
+                      </button>
+                      <div class="my-2 border-t border-gray-100 dark:border-dark-700" />
+                      <div class="flex items-center justify-between px-2 py-2 text-xs font-semibold uppercase text-gray-400">
+                        <span>{{ t('admin.accounts.viewColumns') }}</span>
+                        <Icon name="grid" size="sm" />
+                      </div>
+                      <button
+                        v-for="col in toggleableColumns"
+                        :key="col.key"
+                        class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-700"
+                        @click="toggleColumn(col.key)"
+                      >
+                        <span class="truncate">{{ col.label }}</span>
+                        <Icon v-if="isColumnVisible(col.key)" name="check" size="sm" class="text-primary-500" />
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </Teleport>
               </div>
-            </template>
-            <template #beforeCreate>
-              <button type="button" @click="showErrorPassthrough = true">
-                {{ t('admin.errorPassthrough.title') }}
-              </button>
-              <button type="button" @click="showTLSFingerprintProfiles = true">
-                {{ t('admin.tlsFingerprintProfiles.title') }}
-              </button>
-              <button @click="showCredentialImport = true" class="btn btn-secondary">
-                {{ t('admin.accounts.credentialImport') }}
-              </button>
-              <button @click="showImportData = true" class="btn btn-secondary">
-                {{ t('admin.accounts.dataImport') }}
-              </button>
-              <button @click="openExportDataDialog" class="btn btn-secondary">
-                {{ selIds.length ? t('admin.accounts.dataExportSelected') : t('admin.accounts.dataExport') }}
-              </button>
             </template>
           </AccountTableActions>
         </div>
@@ -123,6 +160,9 @@
       <template #table>
         <AccountBulkActionsBar
           :selected-ids="selIds"
+          :total-results="pagination.total"
+          :selecting-all="selectingAllResults"
+          :all-results-selected="allResultsSelected"
           @delete="handleBulkDelete"
           @reset-status="handleBulkResetStatus"
           @refresh-token="handleBulkRefreshToken"
@@ -130,6 +170,7 @@
           @edit-filtered="openBulkEditFiltered"
           @clear="clearSelection"
           @select-page="selectPage"
+          @select-all-results="handleSelectAllResults"
           @toggle-schedulable="handleBulkToggleSchedulable"
           @probe-upstream-billing="handleBulkProbeUpstreamBilling"
         />
@@ -274,6 +315,12 @@
               :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
               :today-stats-loading="todayStatsLoading"
               :manual-refresh-token="usageManualRefreshToken"
+              :batched-usage="usageBatchByAccountId[String(row.id)] ?? null"
+              :batched-usage-error="usageBatchErrorByAccountId[String(row.id)] ?? null"
+              :batched-usage-loading="usageBatchLoadingByAccountId[String(row.id)] === true"
+              :request-batched-usage="isDesktopViewport ? queueBatchedUsage : null"
+              @account-updated="handleAccountUpdated"
+              @usage-loaded="handleAccountUsageLoaded(row.id, $event)"
               @quota-reset="handleOpenAIQuotaReset"
             />
           </template>
@@ -307,8 +354,17 @@
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
           <template #cell-rate_multiplier="{ row }">
-            <span class="text-sm font-mono text-gray-700 dark:text-gray-300">
-              {{ (row.rate_multiplier ?? 1).toFixed(2) }}x
+            <span class="inline-flex items-center gap-1 text-sm font-mono text-gray-700 dark:text-gray-300">
+              <span>{{ formatMultiplier(row.rate_multiplier ?? 1) }}x</span>
+              <span
+                v-if="row.extra?.upstream_billing_rate_sync_enabled === true"
+                class="inline-flex cursor-help text-emerald-600 dark:text-emerald-400"
+                :aria-label="t('admin.accounts.upstreamBilling.syncedRateTooltip')"
+                :title="t('admin.accounts.upstreamBilling.syncedRateTooltip')"
+                data-testid="account-rate-sync-indicator"
+              >
+                <Icon name="sync" size="xs" />
+              </span>
             </span>
           </template>
           <template #header-upstream_billing_rate="{ column }">
@@ -495,13 +551,16 @@ import Icon from '@/components/icons/Icon.vue'
 import { UiIconButton } from '@/ui'
 import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRulesModal.vue'
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
+import { fetchAllAccountIds } from '@/utils/accountSelection'
 import { buildGrokUsageRefreshKey, buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { accountAssignableGroups as filterAccountAssignableGroups } from '@/utils/accountGroups'
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { sanitizeUrl } from '@/utils/url'
-import type { Account, AccountPlatform, AccountType, AccountSchedulerGroupScore, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel, UpstreamBillingProbeSnapshot } from '@/types'
+import { getFloatingPanelPosition } from '@/utils/floatingPanel'
+import { formatMultiplier } from '@/utils/formatters'
+import type { Account, AccountPlatform, AccountType, AccountSchedulerGroupScore, AccountUsageInfo, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel, UpstreamBillingProbeSnapshot } from '@/types'
 import type { ImportCredentialContentsResponse } from '@/api/accounts'
 
 const { t } = useI18n()
@@ -592,11 +651,24 @@ const upstreamBillingNow = ref(Date.now())
 let lastUpstreamBillingSortRefreshMinute = -1
 useIntervalFn(() => { upstreamBillingNow.value = Date.now() }, 60_000)
 
-// Column settings
-const showColumnDropdown = ref(false)
-const columnDropdownRef = ref<HTMLElement | null>(null)
+// Account tools and column settings
+const showAccountToolsDropdown = ref(false)
+const accountToolsDropdownRef = ref<HTMLElement | null>(null)
+const accountToolsDropdownPosition = reactive({
+  top: null as number | null,
+  bottom: null as number | null,
+  left: 16,
+  width: 320,
+  maxHeight: 0
+})
+const accountToolsDropdownStyle = computed(() => ({
+  top: accountToolsDropdownPosition.top == null ? 'auto' : `${accountToolsDropdownPosition.top}px`,
+  bottom: accountToolsDropdownPosition.bottom == null ? 'auto' : `${accountToolsDropdownPosition.bottom}px`,
+  left: `${accountToolsDropdownPosition.left}px`,
+  width: `${accountToolsDropdownPosition.width}px`
+}))
 const hiddenColumns = reactive<Set<string>>(new Set())
-const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'proxy', 'notes', 'priority', 'scheduler_score', 'rate_multiplier']
+const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'proxy', 'notes', 'scheduler_score', 'rate_multiplier']
 const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 const HIDDEN_COLUMNS_VERSION_KEY = 'account-hidden-columns-version'
 const HIDDEN_COLUMNS_CURRENT_VERSION = 'scheduler-score-hidden-by-default'
@@ -660,6 +732,24 @@ const activeBatchTaskPolls = new Set<number>()
 let isUnmounted = false
 const ACCOUNT_BATCH_TASK_POLL_TIMEOUT_MS = 30 * 60 * 1000
 
+const desktopViewportQuery = '(min-width: 768px)'
+const isDesktopViewport = ref(
+  typeof window === 'undefined' ? true : window.matchMedia(desktopViewportQuery).matches
+)
+let desktopViewportMediaQuery: MediaQueryList | null = null
+let desktopViewportListener: ((event: MediaQueryListEvent) => void) | null = null
+
+const usageBatchByAccountId = ref<Record<string, AccountUsageInfo | null>>({})
+const usageBatchErrorByAccountId = ref<Record<string, string | null>>({})
+const usageBatchLoadingByAccountId = ref<Record<string, boolean>>({})
+const usageBatchRequestTokenByAccountId = ref<Record<string, number>>({})
+const usageBatchCache = new Map<number, { data: AccountUsageInfo; ts: number }>()
+const USAGE_BATCH_CACHE_TTL = 5 * 60 * 1000
+const pendingUsageBatchIds = new Set<number>()
+let usageBatchFlushTimer: ReturnType<typeof setTimeout> | null = null
+let queuedUsageBatchForce = false
+let usageBatchRequestToken = 0
+
 const buildDefaultTodayStats = (): WindowStats => ({
   requests: 0,
   tokens: 0,
@@ -667,6 +757,138 @@ const buildDefaultTodayStats = (): WindowStats => ({
   standard_cost: 0,
   user_cost: 0
 })
+
+const accountSupportsBatchUsage = (account: Account) => {
+  if (account.platform === 'anthropic') {
+    return account.type === 'oauth' || account.type === 'setup-token'
+  }
+  if (account.platform === 'gemini') return true
+  if (account.platform === 'antigravity') return account.type === 'oauth'
+  if (account.platform === 'openai') return account.type === 'oauth'
+  if (account.platform === 'grok') return account.type === 'oauth'
+  return false
+}
+
+const setUsageBatchLoading = (accountID: number, loadingState: boolean) => {
+  usageBatchLoadingByAccountId.value = {
+    ...usageBatchLoadingByAccountId.value,
+    [String(accountID)]: loadingState
+  }
+}
+
+const setUsageBatchState = (accountID: number, usage: AccountUsageInfo | null, error: string | null) => {
+  const key = String(accountID)
+  usageBatchByAccountId.value = {
+    ...usageBatchByAccountId.value,
+    [key]: usage
+  }
+  usageBatchErrorByAccountId.value = {
+    ...usageBatchErrorByAccountId.value,
+    [key]: error
+  }
+}
+
+const handleAccountUsageLoaded = (accountID: number, usage: AccountUsageInfo) => {
+  if (usageBatchByAccountId.value[String(accountID)] === usage) return
+  setUsageBatchState(accountID, usage, null)
+}
+
+const flushQueuedUsageBatch = async () => {
+  usageBatchFlushTimer = null
+  const accountIDs = Array.from(pendingUsageBatchIds)
+  const force = queuedUsageBatchForce
+  pendingUsageBatchIds.clear()
+  queuedUsageBatchForce = false
+
+  if (accountIDs.length === 0) return
+
+  const requestTokensByAccount = accountIDs.reduce<Record<string, number>>((acc, accountID) => {
+    acc[String(accountID)] = usageBatchRequestTokenByAccountId.value[String(accountID)] ?? 0
+    return acc
+  }, {})
+
+  try {
+    const result = await adminAPI.accounts.getBatchUsage(accountIDs, force)
+
+    const usageMap = result.usage ?? {}
+    const errorMap = result.errors ?? {}
+    const now = Date.now()
+    const nextUsage = { ...usageBatchByAccountId.value }
+    const nextErrors = { ...usageBatchErrorByAccountId.value }
+    const nextLoading = { ...usageBatchLoadingByAccountId.value }
+
+    for (const accountID of accountIDs) {
+      const key = String(accountID)
+      if ((usageBatchRequestTokenByAccountId.value[key] ?? 0) !== requestTokensByAccount[key]) {
+        continue
+      }
+      const usage = usageMap[key] ?? null
+      nextUsage[key] = usage
+      nextErrors[key] = errorMap[key] ?? null
+      nextLoading[key] = false
+      if (usage) {
+        usageBatchCache.set(accountID, { data: usage, ts: now })
+      } else {
+        usageBatchCache.delete(accountID)
+      }
+    }
+
+    usageBatchByAccountId.value = nextUsage
+    usageBatchErrorByAccountId.value = nextErrors
+    usageBatchLoadingByAccountId.value = nextLoading
+  } catch (error) {
+    const nextErrors = { ...usageBatchErrorByAccountId.value }
+    const nextLoading = { ...usageBatchLoadingByAccountId.value }
+    for (const accountID of accountIDs) {
+      const key = String(accountID)
+      if ((usageBatchRequestTokenByAccountId.value[key] ?? 0) !== requestTokensByAccount[key]) {
+        continue
+      }
+      nextErrors[key] = 'Failed'
+      nextLoading[key] = false
+    }
+    usageBatchErrorByAccountId.value = nextErrors
+    usageBatchLoadingByAccountId.value = nextLoading
+    console.error('Failed to load account usage batch:', error)
+  }
+}
+
+const queueBatchedUsage = (account: Account, options?: { force?: boolean }) => {
+  if (!isDesktopViewport.value) return
+  if (!accountSupportsBatchUsage(account)) return
+
+  const force = options?.force === true
+  const cacheKey = account.id
+  const key = String(cacheKey)
+
+  if (force) {
+    usageBatchCache.delete(cacheKey)
+  } else {
+    const cached = usageBatchCache.get(cacheKey)
+    if (cached && Date.now() - cached.ts < USAGE_BATCH_CACHE_TTL) {
+      setUsageBatchState(cacheKey, cached.data, null)
+      setUsageBatchLoading(cacheKey, false)
+      return
+    }
+  }
+
+  usageBatchErrorByAccountId.value = {
+    ...usageBatchErrorByAccountId.value,
+    [key]: null
+  }
+  usageBatchRequestTokenByAccountId.value = {
+    ...usageBatchRequestTokenByAccountId.value,
+    [key]: ++usageBatchRequestToken
+  }
+  setUsageBatchLoading(cacheKey, true)
+  pendingUsageBatchIds.add(cacheKey)
+  queuedUsageBatchForce = queuedUsageBatchForce || force
+
+  if (usageBatchFlushTimer !== null) return
+  usageBatchFlushTimer = setTimeout(() => {
+    void flushQueuedUsageBatch()
+  }, 0)
+}
 
 const refreshTodayStatsBatch = async () => {
   // Why this checks both columns:
@@ -905,6 +1127,7 @@ const {
 })
 
 const {
+  selectedSet,
   selectedIds: selIds,
   allVisibleSelected,
   isSelected,
@@ -912,15 +1135,35 @@ const {
   select,
   deselect,
   toggle: toggleSel,
-  clear: clearSelection,
+  clear: clearSelectedIds,
   removeMany: removeSelectedAccounts,
   toggleVisible,
-  selectVisible: selectPage,
+  selectVisible: selectCurrentPage,
   batchUpdate
 } = useTableSelection<Account>({
   rows: accounts,
   getId: (account) => account.id
 })
+
+const selectingAllResults = ref(false)
+const selectedAllResultIDs = ref<Set<number> | null>(null)
+const selectionRequestVersion = ref(0)
+const allResultsSelected = computed(() => {
+  const snapshot = selectedAllResultIDs.value
+  if (!snapshot || snapshot.size === 0 || snapshot.size !== selectedSet.value.size) return false
+  return Array.from(snapshot).every(id => selectedSet.value.has(id))
+})
+
+const clearSelection = () => {
+  selectionRequestVersion.value++
+  selectingAllResults.value = false
+  selectedAllResultIDs.value = null
+  clearSelectedIds()
+}
+
+const selectPage = () => {
+  selectCurrentPage()
+}
 
 const swipeVirtualContext: SwipeSelectVirtualContext = {
   getVirtualizer: () => dataTableRef.value?.virtualizer ?? null,
@@ -989,6 +1232,7 @@ const refreshUpstreamBillingSortedList = async (force = false) => {
 }
 
 const debouncedReload = () => {
+  clearSelection()
   syncAccountListDerivedParams()
   hasPendingListSync.value = false
   resetAutoRefreshCache()
@@ -1036,6 +1280,22 @@ watch(loading, (isLoading, wasLoading) => {
       console.error('Failed to refresh account today stats after table load:', error)
     })
   }
+})
+
+watch(accounts, (rows) => {
+  const visibleIDs = new Set(rows.map((row) => String(row.id)))
+  usageBatchByAccountId.value = Object.fromEntries(
+    Object.entries(usageBatchByAccountId.value).filter(([key]) => visibleIDs.has(key))
+  )
+  usageBatchErrorByAccountId.value = Object.fromEntries(
+    Object.entries(usageBatchErrorByAccountId.value).filter(([key]) => visibleIDs.has(key))
+  )
+  usageBatchLoadingByAccountId.value = Object.fromEntries(
+    Object.entries(usageBatchLoadingByAccountId.value).filter(([key]) => visibleIDs.has(key))
+  )
+  usageBatchRequestTokenByAccountId.value = Object.fromEntries(
+    Object.entries(usageBatchRequestTokenByAccountId.value).filter(([key]) => visibleIDs.has(key))
+  )
 })
 
 watch(upstreamBillingNow, () => {
@@ -1190,6 +1450,60 @@ const loadUpstreamBillingProbeGlobalState = async () => {
   }
 }
 
+const closeAccountToolsDropdown = () => {
+  showAccountToolsDropdown.value = false
+}
+
+const updateAccountToolsDropdownPosition = () => {
+  const trigger = accountToolsDropdownRef.value
+  if (!trigger) return
+  Object.assign(
+    accountToolsDropdownPosition,
+    getFloatingPanelPosition(
+      trigger.getBoundingClientRect(),
+      document.documentElement.clientWidth || window.innerWidth,
+      window.innerHeight
+    )
+  )
+}
+
+const toggleAccountToolsDropdown = () => {
+  const nextVisible = !showAccountToolsDropdown.value
+  showAutoRefreshDropdown.value = false
+  if (nextVisible) updateAccountToolsDropdownPosition()
+  showAccountToolsDropdown.value = nextVisible
+}
+
+const openSyncFromCrs = () => {
+  closeAccountToolsDropdown()
+  showSync.value = true
+}
+
+const openCredentialImport = () => {
+  closeAccountToolsDropdown()
+  showCredentialImport.value = true
+}
+
+const openImportData = () => {
+  closeAccountToolsDropdown()
+  showImportData.value = true
+}
+
+const openExportDataDialogFromMenu = () => {
+  closeAccountToolsDropdown()
+  openExportDataDialog()
+}
+
+const openErrorPassthrough = () => {
+  closeAccountToolsDropdown()
+  showErrorPassthrough.value = true
+}
+
+const openTLSFingerprintProfiles = () => {
+  closeAccountToolsDropdown()
+  showTLSFingerprintProfiles.value = true
+}
+
 const syncPendingListChanges = async () => {
   hasPendingListSync.value = false
   await load()
@@ -1203,7 +1517,7 @@ const { pause: pauseAutoRefresh, resume: resumeAutoRefresh } = useIntervalFn(
     if (document.hidden) return
     if (loading.value || autoRefreshFetching.value) return
     if (isAnyModalOpen.value) return
-    if (menu.show) return
+    if (menu.show || showAccountToolsDropdown.value || showAutoRefreshDropdown.value) return
     if (inAutoRefreshSilentWindow()) {
       autoRefreshCountdown.value = Math.max(
         0,
@@ -1575,7 +1889,27 @@ const toggleSelectAllVisible = (event: Event) => {
   const target = event.target as HTMLInputElement
   toggleVisible(target.checked)
 }
-const handleBulkDelete = async () => { if(!confirm(t('common.confirm'))) return; try { await Promise.all(selIds.value.map(id => adminAPI.accounts.delete(id))); clearSelection(); reload() } catch (error) { console.error('Failed to bulk delete accounts:', error) } }
+const handleBulkDelete = async () => {
+  const accountIds = [...selIds.value]
+  if (!confirm(t('admin.accounts.bulkActions.confirmDelete', { count: accountIds.length }))) return
+  try {
+    const result = await adminAPI.accounts.batchDelete(accountIds)
+    if (result.failed > 0) {
+      appStore.showError(t('admin.accounts.bulkActions.partialSuccess', {
+        success: result.success,
+        failed: result.failed
+      }))
+      setSelectedIds(result.failed_ids?.length ? result.failed_ids : accountIds)
+    } else {
+      appStore.showSuccess(t('admin.accounts.bulkActions.deleteSuccess', { count: result.success }))
+      clearSelection()
+    }
+    await reload()
+  } catch (error) {
+    console.error('Failed to bulk delete accounts:', error)
+    appStore.showError(String(error))
+  }
+}
 const handleBulkResetStatus = async () => {
   if (!confirm(t('common.confirm'))) return
   try {
@@ -1630,7 +1964,7 @@ const handleBulkProbeUpstreamBilling = async () => {
         patched = true
       }
     })
-    if (patched) await refreshUpstreamBillingSortedList(true)
+    if (patched) await refreshAccountsAfterUpstreamBillingProbe()
     const failed = results.filter(result => result.error).length
     if (failed > 0) {
       appStore.showError(t('admin.accounts.upstreamBilling.batchPartial', { success: results.length - failed, failed }))
@@ -1794,6 +2128,32 @@ const buildBulkEditFilterSnapshot = () => {
     sort_order: sortOrder
   }
   return proxyID !== 0 ? { ...filters, proxy_id: proxyID } : filters
+}
+
+const handleSelectAllResults = async () => {
+  if (selectingAllResults.value || pagination.total === 0) return
+
+  const requestVersion = ++selectionRequestVersion.value
+  const filters = buildBulkEditFilterSnapshot()
+  selectingAllResults.value = true
+  try {
+    const ids = await fetchAllAccountIds(
+      (page, pageSize, requestFilters) => adminAPI.accounts.list(page, pageSize, requestFilters),
+      filters
+    )
+    if (requestVersion !== selectionRequestVersion.value) return
+
+    setSelectedIds(ids)
+    selectedAllResultIDs.value = new Set(ids)
+  } catch (error) {
+    if (requestVersion !== selectionRequestVersion.value) return
+    console.error('Failed to select all account results:', error)
+    appStore.showError(t('admin.accounts.bulkActions.selectAllFailed'))
+  } finally {
+    if (requestVersion === selectionRequestVersion.value) {
+      selectingAllResults.value = false
+    }
+  }
 }
 
 const collectSelectionMetadata = (rows: Account[]) => {
@@ -1992,6 +2352,13 @@ const patchUpstreamBillingSnapshot = (accountID: number, snapshot: UpstreamBilli
     extra: { ...account.extra, upstream_billing_probe: snapshot }
   })
 }
+const refreshAccountsAfterUpstreamBillingProbe = async () => {
+  try {
+    await load()
+  } catch (error) {
+    console.error('Failed to refresh accounts after upstream billing probe:', error)
+  }
+}
 const handleProbeUpstreamBilling = async (account: Account) => {
   if (probingUpstreamBilling.has(account.id)) return
   probingUpstreamBilling.add(account.id)
@@ -1999,7 +2366,7 @@ const handleProbeUpstreamBilling = async (account: Account) => {
     const result = await adminAPI.accounts.probeUpstreamBilling(account.id)
     if (result.snapshot) {
       patchUpstreamBillingSnapshot(account.id, result.snapshot)
-      await refreshUpstreamBillingSortedList(true)
+      await refreshAccountsAfterUpstreamBillingProbe()
     }
   } catch (error) {
     console.error('Failed to probe upstream billing:', error)
@@ -2229,16 +2596,21 @@ const proxyExpiryText = (p: AccountProxy): string => {
   return params ? t(key, params) : t(key)
 }
 
-// 滚动时关闭操作菜单（不关闭列设置下拉菜单）
+// 表格滚动时关闭行操作菜单，并让顶部工具菜单继续贴紧触发按钮。
 const handleScroll = () => {
   menu.show = false
+  if (showAccountToolsDropdown.value) updateAccountToolsDropdownPosition()
 }
 
-// 点击外部关闭列设置下拉菜单
+const handleViewportResize = () => {
+  if (showAccountToolsDropdown.value) updateAccountToolsDropdownPosition()
+}
+
+// 点击外部关闭顶部下拉菜单
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement
-  if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
-    showColumnDropdown.value = false
+  if (accountToolsDropdownRef.value && !accountToolsDropdownRef.value.contains(target)) {
+    showAccountToolsDropdown.value = false
   }
   if (autoRefreshDropdownRef.value && !autoRefreshDropdownRef.value.contains(target)) {
     showAutoRefreshDropdown.value = false
@@ -2246,6 +2618,19 @@ const handleClickOutside = (event: MouseEvent) => {
 }
 
 onMounted(async () => {
+  if (typeof window !== 'undefined') {
+    desktopViewportMediaQuery = window.matchMedia(desktopViewportQuery)
+    isDesktopViewport.value = desktopViewportMediaQuery.matches
+    desktopViewportListener = (event: MediaQueryListEvent) => {
+      isDesktopViewport.value = event.matches
+    }
+    if (typeof desktopViewportMediaQuery.addEventListener === 'function') {
+      desktopViewportMediaQuery.addEventListener('change', desktopViewportListener)
+    } else {
+      desktopViewportMediaQuery.addListener(desktopViewportListener)
+    }
+  }
+
   load()
   loadUpstreamBillingProbeGlobalState()
   try {
@@ -2261,6 +2646,7 @@ onMounted(async () => {
     console.error('Failed to load proxies/groups:', error)
   }
   window.addEventListener('scroll', handleScroll, true)
+  window.addEventListener('resize', handleViewportResize)
   document.addEventListener('click', handleClickOutside)
 
   if (autoRefreshEnabled.value) {
@@ -2274,7 +2660,17 @@ onMounted(async () => {
 onUnmounted(() => {
   isUnmounted = true
   window.removeEventListener('scroll', handleScroll, true)
+  window.removeEventListener('resize', handleViewportResize)
   document.removeEventListener('click', handleClickOutside)
+  if (desktopViewportMediaQuery && desktopViewportListener) {
+    if (typeof desktopViewportMediaQuery.removeEventListener === 'function') {
+      desktopViewportMediaQuery.removeEventListener('change', desktopViewportListener)
+    } else {
+      desktopViewportMediaQuery.removeListener(desktopViewportListener)
+    }
+  }
+  desktopViewportListener = null
+  desktopViewportMediaQuery = null
 })
 </script>
 

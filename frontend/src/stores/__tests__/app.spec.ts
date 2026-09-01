@@ -312,6 +312,7 @@ describe('useAppStore', () => {
         contact_info: '',
         doc_url: '',
         home_content: '',
+        compact_home_enabled: false,
         hide_ccs_import_button: false,
         purchase_subscription_enabled: false,
         purchase_subscription_url: '',

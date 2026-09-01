@@ -1,4 +1,5 @@
-docs/claude-relay-service/
+# 本地杂项文档、测试数据和外部项目副本
+/docs-local/
 .codex
 
 # ===================
@@ -144,6 +145,9 @@ docs/*
 !docs/LOCAL_IMAGE_UPLOAD_DEPLOY_CN.md
 !docs/legal/
 !docs/legal/*.md
+!docs/screenshots/
+docs/screenshots/*
+!docs/screenshots/mobile-account-actions-menu.png
 .serena/
 .codex/
 frontend/coverage/

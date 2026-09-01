@@ -166,6 +166,7 @@ import {
   readPaymentRecoverySnapshotFromStorage,
 } from '@/components/payment/paymentFlow'
 import { usePaymentStore } from '@/stores/payment'
+import { useAuthStore } from '@/stores/auth'
 import { paymentAPI, type PublicOrderVerifyResult } from '@/api/payment'
 import { storeAPI } from '@/api/store'
 import { getAccessToken } from '@/api/authSession'
@@ -178,6 +179,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const paymentStore = usePaymentStore()
+const authStore = useAuthStore()
 
 type ResolvedOrder = PaymentOrder | PublicOrderVerifyResult
 
@@ -200,6 +202,7 @@ const STATUS_REFRESH_INTERVAL_MS = 2000
 const STATUS_REFRESH_MAX_ATTEMPTS = 15
 
 let statusRefreshTimer: ReturnType<typeof setTimeout> | null = null
+let userBalanceRefreshStarted = false
 const refreshAttempts = ref(0)
 
 /** 充值金额 = pay_amount / (1 + fee_rate/100)，fee_rate=0 时等于 pay_amount */
@@ -237,6 +240,25 @@ const resultBackLabel = computed(() => isShopPayment.value ? t('nav.store') : t(
 
 function normalizedOrderPaymentType(paymentType: string): string {
   return normalizePaymentMethodForDisplay(paymentType || '') || paymentType || ''
+}
+
+function setResolvedOrder(nextOrder: ResolvedOrder | null): void {
+  order.value = nextOrder
+  refreshUserBalanceForSuccessfulOrder(nextOrder)
+}
+
+function refreshUserBalanceForSuccessfulOrder(nextOrder: ResolvedOrder | null): void {
+  if (!nextOrder || userBalanceRefreshStarted || normalizeOrderStatus(nextOrder.status) !== 'COMPLETED') {
+    return
+  }
+  if ('order_type' in nextOrder && nextOrder.order_type !== 'balance') {
+    return
+  }
+
+  userBalanceRefreshStarted = true
+  void authStore.refreshUser().catch(() => {
+    // The payment result remains authoritative if profile refresh fails.
+  })
 }
 
 function hasOrderId(nextOrder: ResolvedOrder | null): nextOrder is PaymentOrder {
@@ -443,7 +465,7 @@ function scheduleStatusRefresh(refreshOrder: (() => Promise<ResolvedOrder | null
     refreshAttempts.value += 1
     const refreshedOrder = await refreshOrder()
     if (refreshedOrder) {
-      order.value = refreshedOrder
+      setResolvedOrder(refreshedOrder)
       await loadShopOrder(hasOrderId(refreshedOrder) ? refreshedOrder : null)
       clearRecoverySnapshotForTerminalStatus(refreshedOrder.status)
     }
@@ -476,7 +498,7 @@ onMounted(async () => {
   if (resumeToken) {
     const resolvedOrder = await resolveOrderFromResumeToken(resumeToken)
     if (resolvedOrder) {
-      order.value = resolvedOrder
+      setResolvedOrder(resolvedOrder)
       if (!orderId) {
         orderId = hasOrderId(resolvedOrder) ? resolvedOrder.id : 0
       }
@@ -495,7 +517,7 @@ onMounted(async () => {
 
   if (!order.value && orderId && (!resumeToken || routeOrderId > 0)) {
     try {
-      order.value = await paymentStore.pollOrderStatus(orderId)
+      setResolvedOrder(await paymentStore.pollOrderStatus(orderId))
     } catch (_err: unknown) {
       // Order lookup failed, will try legacy fallback below when possible.
     }
@@ -504,7 +526,7 @@ onMounted(async () => {
   if (!order.value && shouldUsePublicOutTradeNo && (!resumeToken || resumeTokenLookupFailed)) {
     const legacyOrder = await resolveOrderFromOutTradeNo(outTradeNo)
     if (legacyOrder) {
-      order.value = legacyOrder
+      setResolvedOrder(legacyOrder)
       if (!orderId) {
         orderId = hasOrderId(legacyOrder) ? legacyOrder.id : 0
       }

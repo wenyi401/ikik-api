@@ -54,6 +54,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 
 		// BuildInfo provider
 		provideServiceBuildInfo,
+		providePluginHostInfo,
 
 		// Cleanup function provider
 		provideCleanup,
@@ -70,6 +71,13 @@ func providePrivacyClientFactory() service.PrivacyClientFactory {
 
 func provideServiceBuildInfo(buildInfo handler.BuildInfo) service.BuildInfo {
 	return service.BuildInfo{
+		Version:   buildInfo.Version,
+		BuildType: buildInfo.BuildType,
+	}
+}
+
+func providePluginHostInfo(buildInfo handler.BuildInfo) service.PluginHostInfo {
+	return service.PluginHostInfo{
 		Version:   buildInfo.Version,
 		BuildType: buildInfo.BuildType,
 	}
@@ -92,6 +100,8 @@ func provideCleanup(
 	groupRateSchedule *service.GroupRateScheduleService,
 	tokenRefresh *service.TokenRefreshService,
 	accountExpiry *service.AccountExpiryService,
+	cnProviderBalanceCheck *service.CNProviderBalanceCheckService,
+	codexVersionSync *service.OpenAICodexVersionSyncService,
 	proxyExpiry *service.ProxyExpiryService,
 	subscriptionExpiry *service.SubscriptionExpiryService,
 	usageCleanup *service.UsageCleanupService,
@@ -114,12 +124,14 @@ func provideCleanup(
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
 	channelMonitorRunner *service.ChannelMonitorRunner,
+	channelMonitorV2Aggregator *service.ChannelMonitorV2Aggregator,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	auditLog *service.AuditLogService,
 	moduleRuntime *plugin.Runtime,
 	promptAudit *securityaudit.PromptService,
+	pluginManager *service.PluginManager,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -260,6 +272,16 @@ func provideCleanup(
 				accountExpiry.Stop()
 				return nil
 			}},
+			{"CNProviderBalanceCheckService", func() error {
+				if cnProviderBalanceCheck != nil {
+					cnProviderBalanceCheck.Stop()
+				}
+				return nil
+			}},
+			{"OpenAICodexVersionSyncService", func() error {
+				codexVersionSync.Stop()
+				return nil
+			}},
 			{"ProxyExpiryService", func() error {
 				proxyExpiry.Stop()
 				return nil
@@ -335,6 +357,12 @@ func provideCleanup(
 			{"PaymentOrderExpiryService", func() error {
 				if paymentOrderExpiry != nil {
 					paymentOrderExpiry.Stop()
+				}
+				return nil
+			}},
+			{"ChannelMonitorV2Aggregator", func() error {
+				if channelMonitorV2Aggregator != nil {
+					channelMonitorV2Aggregator.Stop()
 				}
 				return nil
 			}},

@@ -38,7 +38,13 @@ export function isHeaderOverridePlatform(platform: string): boolean {
 }
 
 export function isHeaderOverrideCapable(platform: string, type: string): boolean {
-  if (platform === 'anthropic' || platform === 'openai') {
+  if (
+    platform === 'anthropic' ||
+    platform === 'openai' ||
+    platform === 'kimi' ||
+    platform === 'zhipu' ||
+    platform === 'deepseek'
+  ) {
     return type === 'apikey'
   }
   if (platform === 'grok') {
@@ -247,6 +253,75 @@ export const GROK_BASE_URL_PRESETS: GrokBaseUrlPreset[] = [
   { label: 'us-west-2', url: 'https://us-west-2.api.x.ai/v1' },
   { label: 'eu-west-1', url: 'https://eu-west-1.api.x.ai/v1' }
 ]
+
+export type CnAccountMode = 'payg' | 'coding'
+export type CnApiProtocol = 'adaptive' | 'chat_completions' | 'anthropic' | 'responses'
+export type CnNativeApiProtocol = Exclude<CnApiProtocol, 'adaptive'>
+
+export interface CnBaseUrlPreset {
+  mode: CnAccountMode
+  protocol: CnApiProtocol
+  label: string
+  url: string
+}
+
+export const CN_BASE_URL_PRESETS: Record<'kimi' | 'zhipu' | 'deepseek', CnBaseUrlPreset[]> = {
+  kimi: [
+    { mode: 'payg', protocol: 'chat_completions', label: 'Moonshot', url: 'https://api.moonshot.cn/v1' },
+    { mode: 'payg', protocol: 'anthropic', label: 'Moonshot Anthropic', url: 'https://api.moonshot.cn/anthropic' },
+    { mode: 'coding', protocol: 'chat_completions', label: 'Kimi For Coding', url: 'https://api.kimi.com/coding/v1' },
+    { mode: 'coding', protocol: 'anthropic', label: 'Kimi Coding Anthropic', url: 'https://api.kimi.com/coding' }
+  ],
+  zhipu: [
+    { mode: 'payg', protocol: 'chat_completions', label: 'GLM PaaS', url: 'https://open.bigmodel.cn/api/paas/v4' },
+    { mode: 'payg', protocol: 'anthropic', label: 'GLM Anthropic', url: 'https://open.bigmodel.cn/api/anthropic' },
+    { mode: 'coding', protocol: 'chat_completions', label: 'GLM Coding', url: 'https://open.bigmodel.cn/api/coding/paas/v4' },
+    { mode: 'coding', protocol: 'anthropic', label: 'GLM Coding Anthropic', url: 'https://open.bigmodel.cn/api/anthropic' }
+  ],
+  deepseek: [
+    { mode: 'payg', protocol: 'chat_completions', label: 'DeepSeek', url: 'https://api.deepseek.com' },
+    { mode: 'payg', protocol: 'anthropic', label: 'DeepSeek Anthropic', url: 'https://api.deepseek.com/anthropic' },
+    { mode: 'payg', protocol: 'responses', label: 'DeepSeek Responses', url: 'https://api.deepseek.com' }
+  ]
+}
+
+export function defaultCNBaseUrl(
+  platform: string,
+  mode: CnAccountMode,
+  protocol: CnApiProtocol = 'chat_completions'
+): string {
+  if (protocol === 'anthropic') {
+    if (platform === 'kimi') return mode === 'coding' ? 'https://api.kimi.com/coding' : 'https://api.moonshot.cn/anthropic'
+    if (platform === 'zhipu') return 'https://open.bigmodel.cn/api/anthropic'
+    if (platform === 'deepseek') return 'https://api.deepseek.com/anthropic'
+    return ''
+  }
+  if (platform === 'kimi') return mode === 'coding' ? 'https://api.kimi.com/coding/v1' : 'https://api.moonshot.cn/v1'
+  if (platform === 'zhipu') return mode === 'coding'
+    ? 'https://open.bigmodel.cn/api/coding/paas/v4'
+    : 'https://open.bigmodel.cn/api/paas/v4'
+  if (platform === 'deepseek') return 'https://api.deepseek.com'
+  return ''
+}
+
+export function defaultCNAdaptiveBaseUrls(
+  platform: 'kimi' | 'zhipu' | 'deepseek',
+  mode: CnAccountMode
+): Record<CnNativeApiProtocol, string> {
+  return {
+    chat_completions: defaultCNBaseUrl(platform, mode, 'chat_completions'),
+    anthropic: defaultCNBaseUrl(platform, mode, 'anthropic'),
+    responses: platform === 'deepseek' ? defaultCNBaseUrl(platform, mode, 'responses') : ''
+  }
+}
+
+export function cnQuotaCellVisible(platform: string, accountMode: string): boolean {
+  return (platform === 'kimi' || platform === 'zhipu') && accountMode === 'coding'
+}
+
+export function cnBalanceCellVisible(platform: string, accountMode: string): boolean {
+  return (platform === 'kimi' || platform === 'deepseek') && accountMode !== 'coding'
+}
 
 export interface PlanTypeOption {
   value: string

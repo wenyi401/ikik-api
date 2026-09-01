@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -28,6 +29,33 @@ func TestOpenAIResponsesRejectedFieldRetryStateRejectsDuplicateBodyAndCap(t *tes
 		require.False(t, state.Allow(nextBody))
 	}
 	require.False(t, state.Allow([]byte(`{"model":"gpt-5.5","variant":"overflow"}`)))
+}
+
+func TestOpenAIResponsesRejectedFieldRetryStateForRequestAllowsSameTransformAcrossAccounts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	initialBody := []byte(`{"model":"gpt-5.5","truncation":"auto"}`)
+	retryBody := []byte(`{"model":"gpt-5.5"}`)
+
+	accountA := openAIResponsesRejectedFieldRetryStateForRequest(c, initialBody)
+	require.True(t, accountA.Allow(retryBody))
+	require.False(t, accountA.Allow(retryBody), "one account must not repeat the same transform")
+
+	accountB := openAIResponsesRejectedFieldRetryStateForRequest(c, initialBody)
+	require.NotSame(t, accountA, accountB)
+	require.Same(t, accountA.budget, accountB.budget)
+	require.True(t, accountB.Allow(retryBody), "a failover account must be allowed to apply the same transform")
+}
+
+func TestOpenAIResponsesRejectedFieldRetryStateForRequestSharesBoundedBudgetAcrossAccounts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	for attempt := 0; attempt < maxOpenAIResponsesRejectedFieldRetries; attempt++ {
+		state := openAIResponsesRejectedFieldRetryStateForRequest(c, []byte(fmt.Sprintf(`{"account":%d}`, attempt)))
+		require.True(t, state.Allow([]byte(`{"same":"retry"}`)))
+	}
+	overflow := openAIResponsesRejectedFieldRetryStateForRequest(c, []byte(`{"account":"overflow"}`))
+	require.False(t, overflow.Allow([]byte(`{"new":"retry"}`)))
 }
 
 func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRejectsAmbiguousErrors(t *testing.T) {
@@ -56,6 +84,11 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRejectsAmbiguousErrors(t 
 			body:         []byte(`{"max_output_tokens":4096,"input":[{"type":"message","content":{"max_output_tokens":"keep"}}]}`),
 			responseBody: []byte(`{"error":{"code":"unknown_parameter","message":"Unknown parameter: input[0].content.max_output_tokens","param":"input[0].content.max_output_tokens"}}`),
 		},
+		{
+			name:         "structured target conflicts with message target",
+			body:         []byte(`{"max_output_tokens":4096,"truncation":"auto"}`),
+			responseBody: []byte(`{"error":{"code":"unsupported_parameter","message":"Unsupported parameter: truncation.","param":"max_output_tokens"}}`),
+		},
 	}
 
 	for _, tt := range tests {
@@ -65,6 +98,33 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRejectsAmbiguousErrors(t 
 			require.False(t, changed)
 			require.Nil(t, retryBody)
 		})
+	}
+}
+
+func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRepairsAutomationMissingRootType(t *testing.T) {
+	body := []byte(`{"tools":[{"type":"function","name":"automation_update","parameters":{"oneOf":[{"type":"object"},{"type":"object","properties":{}}]}}]}`)
+	responseBody := []byte(`{"error":{"code":"invalid_function_parameters","message":"Invalid schema for function 'automation_update': got 'type: \"None\"'.","param":"tools[0].parameters"}}`)
+
+	retryBody, reason, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, "tool parameter root type rejection", reason)
+	require.Equal(t, "object", gjson.GetBytes(retryBody, "tools.0.parameters.type").String())
+}
+
+func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyDoesNotGuessAutomationRootType(t *testing.T) {
+	body := []byte(`{"tools":[{"type":"function","name":"automation_update","parameters":{"oneOf":[{"type":"object"}]}}]}`)
+	tests := []string{
+		`{"error":{"code":"invalid_function_parameters","message":"got type: \"None\"","param":"metadata.parameters"}}`,
+		`{"error":{"code":"invalid_request_error","message":"got type: \"None\"","param":"tools[0].parameters"}}`,
+		`{"error":{"code":"invalid_function_parameters","message":"expected an object","param":"tools[0].parameters"}}`,
+	}
+	for _, response := range tests {
+		retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, []byte(response))
+		require.NoError(t, err)
+		require.False(t, changed)
+		require.Nil(t, retryBody)
 	}
 }
 
@@ -277,4 +337,43 @@ func newOpenAIRejectedFieldTestResponse(status int, body string) *http.Response 
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}
+}
+
+// A replayed conversation carries many items of the same type, each with a
+// status the upstream schema rejects. One rejection must clear all of them:
+// clearing one index per round trip exhausts the bounded retry budget.
+func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyClearsStatusForWholeType(t *testing.T) {
+	input := make([]string, 0, 12)
+	for i := 0; i < 10; i++ {
+		input = append(input, `{"type":"tool_search_output","status":"completed","call_id":"call_`+strconv.Itoa(i)+`","tools":[]}`)
+	}
+	input = append(input, `{"type":"message","role":"user","status":"completed","content":"hi"}`)
+	body := []byte(`{"input":[` + strings.Join(input, ",") + `]}`)
+
+	responseBody := []byte(`{"error":{"code":"unknown_parameter","message":"Unknown parameter: 'input[7].status'.","param":"input[7].status"}}`)
+	retryBody, reason, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.NotEmpty(t, reason)
+
+	for i := 0; i < 10; i++ {
+		require.False(t, gjson.GetBytes(retryBody, "input."+strconv.Itoa(i)+".status").Exists(),
+			"every tool_search_output must lose its status in a single retry, index %d did not", i)
+		require.Equal(t, "call_"+strconv.Itoa(i), gjson.GetBytes(retryBody, "input."+strconv.Itoa(i)+".call_id").String(),
+			"unrelated fields must survive")
+	}
+	require.Equal(t, "completed", gjson.GetBytes(retryBody, "input.10.status").String(),
+		"a different item type keeps its status: the rejection only proves this type has none")
+}
+
+// The rejected item may carry no type to match on.
+func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyClearsUntypedStatusAtIndexOnly(t *testing.T) {
+	body := []byte(`{"input":[{"status":"keep_a"},{"status":"remove"}]}`)
+	responseBody := []byte(`{"error":{"code":"unknown_parameter","message":"Unknown parameter: 'input[1].status'.","param":"input[1].status"}}`)
+
+	retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, "keep_a", gjson.GetBytes(retryBody, "input.0.status").String())
+	require.False(t, gjson.GetBytes(retryBody, "input.1.status").Exists())
 }

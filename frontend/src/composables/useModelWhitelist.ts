@@ -32,6 +32,7 @@ export const claudeModels = [
   'claude-opus-4-6',
   'claude-opus-4-7',
   'claude-opus-4-8',
+  'claude-opus-5',
   'claude-sonnet-4-6',
   'claude-sonnet-5',
   'claude-fable-5'
@@ -148,7 +149,6 @@ const xaiModels = [
   'grok-latest',
   'grok-4.6-latest',
   'grok-4.5-latest',
-  'grok-build',
   'grok-build-latest',
   'composer-2.5',
   'grok-4.20-reasoning',
@@ -156,7 +156,7 @@ const xaiModels = [
   'grok-imagine',
   'grok-imagine-image-quality',
   'grok-imagine-image',
-  'grok-imagine-edit',
+  'grok-imagine-image-2.0',
   'grok-imagine-video',
   'grok-imagine-video-1.5-preview',
   'grok-imagine-video-1.5',
@@ -195,7 +195,9 @@ const yiModels = [
 // Moonshot/Kimi
 const moonshotModels = [
   'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k',
-  'kimi-latest'
+  'kimi-latest',
+  'kimi-for-coding',
+  'kimi-k2'
 ]
 
 // 字节跳动 豆包
@@ -284,6 +286,7 @@ const anthropicPresetMappings = [
   { label: 'Opus 4.6', from: 'claude-opus-4-6', to: 'claude-opus-4-6', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400' },
   { label: 'Opus 4.7', from: 'claude-opus-4-7', to: 'claude-opus-4-7', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400' },
   { label: 'Opus 4.8', from: 'claude-opus-4-8', to: 'claude-opus-4-8', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400' },
+  { label: 'Opus 5', from: 'claude-opus-5', to: 'claude-opus-5', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400' },
   { label: 'Haiku 3.5', from: 'claude-3-5-haiku-20241022', to: 'claude-3-5-haiku-20241022', color: 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400' },
   { label: 'Haiku 4.5', from: 'claude-haiku-4-5-20251001', to: 'claude-haiku-4-5-20251001', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400' },
   { label: 'Opus->Sonnet', from: 'claude-opus-4-6', to: 'claude-sonnet-4-5-20250929', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400' }
@@ -332,7 +335,7 @@ const grokPresetMappings = [
   { label: '4.20 Reasoning', from: 'grok-4.20-reasoning', to: 'grok-4.20-0309-reasoning', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400' },
   { label: '4.20 Non Reasoning', from: 'grok-4.20-non-reasoning', to: 'grok-4.20-0309-non-reasoning', color: 'bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400' },
   { label: 'Imagine Image', from: 'grok-imagine', to: 'grok-imagine-image-quality', color: 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-400' },
-  { label: 'Imagine Edit', from: 'grok-imagine-edit', to: 'grok-imagine-edit', color: 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400' },
+  { label: 'Imagine Edit', from: 'grok-imagine-edit', to: 'grok-imagine-image-quality', color: 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400' },
   { label: 'Imagine Video', from: 'grok-imagine-video-1.5', to: 'grok-imagine-video-1.5', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400' }
 ]
 
@@ -396,6 +399,7 @@ const bedrockPresetMappings = [
   { label: 'Opus 4.6', from: 'claude-opus-4-6', to: 'us.anthropic.claude-opus-4-6-v1', color: 'bg-pink-100 text-pink-700 hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400' },
   { label: 'Opus 4.7', from: 'claude-opus-4-7', to: 'us.anthropic.claude-opus-4-7-v1', color: 'bg-pink-100 text-pink-700 hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400' },
   { label: 'Opus 4.8', from: 'claude-opus-4-8', to: 'us.anthropic.claude-opus-4-8-v1', color: 'bg-pink-100 text-pink-700 hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400' },
+  { label: 'Opus 5', from: 'claude-opus-5', to: 'us.anthropic.claude-opus-5-v1', color: 'bg-pink-100 text-pink-700 hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400' },
   { label: 'Sonnet 5', from: 'claude-sonnet-5', to: 'us.anthropic.claude-sonnet-5-v1', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400' },
   { label: 'Sonnet 4.6', from: 'claude-sonnet-4-6', to: 'us.anthropic.claude-sonnet-4-6', color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400' },
   { label: 'Opus 4.5', from: 'claude-opus-4-5-thinking', to: 'us.anthropic.claude-opus-4-5-20251101-v1:0', color: 'bg-pink-100 text-pink-700 hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400' },
@@ -460,7 +464,8 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'xai': return xaiModels
     case 'cohere': return cohereModels
     case 'yi': return yiModels
-    case 'moonshot': return moonshotModels
+    case 'moonshot':
+    case 'kimi': return moonshotModels
     case 'doubao': return doubaoModels
     case 'minimax': return minimaxModels
     case 'baidu': return baiduModels

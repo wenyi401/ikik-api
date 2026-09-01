@@ -200,6 +200,8 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 
 	setOpsRequestContext(c, modelName, stream)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(stream, false)))
+	pricingCtx, pricingAt := service.WithGatewayTokenRequestPricing(c.Request.Context())
+	c.Request = c.Request.WithContext(pricingCtx)
 
 	preFlightDecision := h.runPreFlightHooks(c, reqLog, apiKey, authSubject, service.ContentModerationProtocolGemini, modelName, body)
 	auditDecision := h.checkSecurityAudit(c, reqLog, apiKey, authSubject, service.ContentModerationProtocolGemini, modelName, body)
@@ -468,8 +470,30 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				geminiConcurrency.DecrementAccountWaitCount(c.Request.Context(), account.ID)
 				accountWaitCounted = false
 			}
-			if err := h.gatewayService.BindStickySession(c.Request.Context(), apiKey.GroupID, sessionKey, account.ID); err != nil {
-				reqLog.Warn("gemini.bind_sticky_session_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+		}
+		// 终检与准入后绑定使用选号结果携带的门（见 responses 同名注释）。
+		admissionCtx := service.ContextWithSelectionProfitGate(c.Request.Context(), selection)
+		latest, vetoed, reason := h.gatewayService.GatewayProfitControlVetoLatest(admissionCtx, account)
+		if vetoed {
+			if accountReleaseFunc != nil {
+				accountReleaseFunc()
+			}
+			reqLog.Debug("gemini.account_slot_profit_vetoed", zap.Int64("account_id", account.ID), zap.String("reason", reason))
+			if fs.RecordProfitVeto(account.ID) == FailoverExhausted {
+				reqLog.Warn("gemini.profit_veto_attempts_exhausted", zap.Int("profit_veto_count", fs.ProfitVetoCount()))
+				markOpsRoutingCapacityLimited(c)
+				googleError(c, http.StatusServiceUnavailable, profitVetoExhaustedMessage)
+				return
+			}
+			continue
+		}
+		account = latest
+		selection.Account = latest
+		// 等待路径保持既有 eager 绑定（无门时 helper 直接绑定）；调度器已抢槽
+		// 的直达路径无门时由选号内部绑定，这里只在门下补准入后绑定。
+		if selection.ProfitGateActive() || !selection.Acquired {
+			if err := h.gatewayService.BindStickySessionAfterProfitAdmission(admissionCtx, apiKey.GroupID, sessionKey, account.ID); err != nil {
+				reqLog.Warn("gemini.bind_sticky_session_after_profit_admission_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 			}
 		}
 		// 账号槽位/等待计数需要在超时或断开时安全回收
@@ -546,6 +570,14 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		// ForceCacheBilling 提前拍成标量，避免 worker 闭包保活 failover 状态里的响应体。
 		forceCacheBilling := fs.ForceCacheBilling
 		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+		sessionID := service.ExtractClientSessionID(c)
+		// 长上下文规则由计费服务统一持有（模型广场展示同源），入口只负责声明自己适用该规则。
+		var longContextThreshold int
+		var longContextMultiplier float64
+		if rule := h.gatewayService.LegacyLongContextRule(service.PlatformGemini); rule != nil {
+			longContextThreshold = rule.Threshold
+			longContextMultiplier = rule.Multiplier
+		}
 		h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsageWithLongContext(ctx, &service.RecordUsageLongContextInput{
 				Result:                result,
@@ -554,15 +586,17 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				User:                  apiKey.User,
 				Account:               account,
 				Subscription:          subscription,
+				PricingAt:             pricingAt,
 				InboundEndpoint:       inboundEndpoint,
 				UpstreamEndpoint:      upstreamEndpoint,
 				UserAgent:             userAgent,
 				IPAddress:             clientIP,
 				RequestPayloadHash:    requestPayloadHash,
-				LongContextThreshold:  200000, // Gemini 200K 阈值
-				LongContextMultiplier: 2.0,    // 超出部分双倍计费
+				LongContextThreshold:  longContextThreshold,
+				LongContextMultiplier: longContextMultiplier,
 				ForceCacheBilling:     forceCacheBilling,
 				APIKeyService:         h.apiKeyService,
+				SessionID:             sessionID,
 				ChannelUsageFields:    clientRequestedUsageFields(c, channelMapping, reqModel, result.UpstreamModel),
 			}); err != nil {
 				logger.L().With(

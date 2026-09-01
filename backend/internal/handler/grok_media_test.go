@@ -48,7 +48,7 @@ func TestShouldRecordGrokMediaUsage(t *testing.T) {
 			want:     false,
 		},
 		{
-			name:     "video status skips empty model usage",
+			name:     "video status skips immediate helper (status path claims separately)",
 			endpoint: service.GrokMediaEndpointVideoStatus,
 			model:    "",
 			want:     false,
@@ -69,14 +69,18 @@ func TestShouldRecordGrokMediaUsage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Nil result must never bill.
 			require.False(t, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, nil))
-			result := &service.OpenAIForwardResult{ImageCount: 1}
+			// Immediate helper only bills image generation (async video bills on status).
+			result := &service.OpenAIForwardResult{ImageCount: 1, VideoCount: 0}
 			if tt.endpoint.IsGenerationRequest() && !isGrokVideoCreateEndpoint(tt.endpoint) && strings.TrimSpace(tt.model) != "" {
 				require.Equal(t, tt.want, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, result))
 			} else {
 				require.False(t, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, result))
 			}
-			require.False(t, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, &service.OpenAIForwardResult{}))
+			// Zero billable units never bill even for generation + model.
+			empty := &service.OpenAIForwardResult{}
+			require.False(t, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, empty))
 		})
 	}
 }

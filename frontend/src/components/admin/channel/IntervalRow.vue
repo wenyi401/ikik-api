@@ -79,6 +79,7 @@ const { t } = useI18n()
 const props = defineProps<{
   interval: IntervalFormEntry
   mode: BillingMode
+  enableMultipliers?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -93,6 +94,10 @@ const isEmpty = computed(() => {
     (iv.output_price == null || iv.output_price === '') &&
     (iv.cache_write_price == null || iv.cache_write_price === '') &&
     (iv.cache_read_price == null || iv.cache_read_price === '') &&
+    (iv.input_multiplier == null || iv.input_multiplier === '') &&
+    (iv.output_multiplier == null || iv.output_multiplier === '') &&
+    (iv.cache_write_multiplier == null || iv.cache_write_multiplier === '') &&
+    (iv.cache_read_multiplier == null || iv.cache_read_multiplier === '') &&
     (iv.per_request_price == null || iv.per_request_price === '')
 })
 

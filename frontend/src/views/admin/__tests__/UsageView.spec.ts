@@ -428,3 +428,62 @@ describe('admin UsageView model audit export', () => {
     expect(csv).toContain('gpt-5.6-sol,gpt-5.5,gpt-5.4,Yes')
   })
 })
+
+describe('admin UsageView model audit export', () => {
+	beforeEach(() => {
+		vi.useFakeTimers()
+		list.mockReset().mockResolvedValue({ items: [], total: 0, pages: 0 })
+		exportList.mockReset().mockResolvedValue({
+			items: [{
+				id: 1,
+				created_at: '2026-08-04T00:00:00Z',
+				model: 'gpt-5.6-sol',
+				upstream_model: 'gpt-5.5',
+				upstream_response_model: 'gpt-5.4',
+				upstream_model_mismatch: true,
+				request_type: 'sync',
+				input_tokens: 1,
+				output_tokens: 1,
+				cache_read_tokens: 0,
+				cache_creation_tokens: 0,
+				duration_ms: 10,
+			}],
+			total: 1,
+			pages: 1,
+		})
+		getStats.mockReset().mockResolvedValue({
+			total_requests: 0, total_input_tokens: 0, total_output_tokens: 0,
+			total_cache_tokens: 0, total_tokens: 0, total_cost: 0, total_actual_cost: 0, average_duration_ms: 0,
+		})
+		getSnapshotV2.mockReset().mockResolvedValue({ trend: [], models: [], groups: [] })
+		getModelStats.mockReset().mockResolvedValue({ models: [] })
+		aoaToSheet.mockClear()
+		sheetAddAoa.mockClear()
+		saveAs.mockClear()
+		xlsxWrite.mockClear()
+	})
+
+	afterEach(() => {
+		vi.useRealTimers()
+	})
+
+	it('exports requested, sent, response, and mismatch as separate admin columns', async () => {
+		const wrapper = mountRouteFilteredUsageView()
+		vi.advanceTimersByTime(120)
+		await flushPromises()
+
+		await (wrapper.vm as any).exportToExcel()
+		await flushPromises()
+
+		const headers = aoaToSheet.mock.calls[0][0][0]
+		expect(headers.slice(4, 8)).toEqual([
+			'Requested model',
+			'Sent upstream model',
+			'Upstream response model',
+			'Upstream model mismatch',
+		])
+		const row = sheetAddAoa.mock.calls[0][1][0]
+		expect(row.slice(4, 8)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
+		expect(saveAs).toHaveBeenCalledTimes(1)
+	})
+})

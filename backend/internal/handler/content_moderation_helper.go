@@ -104,6 +104,9 @@ func buildContentModerationInput(c *gin.Context, apiKey *service.APIKey, subject
 	if resolvedPlatform, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context()); ok {
 		input.Provider = resolvedPlatform
 	}
+	if resolvedPlatform, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context()); ok {
+		input.Provider = resolvedPlatform
+	}
 	if forcedPlatform, ok := middleware2.GetForcePlatformFromContext(c); ok {
 		input.Provider = strings.TrimSpace(forcedPlatform)
 	}

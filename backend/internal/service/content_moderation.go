@@ -613,6 +613,7 @@ type ContentModerationService struct {
 	classifierGatewayMu      sync.RWMutex
 	classifierGateway        ContentModerationClassifierGateway
 	httpClient               *http.Client
+	moderationProxyCache     atomic.Pointer[moderationProxyURLCacheEntry]
 	asyncQueue               chan contentModerationTask
 	workerCount              int
 	apiKeyCursor             atomic.Uint64
@@ -637,7 +638,6 @@ type ContentModerationService struct {
 	adaptiveOverviewMu       sync.Mutex
 	adaptiveOverview         *ContentModerationRiskOverview
 	adaptiveOverviewExpiry   time.Time
-	moderationProxyCache     atomic.Pointer[moderationProxyURLCacheEntry]
 }
 
 func (s *ContentModerationService) SetClassifierGateway(gateway ContentModerationClassifierGateway) {
@@ -1857,6 +1857,11 @@ func (s *ContentModerationService) validateConfig(ctx context.Context, cfg *Cont
 		}
 		if cfg.AliyunService == "" {
 			return infraerrors.BadRequest("INVALID_ALIYUN_GUARDRAIL_SERVICE", "阿里云检测服务不能为空")
+		}
+	}
+	if cfg.ProxyID != nil && s.proxyRepo != nil {
+		if _, err := s.proxyRepo.GetByID(ctx, *cfg.ProxyID); err != nil {
+			return infraerrors.BadRequest("INVALID_CONTENT_MODERATION_PROXY", fmt.Sprintf("代理服务器不存在: %d", *cfg.ProxyID))
 		}
 	}
 	if cfg.BlockStatus < 400 || cfg.BlockStatus > 599 {

@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/imroc/req/v3"
 	infraerrors "ikik-api/internal/pkg/errors"
 	sharedhttp "ikik-api/internal/pkg/httpclient"
 	"ikik-api/internal/pkg/xai"
 	"ikik-api/internal/service"
 	"ikik-api/internal/util/logredact"
-	"github.com/imroc/req/v3"
 )
 
 type grokOAuthClient struct {

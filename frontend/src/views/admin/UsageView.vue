@@ -186,6 +186,7 @@ const cleanupDialogVisible = ref(false)
 // Balance history modal state
 const showBalanceHistoryModal = ref(false)
 const balanceHistoryUser = ref<AdminUser | null>(null)
+const usageFiltersRef = ref<InstanceType<typeof UsageFilters> | null>(null)
 
 const breakdownFilters = computed(() => {
   const f: Record<string, any> = {}
@@ -356,6 +357,26 @@ const applyRouteQueryFilters = () => {
     end_date: endDate.value
   }
   granularity.value = getGranularityForRange(startDate.value, endDate.value)
+}
+
+const loadRouteUserFilterLabel = async () => {
+  const requestedUserId = filters.value.user_id
+  if (!requestedUserId) return
+  const userSearchRevision = usageFiltersRef.value?.getUserSearchRevision?.()
+
+  const routeUserFilterIsCurrent = () => (
+    filters.value.user_id === requestedUserId
+    && usageFiltersRef.value?.getUserSearchRevision?.() === userSearchRevision
+  )
+
+  try {
+    const user = await adminAPI.users.getById(requestedUserId, true)
+    if (!routeUserFilterIsCurrent()) return
+    usageFiltersRef.value?.setUserKeyword?.(user.email || String(requestedUserId))
+  } catch {
+    if (!routeUserFilterIsCurrent()) return
+    usageFiltersRef.value?.setUserKeyword?.(String(requestedUserId))
+  }
 }
 
 const onDateRangeChange = (range: { startDate: string; endDate: string; preset: string | null }) => {
@@ -655,6 +676,8 @@ const exportToExcel = async () => {
 const ALWAYS_VISIBLE = ['user', 'created_at']
 const DEFAULT_HIDDEN_COLUMNS = ['user_agent']
 const HIDDEN_COLUMNS_KEY = 'usage-hidden-columns-v2'
+const HIDDEN_COLUMNS_VERSION_KEY = 'usage-hidden-columns-version'
+const HIDDEN_COLUMNS_CURRENT_VERSION = 'request-id-hidden-by-default'
 
 const allColumns = computed(() => [
   { key: 'user', label: t('admin.usage.user'), sortable: false },
@@ -699,6 +722,7 @@ const toggleColumn = (key: string) => {
   }
   try {
     localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
+    localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
   } catch (e) {
     console.error('Failed to save columns:', e)
   }
@@ -711,10 +735,16 @@ const loadSavedColumns = () => {
       (JSON.parse(saved) as string[]).forEach((key) => {
         hiddenColumns.add(key)
       })
+      if (localStorage.getItem(HIDDEN_COLUMNS_VERSION_KEY) !== HIDDEN_COLUMNS_CURRENT_VERSION) {
+        hiddenColumns.add('request_id')
+        localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
+        localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
+      }
     } else {
       DEFAULT_HIDDEN_COLUMNS.forEach((key) => {
         hiddenColumns.add(key)
       })
+      localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
     }
   } catch {
     DEFAULT_HIDDEN_COLUMNS.forEach((key) => {
@@ -734,6 +764,7 @@ const handleColumnClickOutside = (event: MouseEvent) => {
 
 onMounted(() => {
   applyRouteQueryFilters()
+  void loadRouteUserFilterLabel()
   loadLogs()
   loadStats()
   loadModelStats(modelDistributionSource.value, true)

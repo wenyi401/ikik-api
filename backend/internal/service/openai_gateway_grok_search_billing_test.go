@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
-	"ikik-api/internal/pkg/usagestats"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/usagestats"
 )
 
 func TestForwardGrokResponses_PropagatesSearchCountFromJSON(t *testing.T) {

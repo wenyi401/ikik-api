@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import OpenAIQuotaResetCell from '../OpenAIQuotaResetCell.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import type { Account } from '@/types'
 import { queryOpenAIQuota, resetOpenAIQuota } from '@/api/admin/accounts'
 import {
@@ -9,7 +10,7 @@ import {
 } from '@/api/accounts'
 
 vi.mock('@/api/admin/accounts', () => ({
-  queryOpenAIQuota: vi.fn(),
+  refreshOpenAIQuota: vi.fn(),
   resetOpenAIQuota: vi.fn(),
 }))
 
@@ -28,6 +29,11 @@ vi.mock('vue-i18n', async () => {
     }),
   }
 })
+
+// 缓存水合会丢弃已过期的重置卡，因此缓存类用例必须使用未来时间。
+const FUTURE_EXPIRY_EARLY = '2099-07-03T04:05:06Z'
+const FUTURE_EXPIRY_LATE = '2099-07-05T04:05:06Z'
+const PAST_EXPIRY = '2020-07-03T04:05:06Z'
 
 function makeAccount(overrides: Partial<Account>): Account {
   return {
@@ -90,8 +96,71 @@ describe('OpenAIQuotaResetCell — 外审 F6:影子禁用重置', () => {
     wrapper.unmount()
   })
 
+  it('从账号 extra 缓存恢复重置卡次数和到期时间', () => {
+    const account = makeAccount({
+      parent_account_id: null,
+      extra: {
+        codex_reset_credit_snapshot: {
+          available_count: 2,
+          credits: [
+            { expires_at: FUTURE_EXPIRY_LATE },
+            { expires_at: FUTURE_EXPIRY_EARLY },
+          ],
+        },
+      },
+    })
+    const wrapper = mount(OpenAIQuotaResetCell, { props: { account } })
+
+    expect(refreshOpenAIQuota).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('admin.accounts.openaiQuotaReset.count')
+    expect(wrapper.text()).toContain('admin.accounts.openaiQuotaReset.expiresAt:')
+    expect(wrapper.text()).toContain('+1')
+    expect(resetButton(wrapper).attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('缓存中的重置卡全部过期时视为未知,不点亮重置入口', () => {
+    const account = makeAccount({
+      parent_account_id: null,
+      extra: {
+        codex_reset_credit_snapshot: {
+          available_count: 1,
+          credits: [{ expires_at: PAST_EXPIRY }],
+        },
+      },
+    })
+    const wrapper = mount(OpenAIQuotaResetCell, { props: { account } })
+
+    expect(wrapper.text()).not.toContain('admin.accounts.openaiQuotaReset.expiresAt:')
+    const btn = resetButton(wrapper)
+    expect(btn.attributes('disabled')).toBeDefined()
+    expect(btn.attributes('title')).toBe('admin.accounts.openaiQuotaReset.resetTooltipNeedQuery')
+    wrapper.unmount()
+  })
+
+  it('缓存次数向未过期的明细数量收敛', () => {
+    const account = makeAccount({
+      parent_account_id: null,
+      extra: {
+        codex_reset_credit_snapshot: {
+          available_count: 3,
+          credits: [
+            { expires_at: PAST_EXPIRY },
+            { expires_at: FUTURE_EXPIRY_EARLY },
+          ],
+        },
+      },
+    })
+    const wrapper = mount(OpenAIQuotaResetCell, { props: { account } })
+
+    expect(wrapper.text()).toContain('admin.accounts.openaiQuotaReset.count1')
+    expect(wrapper.text()).not.toContain('+1')
+    expect(resetButton(wrapper).attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
   it('查询后默认折叠为最早到期时间,点击 +N 展开完整列表', async () => {
-    vi.mocked(queryOpenAIQuota).mockResolvedValue({
+    vi.mocked(refreshOpenAIQuota).mockResolvedValue({
       rate_limit_reset_credits: {
         available_count: 3,
         credits: [
@@ -101,6 +170,7 @@ describe('OpenAIQuotaResetCell — 外审 F6:影子禁用重置', () => {
         ],
       },
       fetched_at: 1770000000,
+      cache_persisted: true,
     })
 
     const account = makeAccount({ parent_account_id: null })
@@ -109,7 +179,7 @@ describe('OpenAIQuotaResetCell — 外审 F6:影子禁用重置', () => {
     await wrapper.findAll('button')[0].trigger('click')
     await flushPromises()
 
-    expect(queryOpenAIQuota).toHaveBeenCalledWith(1)
+    expect(refreshOpenAIQuota).toHaveBeenCalledWith(1)
     expect(wrapper.text()).toContain('admin.accounts.openaiQuotaReset.expiresAt:')
     expect(wrapper.text()).toContain('+2')
     expect(wrapper.text()).not.toContain('not-a-date')
@@ -127,7 +197,7 @@ describe('OpenAIQuotaResetCell — 外审 F6:影子禁用重置', () => {
   })
 
   it('只有一张重置卡时不显示展开按钮', async () => {
-    vi.mocked(queryOpenAIQuota).mockResolvedValue({
+    vi.mocked(refreshOpenAIQuota).mockResolvedValue({
       rate_limit_reset_credits: {
         available_count: 1,
         credits: [
@@ -135,6 +205,7 @@ describe('OpenAIQuotaResetCell — 外审 F6:影子禁用重置', () => {
         ],
       },
       fetched_at: 1770000000,
+      cache_persisted: true,
     })
 
     const account = makeAccount({ parent_account_id: null })

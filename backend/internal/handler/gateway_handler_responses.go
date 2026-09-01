@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -282,6 +283,30 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 				return
 			}
 		}
+		// 终检与准入后绑定必须使用选号结果携带的门：门安装在调度栈的局部
+		// ctx 上（composite/fallback 还可能解析出与入口分组不同的门），直接用
+		// requestCtx 会退化为空操作。
+		admissionCtx := service.ContextWithSelectionProfitGate(requestCtx, selection)
+		latest, vetoed, reason := h.gatewayService.GatewayProfitControlVetoLatest(admissionCtx, account)
+		if vetoed {
+			if accountReleaseFunc != nil {
+				accountReleaseFunc()
+			}
+			reqLog.Debug("gateway.responses.account_slot_profit_vetoed", zap.Int64("account_id", account.ID), zap.String("reason", reason))
+			if fs.RecordProfitVeto(account.ID) == FailoverExhausted {
+				reqLog.Warn("gateway.responses.profit_veto_attempts_exhausted", zap.Int("profit_veto_count", fs.ProfitVetoCount()))
+				h.responsesErrorResponse(c, http.StatusServiceUnavailable, "api_error", profitVetoExhaustedMessage)
+				return
+			}
+			continue
+		}
+		account = latest
+		selection.Account = latest
+		if selection.ProfitGateActive() {
+			if err := h.gatewayService.BindStickySessionAfterProfitAdmission(admissionCtx, apiKey.GroupID, sessionHash, account.ID); err != nil {
+				reqLog.Warn("gateway.responses.bind_sticky_session_after_profit_admission_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+			}
+		}
 		accountReleaseFunc = wrapReleaseOnDone(c.Request.Context(), accountReleaseFunc)
 
 		// 5. Forward request
@@ -382,25 +407,38 @@ func (h *GatewayHandler) responsesErrorResponse(c *gin.Context, status int, code
 
 // handleResponsesFailoverExhausted writes a failover-exhausted error in Responses format.
 func (h *GatewayHandler) handleResponsesFailoverExhausted(c *gin.Context, lastErr *service.UpstreamFailoverError, streamStarted bool) {
-	if streamStarted {
-		return // Can't write error after stream started
-	}
 	if lastErr != nil {
 		copyFailoverRetryAfter(c, lastErr.ResponseHeaders)
-	}
-	if lastErr != nil && lastErr.IsCredentialFailure() {
-		status, message := credentialFailoverClientResponse(lastErr)
-		h.responsesErrorResponse(c, status, "server_error", message)
-		return
 	}
 	statusCode := http.StatusBadGateway
 	if lastErr != nil && lastErr.StatusCode > 0 {
 		statusCode = lastErr.StatusCode
 	}
-	if lastErr != nil && service.IsOpenAISilentRefusalErrorBody(lastErr.ResponseBody) {
+	status, code, message := statusCode, "server_error", "All available accounts exhausted"
+	if lastErr != nil && lastErr.IsCredentialFailure() {
+		status, message = credentialFailoverClientResponse(lastErr)
+	} else if lastErr != nil && lastErr.IsOpenAICapacityShed() && strings.TrimSpace(lastErr.ClientMessage) != "" {
+		status = lastErr.ClientStatusCode
+		if status <= 0 {
+			status = http.StatusServiceUnavailable
+		}
+		message = lastErr.ClientMessage
+	} else if lastErr != nil && service.IsOpenAISilentRefusalErrorBody(lastErr.ResponseBody) {
 		service.SetOpsUpstreamError(c, statusCode, service.OpenAISilentRefusalClientMessage(), "")
-		h.responsesErrorResponse(c, http.StatusBadGateway, "upstream_error", service.OpenAISilentRefusalClientMessage())
+		status, code, message = http.StatusBadGateway, "upstream_error", service.OpenAISilentRefusalClientMessage()
+	} else if lastErr != nil && statusCode == http.StatusTooManyRequests {
+		status, code, message = http.StatusTooManyRequests, "rate_limit_error", "All available accounts are currently rate-limited. Please retry later."
+	}
+	if streamStarted {
+		// A slot-wait heartbeat commits HTTP 200 before any upstream response.
+		// In that case a terminal frame is still required; once any semantic or
+		// official terminal bytes exist, preserve them without appending a second
+		// generic response.failed.
+		service.MarkOpsStreamError(c, code, message, status)
+		if c != nil && c.Writer != nil && (c.Writer.Size() <= 0 || gatewayStreamHasOnlyHeartbeats(c)) {
+			writeResponsesFailedSSE(c, code, message)
+		}
 		return
 	}
-	h.responsesErrorResponse(c, statusCode, "server_error", "All available accounts exhausted")
+	h.responsesErrorResponse(c, status, code, message)
 }

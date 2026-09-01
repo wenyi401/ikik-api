@@ -251,6 +251,9 @@ type SystemSettings struct {
 	EnableClientDatelineNormalization      bool   `json:"enable_client_dateline_normalization"`
 	AntigravityUserAgentVersion            string `json:"antigravity_user_agent_version"`
 	OpenAICodexUserAgent                   string `json:"openai_codex_user_agent"`
+	OpenAICodexClientVersion               string `json:"openai_codex_client_version"`
+	OpenAICodexClientVersionSynced         string `json:"openai_codex_client_version_synced"`
+	OpenAICodexVersionAutoSyncEnabled      bool   `json:"openai_codex_version_auto_sync_enabled"`
 
 	// codex_cli_only 加固
 	MinCodexVersion                      string `json:"min_codex_version"`
@@ -343,6 +346,12 @@ type SystemSettings struct {
 	ChannelMonitorMode                   string `json:"channel_monitor_mode"`
 	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
 	ChannelMonitorHideThroughput         bool   `json:"channel_monitor_hide_throughput"`
+	ChannelMonitorShowQuota              bool   `json:"channel_monitor_show_quota"`
+
+	// Grok model mapping policy
+	GrokDefaultTextModel           string `json:"grok_default_text_model"`
+	GrokCrossClientModelMapEnabled bool   `json:"grok_cross_client_model_map_enabled"`
+	GrokDefaultBaseURLMode         string `json:"grok_default_base_url_mode"`
 
 	// Available Channels feature switch (user-facing aggregate view)
 	AvailableChannelsEnabled bool              `json:"available_channels_enabled"`
@@ -355,6 +364,8 @@ type SystemSettings struct {
 	CarpoolBaseServiceFeeUSD float64           `json:"carpool_base_service_fee_usd"`
 	CarpoolSystemProxyFeeUSD float64           `json:"carpool_system_proxy_fee_usd"`
 	CarpoolRiskControlFeeUSD float64           `json:"carpool_risk_control_fee_usd"`
+
+	PluginManagementEnabled bool `json:"plugin_management_enabled"`
 
 	// 风控中心功能开关
 	RiskControlEnabled bool `json:"risk_control_enabled"`
@@ -371,6 +382,9 @@ type SystemSettings struct {
 
 	// 系统全局默认平台配额（key = platform，nil/缺省 = 不限制）
 	DefaultPlatformQuotas map[string]*service.DefaultPlatformQuotaSetting `json:"default_platform_quotas,omitempty"`
+
+	// 系统全局账号自动停调阈值（key = platform，100 = disabled）
+	AccountSchedulingThresholds map[string]int `json:"account_scheduling_thresholds,omitempty"`
 
 	// 允许终端用户在用量页查看自己的失败请求
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
@@ -448,6 +462,7 @@ type PublicSettings struct {
 	ChannelMonitorMode                   string `json:"channel_monitor_mode"`
 	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
 	ChannelMonitorHideThroughput         bool   `json:"channel_monitor_hide_throughput"`
+	ChannelMonitorShowQuota              bool   `json:"channel_monitor_show_quota"`
 
 	AvailableChannelsEnabled bool    `json:"available_channels_enabled"`
 	ModelPlazaEnabled        bool    `json:"model_plaza_enabled"`
@@ -457,6 +472,8 @@ type PublicSettings struct {
 	CarpoolBaseServiceFeeUSD float64 `json:"carpool_base_service_fee_usd"`
 	CarpoolSystemProxyFeeUSD float64 `json:"carpool_system_proxy_fee_usd"`
 	CarpoolRiskControlFeeUSD float64 `json:"carpool_risk_control_fee_usd"`
+
+	PluginManagementEnabled bool `json:"plugin_management_enabled"`
 
 	AffiliateEnabled bool `json:"affiliate_enabled"`
 

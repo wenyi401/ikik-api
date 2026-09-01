@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 type grokImportProbeStub struct {

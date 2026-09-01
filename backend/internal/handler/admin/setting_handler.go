@@ -88,6 +88,7 @@ type SettingHandler struct {
 	settingService           *service.SettingService
 	emailService             *service.EmailService
 	turnstileService         *service.TurnstileService
+	aliyunCaptchaService     *service.AliyunCaptchaService
 	opsService               *service.OpsService
 	paymentConfigService     *service.PaymentConfigService
 	paymentService           *service.PaymentService
@@ -114,6 +115,12 @@ func NewSettingHandler(settingService *service.SettingService, emailService *ser
 // the constructor signature used by existing unit tests.
 func (h *SettingHandler) SetNotificationEmailService(notificationEmailService *service.NotificationEmailService) {
 	h.notificationEmailService = notificationEmailService
+}
+
+// SetAliyunCaptchaService attaches the Aliyun captcha credential validator without
+// changing the constructor signature used by existing unit tests.
+func (h *SettingHandler) SetAliyunCaptchaService(aliyunCaptchaService *service.AliyunCaptchaService) {
+	h.aliyunCaptchaService = aliyunCaptchaService
 }
 
 // SetStepUpDeps attaches the services backing the step-up switch preconditions
@@ -334,6 +341,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		EnableClientDatelineNormalization:                      settings.EnableClientDatelineNormalization,
 		AntigravityUserAgentVersion:                            settings.AntigravityUserAgentVersion,
 		OpenAICodexUserAgent:                                   settings.OpenAICodexUserAgent,
+		OpenAICodexClientVersion:                               settings.OpenAICodexClientVersion,
+		OpenAICodexClientVersionSynced:                         settings.OpenAICodexClientVersionSynced,
+		OpenAICodexVersionAutoSyncEnabled:                      settings.OpenAICodexVersionAutoSyncEnabled,
 		MinCodexVersion:                                        settings.MinCodexVersion,
 		MaxCodexVersion:                                        settings.MaxCodexVersion,
 		CodexCLIOnlyBlacklist:                                  settings.CodexCLIOnlyBlacklist,
@@ -408,6 +418,11 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		ChannelMonitorMode:                   settings.ChannelMonitorMode,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		ChannelMonitorHideThroughput:         settings.ChannelMonitorHideThroughput,
+		ChannelMonitorShowQuota:              settings.ChannelMonitorShowQuota,
+
+		GrokDefaultTextModel:           settings.GrokDefaultTextModel,
+		GrokCrossClientModelMapEnabled: settings.GrokCrossClientModelMapEnabled,
+		GrokDefaultBaseURLMode:         settings.GrokDefaultBaseURLMode,
 
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
 		ModelPlazaEnabled:        settings.ModelPlazaEnabled,
@@ -420,9 +435,12 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		CarpoolSystemProxyFeeUSD: settings.CarpoolSystemProxyFeeUSD,
 		CarpoolRiskControlFeeUSD: settings.CarpoolRiskControlFeeUSD,
 
+		PluginManagementEnabled: settings.PluginManagementEnabled,
+
 		AffiliateEnabled: settings.AffiliateEnabled,
 
-		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,
+		AccountSchedulingThresholds: settings.AccountSchedulingThresholds,
+		AllowUserViewErrorRequests:  settings.AllowUserViewErrorRequests,
 	}
 
 	// OpenAI fast policy (stored under a dedicated setting key)

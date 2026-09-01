@@ -322,6 +322,7 @@ export default {
     stream: 'Stream',
     sync: 'Sync',
     cyber: 'Cyber',
+    live: 'Live',
     unknown: 'Unknown',
     in: 'In',
     out: 'Out',
@@ -421,7 +422,39 @@ export default {
       openai: 'OpenAI',
       anthropic: 'Anthropic',
       gemini: 'Gemini',
-      grok: 'Grok'
+      grok: 'Grok',
+      antigravity: 'Antigravity',
+      kimi: 'Kimi',
+      zhipu: 'Zhipu GLM',
+      deepseek: 'DeepSeek'
+    },
+    // Check modes (how a monitor performs its checks)
+    checkMode: {
+      probe: 'Probe',
+      quota: 'Quota',
+      quota_probe: 'Probe + Quota'
+    },
+    // Quota snapshot rendering (MonitorQuotaView, shared by admin + user views)
+    quota: {
+      unavailable: 'Quota unavailable',
+      resetSoon: 'resetting',
+      windows: {
+        '5h': '5h',
+        '7d': '7d',
+        '7dSonnet': '7d Sonnet',
+        '7dFable': '7d Fable',
+        weekly: 'Weekly',
+        daily: 'Daily',
+        '30d': '30d',
+        total: 'Total'
+      },
+      labels: {
+        requests: 'Requests',
+        tokens: 'Tokens',
+        shared: 'Shared',
+        pro: 'Pro',
+        flash: 'Flash'
+      }
     },
     extraModelsHeader: 'Extra Models',
     extraModelsEmpty: 'No extra models',
@@ -521,6 +554,67 @@ export default {
       intervals: 'Tiered Pricing',
       unitPerMillion: '/ 1M tokens',
       unitPerRequest: '/ request'
+    }
+  },
+
+  // Model Plaza (public group/model pricing showcase)
+  modelPlaza: {
+    title: 'Model Plaza',
+    description: 'Browse available models and pricing by group',
+    loading: 'Loading...',
+    empty: 'No groups to display',
+    loadFailed: 'Failed to load model plaza',
+    noSearchResult: 'No matching models',
+    anonymousHint: 'Sign in to see your exclusive groups and personal rates',
+    filters: {
+      platformLabel: 'Platform',
+      groupLabel: 'Group',
+      rateLabel: 'Rate',
+      modelLabel: 'Model',
+      searchPlaceholder: 'Search models',
+      all: 'All'
+    },
+    badges: {
+      exclusive: 'Exclusive',
+      subscription: 'Subscription'
+    },
+    detail: {
+      noModels: 'No models configured for this group',
+      noPricing: 'Pricing not configured',
+      peakNote: 'Peak hours {window}: billing rate ×{multiplier}',
+      longContextDisabledNote: 'Long-context tier pricing is disabled for this group: requests above the threshold are billed at the base tier; official tiers are for reference only'
+    },
+    table: {
+      model: 'Model',
+      input: 'Input',
+      output: 'Output',
+      cache: 'Cache',
+      cacheWrite: 'Write',
+      cacheRead: 'Read',
+      cacheWriteShort: 'W',
+      cacheReadShort: 'R',
+      tierHint: 'The whole request is billed at the tier matching its total context (input + cache write + cache read)',
+      tierHintMarginal: 'Only the portion above the threshold is billed at this tier; output is unaffected',
+      marginalBadge: 'excess-only tiers',
+      timePricingRowHint: 'Requests made within this period ({timezone} time) are billed at the prices in this row',
+      timePricingRowHintWeekdays:
+        'On weekdays (Mon–Fri) only, requests made within this period ({timezone} time) are billed at the prices in this row; weekends use the standard prices',
+      timePricingRowHintPeak:
+        '; prices in this row exclude the peak-hour rate — where this period overlaps the peak hours {window}, the overlapping portion is additionally multiplied by ×{multiplier}',
+      timePricingWeekdays: 'Weekdays',
+      timePricingRateHint: 'Effective rate {rate} × period multiplier {multiplier}',
+      paidPrice: 'Your Price (Discounted)',
+      officialPrice: 'Official Price',
+      rate: 'Rate',
+      unitPerMillion: '$ / 1M tokens',
+      perUnitRequest: '/ request',
+      perUnitImage: '/ image',
+      perRequest: 'Per request',
+      perImage: 'Per image'
+    },
+    nav: {
+      login: 'Sign In',
+      backToDashboard: 'Back to Console'
     }
   },
 
@@ -806,6 +900,31 @@ export default {
       sendCode: 'Send Code',
       codeSent: 'Verification code sent to your email',
       sendCodeFailed: 'Failed to send verification code'
+    },
+    passkey: {
+      title: 'Passkeys',
+      description: 'Use Face ID, Touch ID, Windows Hello, or a security key to sign in without a password.',
+      add: 'Add passkey',
+      continue: 'Create passkey',
+      name: 'Passkey name',
+      namePlaceholder: 'For example, MacBook Touch ID',
+      passwordPlaceholder: 'Enter your current password to confirm',
+      empty: 'No passkeys are registered yet.',
+      synced: 'Synced',
+      createdAt: 'Created {date}',
+      lastUsed: 'Last used {date}',
+      featureDisabled: 'Passkeys have not been configured by the administrator.',
+      unsupported: 'This browser or device does not support passkeys.',
+      loadFailed: 'Failed to load passkeys.',
+      added: 'Passkey added.',
+      addFailed: 'Failed to add passkey.',
+      renamePrompt: 'Enter a new name for this passkey',
+      renamed: 'Passkey renamed.',
+      renameFailed: 'Failed to rename passkey.',
+      deleteTitle: 'Delete passkey',
+      deleteConfirm: 'Delete “{name}”? You will no longer be able to sign in with it.',
+      deleted: 'Passkey deleted.',
+      deleteFailed: 'Failed to delete passkey.'
     },
     balanceNotify: {
       title: 'Balance Low Notification',

@@ -194,6 +194,10 @@ func (r *contentModerationTestUserRepo) Create(ctx context.Context, user *User) 
 	panic("unexpected Create call")
 }
 
+func (r *contentModerationTestUserRepo) CreateWithEmailAliasGuard(ctx context.Context, user *User) error {
+	panic("unexpected CreateWithEmailAliasGuard call")
+}
+
 func (r *contentModerationTestUserRepo) GetByID(ctx context.Context, id int64) (*User, error) {
 	if r.user == nil {
 		return nil, ErrUserNotFound
@@ -264,6 +268,14 @@ func (r *contentModerationTestUserRepo) DeductBalance(ctx context.Context, id in
 	panic("unexpected DeductBalance call")
 }
 
+func (r *contentModerationTestUserRepo) AdjustBalance(ctx context.Context, id int64, delta float64) (BalanceChange, error) {
+	panic("unexpected AdjustBalance call")
+}
+
+func (r *contentModerationTestUserRepo) SetBalance(ctx context.Context, id int64, value float64) (BalanceChange, error) {
+	panic("unexpected SetBalance call")
+}
+
 func (r *contentModerationTestUserRepo) UpdateConcurrency(ctx context.Context, id int64, amount int) error {
 	panic("unexpected UpdateConcurrency call")
 }
@@ -282,6 +294,10 @@ func (r *contentModerationTestUserRepo) BatchUpdateLimits(context.Context, []int
 
 func (r *contentModerationTestUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	panic("unexpected ExistsByEmail call")
+}
+
+func (r *contentModerationTestUserRepo) ExistsByEmailAlias(ctx context.Context, email string) (bool, error) {
+	panic("unexpected ExistsByEmailAlias call")
 }
 
 func (r *contentModerationTestUserRepo) RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error) {

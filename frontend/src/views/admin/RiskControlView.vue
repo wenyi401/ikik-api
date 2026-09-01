@@ -536,6 +536,11 @@
                   <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">%</span>
                 </div>
               </div>
+              <div>
+                <label class="input-label">{{ t('admin.riskControl.proxy') }}</label>
+                <ProxySelector v-model="configForm.proxy_id" :proxies="proxies" />
+                <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.proxyHint') }}</p>
+              </div>
             </div>
 
             <div class="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-800">
@@ -1565,7 +1570,7 @@ import type {
   ModerationMode,
   UpdateContentModerationConfig,
 } from '@/api/admin/riskControl'
-import type { AdminGroup, SelectOption } from '@/types'
+import type { AdminGroup, Proxy, SelectOption } from '@/types'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime as formatDateTimeValue } from '@/utils/format'
@@ -1678,6 +1683,7 @@ const penaltyGroupSearch = ref('')
 const groupPenaltyCategoryOptions = ref<ContentModerationGroupPenaltyCategoryOption[]>([...defaultGroupPenaltyCategoryOptions])
 const flaggedHashInput = ref('')
 const groups = ref<AdminGroup[]>([])
+const proxies = ref<Proxy[]>([])
 const logs = ref<ContentModerationLog[]>([])
 const status = ref<ContentModerationRuntimeStatus | null>(null)
 const testedApiKeyStatuses = ref<ContentModerationAPIKeyStatus[]>([])
@@ -1699,6 +1705,7 @@ const configForm = reactive({
   moderation_provider: 'openai' as ContentModerationProvider,
   base_url: 'https://api.openai.com',
   model: 'omni-moderation-latest',
+  proxy_id: null as number | null,
   classifier_group_id: 0,
   classifier_models: [] as string[],
   classifier_prompt_mode: 'default' as 'default' | 'custom',
@@ -2246,6 +2253,7 @@ function applyConfig(config: ContentModerationConfig) {
   configForm.moderation_provider = normalizeModerationProvider(config.moderation_provider)
   configForm.base_url = config.base_url || 'https://api.openai.com'
   configForm.model = config.model || 'omni-moderation-latest'
+  configForm.proxy_id = config.proxy_id || null
   configForm.classifier_group_id = Number(config.classifier_group_id) || 0
   configForm.classifier_models = Array.isArray(config.classifier_models)
     ? normalizeClassifierModels(config.classifier_models)
@@ -2303,14 +2311,17 @@ function applyConfig(config: ContentModerationConfig) {
 async function loadAll() {
   loading.value = true
   try {
-    const [config, groupItems, runtimeStatus] = await Promise.all([
+    const [config, groupItems, runtimeStatus, proxyItems] = await Promise.all([
       adminAPI.riskControl.getConfig(),
       adminAPI.groups.getAll(),
       adminAPI.riskControl.getStatus(),
+      // 代理列表加载失败不阻塞风控页面（仅影响下拉可选项）
+      adminAPI.proxies.getAll().catch(() => [] as Proxy[]),
     ])
     applyConfig(config)
     groups.value = groupItems
     status.value = runtimeStatus
+    proxies.value = proxyItems
     if (Array.isArray(runtimeStatus.api_key_statuses)) {
       configForm.api_key_statuses = [...runtimeStatus.api_key_statuses]
       prunePendingDeleteAPIKeyHashes()
@@ -2405,6 +2416,8 @@ async function saveConfig() {
       model: configForm.moderation_provider === 'model_classifier'
         ? configForm.classifier_models[0] || configForm.model
         : configForm.model,
+      // 0 clears the proxy and restores a direct connection.
+      proxy_id: configForm.proxy_id ?? 0,
       classifier_group_id: configForm.classifier_group_id,
       classifier_models: [...configForm.classifier_models],
       classifier_prompt: configForm.classifier_prompt_mode === 'custom' ? configForm.classifier_prompt.trim() : '',
@@ -2703,6 +2716,8 @@ async function testApiKeys(useInputKeys: boolean) {
       aliyun_endpoint: configForm.aliyun_endpoint,
       aliyun_service: configForm.aliyun_service,
       timeout_ms: Number(configForm.timeout_ms) || 3000,
+      // 与保存语义一致：0 强制直连，>0 指定代理，确保测试与实际审计走同一条链路
+      proxy_id: configForm.proxy_id ?? 0,
       prompt: moderationTestPrompt.value,
       images: moderationTestImages.value,
     })

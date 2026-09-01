@@ -56,6 +56,7 @@ var schedulerNeutralExtraKeyPrefixes = []string{
 	"codex_secondary_",
 	"codex_5h_",
 	"codex_7d_",
+	"codex_reset_credit_",
 	"passive_usage_",
 	"upstream_billing_probe",
 	"ollama_cloud_usage",
@@ -68,6 +69,39 @@ var schedulerNeutralExtraKeys = map[string]struct{}{
 }
 
 const postgresParameterBatchSize = 50000
+
+const codexFingerprintSeedCanonicalPattern = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+const codexFingerprintNilSeed = "00000000-0000-0000-0000-000000000000"
+
+func codexFingerprintSeedValidSQL(extraExpr string) string {
+	value := "(" + extraExpr + " ->> 'codex_fingerprint_seed')"
+	return "(" + value + " ~ '" + codexFingerprintSeedCanonicalPattern + "' AND " + value + " <> '" + codexFingerprintNilSeed + "')"
+}
+
+func ensureCodexFingerprintSeedSQL(extraExpr string) string {
+	return "CASE WHEN platform = 'openai' AND type = 'oauth' THEN " +
+		"jsonb_set(" + extraExpr + ", '{codex_fingerprint_seed}', " +
+		"CASE WHEN " + codexFingerprintSeedValidSQL("extra") +
+		" THEN to_jsonb(extra ->> 'codex_fingerprint_seed') ELSE to_jsonb(gen_random_uuid()::text) END, true) " +
+		"ELSE " + extraExpr + " END"
+}
+
+func stripCodexFingerprintSeedFromExtraUpdate(extra map[string]any) map[string]any {
+	if extra == nil {
+		return nil
+	}
+	if _, exists := extra["codex_fingerprint_seed"]; !exists {
+		return extra
+	}
+	stripped := make(map[string]any, len(extra)-1)
+	for key, value := range extra {
+		if key == "codex_fingerprint_seed" {
+			continue
+		}
+		stripped[key] = value
+	}
+	return stripped
+}
 
 // NewAccountRepository 创建账户仓储实例。
 // 这是对外暴露的构造函数，返回接口类型以便于依赖注入。
@@ -814,6 +848,22 @@ func (r *accountRepository) UpdateCredentials(ctx context.Context, id int64, cre
 					- 'ollama_cloud_usage_snapshot'
 				WHEN platform = 'openai'
 					AND type = 'apikey'
+					AND credentials IS DISTINCT FROM $1::jsonb
+					AND (
+						credentials -> 'api_key' IS DISTINCT FROM $1::jsonb -> 'api_key'
+						OR NOT (
+							`+ollamaCloudBaseURLMatchesSQL("credentials ->> 'base_url'")+`
+							AND `+ollamaCloudBaseURLMatchesSQL("$1::jsonb ->> 'base_url'")+`
+						)
+					)
+				THEN COALESCE(extra, '{}'::jsonb)
+					- 'upstream_billing_probe'
+					- 'ollama_cloud_usage_session'
+					- 'ollama_cloud_usage_auto_refresh'
+					- 'ollama_cloud_usage_snapshot'
+				-- 上游倍率探测已放宽到全部 API-key 平台：凭证变化即视为探测
+				-- 身份变化，丢弃 stale 快照。
+				WHEN type = 'apikey'
 					AND credentials IS DISTINCT FROM $1::jsonb
 				THEN COALESCE(extra, '{}'::jsonb) - 'upstream_billing_probe'
 				ELSE extra
@@ -2550,6 +2600,7 @@ func (r *accountRepository) AutoPauseExpiredAccounts(ctx context.Context, now ti
 }
 
 func (r *accountRepository) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
+	updates = stripCodexFingerprintSeedFromExtraUpdate(updates)
 	if len(updates) == 0 {
 		return nil
 	}
@@ -2581,6 +2632,9 @@ func (r *accountRepository) UpdateExtra(ctx context.Context, id int64, updates m
 	extraExpression := "COALESCE(extra, '{}'::jsonb) || $1::jsonb"
 	if clearProbeSnapshot {
 		extraExpression = "(" + extraExpression + ") - 'upstream_billing_probe'"
+	}
+	if service.ShouldEnsureCodexFingerprintSeedForExtraUpdates(updates) {
+		extraExpression = ensureCodexFingerprintSeedSQL(extraExpression)
 	}
 	result, err := client.ExecContext(
 		ctx,
@@ -2823,6 +2877,7 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 	if len(ids) == 0 {
 		return 0, nil
 	}
+	updates.Extra = stripCodexFingerprintSeedFromExtraUpdate(updates.Extra)
 
 	setClauses := make([]string, 0, 8)
 	args := make([]any, 0, 8)
@@ -2915,7 +2970,7 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 				" AND "+ollamaCloudBaseURLMatchesSQL(credentialPlaceholder+"::jsonb ->> 'base_url'")+")")
 	}
 
-	if len(updates.Extra) > 0 || len(ollamaGroupIdentityChanges) > 0 || ollamaProxyIdentityChanged != "" {
+	if len(updates.Extra) > 0 || len(ollamaGroupIdentityChanges) > 0 || ollamaProxyIdentityChanged != "" || updates.EnsureCodexFingerprintSeed {
 		extraExpression := "COALESCE(extra, '{}'::jsonb)"
 		if len(updates.Extra) > 0 {
 			payload, err := json.Marshal(updates.Extra)
@@ -2954,6 +3009,9 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 		} else if snapshotIdentityChanged != "" {
 			extraExpression = "CASE WHEN " + snapshotIdentityChanged + " THEN (" + extraExpression + ") - 'ollama_cloud_usage_snapshot' ELSE " + extraExpression + " END"
 		}
+		if updates.EnsureCodexFingerprintSeed {
+			extraExpression = ensureCodexFingerprintSeedSQL(extraExpression)
+		}
 		setClauses = append(setClauses, "extra = "+extraExpression)
 	}
 
@@ -2967,8 +3025,8 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 	args = append(args, pq.Array(ids))
 	idx++
 	if updates.ProbeEnabled != nil {
-		whereClause += " AND platform = $" + itoa(idx) + " AND type = $" + itoa(idx+1)
-		args = append(args, service.PlatformOpenAI, service.AccountTypeAPIKey)
+		whereClause += " AND type = $" + itoa(idx)
+		args = append(args, service.AccountTypeAPIKey)
 	}
 	query := "UPDATE accounts SET " + joinClauses(setClauses, ", ") + whereClause
 

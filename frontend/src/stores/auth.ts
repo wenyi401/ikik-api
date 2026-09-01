@@ -5,8 +5,16 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
-import { authAPI, isTotp2FARequired, userAPI, type LoginResponse } from '@/api'
-import type { User, LoginRequest, RegisterRequest, AuthResponse, OnboardingMode, LoginSession } from '@/types'
+import { authAPI, isTotp2FARequired, passkeyAPI, userAPI, type LoginResponse } from '@/api'
+import type {
+  User,
+  LoginRequest,
+  RegisterRequest,
+  AuthResponse,
+  OnboardingMode,
+  LoginSession,
+  ActionCaptchaRequestProof
+} from '@/types'
 import {
   acceptAuthBundle,
   bootstrapAuthentication,
@@ -232,6 +240,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function loginWithPasskey(proof?: ActionCaptchaRequestProof): Promise<User> {
+    try {
+      const response = await passkeyAPI.login(proof)
+      setAuthFromResponse(response)
+      return user.value!
+    } catch (error) {
+      clearAuth({ preservePendingAuthSession: pendingAuthSession.value !== null })
+      throw error
+    }
+  }
+
   /**
    * Set auth state from an AuthResponse
    * Internal helper function
@@ -393,6 +412,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     // Actions
     login,
+    loginWithPasskey,
     login2FA,
     register,
     setToken,

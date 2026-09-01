@@ -24,6 +24,10 @@ type upstreamResponseModelObserver struct {
 	first    string
 	terminal string
 	conflict bool
+
+	firstTier         string
+	firstTierConflict bool
+	terminalTier      string
 }
 
 func (o *upstreamResponseModelObserver) Observe(model string, terminal bool) {
@@ -57,17 +61,78 @@ func normalizeObservedUpstreamResponseModel(model string) string {
 }
 
 func (o *upstreamResponseModelObserver) ObserveOpenAI(payload []byte, eventType string) {
-	model := firstValidTrimmedGJSONModel(payload, "response.model", "model")
-	o.Observe(model, isUpstreamResponseModelTerminalEvent(eventType))
+	model := firstValidTrimmedGJSONString(payload, "response.model", "model")
+	terminal := isUpstreamResponseModelTerminalEvent(eventType)
+	o.Observe(model, terminal)
+	if model == "" || (!terminal && strings.TrimSpace(eventType) != "") {
+		return
+	}
+	tier := normalizeObservedOpenAIServiceTier(firstValidTrimmedGJSONString(payload, "response.service_tier", "service_tier"))
+	o.ObserveServiceTier(tier, terminal)
 }
 
 func (o *upstreamResponseModelObserver) ObserveAnthropic(payload []byte) {
-	model := firstValidTrimmedGJSONModel(payload, "message.model", "model")
+	model := firstValidTrimmedGJSONString(payload, "message.model", "model")
 	o.Observe(model, false)
+	if model == "" {
+		return
+	}
+	tier := normalizeObservedAnthropicSpeed(firstValidTrimmedGJSONString(payload, "message.usage.speed", "usage.speed"))
+	o.ObserveServiceTier(tier, false)
+}
+
+func (o *upstreamResponseModelObserver) ObserveServiceTier(tier string, terminal bool) {
+	if o == nil || tier == "" {
+		return
+	}
+	if terminal {
+		o.terminalTier = tier
+		return
+	}
+	if o.firstTier == "" {
+		o.firstTier = tier
+		return
+	}
+	if o.firstTier != tier {
+		o.firstTierConflict = true
+	}
+}
+
+func (o *upstreamResponseModelObserver) ServiceTier() string {
+	if o == nil {
+		return ""
+	}
+	if o.terminalTier != "" {
+		return o.terminalTier
+	}
+	if o.firstTierConflict {
+		return ""
+	}
+	return o.firstTier
+}
+
+func normalizeObservedOpenAIServiceTier(raw string) string {
+	switch value := strings.ToLower(strings.TrimSpace(raw)); value {
+	case "priority", "fast":
+		return OpenAIFastTierPriority
+	case "default", "flex", "scale":
+		return value
+	default:
+		return ""
+	}
+}
+
+func normalizeObservedAnthropicSpeed(raw string) string {
+	switch value := strings.ToLower(strings.TrimSpace(raw)); value {
+	case "fast", "standard":
+		return value
+	default:
+		return ""
+	}
 }
 
 func (o *upstreamResponseModelObserver) ObserveGemini(payload []byte) {
-	model := firstValidTrimmedGJSONModel(
+	model := firstValidTrimmedGJSONString(
 		payload,
 		"modelVersion",
 		"response.modelVersion",
@@ -120,17 +185,33 @@ func observedUpstreamResponseModelConflict(c *gin.Context) bool {
 	return upstreamResponseModelObserverFromContext(c).Conflict()
 }
 
+func observedUpstreamResponseServiceTier(c *gin.Context) string {
+	return upstreamResponseModelObserverFromContext(c).ServiceTier()
+}
+
+func resolvedOpenAIUpstreamServiceTierFromObserver(observer *upstreamResponseModelObserver, outboundBodyTier *string) *string {
+	if observer != nil {
+		if tier := strings.TrimSpace(observer.ServiceTier()); tier != "" {
+			return normalizeOpenAIServiceTier(tier)
+		}
+	}
+	return outboundBodyTier
+}
+
+func resolvedOpenAIUpstreamServiceTier(c *gin.Context, outboundBodyTier *string) *string {
+	return resolvedOpenAIUpstreamServiceTierFromObserver(upstreamResponseModelObserverFromContext(c), outboundBodyTier)
+}
+
 func observeOpenAISSEBody(observer *upstreamResponseModelObserver, body string) {
 	if observer == nil || strings.TrimSpace(body) == "" {
 		return
 	}
-	forEachOpenAISSEDataPayload(body, func(payload []byte) {
-		eventType := strings.TrimSpace(gjson.GetBytes(payload, "type").String())
+	forEachOpenAISSEFrame(body, func(eventType string, payload []byte) {
 		observer.ObserveOpenAI(payload, eventType)
 	})
 }
 
-func firstValidTrimmedGJSONModel(payload []byte, paths ...string) string {
+func firstValidTrimmedGJSONString(payload []byte, paths ...string) string {
 	if len(payload) == 0 {
 		return ""
 	}
@@ -139,14 +220,14 @@ func firstValidTrimmedGJSONModel(payload []byte, paths ...string) string {
 		if !value.Exists() || value.Type != gjson.String {
 			continue
 		}
-		if model := strings.TrimSpace(value.String()); model != "" {
+		if text := strings.TrimSpace(value.String()); text != "" {
 			// Validate only after finding a candidate. This avoids a full validation
 			// pass on the common model-free delta path while still rejecting malformed
 			// payloads that appear to declare a model.
 			if !gjson.ValidBytes(payload) {
 				return ""
 			}
-			return model
+			return text
 		}
 	}
 	return ""
@@ -167,8 +248,27 @@ func upstreamModelMismatch(sentModel, responseModel string) *bool {
 		return nil
 	}
 	sentModel = strings.TrimSpace(sentModel)
-	mismatch := sentModel == "" || !strings.EqualFold(sentModel, responseModel)
+	mismatch := sentModel == "" || !upstreamModelsMatchForAudit(sentModel, responseModel)
 	return &mismatch
+}
+
+func upstreamModelsMatchForAudit(sentModel, responseModel string) bool {
+	if strings.EqualFold(sentModel, responseModel) {
+		return true
+	}
+	sentGrokModel := canonicalGrokBuildRuntimeModel(sentModel)
+	return sentGrokModel != "" && sentGrokModel == canonicalGrokBuildRuntimeModel(responseModel)
+}
+
+func canonicalGrokBuildRuntimeModel(model string) string {
+	switch strings.ToLower(strings.TrimSpace(model)) {
+	case "grok-4.5", "grok-4.5-latest", "grok-4.5-build":
+		return "grok-4.5-build"
+	case "grok-4.6", "grok-4.6-latest", "grok-4.6-build":
+		return "grok-4.6-build"
+	default:
+		return ""
+	}
 }
 
 func upstreamSentModel(requestedModel, upstreamModel string) string {

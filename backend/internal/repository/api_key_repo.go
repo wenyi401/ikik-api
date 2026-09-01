@@ -203,15 +203,24 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldMcpXMLInject,
 				group.FieldSupportedModelScopes,
 				group.FieldAllowMessagesDispatch,
+				group.FieldAllowLive,
 				group.FieldDefaultMappedModel,
 				group.FieldMessagesDispatchModelConfig,
 				group.FieldModelsListConfig,
 				group.FieldOpenaiExperimentalPromptEnabled,
 				group.FieldRpmLimit,
+				group.FieldMaxReasoningEffort,
+				group.FieldReasoningEffortMappings,
 				group.FieldPeakRateEnabled,
 				group.FieldPeakStart,
 				group.FieldPeakEnd,
 				group.FieldPeakRateMultiplier,
+				// 分组利润控制：认证快照是调度门 enable 判定的直接来源，
+				// 漏选会让门静默失效；新增快照分组字段时必须同步本投影，
+				// 集成测试对账兜底。
+				group.FieldProfitControlEnabled,
+				group.FieldProfitMinMargin,
+				group.FieldProfitSafetyBuffer,
 			)
 		}).
 		WithGroupRoutes(apiKeyGroupRouteQueryOptions).
@@ -231,8 +240,8 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 	return out, nil
 }
 
-func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey) error {
-	return r.updateAPIKeyWithGroupRoutes(ctx, key)
+func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey, fields service.APIKeyUpdateFields) error {
+	return r.updateAPIKeyWithGroupRoutes(ctx, key, fields)
 }
 
 func (r *apiKeyRepository) Delete(ctx context.Context, id int64) error {
@@ -932,6 +941,7 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		SupportedModelScopes:            g.SupportedModelScopes,
 		SortOrder:                       g.SortOrder,
 		AllowMessagesDispatch:           g.AllowMessagesDispatch,
+		AllowLive:                       g.AllowLive,
 		RequireOAuthOnly:                g.RequireOauthOnly,
 		RequirePrivacySet:               g.RequirePrivacySet,
 		DefaultMappedModel:              g.DefaultMappedModel,
@@ -939,6 +949,8 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		ModelsListConfig:                g.ModelsListConfig,
 		OpenAIExperimentalPromptEnabled: g.OpenaiExperimentalPromptEnabled,
 		RPMLimit:                        g.RpmLimit,
+		MaxReasoningEffort:              g.MaxReasoningEffort,
+		ReasoningEffortMappings:         g.ReasoningEffortMappings,
 		PeakRateEnabled:                 g.PeakRateEnabled,
 		PeakStart:                       g.PeakStart,
 		PeakEnd:                         g.PeakEnd,

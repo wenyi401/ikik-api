@@ -192,8 +192,8 @@ func openAIStreamEventIsTerminalWithType(data, eventType string) bool {
 }
 
 func openAIStreamEventTypeIsTerminal(eventType string) bool {
-	switch eventType {
-	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
+	switch strings.TrimSpace(eventType) {
+	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled", "error":
 		return true
 	default:
 		return false
@@ -452,14 +452,23 @@ var allowedHeaders = map[string]bool{
 // binding without masking infrastructure errors.
 var ErrStickySessionNotFound = errors.New("sticky session not found")
 
+// ErrReasoningContentNotFound is returned when no cached reasoning content
+// exists for the reasoning item ID.
+var ErrReasoningContentNotFound = errors.New("reasoning content not found")
+
 // GatewayCache 定义网关服务的缓存操作接口。
 // 提供粘性会话（Sticky Session）的存储、查询、刷新和删除功能。
 //
 // GatewayCache defines cache operations for gateway service.
 // Provides sticky session storage, retrieval, refresh and deletion capabilities.
 type GatewayCache interface {
-	// GetSessionAccountID 获取粘性会话绑定的账号 ID
-	// Get the account ID bound to a sticky session
+	// GetSessionAccountID 获取粘性会话绑定的账号 ID；无绑定时返回
+	// ErrStickySessionNotFound，使 service 层无需依赖具体缓存实现即可
+	// 区分"未绑定"与真实读取失败。
+	// Get the account ID bound to a sticky session. Returns
+	// ErrStickySessionNotFound when no binding exists so service code can
+	// distinguish a miss from a real read failure without importing the
+	// cache driver.
 	GetSessionAccountID(ctx context.Context, groupID int64, sessionHash string) (int64, error)
 	// SetSessionAccountID 设置粘性会话与账号的绑定关系
 	// Set the binding between sticky session and account
@@ -476,6 +485,10 @@ type GatewayCache interface {
 	GetGrokVideoPendingBilling(ctx context.Context, key string) ([]byte, error)
 	ClaimGrokVideoBilled(ctx context.Context, key string, ttl time.Duration) (bool, error)
 	ReleaseGrokVideoBilled(ctx context.Context, key string) error
+
+	// Reasoning content cache for the Responses to Chat Completions bridge.
+	SetReasoningContent(ctx context.Context, itemID string, content string, ttl time.Duration) error
+	GetReasoningContent(ctx context.Context, itemID string) (string, error)
 }
 
 // derefGroupID safely dereferences *int64 to int64, returning 0 if nil
@@ -575,6 +588,11 @@ type ClaudeUsage struct {
 }
 
 // ForwardResult 转发结果
+type AudioUsage struct {
+	Mode            string  // realtime | tts | stt
+	DurationOrUnits float64 // minutes / million-chars / hours
+}
+
 type ForwardResult struct {
 	RequestID string
 	Usage     ClaudeUsage
@@ -585,11 +603,13 @@ type ForwardResult struct {
 	// UpstreamResponseModel is captured from the successful upstream response.
 	UpstreamResponseModel         string
 	UpstreamResponseModelConflict bool
+	UpstreamResponseServiceTier   string
 	Stream                        bool
 	Duration                      time.Duration
 	FirstTokenMs                  *int // 首字时间（流式请求）
 	ClientDisconnect              bool // 客户端是否在流式传输过程中断开
 	ReasoningEffort               *string
+	ServiceTier                   *string
 
 	// 图片生成计费字段（图片生成模型使用）
 	ImageCount         int    // 生成的图片数量
@@ -643,8 +663,11 @@ type UpstreamFailoverError struct {
 	ResponseHeaders          http.Header // 上游响应头，用于透传 cf-ray/cf-mitigated/content-type 等诊断信息
 	ForceCacheBilling        bool        // Antigravity 粘性会话切换时设为 true
 	RetryableOnSameAccount   bool        // 临时性错误（如 Google 间歇性 400、空响应），应在同一账号上重试 N 次再切换
-	RequestScopedTransient   bool        // 请求级瞬时错误不应改变账号可调度状态
-	SafeToFailoverAfterWrite bool        // 仅写出 SSE 注释等非语义字节时，仍可在同一客户端流中切换账号
+	SameAccountRetryDelay    time.Duration
+	SameAccountRetryDeadline time.Time
+	SameAccountRetryMax      int
+	RequestScopedTransient   bool // 请求级瞬时错误不应改变账号可调度状态
+	SafeToFailoverAfterWrite bool // 仅写出 SSE 注释等非语义字节时，仍可在同一客户端流中切换账号
 	Stage                    GatewayFailureStage
 	Scope                    GatewayFailureScope
 	Reason                   GatewayFailureReason
@@ -914,6 +937,28 @@ func (s *GatewayService) BindStickySession(ctx context.Context, groupID *int64, 
 // before the profit-control post-slot admission check has completed.
 func (s *GatewayService) bindGatewayStickySessionDuringSelection(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
 	if gatewayProfitControlGateActive(ctx) {
+		return nil
+	}
+	return s.BindStickySession(ctx, groupID, sessionHash, accountID)
+}
+
+// BindStickySessionAfterProfitAdmission records the terminally admitted
+// account without replacing a different existing binding while a profit gate
+// is active. A temporarily ineligible sticky account can therefore recover
+// naturally when its account rate changes.
+func (s *GatewayService) BindStickySessionAfterProfitAdmission(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
+	if sessionHash == "" || accountID <= 0 || s.cache == nil {
+		return nil
+	}
+	if !gatewayProfitControlGateActive(ctx) {
+		return s.BindStickySession(ctx, groupID, sessionHash, accountID)
+	}
+	existingAccountID, err := s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+	if err != nil && !errors.Is(err, ErrStickySessionNotFound) {
+		slog.Warn("profit_control_sticky_binding_read_failed", "group_id", derefGroupID(groupID), "account_id", accountID, "error", err)
+		return nil
+	}
+	if existingAccountID > 0 && existingAccountID != accountID {
 		return nil
 	}
 	return s.BindStickySession(ctx, groupID, sessionHash, accountID)
@@ -1206,6 +1251,15 @@ func (s *GatewayService) getOAuthToken(ctx context.Context, account *Account) (s
 		return accessToken, "oauth", nil
 	}
 
+	// Grok OAuth: prefer access_token from credentials (background refresher keeps it warm).
+	if account.Platform == PlatformGrok && account.Type == AccountTypeOAuth {
+		accessToken := account.GetGrokAccessToken()
+		if accessToken == "" {
+			return "", "", errors.New("grok access_token not found in credentials")
+		}
+		return accessToken, "oauth", nil
+	}
+
 	// 其他情况（Gemini 有自己的 TokenProvider，setup-token 类型等）直接从账号读取
 	accessToken := account.GetCredential("access_token")
 	if accessToken == "" {
@@ -1322,6 +1376,17 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	hasAnyMapping := false
 
 	for _, acc := range accounts {
+		// Passthrough routing accepts models independently of model_mapping. A stale
+		// mapping on any eligible passthrough account therefore cannot define the
+		// public whitelist; return nil so the handler uses its default model set.
+		if platform == PlatformOpenAI && acc.IsOpenAIPassthroughEnabled() {
+			if s.modelsListCache != nil {
+				s.modelsListCache.Set(cacheKey, []string(nil), s.modelsListCacheTTL)
+				modelsListCacheStoreTotal.Add(1)
+			}
+			return nil
+		}
+
 		mapping := acc.GetModelMapping()
 		if len(mapping) > 0 {
 			hasAnyMapping = true
@@ -1423,19 +1488,19 @@ func (s *GatewayService) initDebugGatewayBodyFile(path string) {
 	}
 
 	// 如果 path 指向一个已存在的目录，自动追加默认文件名
-	if info, err := os.Stat(path); err == nil && info.IsDir() {
+	if info, err := os.Stat(path); err == nil && info.IsDir() { //nolint:gosec // G703: path 仅来自启动环境变量 SUB2API_DEBUG_GATEWAY_BODY（运维配置），非请求输入
 		path = filepath.Join(path, debugGatewayBodyDefaultFilename)
 	}
 
 	// 确保父目录存在
 	if dir := filepath.Dir(path); dir != "." {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil { //nolint:gosec // G703: 同上
 			slog.Error("failed to create gateway debug log directory", "dir", dir, "error", err)
 			return
 		}
 	}
 
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644) //nolint:gosec // G703: 同上
 	if err != nil {
 		slog.Error("failed to open gateway debug log file", "path", path, "error", err)
 		return

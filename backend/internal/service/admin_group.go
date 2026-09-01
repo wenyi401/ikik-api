@@ -369,6 +369,10 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	videoPrice720P := normalizePrice(input.VideoPrice720P)
 	videoPrice1080P := normalizePrice(input.VideoPrice1080P)
 	webSearchPricePerCall := normalizePrice(input.WebSearchPricePerCall)
+	searchPricePer1k := normalizePrice(input.SearchPricePer1k)
+	audioRealtimePricePerMin := normalizePrice(input.AudioRealtimePricePerMin)
+	audioTTSPricePerMillionChars := normalizePrice(input.AudioTTSPricePerMillionChars)
+	audioSTTPricePerHour := normalizePrice(input.AudioSTTPricePerHour)
 	imageRateMultiplier := 1.0
 	if input.ImageRateMultiplier != nil {
 		if *input.ImageRateMultiplier < 0 {
@@ -521,7 +525,12 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		VideoPrice480P:                  videoPrice480P,
 		VideoPrice720P:                  videoPrice720P,
 		VideoPrice1080P:                 videoPrice1080P,
+		VideoModelPrices:                NormalizeVideoModelPrices(input.VideoModelPrices),
 		WebSearchPricePerCall:           webSearchPricePerCall,
+		SearchPricePer1k:                searchPricePer1k,
+		AudioRealtimePricePerMin:        audioRealtimePricePerMin,
+		AudioTTSPricePerMillionChars:    audioTTSPricePerMillionChars,
+		AudioSTTPricePerHour:            audioSTTPricePerHour,
 		ClaudeCodeOnly:                  input.ClaudeCodeOnly,
 		FallbackGroupID:                 input.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: fallbackOnInvalidRequest,
@@ -529,6 +538,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		MCPXMLInject:                    mcpXMLInject,
 		SupportedModelScopes:            input.SupportedModelScopes,
 		AllowMessagesDispatch:           input.AllowMessagesDispatch,
+		AllowLive:                       input.AllowLive,
 		RequireOAuthOnly:                input.RequireOAuthOnly,
 		RequirePrivacySet:               input.RequirePrivacySet,
 		DefaultMappedModel:              input.DefaultMappedModel,
@@ -828,8 +838,24 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.VideoPrice1080P != nil {
 		group.VideoPrice1080P = normalizePrice(input.VideoPrice1080P)
 	}
+	// nil = leave unchanged; empty map = clear per-model prices.
+	if input.VideoModelPrices != nil {
+		group.VideoModelPrices = NormalizeVideoModelPrices(input.VideoModelPrices)
+	}
 	if input.WebSearchPricePerCall != nil {
 		group.WebSearchPricePerCall = normalizePrice(input.WebSearchPricePerCall)
+	}
+	if input.SearchPricePer1k != nil {
+		group.SearchPricePer1k = normalizePrice(input.SearchPricePer1k)
+	}
+	if input.AudioRealtimePricePerMin != nil {
+		group.AudioRealtimePricePerMin = normalizePrice(input.AudioRealtimePricePerMin)
+	}
+	if input.AudioTTSPricePerMillionChars != nil {
+		group.AudioTTSPricePerMillionChars = normalizePrice(input.AudioTTSPricePerMillionChars)
+	}
+	if input.AudioSTTPricePerHour != nil {
+		group.AudioSTTPricePerHour = normalizePrice(input.AudioSTTPricePerHour)
 	}
 
 	// Claude Code 客户端限制
@@ -882,6 +908,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	// OpenAI Messages 调度配置
 	if input.AllowMessagesDispatch != nil {
 		group.AllowMessagesDispatch = *input.AllowMessagesDispatch
+	}
+	if input.AllowLive != nil {
+		group.AllowLive = *input.AllowLive
 	}
 	if input.RequireOAuthOnly != nil {
 		group.RequireOAuthOnly = *input.RequireOAuthOnly
@@ -1208,7 +1237,7 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 			if addErr := s.userRepo.AddGroupToAllowedGroups(opCtx, apiKey.UserID, gid); addErr != nil {
 				return nil, fmt.Errorf("add group to user allowed groups: %w", addErr)
 			}
-			if err := s.apiKeyRepo.Update(opCtx, apiKey); err != nil {
+			if err := s.apiKeyRepo.Update(opCtx, apiKey, APIKeyUpdateFields{GroupID: true}); err != nil {
 				return nil, fmt.Errorf("update api key: %w", err)
 			}
 			if tx != nil {
@@ -1232,7 +1261,7 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 	}
 
 	// 非专属分组 / 解绑：无需事务，单步更新即可
-	if err := s.apiKeyRepo.Update(ctx, apiKey); err != nil {
+	if err := s.apiKeyRepo.Update(ctx, apiKey, APIKeyUpdateFields{GroupID: true}); err != nil {
 		return nil, fmt.Errorf("update api key: %w", err)
 	}
 
@@ -1257,7 +1286,7 @@ func (s *adminServiceImpl) AdminResetAPIKeyRateLimitUsage(ctx context.Context, k
 	apiKey.Window5hStart = nil
 	apiKey.Window1dStart = nil
 	apiKey.Window7dStart = nil
-	if err := s.apiKeyRepo.Update(ctx, apiKey); err != nil {
+	if err := s.apiKeyRepo.Update(ctx, apiKey, APIKeyUpdateFields{RateLimitUsage: true}); err != nil {
 		return nil, fmt.Errorf("reset api key rate limit usage: %w", err)
 	}
 	if s.authCacheInvalidator != nil {

@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/service"
 )
 
 type grokRefreshOAuthStub struct {

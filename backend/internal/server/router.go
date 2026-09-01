@@ -72,8 +72,8 @@ func SetupRouter(
 
 	// Serve embedded frontend with settings injection if available
 	if web.HasEmbeddedFrontend() {
-		frontendServer, err := web.NewFrontendServer(settingService)
-		if err != nil {
+		frontendServer, err := web.NewFrontendServer(settingService) //nolint:staticcheck // SA4023: the !embed stub always errors; embed builds can return nil
+		if err != nil {                                              //nolint:staticcheck // SA4023: see above
 			log.Printf("Warning: Failed to create frontend server with settings injection: %v, using legacy mode", err)
 			r.Use(web.ServeEmbeddedFrontend())
 			settingService.SetOnUpdateCallback(refreshFrameOrigins)
@@ -118,6 +118,9 @@ func registerRoutes(
 
 	// API v1
 	v1 := r.Group("/api/v1")
+
+	// 面板 API 限流器：认证接口按用户 ID、公开接口按安全客户端 IP，
+	// 防止高频刷管理面接口打爆数据库（阈值可在系统设置中调整）。
 	panelRateLimiter := middleware2.NewPanelRateLimiter(redisClient, settingService)
 
 	// 注册各模块路由

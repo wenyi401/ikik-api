@@ -69,23 +69,30 @@ func (r *userRepository) create(ctx context.Context, userIn *service.User, guard
 
 	// 统一使用 ent 的事务：保证用户与允许分组的更新原子化，
 	// 并避免基于 *sql.Tx 手动构造 ent client 导致的 ExecQuerier 断言错误。
-	tx, err := r.client.Tx(ctx)
-	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
-		return err
-	}
-
+	//
+	// 注意：ent 的 Client.Tx 不感知上下文中的事务（只检查 driver 类型），
+	// 因此必须显式检查 TxFromContext：当调用方已开启外部事务（如注册时的
+	// “建用户 + 占用邀请码”原子事务），直接复用其 client，由调用方统一提交/回滚，
+	// 否则用户写入会落入独立事务并自行提交，导致外层事务无法回滚（孤儿用户）。
 	var txClient *dbent.Client
 	txCtx := ctx
-	if err == nil {
-		defer func() { _ = tx.Rollback() }()
-		txClient = tx.Client()
-		txCtx = dbent.NewTxContext(ctx, tx)
+	var ownedTx *dbent.Tx
+	if existingTx := dbent.TxFromContext(ctx); existingTx != nil {
+		txClient = existingTx.Client()
 	} else {
-		// 已处于外部事务中（ErrTxStarted），复用当前事务 client 并由调用方负责提交/回滚。
-		if existingTx := dbent.TxFromContext(ctx); existingTx != nil {
-			txClient = existingTx.Client()
-		} else {
+		tx, err := r.client.Tx(ctx)
+		switch {
+		case errors.Is(err, dbent.ErrTxStarted):
+			// r.client 本身已是事务绑定 client（client 注入式事务，如集成测试
+			// 夹具 tx.Client()）：直接复用，提交/回滚由 client 的持有方负责。
 			txClient = r.client
+		case err != nil:
+			return err
+		default:
+			ownedTx = tx
+			defer func() { _ = ownedTx.Rollback() }()
+			txClient = tx.Client()
+			txCtx = dbent.NewTxContext(ctx, tx)
 		}
 	}
 
@@ -130,6 +137,16 @@ func (r *userRepository) create(ctx context.Context, userIn *service.User, guard
 		}
 	}
 
+	if guardEmailAlias {
+		aliasExists, err := existsByEmailAliasWithClient(txCtx, txClient, userIn.Email)
+		if err != nil {
+			return err
+		}
+		if aliasExists {
+			return service.ErrEmailExists
+		}
+	}
+
 	created, err := txClient.User.Create().
 		SetEmail(userIn.Email).
 		SetUsername(userIn.Username).
@@ -160,8 +177,8 @@ func (r *userRepository) create(ctx context.Context, userIn *service.User, guard
 		return err
 	}
 
-	if tx != nil {
-		if err := tx.Commit(); err != nil {
+	if ownedTx != nil {
+		if err := ownedTx.Commit(); err != nil {
 			return err
 		}
 	}
@@ -383,6 +400,8 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 			return err
 		}
 	}
+	// 始终以库中的邮箱为准补齐 email 身份：未改邮箱时 updated.Email == oldEmail，
+	// 这里退化为幂等的身份补写，与改邮箱前的行为一致。
 	if err := replaceEmailAuthIdentityWithClient(txCtx, txClient, updated.ID, oldEmail, updated.Email, "user_repo_update"); err != nil {
 		return err
 	}

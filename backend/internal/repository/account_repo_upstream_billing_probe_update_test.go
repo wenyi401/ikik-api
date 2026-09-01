@@ -227,8 +227,8 @@ func TestBulkUpdateProbeEligibilityMismatchRollsBack(t *testing.T) {
 
 	enabled := true
 	mock.ExpectBegin()
-	mock.ExpectExec(`(?s)UPDATE accounts SET extra = .* WHERE id = ANY\(\$2\) AND deleted_at IS NULL AND platform = \$3 AND type = \$4`).
-		WithArgs(sqlmock.AnyArg(), `{27,28}`, service.PlatformOpenAI, service.AccountTypeAPIKey).
+	mock.ExpectExec(`(?s)UPDATE accounts SET extra = .* WHERE id = ANY\(\$2\) AND deleted_at IS NULL AND type = \$3`).
+		WithArgs(sqlmock.AnyArg(), `{27,28}`, service.AccountTypeAPIKey).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectRollback()
 
@@ -265,7 +265,7 @@ func TestUpdateCredentialsAtomicallyClearsProbeForOpenAIAPIKeyIdentityChange(t *
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestUpdateWithUpstreamBillingProbeEnabledRollsBackWhenOutboxFails(t *testing.T) {
+func TestUpdateWithAccountBillingSettingsRollsBackWhenOutboxFails(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
@@ -281,7 +281,7 @@ func TestUpdateWithUpstreamBillingProbeEnabledRollsBackWhenOutboxFails(t *testin
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectQuery(`(?s)SELECT .* FROM "accounts" WHERE "id" = \$1`).
 		WithArgs(int64(27)).
-		WillReturnRows(updatedAccountRows(27, `{"upstream_billing_probe_enabled":false}`))
+		WillReturnRows(updatedAccountRows(27, `{"upstream_billing_probe_enabled":false,"upstream_billing_rate_sync_enabled":false}`))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO scheduler_outbox")).WillReturnError(errors.New("outbox failed"))
 	mock.ExpectRollback()
 
@@ -301,10 +301,12 @@ func TestUpdateWithUpstreamBillingProbeEnabledRollsBackWhenOutboxFails(t *testin
 		Schedulable: true,
 	}
 
-	err = repo.UpdateWithUpstreamBillingProbeEnabled(context.Background(), account, false)
+	probeDisabled := false
+	err = repo.UpdateWithAccountBillingSettings(context.Background(), account, &probeDisabled, nil, nil)
 
 	require.EqualError(t, err, "outbox failed")
 	require.Equal(t, false, account.Extra[service.UpstreamBillingProbeEnabledExtraKey])
+	require.Equal(t, false, account.Extra[service.UpstreamBillingRateSyncEnabledExtraKey])
 	require.NotContains(t, account.Extra, service.UpstreamBillingProbeExtraKey)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

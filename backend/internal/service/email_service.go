@@ -188,17 +188,10 @@ const smtpIOTimeout = 20 * time.Second
 
 // SendEmailWithConfig 使用指定配置发送邮件
 func (s *EmailService) SendEmailWithConfig(config *SMTPConfig, to, subject, body string) error {
-	// Sanitize all SMTP header fields to prevent header injection (CR/LF removal).
-	to = sanitizeEmailHeader(to)
-	subject = sanitizeEmailHeader(subject)
-
-	from := sanitizeEmailHeader(config.From)
-	if config.FromName != "" {
-		from = fmt.Sprintf("%s <%s>", sanitizeEmailHeader(config.FromName), sanitizeEmailHeader(config.From))
+	message, err := buildSMTPMessage(config, to, subject, body)
+	if err != nil {
+		return err
 	}
-
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		from, to, subject, body)
 
 	client, err := s.connectSMTP(config)
 	if err != nil {
@@ -210,17 +203,17 @@ func (s *EmailService) SendEmailWithConfig(config *SMTPConfig, to, subject, body
 	if err = client.Auth(auth); err != nil {
 		return fmt.Errorf("smtp auth: %w", err)
 	}
-	if err = client.Mail(sanitizeEmailHeader(config.From)); err != nil {
+	if err = client.Mail(message.envelopeFrom); err != nil {
 		return fmt.Errorf("smtp mail: %w", err)
 	}
-	if err = client.Rcpt(to); err != nil {
+	if err = client.Rcpt(message.envelopeTo); err != nil {
 		return fmt.Errorf("smtp rcpt: %w", err)
 	}
 	w, err := client.Data()
 	if err != nil {
 		return fmt.Errorf("smtp data: %w", err)
 	}
-	if _, err = w.Write([]byte(msg)); err != nil {
+	if _, err = w.Write(message.data); err != nil {
 		return fmt.Errorf("write msg: %w", err)
 	}
 	if err = w.Close(); err != nil {

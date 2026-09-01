@@ -582,6 +582,8 @@ export default {
         statusLabel: '状态',
         selectStatus: '选择状态',
         rpmLimit: '每分钟请求数 (RPM)',
+        concurrencyPlaceholder: '0 表示不限制',
+        concurrencyHint: '该用户的最大并发请求数，0 = 不限制',
         rpmLimitPlaceholder: '0 表示不限制',
         rpmLimitHint: '该用户每分钟最大请求数，0 = 不限制；仅在所用分组未设置 rpm_limit 时作为兜底生效'
       },
@@ -602,9 +604,7 @@ export default {
       failedToSave: '保存用户失败',
       failedToAdjust: '调整失败',
       emailRequired: '请输入邮箱',
-      concurrencyMin: '并发数不能小于1',
-      soraStorageQuota: 'Sora 存储配额',
-      soraStorageQuotaHint: '单位 GB，0 表示使用分组或系统默认配额',
+      concurrencyNonNegative: '并发数不能为负数，0 表示不限制',
       amountRequired: '请输入有效金额',
       insufficientBalance: '余额不足',
       setAllowedGroups: '设置分组权限',
@@ -843,6 +843,21 @@ export default {
         rpmLimit: '每分钟请求数 (RPM)',
         rpmLimitPlaceholder: '0 表示不限制',
         rpmLimitHint: '每用户在本分组每分钟最大请求数，0 = 不限制；一旦设置即接管该用户的限流（覆盖用户级 rpm_limit）',
+        maxReasoningEffort: '推理强度上限',
+        maxReasoningEffortUnlimited: '不限制（跟随请求）',
+        maxReasoningEffortHint: '仅限制客户端主动请求的 OpenAI reasoning effort；Composite 分组仅对解析到 OpenAI 的请求生效。超过上限时自动降档，不会为缺省请求主动开启推理。上限优先级高于推理强度映射。',
+        reasoningEffortMappings: '推理强度映射',
+        addReasoningEffortMapping: '添加映射',
+        removeReasoningEffortMapping: '删除映射',
+        reasoningEffortFrom: '请求值',
+        reasoningEffortTo: '转发值',
+        reasoningEffortFromPlaceholder: '请选择 A',
+        reasoningEffortToPlaceholder: '请选择 B',
+        fromRequired: '请选择请求值 A',
+        toRequired: '请选择转发值 B',
+        unsupportedFrom: '请求值不受当前平台支持',
+        unsupportedTo: '转发值不受当前平台支持',
+        duplicateFrom: '请求值 A 不能重复',
         exclusiveLabel: '专属分组',
         exclusiveHint: '专属分组，可以手动指定给用户',
         platformLabel: '平台限制',
@@ -980,6 +995,8 @@ export default {
         title: '视频生成计费',
         description:
           '配置 Grok 视频生成的每秒单价（USD/秒），留空则使用默认每秒价（grok-imagine-video：480p $0.05/s、720p $0.07/s；video-1.5：480p $0.08/s、720p $0.14/s、1080p $0.25/s）',
+        modelOverridesTitle: '按模型覆盖视频价格',
+        modelOverridesDescription: '已填写的单元格会覆盖该模型族的平面分辨率价格。video-1.5 的 preview 与 legacy 别名共用同一模型族；留空则回退到平面分辨率价格。',
         independentMultiplier: '视频倍率独立',
         videoMultiplier: '视频独立倍率',
         modeHint:
@@ -1021,6 +1038,18 @@ export default {
         peakEnd: '高峰结束',
         peakMultiplier: '高峰倍率',
         multiplierHint: '作用于 token 计费倍率；token 计费的图片 token 同样适用，0 表示高峰 token 请求按 0 倍计费'
+      },
+      profitControl: {
+        enable: '启用利润控制',
+        enabledHint: '调度时仅允许"账号倍率 ≤ 请求实际下游倍率 ×（1 − 最低毛利率 − 安全缓冲）"的账号进入候选池；账号倍率可手工维护或由探测同步，既有排序、粘性与熔断在合格账号间照常工作。图片/视频调度暂不参与。',
+        disabledHint: '关闭后调度不做利润过滤，账号倍率高于下游倍率的账号也会被选中，可能产生亏损请求。',
+        minMargin: '最低毛利率（%）',
+        minMarginHint: '百分比输入，如 30 表示 30%；后端按小数存储',
+        safetyBuffer: '安全缓冲（%）',
+        safetyBufferHint: '与最低毛利率相加后从下游倍率中扣除，默认 0',
+        marginRangeError: '最低毛利率应在 0 到 99.99 之间',
+        bufferRangeError: '安全缓冲应在 0 到 99.99 之间',
+        sumTooHigh: '最低毛利率与安全缓冲之和必须小于 100%，否则将排除全部账号'
       },
       modelsList: {
         title: '自定义 /v1/models 模型列表',
@@ -1113,6 +1142,14 @@ export default {
         targetModel: '目标模型',
         targetModelPlaceholder: '例如: gpt-5.4',
         removeExactMapping: '删除精确映射'
+      },
+      openaiLive: {
+        title: 'OpenAI Live',
+        allow: '允许访问 Live',
+        hint: '启用后，此 OpenAI 分组的 API Key 可以创建并控制 Live 语音会话。默认关闭。运行 Sub2API 的服务端必须是 Apple Silicon Mac，并安装官方 ChatGPT App；客户端平台不受限制。',
+        unsupportedTitle: '当前服务端不支持 Live',
+        unsupportedMessage: '当前 Sub2API 服务端无法生成 Live 所需的设备证明，即使开启也不能使用。是否仍然开启？',
+        enableAnyway: '仍然开启'
       },
       invalidRequestFallback: {
         title: '无效请求兜底分组',

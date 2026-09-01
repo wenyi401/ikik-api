@@ -91,6 +91,8 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		zap.Bool("stream", parsed.Stream),
 		zap.Bool("multipart", parsed.Multipart),
 		zap.String("capability", string(parsed.RequiredCapability)),
+		zap.String("img_quality", parsed.Quality),
+		zap.String("img_size", parsed.Size),
 	)
 
 	if !service.GroupAllowsImageGeneration(apiKey.Group) && !hasAllowedOpenAIImagesGroupRoute(apiKey.GroupRoutes) {
@@ -145,6 +147,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 
 	maxAccountSwitches := h.maxAccountSwitches
 	switchCount := 0
+	profitVetoCount := 0
 	failedAccountIDs := make(map[int64]struct{})
 	sameAccountRetryCount := make(map[int64]int)
 	var lastFailoverErr *service.UpstreamFailoverError
@@ -289,8 +292,15 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		reqLog.Debug("openai.images.account_selected", zap.Int64("account_id", account.ID), zap.String("account_name", account.Name))
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
-		accountReleaseFunc, acquired := h.acquireResponsesAccountSlot(c, currentAPIKey.GroupID, sessionHash, selection, parsed.Stream, &streamStarted, reqLog)
-		if acquired != openAISlotAcquireOK {
+		accountReleaseFunc, slotResult := h.acquireResponsesAccountSlot(c, currentAPIKey.GroupID, sessionHash, selection, parsed.Stream, &streamStarted, reqLog)
+		if slotResult == openAISlotAcquireProfitVetoed {
+			if !recordOpenAIProfitVeto(failedAccountIDs, account.ID, &profitVetoCount) {
+				h.handleOpenAIProfitVetoExhausted(c, streamStarted, reqLog, profitVetoCount)
+				return
+			}
+			continue
+		}
+		if slotResult != openAISlotAcquireOK {
 			return
 		}
 
@@ -330,7 +340,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				var imageUpstreamErr *service.OpenAIImagesUpstreamError
 				if errors.As(err, &imageUpstreamErr) {
 					retryableServerError := service.IsOpenAIImagesRetryableUpstreamError(imageUpstreamErr)
-					h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(routingModel), !retryableServerError, nil)
+					h.gatewayService.ReportOpenAIAccountScheduleResult(account, account.GetMappedModel(routingModel), !retryableServerError, nil, err)
 					logEvent := "openai.images.upstream_user_error"
 					if retryableServerError {
 						logEvent = "openai.images.upstream_server_error_after_flush"
@@ -347,7 +357,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				var failoverErr *service.UpstreamFailoverError
 				if errors.As(err, &failoverErr) {
 					if failoverErr.ShouldReportAccountScheduleFailure() {
-						h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(routingModel), false, nil)
+						h.gatewayService.ReportOpenAIAccountScheduleResult(account, account.GetMappedModel(routingModel), false, nil, err)
 					}
 					if service.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c) != writerSizeBeforeForward {
 						reqLog.Warn("openai.images.upstream_failover_skipped_after_flush",
@@ -373,19 +383,21 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 						return
 					}
 					if failoverErr.RetryableOnSameAccount {
-						retryLimit := account.GetPoolModeRetryCount()
-						if sameAccountRetryCount[account.ID] < retryLimit {
+						retryLimit := effectiveSameAccountRetryLimit(failoverErr, account)
+						if sameAccountRetryAllowed(failoverErr, sameAccountRetryCount[account.ID], retryLimit) {
 							sameAccountRetryCount[account.ID]++
+							retryDelay := sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID])
 							reqLog.Warn("openai.images.pool_mode_same_account_retry",
 								zap.Int64("account_id", account.ID),
 								zap.Int("upstream_status", failoverErr.StatusCode),
 								zap.Int("retry_limit", retryLimit),
 								zap.Int("retry_count", sameAccountRetryCount[account.ID]),
+								zap.Duration("retry_delay", retryDelay),
 							)
 							select {
 							case <-routeCtx.Done():
 								return
-							case <-time.After(sameAccountRetryDelay):
+							case <-time.After(retryDelay):
 							}
 							continue
 						}
@@ -418,7 +430,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 					)
 					continue
 				}
-				h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(routingModel), false, nil)
+				h.gatewayService.ReportOpenAIAccountScheduleResult(account, account.GetMappedModel(routingModel), false, nil, err)
 				upstreamErrorAlreadyCommunicated := openAIForwardErrorAlreadyCommunicated(c, writerSizeBeforeForward, err)
 				wroteFallback := false
 				if !upstreamErrorAlreadyCommunicated {
@@ -443,9 +455,9 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			if account.Type == service.AccountTypeOAuth && !account.IsShadow() {
 				h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(routeCtx, account.ID, result.ResponseHeaders)
 			}
-			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(routingModel), true, result.FirstTokenMs)
+			h.gatewayService.ReportOpenAIAccountScheduleResult(account, account.GetMappedModel(routingModel), true, result.FirstTokenMs)
 		} else {
-			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(routingModel), true, nil)
+			h.gatewayService.ReportOpenAIAccountScheduleResult(account, account.GetMappedModel(routingModel), true, nil)
 		}
 		routeCursor.recordSuccess(apiKey.ID)
 

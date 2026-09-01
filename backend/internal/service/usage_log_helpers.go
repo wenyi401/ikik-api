@@ -10,6 +10,13 @@ func optionalTrimmedStringPtr(raw string) *string {
 	return &trimmed
 }
 
+func optionalStringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
 func optionalNonEqualStringPtr(raw, other string) *string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" || trimmed == strings.TrimSpace(other) {

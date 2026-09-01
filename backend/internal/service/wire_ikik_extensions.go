@@ -5,7 +5,6 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	dbent "ikik-api/ent"
-	"ikik-api/internal/config"
 	"ikik-api/internal/payment"
 	"ikik-api/internal/pkg/kirocooldown"
 )
@@ -79,41 +78,6 @@ func ProvideAdminService(
 	)
 	return SetAdminUserPrivateGroupProvisioner(svc, privateGroupProvisioner)
 }
-func ProvideAuthService(
-	entClient *dbent.Client,
-	userRepo UserRepository,
-	redeemRepo RedeemCodeRepository,
-	refreshTokenCache RefreshTokenCache,
-	cfg *config.Config,
-	settingService *SettingService,
-	emailService *EmailService,
-	turnstileService *TurnstileService,
-	emailQueueService *EmailQueueService,
-	promoService *PromoService,
-	defaultSubAssigner DefaultSubscriptionAssigner,
-	affiliateService *AffiliateService,
-	userPlatformQuotaRepo UserPlatformQuotaRepository,
-	privateGroupProvisioner UserPrivateGroupProvisioner,
-) *AuthService {
-	svc := NewAuthService(
-		entClient,
-		userRepo,
-		redeemRepo,
-		refreshTokenCache,
-		cfg,
-		settingService,
-		emailService,
-		turnstileService,
-		emailQueueService,
-		promoService,
-		defaultSubAssigner,
-		affiliateService,
-		userPlatformQuotaRepo,
-	)
-	svc.SetUserPrivateGroupProvisioner(privateGroupProvisioner)
-	return svc
-}
-
 func ProvideCarpoolService(
 	repo CarpoolRepository,
 	groupRepo GroupRepository,

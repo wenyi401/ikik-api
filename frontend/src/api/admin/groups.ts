@@ -20,6 +20,11 @@ import type {
 
 export type GroupScopeFilter = GroupScope | 'all'
 
+export interface LiveCapability {
+  supported: boolean
+  reason?: string
+}
+
 /**
  * List all groups with pagination
  * @param page - Page number (default: 1)
@@ -91,6 +96,12 @@ export async function getAllIncludingInactive(scope: GroupScopeFilter = 'all'): 
  */
 export async function getByPlatform(platform: GroupPlatform): Promise<AdminGroup[]> {
   return getAll(platform)
+}
+
+/** 获取当前 Sub2API 服务端的 Live 运行环境能力。 */
+export async function getLiveCapability(): Promise<LiveCapability> {
+  const { data } = await apiClient.get<LiveCapability>('/admin/groups/live-capability')
+  return data
 }
 
 /**
@@ -484,6 +495,7 @@ export const groupsAPI = {
   getAll,
   getAllIncludingInactive,
   getByPlatform,
+  getLiveCapability,
   getById,
   getModelsListCandidates,
   create,

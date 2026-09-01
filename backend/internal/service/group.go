@@ -210,13 +210,6 @@ func (g *Group) VideoPriceConfig() *VideoPriceConfig {
 	}
 }
 
-func (g *Group) GetSearchPricePer1k() *float64 {
-	if g == nil {
-		return nil
-	}
-	return g.SearchPricePer1k
-}
-
 // IsGroupContextValid reports whether a group from context has the fields required for routing decisions.
 func IsGroupContextValid(group *Group) bool {
 	if group == nil {
@@ -449,4 +442,12 @@ func computePeakAwareMultipliers(apiKey *APIKey, base float64, now time.Time) (t
 	}
 	text = base * peak
 	return
+}
+
+// GetSearchPricePer1k returns explicit search/tool price per 1k calls if configured.
+func (g *Group) GetSearchPricePer1k() *float64 {
+	if g == nil {
+		return nil
+	}
+	return g.SearchPricePer1k
 }

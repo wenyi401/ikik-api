@@ -385,16 +385,17 @@ func batchUsageErrorMessage(err error) string {
 	return err.Error()
 }
 
-// GetUsage 获取账号使用量
-// OAuth账号: 调用Anthropic API获取真实数据（需要profile scope），API响应缓存10分钟，窗口统计缓存1分钟
-// Setup Token账号: 根据session_window推算5h窗口，7d数据不可用（没有profile scope）
-// API Key账号: 不支持usage查询
-func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, force ...bool) (*UsageInfo, error) {
-	forceProbe := len(force) > 0 && force[0]
+func (s *AccountUsageService) getUsageForAccount(ctx context.Context, account *Account, forceProbe bool) (*UsageInfo, error) {
+	if account == nil {
+		return nil, fmt.Errorf("account is required")
+	}
+	accountID := account.ID
 
-	account, err := s.accountRepo.GetByID(ctx, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("get account failed: %w", err)
+	// Dedicated UI load-test accounts must remain fully interactive without ever
+	// contacting Anthropic with synthetic credentials. Reuse the same persisted
+	// passive snapshot that the account table loads on mount.
+	if account.IsSyntheticUITest() && account.IsAnthropicOAuthOrSetupToken() {
+		return s.getPassiveUsageForAccount(ctx, account)
 	}
 
 	if account.Platform == PlatformOpenAI && account.Type == AccountTypeOAuth {
@@ -527,6 +528,26 @@ func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, for
 	return nil, fmt.Errorf("account type %s does not support usage query", account.Type)
 }
 
+// GetUsage 获取账号使用量
+// OAuth账号: 调用Anthropic API获取真实数据（需要profile scope），API响应缓存10分钟，窗口统计缓存1分钟
+// Setup Token账号: 根据session_window推算5h窗口，7d数据不可用（没有profile scope）
+// API Key账号: 不支持usage查询
+func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, force ...bool) (*UsageInfo, error) {
+	forceProbe := len(force) > 0 && force[0]
+
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("get account failed: %w", err)
+	}
+
+	return s.getUsageForAccount(ctx, account, forceProbe)
+}
+
+func (s *AccountUsageService) GetUsageForAccount(ctx context.Context, account *Account, force ...bool) (*UsageInfo, error) {
+	forceProbe := len(force) > 0 && force[0]
+	return s.getUsageForAccount(ctx, account, forceProbe)
+}
+
 // GetUsageBatch retrieves usage for multiple accounts without letting one
 // upstream failure abort the entire batch. Anthropic OAuth accounts use their
 // passive snapshot path; all other account types retain the existing probe path.
@@ -603,7 +624,11 @@ func (s *AccountUsageService) GetPassiveUsage(ctx context.Context, accountID int
 		return nil, fmt.Errorf("get account failed: %w", err)
 	}
 
-	if !account.IsAnthropicOAuthOrSetupToken() {
+	return s.getPassiveUsageForAccount(ctx, account)
+}
+
+func (s *AccountUsageService) getPassiveUsageForAccount(ctx context.Context, account *Account) (*UsageInfo, error) {
+	if !supportsAnthropicPassiveUsage(account) {
 		return nil, fmt.Errorf("passive usage only supported for Anthropic OAuth/SetupToken accounts")
 	}
 
@@ -628,8 +653,28 @@ func (s *AccountUsageService) GetPassiveUsage(ctx context.Context, accountID int
 
 	// 添加窗口统计
 	s.addWindowStats(ctx, account, info)
+	if account.IsSyntheticUITest() {
+		applySyntheticWindowStats(info, account.Extra)
+	}
 
 	return info, nil
+}
+
+func applySyntheticWindowStats(info *UsageInfo, extra map[string]any) {
+	if info == nil || info.FiveHour == nil || len(extra) == 0 {
+		return
+	}
+	raw, ok := extra["synthetic_window_stats"].(map[string]any)
+	if !ok {
+		return
+	}
+	info.FiveHour.WindowStats = &WindowStats{
+		Requests:     int64(parseExtraInt(raw["requests"])),
+		Tokens:       int64(parseExtraInt(raw["tokens"])),
+		Cost:         parseExtraFloat64(raw["cost"]),
+		StandardCost: parseExtraFloat64(raw["standard_cost"]),
+		UserCost:     parseExtraFloat64(raw["user_cost"]),
+	}
 }
 
 // buildPassiveUsageWindow 从 Extra 中的被动采样数据（utilization 为 0-1 小数、reset 为 Unix 秒）
@@ -715,6 +760,9 @@ func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Accou
 					if updates := buildCodexSparkWindowExtraUpdates(quotaUsage, now); len(updates) > 0 {
 						mergeAccountExtra(account, updates)
 						s.persistOpenAICodexProbeSnapshot(account.ID, updates)
+						if account.ParentAccountID != nil {
+							notifyOpenAIAutoReset(*account.ParentAccountID)
+						}
 						if usage.UpdatedAt == nil {
 							usage.UpdatedAt = &now
 						}
@@ -822,7 +870,7 @@ func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, acco
 	if accessToken == "" && !account.IsOpenAIAgentIdentity() {
 		return nil, fmt.Errorf("no access token available")
 	}
-	modelID := openaipkg.DefaultTestModel
+	modelID := openaipkg.CodexUsageProbeModel
 	payload := createOpenAITestPayload(modelID, true)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -852,9 +900,10 @@ func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, acco
 	}
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("OpenAI-Beta", "responses=experimental")
-	req.Header.Set("Originator", "codex_cli_rs")
-	req.Header.Set("Version", openAICodexProbeVersion)
-	req.Header.Set("User-Agent", codexCLIUserAgent)
+	canonical := resolveCodexOutboundIdentity("")
+	req.Header.Set("Originator", canonical.originator)
+	req.Header.Set("Version", canonical.version)
+	req.Header.Set("User-Agent", canonical.userAgent)
 	if s.identityCache != nil {
 		if fp, fpErr := s.identityCache.GetFingerprint(reqCtx, account.ID); fpErr == nil && fp != nil && strings.TrimSpace(fp.UserAgent) != "" {
 			req.Header.Set("User-Agent", strings.TrimSpace(fp.UserAgent))
@@ -905,7 +954,9 @@ func (s *AccountUsageService) persistOpenAICodexProbeSnapshot(accountID int64, u
 	go func() {
 		updateCtx, updateCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer updateCancel()
-		_ = s.accountRepo.UpdateExtra(updateCtx, accountID, updates)
+		if err := s.accountRepo.UpdateExtra(updateCtx, accountID, updates); err == nil {
+			notifyOpenAIAutoReset(accountID)
+		}
 	}()
 }
 
@@ -1116,6 +1167,13 @@ func (s *AccountUsageService) getGrokUsage(ctx context.Context, account *Account
 			usage.GrokLocalUsage24h, usage.GrokLocalUsage7d, usage.GrokLocalUsageMonthly = grokLocalUsageForQuota(
 				ctx, s.usageLogRepo, account.ID, usage.GrokBilling, time.Now().UTC(),
 			)
+		}
+		// Attach local window stats to official 7d/30d progress bars.
+		if usage.SevenDay != nil && usage.GrokLocalUsage7d != nil {
+			usage.SevenDay.WindowStats = usage.GrokLocalUsage7d
+		}
+		if usage.ThirtyDay != nil && usage.GrokLocalUsageMonthly != nil {
+			usage.ThirtyDay.WindowStats = usage.GrokLocalUsageMonthly
 		}
 	}
 

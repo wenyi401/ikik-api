@@ -59,6 +59,7 @@ type CyberPolicyUsageInput struct {
 	UpstreamEndpoint   string
 	UserAgent          string
 	IPAddress          string
+	SessionID          string
 	RequestPayloadHash string
 	APIKeyService      APIKeyQuotaUpdater
 	ChannelUsageFields
@@ -93,6 +94,7 @@ func (s *OpenAIGatewayService) RecordCyberPolicyUsageLog(ctx context.Context, in
 		UpstreamEndpoint:   in.UpstreamEndpoint,
 		UserAgent:          in.UserAgent,
 		IPAddress:          in.IPAddress,
+		SessionID:          in.SessionID,
 		RequestPayloadHash: in.RequestPayloadHash,
 		APIKeyService:      in.APIKeyService,
 		ChannelUsageFields: in.ChannelUsageFields,
@@ -141,6 +143,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if !isGrokVideoUsageResult(result, nil) {
 		ApplyOpenAIImageBillingResolution(result)
 	}
+	logServiceTierBillingDowngrade("service.openai_gateway", account, result.RequestID, ApplyOpenAIServiceTierBillingResolution(result))
 
 	// OpenAI input_tokens 是总输入，包含缓存读取和缓存写入明细。
 	// 将三类 token 拆成互斥桶，避免缓存写入同时按普通输入和 cache_write 重复计费。
@@ -167,10 +170,13 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if apiKey.GroupID != nil && apiKey.Group != nil {
 		multiplier = s.ResolveUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
 	}
-	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。高峰因子按请求时刻现算，
-	// 不并入上面的 Resolve，以免污染 user:group 倍率缓存。
+	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。
+	// 高峰因子按请求级 PricingAt 现算（与利润门 D 同源同刻，跨峰谷请求不中途
+	// 变价）；未装配 PricingAt 的路径回退记录时刻，保持既有行为。不并入上面的
+	// Resolve，以免污染 user:group 倍率缓存。
 	baseMultiplier := multiplier
-	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, baseMultiplier, openAIUsagePricingAt(input))
+	pricingAt := openAIUsagePricingAt(input)
+	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, baseMultiplier, pricingAt)
 	videoMultiplier := resolveVideoRateMultiplier(apiKey, baseMultiplier)
 
 	var cost *CostBreakdown
@@ -193,6 +199,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		result.UpstreamModel,
 		result.Model,
 	)
+	billingModels = s.filterCNProviderBillingModelCandidates(ctx, account, apiKey, billingModels)
 	serviceTier := ""
 	if result.ServiceTier != nil {
 		serviceTier = strings.TrimSpace(*result.ServiceTier)
@@ -217,6 +224,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		tokens,
 		serviceTier,
 		longContextBillingGate,
+		pricingAt,
 	)
 	if err != nil {
 		if !isUsagePricingUnavailableError(err) {
@@ -249,7 +257,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			responseModels := usageBillingModelCandidates(responseModel)
 			responseCost, responseErr := s.calculateOpenAIRecordUsageCost(
 				ctx, result, apiKey, responseModels, multiplier, imageMultiplier,
-				videoMultiplier, baseMultiplier, tokens, serviceTier, longContextBillingGate,
+				videoMultiplier, baseMultiplier, tokens, serviceTier, longContextBillingGate, pricingAt,
 			)
 			// 基线定价源以 baselineBillingModel 为准：它正是 calculateOpenAIRecordUsageCost
 			// 内部做渠道定价判断时使用的模型，且"首候选有渠道价"必然意味着首候选就是实际
@@ -278,6 +286,18 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if result.OpenAIWSMode {
 		if upstreamRequestID := strings.TrimSpace(result.RequestID); upstreamRequestID != "" {
 			requestID = upstreamRequestID
+		}
+	}
+	// Async Grok video: always use the stable task id for dedup (status + content polls
+	// share one bill). Context-local client/local IDs would otherwise create a new row
+	// per poll if Redis claim is lost.
+	if result.VideoCount > 0 {
+		if stable := StableGrokVideoBillingRequestID(firstNonEmpty(
+			strings.TrimPrefix(strings.TrimSpace(result.RequestID), "grok-video:"),
+			strings.TrimSpace(result.ResponseID),
+			strings.TrimPrefix(strings.TrimSpace(requestID), "grok-video:"),
+		)); stable != "" {
+			requestID = stable
 		}
 	}
 
@@ -387,6 +407,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 	usageLog.SessionID = optionalTrimmedStringPtr(input.SessionID)
 
+	// 添加 SessionID（客户端显式会话标识；缺失/无效时保持 nil）
+	usageLog.SessionID = optionalTrimmedStringPtr(input.SessionID)
+
 	if apiKey.GroupID != nil {
 		usageLog.GroupID = apiKey.GroupID
 	}
@@ -486,6 +509,7 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	tokens UsageTokens,
 	serviceTier string,
 	longContextBillingGate *bool,
+	pricingAt time.Time,
 ) (*CostBreakdown, error) {
 	billingModel := firstUsageBillingModel(billingModels)
 	if result != nil && result.WebSearchCalls > 0 {
@@ -534,6 +558,7 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 				apiKey,
 				candidate,
 				multiplier,
+				pricingAt,
 				tokens,
 				serviceTier,
 				longContextBillingGate,
@@ -594,6 +619,8 @@ func isGrokVideoUsageResult(result *OpenAIForwardResult, billingModels []string)
 	if result == nil || result.VideoCount <= 0 {
 		return false
 	}
+	// VideoCount alone is authoritative for async video completion billing.
+	// Prefer model-family match when present; never drop video mode on rename/mapping.
 	candidates := append([]string{}, billingModels...)
 	candidates = append(candidates, result.BillingModel, result.Model, result.UpstreamModel)
 	for _, candidate := range candidates {
@@ -601,7 +628,7 @@ func isGrokVideoUsageResult(result *OpenAIForwardResult, billingModels []string)
 			return true
 		}
 	}
-	return false
+	return true
 }
 
 func isUsagePricingUnavailableError(err error) bool {
@@ -620,6 +647,7 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageTokenCost(
 	apiKey *APIKey,
 	billingModel string,
 	multiplier float64,
+	pricingAt time.Time,
 	tokens UsageTokens,
 	serviceTier string,
 	longContextBillingGate *bool,
@@ -782,10 +810,14 @@ func (s *OpenAIGatewayService) apiKeyWithFreshGroupMediaPricing(ctx context.Cont
 	return &clone
 }
 
-// groupMediaPricingLooksIncomplete 判断分组对象是否可能缺失媒体计费字段（例如由不含
-// 这些字段的旧快照或手工构造的上下文对象生成）。image/video 独立倍率在数据库中的
-// 默认值均为 1.0，正常加载的分组不可能两个倍率同时为 0 且未开启独立倍率、全部媒体
-// 价为 nil——只有这种情况才回源查库，避免对未配置覆盖价的分组每条媒体用量都多打一次 DB 查询。
+// groupMediaPricingLooksIncomplete 判断分组对象是否可能缺失媒体/搜索/语音计费字段
+// （例如由不含这些字段的旧快照或手工构造的上下文对象生成）。image/video 独立倍率在
+// 数据库中的默认值均为 1.0；正常加载的分组不可能两个倍率同时为 0 且未开启独立倍率、
+// 全部媒体/搜索/语音价为 nil——只有这种情况才回源查库，避免对未配置覆盖价的分组每条
+// 用量都多打一次 DB 查询。
+//
+// 注意：apiKeyAuthSnapshotVersion 升级会强制刷新存量快照；本函数是热路径上的二次兜底，
+// 不能仅凭 legacy video_price_* 判定完整而跳过 VideoModelPrices/search/audio 的回源。
 func groupMediaPricingLooksIncomplete(group *Group) bool {
 	if group == nil {
 		return true
@@ -812,6 +844,36 @@ func groupMediaPricingLooksIncomplete(group *Group) bool {
 	}
 	return group.ImagePrice1K == nil && group.ImagePrice2K == nil && group.ImagePrice4K == nil &&
 		group.VideoPrice480P == nil && group.VideoPrice720P == nil && group.VideoPrice1080P == nil
+}
+
+// filterCNProviderBillingModelCandidates 过滤国产供应商（kimi/zhipu/deepseek）
+// 账号的计费候选模型名：claude-* 候选仅在运营者显式配置了分组/渠道定价时保留。
+//
+// 背景：候选链的兜底候选含客户端请求的原始模型名。CN 上游的 Anthropic 兼容端点
+// 接受 claude-* 模型名但从不真正服务 Claude 模型；若放行，目录里的 Claude 价卡
+// 与 getFallbackPricing 的 "claude"→Sonnet 统一兜底会把 CN 流量按 Claude 原价
+// （数倍～数十倍）静默误计，且 usage 日志显示的正是 claude-* 名，无从察觉。
+// 候选全部落空时走既有的零成本+告警路径（openai_usage.pricing_missing_record_
+// zero_cost），与定价层「未知型号不回退以避免误计价」的既有设计意图一致；
+// 运营者的修复手段是配置账号级 model_mapping（映射到已定价的 CN 模型）或
+// 分组/渠道显式定价。
+func (s *OpenAIGatewayService) filterCNProviderBillingModelCandidates(ctx context.Context, account *Account, apiKey *APIKey, candidates []string) []string {
+	if account == nil || !account.IsCNProvider() {
+		return candidates
+	}
+	out := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		trimmed := strings.TrimSpace(candidate)
+		if trimmed == "" {
+			continue
+		}
+		if strings.Contains(strings.ToLower(trimmed), "claude") &&
+			s.resolveOpenAIChannelPricing(ctx, trimmed, apiKey) == nil {
+			continue
+		}
+		out = append(out, candidate)
+	}
+	return out
 }
 
 func (s *OpenAIGatewayService) resolveOpenAIChannelPricing(ctx context.Context, billingModel string, apiKey *APIKey) *ResolvedPricing {
@@ -1008,7 +1070,9 @@ func (s *OpenAIGatewayService) updateCodexUsageSnapshot(ctx context.Context, acc
 	go func() {
 		updateCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = s.accountRepo.UpdateExtra(updateCtx, accountID, updates)
+		if err := s.accountRepo.UpdateExtra(updateCtx, accountID, updates); err == nil {
+			notifyOpenAIAutoReset(accountID)
+		}
 	}()
 }
 

@@ -9,12 +9,18 @@ import (
 // openAIReasoningEffortPolicyForRequest converts the API key's immutable group
 // snapshot into the policy consumed by HTTP and WebSocket OpenAI forwarding.
 // Invalid legacy data is ignored rather than allowing an unvalidated rewrite.
-func openAIReasoningEffortPolicyForRequest(_ *gin.Context, apiKey *service.APIKey) (string, []service.ReasoningEffortMapping, bool) {
+func openAIReasoningEffortPolicyForRequest(c *gin.Context, apiKey *service.APIKey) (string, []service.ReasoningEffortMapping, bool) {
 	if apiKey == nil || apiKey.Group == nil {
 		return "", nil, false
 	}
+	if apiKey.Group.Platform != service.PlatformOpenAI && apiKey.Group.Platform != service.PlatformComposite {
+		return "", nil, false
+	}
+	if effectiveAPIKeyPlatform(c, apiKey) != service.PlatformOpenAI {
+		return "", nil, false
+	}
 	maxEffort := service.NormalizeMaxReasoningEffort(apiKey.Group.MaxReasoningEffort)
-	mappings, err := service.NormalizeReasoningEffortMappings(apiKey.Group.Platform, apiKey.Group.ReasoningEffortMappings)
+	mappings, err := service.NormalizeReasoningEffortMappings(service.PlatformOpenAI, apiKey.Group.ReasoningEffortMappings)
 	if err != nil {
 		return "", nil, false
 	}

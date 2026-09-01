@@ -216,6 +216,7 @@ export interface UserBulkAccountOperationResponse {
   failed: number
   success_ids?: number[]
   failed_ids?: number[]
+  long_context_inherited_count?: number
   results: UserBulkAccountResult[]
 }
 

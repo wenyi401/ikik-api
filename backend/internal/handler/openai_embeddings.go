@@ -107,6 +107,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 		return
 	}
 
+	profitVetoCount := 0
 	failedAccountIDs := make(map[int64]struct{})
 	var lastFailoverErr *service.UpstreamFailoverError
 	switchCount := 0
@@ -115,6 +116,10 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 		maxAccountSwitches = 3
 	}
 	routingStart := time.Now()
+
+	// 分组利润控制：embeddings 文本入口请求级装门并固定 pricingAt。
+	embPricingCtx, pricingAt := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)
+	c.Request = c.Request.WithContext(embPricingCtx)
 
 	for {
 		selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
@@ -165,8 +170,15 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 		account := selection.Account
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
-		accountReleaseFunc, accountAcquired := h.acquireResponsesAccountSlot(c, apiKey.GroupID, "", selection, false, &streamStarted, reqLog)
-		if accountAcquired != openAISlotAcquireOK {
+		accountReleaseFunc, slotResult := h.acquireResponsesAccountSlot(c, apiKey.GroupID, "", selection, false, &streamStarted, reqLog)
+		if slotResult == openAISlotAcquireProfitVetoed {
+			if !recordOpenAIProfitVeto(failedAccountIDs, account.ID, &profitVetoCount) {
+				h.handleOpenAIProfitVetoExhausted(c, streamStarted, reqLog, profitVetoCount)
+				return
+			}
+			continue
+		}
+		if slotResult != openAISlotAcquireOK {
 			return
 		}
 
@@ -202,7 +214,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 					h.handleFailoverExhausted(c, failoverErr, true)
 					return
 				}
-				h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(reqModel), false, nil)
+				h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, reqModel, false, result), false, nil, err)
 				if failoverClientGone(c) {
 					reqLog.Info("openai_embeddings.failover_aborted_client_disconnected",
 						zap.Int64("account_id", account.ID),
@@ -226,7 +238,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 				)
 				continue
 			}
-			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(reqModel), false, nil)
+			h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, reqModel, false, result), false, nil, err)
 			if c.Writer.Size() == writerSizeBeforeForward {
 				h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 			}
@@ -237,12 +249,13 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 			return
 		}
 
-		h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(reqModel), true, nil)
+		h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, reqModel, false, result), true, nil)
 		userAgent := c.GetHeader("User-Agent")
 		clientIP := ip.GetClientIP(c)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
 		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+		sessionID := service.ExtractClientSessionID(c)
 
 		h.submitOpenAIUsageRecordTask(c.Request.Context(), result, func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
@@ -257,7 +270,9 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 				IPAddress:          clientIP,
 				APIKeyService:      h.apiKeyService,
 				QuotaPlatform:      quotaPlatform,
+				SessionID:          sessionID,
 				ChannelUsageFields: clientRequestedUsageFields(c, channelMapping, reqModel, result.UpstreamModel),
+				PricingAt:          pricingAt,
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.embeddings"),

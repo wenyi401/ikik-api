@@ -155,6 +155,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
+import Icon from '@/components/icons/Icon.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
@@ -448,6 +449,10 @@ const ServerIcon = {
     )
 }
 
+const PluginIcon = {
+  render: () => h(Icon, { name: 'cube' })
+}
+
 const BellIcon = {
   render: () =>
     h(
@@ -696,9 +701,12 @@ const flagPayment = () => {
   return settings.payment_enabled === true || externalPurchaseEnabled
 }
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
+const flagModelPlaza = makeSidebarFlag(FeatureFlags.modelPlaza)
 const flagFreeModels = makeSidebarFlag(FeatureFlags.freeModels)
 const flagCarpool = makeSidebarFlag(FeatureFlags.carpool)
 const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
+const flagPluginManagement = makeSidebarFlag(FeatureFlags.pluginManagement)
+const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 const MyAccountsIcon = GlobeIcon
@@ -801,6 +809,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
       icon: ModelLobbyIcon,
       expandOnly: true,
       children: [
+        { path: '/model-plaza', label: t('nav.modelPlaza'), icon: ModelLobbyIcon, hideInSimpleMode: true, featureFlag: flagModelPlaza },
         { path: '/models', label: t('nav.modelMarket'), icon: ModelMarketIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
         { path: '/prompts', label: t('nav.promptLibrary'), icon: PromptLibraryIcon },
         { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
@@ -821,7 +830,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
         { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
         { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
         { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
-        { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true },
+        { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
       ],
     },
     {
@@ -912,6 +921,7 @@ const adminNavItems = computed((): NavItem[] => {
         { path: '/admin/carpools', label: t('nav.carpools'), icon: UsersIcon, featureFlag: flagCarpool },
       ],
     },
+    { path: '/admin/plugins', label: t('nav.plugins'), icon: PluginIcon, featureFlag: flagPluginManagement },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/prompt-submissions', label: t('nav.promptSubmissions'), icon: PromptLibraryIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },

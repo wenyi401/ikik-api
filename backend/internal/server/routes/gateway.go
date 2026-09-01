@@ -47,7 +47,9 @@ func RegisterGatewayRoutes(
 
 	isOpenAIResponsesCompatibleGatewayPlatform := func(c *gin.Context) bool {
 		switch getGroupPlatform(c) {
-		case service.PlatformOpenAI, service.PlatformGrok:
+		case service.PlatformOpenAI, service.PlatformGrok,
+			service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek:
+			// 国产 OpenAI 兼容供应商（kimi/zhipu/deepseek）与 openai/grok 一样经 OpenAI 网关转发。
 			return true
 		default:
 			return false
@@ -61,15 +63,12 @@ func RegisterGatewayRoutes(
 			return false
 		}
 	}
-	isOpenAIGatewayPlatform := func(c *gin.Context) bool {
-		return getGroupPlatform(c) == service.PlatformOpenAI
-	}
 	isOpenAIOnlyEndpointGatewayPlatform := func(c *gin.Context) bool {
 		return getGroupPlatform(c) == service.PlatformOpenAI
 	}
 	countTokensHandler := func(c *gin.Context) {
 		switch getGroupPlatform(c) {
-		case service.PlatformOpenAI:
+		case service.PlatformOpenAI, service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek:
 			h.OpenAIGateway.CountTokens(c)
 		case service.PlatformGrok:
 			h.OpenAIGateway.GrokCountTokens(c)
@@ -78,9 +77,12 @@ func RegisterGatewayRoutes(
 		}
 	}
 	modelsHandler := func(c *gin.Context) {
-		if isOpenAIGatewayPlatform(c) && c.Query("client_version") != "" {
-			h.OpenAIGateway.CodexModels(c)
-			return
+		if c.Query("client_version") != "" {
+			switch getGroupPlatform(c) {
+			case service.PlatformOpenAI, service.PlatformComposite:
+				h.OpenAIGateway.CodexModels(c)
+				return
+			}
 		}
 		h.Gateway.Models(c)
 	}
@@ -101,7 +103,10 @@ func RegisterGatewayRoutes(
 		}
 	}
 	videoGenerationHandler := func(c *gin.Context) {
-		if getGroupPlatform(c) == service.PlatformGrok {
+		// Video status/content lookups below already allow Composite groups; keep
+		// task creation aligned so composite keys that route to Grok accounts can
+		// submit video generation jobs.
+		if platform := getGroupPlatform(c); platform == service.PlatformGrok || platform == service.PlatformComposite {
 			h.OpenAIGateway.GrokVideoGeneration(c)
 			return
 		}
@@ -201,6 +206,8 @@ func RegisterGatewayRoutes(
 		// Codex manifest format; other clients keep the OpenAI-style list.
 		gateway.GET("/models", modelsHandler)
 		gateway.GET("/usage", h.Gateway.Usage)
+		gateway.POST("/live", h.OpenAIGateway.Live)
+		gateway.GET("/live/:call_id", h.OpenAIGateway.LiveSideband)
 		// OpenAI Responses API: auto-route based on group platform
 		gateway.POST("/responses", func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
@@ -256,9 +263,18 @@ func RegisterGatewayRoutes(
 		gateway.POST("/images/batches/:id/cancel", h.BatchImage.Cancel)
 		gateway.DELETE("/images/batches/:id", h.BatchImage.DeleteRecord)
 		gateway.DELETE("/images/batches/:id/outputs", h.BatchImage.DeleteOutputs)
+		// OpenAI-compatible clients may create through /videos; xAI receives the
+		// canonical /videos/generations route inside the Grok media forwarder.
+		gateway.POST("/videos", videoGenerationHandler)
 		gateway.POST("/videos/generations", videoGenerationHandler)
 		gateway.POST("/videos/edits", videoEditHandler)
 		gateway.POST("/videos/extensions", videoExtensionHandler)
+		gateway.GET("/videos/generations/:request_id/content", videoContentHandler)
+		gateway.GET("/videos/edits/:request_id/content", videoContentHandler)
+		gateway.GET("/videos/extensions/:request_id/content", videoContentHandler)
+		gateway.GET("/videos/generations/:request_id", videoStatusHandler)
+		gateway.GET("/videos/edits/:request_id", videoStatusHandler)
+		gateway.GET("/videos/extensions/:request_id", videoStatusHandler)
 		gateway.GET("/videos/:request_id", videoStatusHandler)
 		gateway.GET("/videos/:request_id/content", videoContentHandler)
 		// xAI Voice APIs (Grok platform only): HTTP TTS/STT + Realtime WS.
@@ -351,6 +367,8 @@ func RegisterGatewayRoutes(
 	codexDirect := r.Group("/backend-api/codex")
 	codexDirect.Use(bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), h.Pet.GatewayActivity(), compositeTarget, requireGroupAnthropic)
 	{
+		codexDirect.POST("/realtime/calls", h.OpenAIGateway.Live)
+		codexDirect.GET("/:call_id", h.OpenAIGateway.LiveSideband)
 		codexDirect.POST("/responses", responsesHandler)
 		codexDirect.POST("/responses/*subpath", guardResponsesSubpath(responsesHandler))
 		codexDirect.POST("/alpha/search", textBodyLimit, h.OpenAIGateway.AlphaSearch)
@@ -385,9 +403,16 @@ func RegisterGatewayRoutes(
 	r.POST("/images/generations/async", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), h.Pet.GatewayActivity(), compositeTarget, requireGroupAnthropic, h.AsyncImage.Submit)
 	r.POST("/images/edits/async", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), h.Pet.GatewayActivity(), compositeTarget, requireGroupAnthropic, h.AsyncImage.Submit)
 	r.GET("/images/tasks/:task_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, h.AsyncImage.Get)
+	r.POST("/videos", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), h.Pet.GatewayActivity(), compositeTarget, requireGroupAnthropic, videoGenerationHandler)
 	r.POST("/videos/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), h.Pet.GatewayActivity(), compositeTarget, requireGroupAnthropic, videoGenerationHandler)
 	r.POST("/videos/edits", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), h.Pet.GatewayActivity(), compositeTarget, requireGroupAnthropic, videoEditHandler)
 	r.POST("/videos/extensions", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), h.Pet.GatewayActivity(), compositeTarget, requireGroupAnthropic, videoExtensionHandler)
+	r.GET("/videos/generations/:request_id/content", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, videoContentHandler)
+	r.GET("/videos/edits/:request_id/content", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, videoContentHandler)
+	r.GET("/videos/extensions/:request_id/content", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, videoContentHandler)
+	r.GET("/videos/generations/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, videoStatusHandler)
+	r.GET("/videos/edits/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, videoStatusHandler)
+	r.GET("/videos/extensions/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, videoStatusHandler)
 	r.GET("/videos/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, videoStatusHandler)
 	r.GET("/videos/:request_id/content", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, videoContentHandler)
 

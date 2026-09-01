@@ -203,7 +203,7 @@ go test -tags=integration ./...
 **解决**：
 ```bash
 cd backend
-go generate ./ent  # 重新生成 ent 代码
+go generate ./ent  # 重新生成 ent 代码（json.RawMessage 字段会生成为同类型的 jsontext.Value，属预期）
 git add ent/       # 生成的文件也要提交
 ```
 

@@ -19,6 +19,7 @@ import usageAPI from './usage'
 import geminiAPI from './gemini'
 import antigravityAPI from './antigravity'
 import grokAPI from './grok'
+import cnProvidersAPI from './cnProviders'
 import kiroAPI from './kiro'
 import userAttributesAPI from './userAttributes'
 import opsAPI from './ops'
@@ -40,6 +41,7 @@ import carpoolsAPI from './carpools'
 import modulesAPI from './modules'
 import auditAPI from './audit'
 import merchantSsoAPI from './merchantSso'
+import pluginsAPI from './plugins'
 
 /**
  * Unified admin API object for convenient access
@@ -61,6 +63,7 @@ export const adminAPI = {
   gemini: geminiAPI,
   antigravity: antigravityAPI,
   grok: grokAPI,
+  cnProviders: cnProvidersAPI,
   kiro: kiroAPI,
   userAttributes: userAttributesAPI,
   ops: opsAPI,
@@ -81,7 +84,8 @@ export const adminAPI = {
   carpools: carpoolsAPI,
   modules: modulesAPI,
   audit: auditAPI,
-  merchantSso: merchantSsoAPI
+  merchantSso: merchantSsoAPI,
+  plugins: pluginsAPI
 }
 
 export {
@@ -101,6 +105,7 @@ export {
   geminiAPI,
   antigravityAPI,
   grokAPI,
+  cnProvidersAPI,
   kiroAPI,
   userAttributesAPI,
   opsAPI,
@@ -121,7 +126,8 @@ export {
   carpoolsAPI,
   modulesAPI,
   auditAPI,
-  merchantSsoAPI
+  merchantSsoAPI,
+  pluginsAPI
 }
 
 export default adminAPI
@@ -135,3 +141,9 @@ export type { TLSFingerprintProfile, CreateProfileRequest, UpdateProfileRequest 
 export type { RevenueSummary, RevenueSummaryParams } from './revenue'
 export type { AccountSharePolicy } from './accountSharePolicies'
 export type { AdminCarpoolPoolSummary, AdminCarpoolFilters } from './carpools'
+export type {
+  PluginInstallation,
+  PluginCompatibility,
+  PluginUISession,
+  PluginTestResult
+} from './plugins'

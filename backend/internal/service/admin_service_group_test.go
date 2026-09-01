@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -811,6 +812,99 @@ func TestAdminService_UpdateGroup_InvalidatesAuthCacheOnRPMLimitChange(t *testin
 	require.Equal(t, []int64{1}, invalidator.groupIDs, "分组 RPMLimit 写入 auth snapshot，变更后必须失效 API Key 认证缓存")
 }
 
+func TestAdminService_UpdateGroup_ReasoningEffortMappingsTriState(t *testing.T) {
+	tests := []struct {
+		name  string
+		input *UpdateGroupInput
+		want  []ReasoningEffortMapping
+	}{
+		{
+			name:  "nil preserves existing mappings",
+			input: &UpdateGroupInput{},
+			want:  []ReasoningEffortMapping{{From: "max", To: "xhigh"}},
+		},
+		{
+			name: "empty array clears mappings",
+			input: func() *UpdateGroupInput {
+				empty := []ReasoningEffortMapping{}
+				return &UpdateGroupInput{ReasoningEffortMappings: &empty}
+			}(),
+			want: []ReasoningEffortMapping{},
+		},
+		{
+			name: "non empty array replaces and canonicalizes mappings",
+			input: func() *UpdateGroupInput {
+				replacement := []ReasoningEffortMapping{{From: " X-HIGH ", To: " high "}}
+				return &UpdateGroupInput{ReasoningEffortMappings: &replacement}
+			}(),
+			want: []ReasoningEffortMapping{{From: "xhigh", To: "high"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existing := &Group{
+				ID:                      1,
+				Name:                    "openai-group",
+				Platform:                PlatformOpenAI,
+				Status:                  StatusActive,
+				ReasoningEffortMappings: []ReasoningEffortMapping{{From: "max", To: "xhigh"}},
+			}
+			repo := &groupRepoStubForAdmin{getByID: existing}
+			svc := &adminServiceImpl{groupRepo: repo}
+
+			_, err := svc.UpdateGroup(context.Background(), existing.ID, tt.input)
+
+			require.NoError(t, err)
+			require.Equal(t, tt.want, repo.updated.ReasoningEffortMappings)
+		})
+	}
+}
+
+func TestAdminService_UpdateGroup_RejectsInvalidReasoningEffortMappings(t *testing.T) {
+	existing := &Group{
+		ID:               1,
+		Name:             "openai",
+		Platform:         PlatformOpenAI,
+		SubscriptionType: SubscriptionTypeStandard,
+		RateMultiplier:   1,
+		Status:           StatusActive,
+	}
+	repo := &groupRepoStubForInvalidRequestFallback{groups: map[int64]*Group{existing.ID: existing}}
+	svc := &adminServiceImpl{groupRepo: repo}
+	invalid := []ReasoningEffortMapping{
+		{From: "max", To: "xhigh"},
+		{From: " MAX ", To: "high"},
+	}
+
+	_, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
+		ReasoningEffortMappings: &invalid,
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "duplicate reasoning effort mapping source")
+	require.Nil(t, repo.updated)
+}
+
+func TestAdminService_UpdateGroup_ClearsReasoningPolicyForUnsupportedPlatform(t *testing.T) {
+	existing := &Group{
+		ID:                      1,
+		Name:                    "openai-group",
+		Platform:                PlatformOpenAI,
+		Status:                  StatusActive,
+		MaxReasoningEffort:      "medium",
+		ReasoningEffortMappings: []ReasoningEffortMapping{{From: "max", To: "xhigh"}},
+	}
+	repo := &groupRepoStubForAdmin{getByID: existing}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	_, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{Platform: PlatformAnthropic})
+
+	require.NoError(t, err)
+	require.Empty(t, repo.updated.MaxReasoningEffort)
+	require.Empty(t, repo.updated.ReasoningEffortMappings)
+}
+
 func TestAdminService_UpdateGroup_ClearsPeakRateWhenChangingToStandard(t *testing.T) {
 	existingGroup := &Group{
 		ID:                 1,
@@ -909,6 +1003,7 @@ func TestAdminService_CreateGroup_ClearsMessagesDispatchFieldsForNonOpenAIPlatfo
 		Platform:              PlatformAnthropic,
 		RateMultiplier:        1.0,
 		AllowMessagesDispatch: true,
+		AllowLive:             true,
 		DefaultMappedModel:    "gpt-5.4",
 		MessagesDispatchModelConfig: OpenAIMessagesDispatchModelConfig{
 			OpusMappedModel: "gpt-5.4",
@@ -918,8 +1013,47 @@ func TestAdminService_CreateGroup_ClearsMessagesDispatchFieldsForNonOpenAIPlatfo
 	require.NotNil(t, group)
 	require.NotNil(t, repo.created)
 	require.False(t, repo.created.AllowMessagesDispatch)
+	require.False(t, repo.created.AllowLive)
 	require.Empty(t, repo.created.DefaultMappedModel)
 	require.Equal(t, OpenAIMessagesDispatchModelConfig{}, repo.created.MessagesDispatchModelConfig)
+}
+
+func TestAdminService_CreateCompositeGroupPreservesLive(t *testing.T) {
+	repo := &groupRepoStubForAdmin{}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:           "composite-group",
+		Platform:       PlatformComposite,
+		RateMultiplier: 1.0,
+		AllowLive:      true,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.created)
+	require.True(t, repo.created.AllowLive)
+}
+
+func TestAdminService_UpdateCompositeGroupPreservesLive(t *testing.T) {
+	existingGroup := &Group{
+		ID:       1,
+		Name:     "composite-group",
+		Platform: PlatformComposite,
+		Status:   StatusActive,
+	}
+	repo := &groupRepoStubForAdmin{getByID: existingGroup}
+	svc := &adminServiceImpl{groupRepo: repo}
+	allowLive := true
+
+	group, err := svc.UpdateGroup(context.Background(), existingGroup.ID, &UpdateGroupInput{
+		AllowLive: &allowLive,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.updated)
+	require.True(t, repo.updated.AllowLive)
 }
 
 func TestAdminService_UpdateGroup_ClearsMessagesDispatchFieldsWhenPlatformChangesAwayFromOpenAI(t *testing.T) {
@@ -929,6 +1063,7 @@ func TestAdminService_UpdateGroup_ClearsMessagesDispatchFieldsWhenPlatformChange
 		Platform:              PlatformOpenAI,
 		Status:                StatusActive,
 		AllowMessagesDispatch: true,
+		AllowLive:             true,
 		DefaultMappedModel:    "gpt-5.4",
 		MessagesDispatchModelConfig: OpenAIMessagesDispatchModelConfig{
 			SonnetMappedModel: "gpt-5.3-codex",
@@ -945,6 +1080,7 @@ func TestAdminService_UpdateGroup_ClearsMessagesDispatchFieldsWhenPlatformChange
 	require.NotNil(t, repo.updated)
 	require.Equal(t, PlatformAnthropic, repo.updated.Platform)
 	require.False(t, repo.updated.AllowMessagesDispatch)
+	require.False(t, repo.updated.AllowLive)
 	require.Empty(t, repo.updated.DefaultMappedModel)
 	require.Equal(t, OpenAIMessagesDispatchModelConfig{}, repo.updated.MessagesDispatchModelConfig)
 }

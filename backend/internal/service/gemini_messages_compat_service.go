@@ -946,7 +946,16 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 				if upstreamReqID == "" {
 					upstreamReqID = resp.Header.Get("x-goog-request-id")
 				}
-				return nil, s.writeGeminiMappedError(c, account, http.StatusInternalServerError, upstreamReqID, respBody)
+				if failoverErr := s.skippedErrorPolicyFailoverError(c, account, resp.StatusCode, respBody, upstreamReqID); failoverErr != nil {
+					return nil, failoverErr
+				}
+				if account.IsCustomErrorCodesEnabled() {
+					return nil, s.writeGeminiCustomCodeSkippedError(c, account, resp.StatusCode, upstreamReqID, respBody, func() {
+						_ = s.writeClaudeError(c, http.StatusInternalServerError, "api_error", geminiCustomCodeSkippedClientMessage)
+					})
+				}
+				// 池模式：客户端写出与 ErrorPolicyNone 相同（按上游真实状态码映射），仅跳过账号状态标记。
+				return nil, s.writeGeminiMappedError(c, account, resp.StatusCode, upstreamReqID, respBody)
 			case ErrorPolicyMatched, ErrorPolicyTempUnscheduled:
 				if policy == ErrorPolicyMatched {
 					s.handleGeminiUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
@@ -1091,16 +1100,18 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 	imageCount := resolveGeminiImageCount(c, originalModel, mappedModel)
 
 	return &ForwardResult{
-		RequestID:      requestID,
-		Usage:          *usage,
-		Model:          originalModel,
-		UpstreamModel:  mappedModel,
-		Stream:         req.Stream,
-		Duration:       time.Since(startTime),
-		FirstTokenMs:   firstTokenMs,
-		ImageCount:     imageCount,
-		ImageSize:      imageSize,
-		ImageInputSize: imageInputSize,
+		RequestID:                     requestID,
+		Usage:                         *usage,
+		Model:                         originalModel,
+		UpstreamModel:                 mappedModel,
+		UpstreamResponseModel:         observedUpstreamResponseModel(c),
+		UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
+		Stream:                        req.Stream,
+		Duration:                      time.Since(startTime),
+		FirstTokenMs:                  firstTokenMs,
+		ImageCount:                    imageCount,
+		ImageSize:                     imageSize,
+		ImageInputSize:                imageInputSize,
 	}, nil
 }
 
@@ -1452,14 +1463,16 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 			policy := s.rateLimitService.CheckErrorPolicy(ctx, account, resp.StatusCode, respBody, mappedModel)
 			switch policy {
 			case ErrorPolicySkipped:
-				respBody = unwrapIfNeeded(isOAuth, respBody)
-				contentType := resp.Header.Get("Content-Type")
-				if contentType == "" {
-					contentType = "application/json"
+				if failoverErr := s.skippedErrorPolicyFailoverError(c, account, resp.StatusCode, respBody, requestID); failoverErr != nil {
+					return nil, failoverErr
 				}
-				MarkResponseCommitted(c)
-				c.Data(http.StatusInternalServerError, contentType, respBody)
-				return nil, fmt.Errorf("gemini upstream error: %d (skipped by error policy)", resp.StatusCode)
+				if account.IsCustomErrorCodesEnabled() {
+					return nil, s.writeGeminiCustomCodeSkippedError(c, account, resp.StatusCode, requestID, respBody, func() {
+						_ = s.writeGoogleError(c, http.StatusInternalServerError, geminiCustomCodeSkippedClientMessage)
+					})
+				}
+				// 池模式：客户端写出与 ErrorPolicyNone 相同（状态码/响应体保真），仅跳过账号状态标记。
+				return nil, s.writeGeminiNativeUpstreamError(c, account, resp, respBody, requestID, isOAuth)
 			case ErrorPolicyMatched, ErrorPolicyTempUnscheduled:
 				if policy == ErrorPolicyMatched {
 					s.handleGeminiUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
@@ -1544,40 +1557,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 			return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: evBody}
 		}
 
-		respBody = unwrapIfNeeded(isOAuth, respBody)
-		upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
-		upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-		upstreamDetail := ""
-		if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-			maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-			if maxBytes <= 0 {
-				maxBytes = 2048
-			}
-			upstreamDetail = truncateString(string(respBody), maxBytes)
-			logger.LegacyPrintf("service.gemini_messages_compat", "[Gemini] native upstream error %d: %s", resp.StatusCode, truncateForLog(respBody, s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes))
-		}
-		setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
-		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
-			UpstreamStatusCode: resp.StatusCode,
-			UpstreamRequestID:  requestID,
-			Kind:               "http_error",
-			Message:            upstreamMsg,
-			Detail:             upstreamDetail,
-		})
-
-		contentType := resp.Header.Get("Content-Type")
-		if contentType == "" {
-			contentType = "application/json"
-		}
-		MarkResponseCommitted(c)
-		c.Data(resp.StatusCode, contentType, respBody)
-		if upstreamMsg == "" {
-			return nil, fmt.Errorf("gemini upstream error: %d", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("gemini upstream error: %d message=%s", resp.StatusCode, upstreamMsg)
+		return nil, s.writeGeminiNativeUpstreamError(c, account, resp, respBody, requestID, isOAuth)
 	}
 
 	var usage *ClaudeUsage
@@ -1619,16 +1599,18 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 	imageCount := resolveGeminiImageCount(c, originalModel, mappedModel)
 
 	return &ForwardResult{
-		RequestID:      requestID,
-		Usage:          *usage,
-		Model:          originalModel,
-		UpstreamModel:  mappedModel,
-		Stream:         stream,
-		Duration:       time.Since(startTime),
-		FirstTokenMs:   firstTokenMs,
-		ImageCount:     imageCount,
-		ImageSize:      imageSize,
-		ImageInputSize: imageInputSize,
+		RequestID:                     requestID,
+		Usage:                         *usage,
+		Model:                         originalModel,
+		UpstreamModel:                 mappedModel,
+		UpstreamResponseModel:         observedUpstreamResponseModel(c),
+		UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
+		Stream:                        stream,
+		Duration:                      time.Since(startTime),
+		FirstTokenMs:                  firstTokenMs,
+		ImageCount:                    imageCount,
+		ImageSize:                     imageSize,
+		ImageInputSize:                imageInputSize,
 	}, nil
 }
 
@@ -1679,6 +1661,108 @@ func (s *GeminiMessagesCompatService) shouldFailoverGeminiUpstreamError(statusCo
 	default:
 		return statusCode >= 500
 	}
+}
+
+// skippedErrorPolicyFailoverError 命中 ErrorPolicySkipped（池模式、或自定义错误码未命中）
+// 时构造 failover 错误：可 failover 的状态码返回 UpstreamFailoverError，交给 handler 层换号
+// （池模式账号按 pool_mode_retry_count 先同账号重试）；返回 nil 表示状态码不可 failover，
+// 由调用方决定客户端写出。Skipped 只豁免账号状态标记，不豁免换号，与 OpenAI 网关路径一致。
+func (s *GeminiMessagesCompatService) skippedErrorPolicyFailoverError(c *gin.Context, account *Account, statusCode int, respBody []byte, upstreamRequestID string) *UpstreamFailoverError {
+	if !s.shouldFailoverGeminiUpstreamError(statusCode) {
+		return nil
+	}
+	upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
+	upstreamDetail := s.upstreamErrorDetail(respBody)
+	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+		Platform:           account.Platform,
+		AccountID:          account.ID,
+		AccountName:        account.Name,
+		UpstreamStatusCode: statusCode,
+		UpstreamRequestID:  upstreamRequestID,
+		Kind:               "failover",
+		Message:            upstreamMsg,
+		Detail:             upstreamDetail,
+	})
+	return &UpstreamFailoverError{
+		StatusCode:             statusCode,
+		ResponseBody:           respBody,
+		RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(statusCode),
+	}
+}
+
+// geminiCustomCodeSkippedClientMessage 自定义错误码未命中时对客户端隐藏上游细节的固定文案，
+// 与 OpenAI 网关路径同场景的文案一致。
+const geminiCustomCodeSkippedClientMessage = "Upstream gateway error"
+
+// upstreamErrorDetail 按配置截断上游错误响应体，用于 ops 错误日志的 Detail 字段；
+// 未开启 LogUpstreamErrorBody 时返回空。
+func (s *GeminiMessagesCompatService) upstreamErrorDetail(body []byte) string {
+	if s.cfg == nil || !s.cfg.Gateway.LogUpstreamErrorBody {
+		return ""
+	}
+	maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
+	if maxBytes <= 0 {
+		maxBytes = 2048
+	}
+	return truncateString(string(body), maxBytes)
+}
+
+// writeGeminiCustomCodeSkippedError 处理自定义错误码未命中且不可 failover 的上游错误：
+// 客户端统一收到 500 + 固定文案（由 write 按端点格式写出），不透传上游细节；
+// 上游真实状态码与错误信息仅记录到 ops 错误日志。
+func (s *GeminiMessagesCompatService) writeGeminiCustomCodeSkippedError(c *gin.Context, account *Account, upstreamStatus int, upstreamRequestID string, body []byte, write func()) error {
+	upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(body)))
+	upstreamDetail := s.upstreamErrorDetail(body)
+	setOpsUpstreamError(c, upstreamStatus, upstreamMsg, upstreamDetail)
+	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+		Platform:           account.Platform,
+		AccountID:          account.ID,
+		AccountName:        account.Name,
+		UpstreamStatusCode: upstreamStatus,
+		UpstreamRequestID:  upstreamRequestID,
+		Kind:               "http_error",
+		Message:            upstreamMsg,
+		Detail:             upstreamDetail,
+	})
+	write()
+	if upstreamMsg == "" {
+		return fmt.Errorf("gemini upstream error: %d (not in custom error codes)", upstreamStatus)
+	}
+	return fmt.Errorf("gemini upstream error: %d (not in custom error codes) message=%s", upstreamStatus, upstreamMsg)
+}
+
+// writeGeminiNativeUpstreamError 将不可 failover 的上游错误按原始状态码与响应体透传给客户端，
+// 并记录 ops 错误事件。状态码保真：下游据此区分请求级错误与可重试的链路故障。
+func (s *GeminiMessagesCompatService) writeGeminiNativeUpstreamError(c *gin.Context, account *Account, resp *http.Response, respBody []byte, requestID string, isOAuth bool) error {
+	respBody = unwrapIfNeeded(isOAuth, respBody)
+	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
+	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+	upstreamDetail := s.upstreamErrorDetail(respBody)
+	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+		logger.LegacyPrintf("service.gemini_messages_compat", "[Gemini] native upstream error %d: %s", resp.StatusCode, truncateForLog(respBody, s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes))
+	}
+	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
+	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+		Platform:           account.Platform,
+		AccountID:          account.ID,
+		AccountName:        account.Name,
+		UpstreamStatusCode: resp.StatusCode,
+		UpstreamRequestID:  requestID,
+		Kind:               "http_error",
+		Message:            upstreamMsg,
+		Detail:             upstreamDetail,
+	})
+
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	MarkResponseCommitted(c)
+	c.Data(resp.StatusCode, contentType, respBody)
+	if upstreamMsg == "" {
+		return fmt.Errorf("gemini upstream error: %d", resp.StatusCode)
+	}
+	return fmt.Errorf("gemini upstream error: %d message=%s", resp.StatusCode, upstreamMsg)
 }
 
 func sleepGeminiBackoff(attempt int) {
@@ -1779,6 +1863,10 @@ func (s *GeminiMessagesCompatService) writeGeminiMappedError(c *gin.Context, acc
 		}
 		if errType == "" {
 			errType = "invalid_request_error"
+		}
+		// 400 是确定性的请求错误：回传上游 message（已脱敏），客户端据此定位非法字段。
+		if errMsg == "" {
+			errMsg = upstreamMsg
 		}
 		if errMsg == "" {
 			errMsg = "Invalid request"
@@ -1965,7 +2053,7 @@ func (s *GeminiMessagesCompatService) handleNonStreamingResponse(c *gin.Context,
 		return nil, s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
 
-	claudeResp, usage := convertGeminiToClaudeMessage(geminiResp, originalModel, unwrappedBody)
+	claudeResp, usage := convertGeminiToClaudeMessage(geminiResp, originalModel, unwrappedBody, false)
 	c.JSON(http.StatusOK, claudeResp)
 
 	return usage, nil
@@ -1983,7 +2071,7 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 		return nil, errors.New("streaming not supported")
 	}
 
-	messageID := "msg_" + randomHex(12)
+	messageID := generateAnthropicMsgID()
 	messageStart := map[string]any{
 		"type": "message_start",
 		"message": map[string]any{
@@ -2253,6 +2341,21 @@ func randomHex(nBytes int) string {
 	b := make([]byte, nBytes)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// generateAnthropicMsgID 生成 Anthropic 官方格式的 message ID：msg_01 + 22 位 Base62
+func generateAnthropicMsgID() string {
+	const charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	const idLen = 22
+	randomBytes := make([]byte, idLen)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "msg_01" + randomHex(11)
+	}
+	b := make([]byte, idLen)
+	for i := range b {
+		b[i] = charset[int(randomBytes[i])%len(charset)]
+	}
+	return "msg_01" + string(b)
 }
 
 func (s *GeminiMessagesCompatService) writeClaudeError(c *gin.Context, status int, errType, message string) error {
@@ -2578,6 +2681,10 @@ func (s *GeminiMessagesCompatService) handleNativeStreamingResponse(c *gin.Conte
 
 	reader := bufio.NewReader(resp.Body)
 	usage := &ClaudeUsage{}
+	observer := upstreamResponseModelObserverFromContext(c)
+	if observer == nil {
+		observer = beginUpstreamResponseModelObservation(c)
+	}
 	var firstTokenMs *int
 
 	for {
@@ -2803,15 +2910,6 @@ func isValidBase64(data string) bool {
 	}
 	_, err := base64.StdEncoding.DecodeString(data)
 	return err == nil
-}
-
-func generateAnthropicMsgID() string {
-	const prefix = "msg_01"
-	buf := make([]byte, 16)
-	if _, err := rand.Read(buf); err != nil {
-		return prefix + randomHex(16)
-	}
-	return prefix + hex.EncodeToString(buf)
 }
 
 func extractGeminiUsage(data []byte) *ClaudeUsage {
@@ -3437,17 +3535,12 @@ func normalizeGeminiRequestForAIStudio(body []byte) []byte {
 
 func isClaudeWebSearchToolMap(tool map[string]any) bool {
 	toolType, _ := tool["type"].(string)
-	if strings.HasPrefix(toolType, "web_search") || toolType == "google_search" {
-		return true
-	}
-
-	name, _ := tool["name"].(string)
-	switch strings.TrimSpace(name) {
-	case "web_search", "google_search", "web_search_20250305":
-		return true
-	default:
-		return false
-	}
+	// A function named web_search is still a client-side function. This is
+	// especially important for Chat Completions clients such as Hermes, whose
+	// built-in runtime tools are represented as ordinary function tools.
+	// Promote only explicitly typed server-side search tools to Gemini's
+	// built-in googleSearch tool.
+	return strings.HasPrefix(toolType, "web_search") || toolType == "google_search"
 }
 
 // cleanToolSchema 清理工具的 JSON Schema，移除 Gemini 不支持的字段
@@ -3469,6 +3562,13 @@ func cleanToolSchema(schema any) any {
 			}
 			// 递归清理嵌套对象
 			cleaned[key] = cleanToolSchema(value)
+		}
+		if enum, ok := cleaned["enum"].([]any); ok {
+			if normalized, ok := normalizeGeminiEnum(enum); ok {
+				cleaned["enum"] = normalized
+			} else {
+				delete(cleaned, "enum")
+			}
 		}
 		// 规范化 type 字段为大写
 		if typeVal, ok := cleaned["type"].(string); ok {
@@ -3502,6 +3602,28 @@ func cleanToolSchema(schema any) any {
 	default:
 		return v
 	}
+}
+
+func normalizeGeminiEnum(values []any) ([]any, bool) {
+	normalized := make([]any, len(values))
+	for i, value := range values {
+		if stringValue, ok := value.(string); ok {
+			normalized[i] = stringValue
+			continue
+		}
+
+		switch value.(type) {
+		case nil, bool, float32, float64, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, json.Number:
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				return nil, false
+			}
+			normalized[i] = string(encoded)
+		default:
+			return nil, false
+		}
+	}
+	return normalized, true
 }
 
 func incrementIntegralSchemaBound(value any) (any, bool) {

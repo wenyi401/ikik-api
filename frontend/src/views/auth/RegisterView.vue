@@ -131,6 +131,27 @@
           </transition>
         </div>
 
+        <!-- Affiliate Invitation Code Input (Optional) -->
+        <div v-else-if="affiliateEnabled" data-testid="affiliate-invitation-field">
+          <label for="affiliate_code" class="input-label">
+            {{ t('auth.invitationCodeLabel') }}
+            <span class="ml-1 text-xs font-normal text-gray-400 dark:text-dark-500">({{ t('common.optional') }})</span>
+          </label>
+          <div class="relative">
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+              <Icon name="key" size="md" class="text-gray-400 dark:text-dark-500" />
+            </div>
+            <input
+              id="affiliate_code"
+              v-model="formData.aff_code"
+              type="text"
+              :disabled="registrationActionDisabled"
+              class="input pl-11"
+              :placeholder="t('auth.invitationCodePlaceholder')"
+            />
+          </div>
+        </div>
+
         <!-- Promo Code Input (Optional) -->
         <div v-if="promoCodeEnabled">
           <label for="promo_code" class="input-label">
@@ -176,10 +197,18 @@
         </div>
 
         <!-- Turnstile Widget -->
-        <div v-if="turnstileEnabled && turnstileSiteKey">
+        <div v-if="captchaEnabled" data-testid="registration-turnstile">
           <TurnstileWidget
             ref="turnstileRef"
-            :site-key="turnstileSiteKey"
+            :turnstile-enabled="turnstileEnabled"
+            :turnstile-site-key="turnstileSiteKey"
+            :tencent-enabled="tencentCaptchaEnabled"
+            :tencent-app-id="tencentCaptchaAppId"
+            :tencent-region="tencentCaptchaRegion"
+            :aliyun-enabled="aliyunCaptchaEnabled"
+            :aliyun-scene-id="aliyunCaptchaSceneId"
+            :aliyun-prefix="aliyunCaptchaPrefix"
+            :aliyun-region="aliyunCaptchaRegion"
             @verify="onTurnstileVerify"
             @expire="onTurnstileExpire"
             @error="onTurnstileError"
@@ -254,6 +283,7 @@
           :login-agreement-revision="loginAgreementRevision"
           :before-start="validateAgreementBeforeOAuth"
           :show-divider="false"
+          @start="handleOAuthStart"
         />
 
         <LinuxDoOAuthSection
@@ -263,6 +293,7 @@
           :login-agreement-revision="loginAgreementRevision"
           :before-start="validateAgreementBeforeOAuth"
           :show-divider="false"
+          @start="handleOAuthStart"
         />
         <WechatOAuthSection
           v-if="wechatOAuthEnabled"
@@ -271,6 +302,7 @@
           :login-agreement-revision="loginAgreementRevision"
           :before-start="validateAgreementBeforeOAuth"
           :show-divider="false"
+          @start="handleOAuthStart"
         />
         <OidcOAuthSection
           v-if="oidcOAuthEnabled"
@@ -280,6 +312,7 @@
           :login-agreement-revision="loginAgreementRevision"
           :before-start="validateAgreementBeforeOAuth"
           :show-divider="false"
+          @start="handleOAuthStart"
         />
       </div>
     </div>
@@ -310,14 +343,18 @@ import WechatOAuthSection from '@/components/auth/WechatOAuthSection.vue'
 import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
 import LoginAgreementPrompt from '@/components/auth/LoginAgreementPrompt.vue'
 import Icon from '@/components/icons/Icon.vue'
-import TurnstileWidget from '@/components/TurnstileWidget.vue'
+import TurnstileWidget from '@/components/CaptchaChallenge.vue'
 import { useAuthStore, useAppStore } from '@/stores'
 import {
+  buildOAuthLoginStartURL,
   isWeChatWebOAuthEnabled,
+  startOAuthLogin,
+  type OAuthLoginStart,
   validatePromoCode,
   validateInvitationCode
 } from '@/api/auth'
 import { buildAuthErrorMessage } from '@/utils/authError'
+import { extractApiErrorCode, extractI18nErrorMessage } from '@/utils/apiError'
 import {
   isRegistrationEmailSuffixAllowed,
   normalizeRegistrationEmailSuffixWhitelist
@@ -351,8 +388,16 @@ const registrationEnabled = ref<boolean>(true)
 const emailVerifyEnabled = ref<boolean>(false)
 const promoCodeEnabled = ref<boolean>(true)
 const invitationCodeEnabled = ref<boolean>(false)
+const affiliateEnabled = ref<boolean>(false)
 const turnstileEnabled = ref<boolean>(false)
 const turnstileSiteKey = ref<string>('')
+const tencentCaptchaEnabled = ref<boolean>(false)
+const tencentCaptchaAppId = ref<string>('')
+const tencentCaptchaRegion = ref<string>('cn')
+const aliyunCaptchaEnabled = ref<boolean>(false)
+const aliyunCaptchaSceneId = ref<string>('')
+const aliyunCaptchaPrefix = ref<string>('')
+const aliyunCaptchaRegion = ref<string>('cn')
 const siteName = ref<string>('ikik-api')
 const linuxdoOAuthEnabled = ref<boolean>(false)
 const wechatOAuthEnabled = ref<boolean>(false)
@@ -361,6 +406,8 @@ const oidcOAuthProviderName = ref<string>('OIDC')
 const githubOAuthEnabled = ref<boolean>(false)
 const googleOAuthEnabled = ref<boolean>(false)
 const registrationEmailSuffixWhitelist = ref<string[]>([])
+// 域名限量注册开关：开启时非白名单域名可注册 1 个账户（由后端判定），前端不做白名单预检。
+const emailDomainQuotaEnabled = ref<boolean>(false)
 const loginAgreementEnabled = ref<boolean>(false)
 const loginAgreementMode = ref<'modal' | 'checkbox' | string>('modal')
 const loginAgreementUpdatedAt = ref<string>('')
@@ -373,6 +420,23 @@ const agreementError = ref<string>('')
 // Turnstile
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
 const turnstileToken = ref<string>('')
+const tencentCaptchaRandstr = ref<string>('')
+const aliyunCaptchaReady = computed(
+  () =>
+    aliyunCaptchaEnabled.value &&
+    Boolean(aliyunCaptchaSceneId.value) &&
+    Boolean(aliyunCaptchaPrefix.value)
+)
+// 动作触发式验证码（腾讯/阿里云）：提交、OAuth 启动时弹窗验证
+const actionCaptchaEnabled = computed(
+  () =>
+    (tencentCaptchaEnabled.value && Boolean(tencentCaptchaAppId.value)) ||
+    aliyunCaptchaReady.value
+)
+const captchaEnabled = computed(
+  () =>
+    (turnstileEnabled.value && Boolean(turnstileSiteKey.value)) || actionCaptchaEnabled.value
+)
 
 // Promo code validation
 const promoValidating = ref<boolean>(false)
@@ -431,6 +495,10 @@ const agreementGateActive = computed(
   () => loginAgreementEnabled.value && !agreementAccepted.value
 )
 
+const registrationActionDisabled = computed(
+  () => isLoading.value || !settingsLoaded.value || agreementGateActive.value
+)
+
 const formControlsDisabled = computed(() => isLoading.value || !settingsLoaded.value)
 
 const submitDisabled = computed(() => isLoading.value || !settingsLoaded.value)
@@ -454,8 +522,16 @@ function applyPublicSettings(settings: PublicSettings): void {
   emailVerifyEnabled.value = settings.email_verify_enabled
   promoCodeEnabled.value = settings.promo_code_enabled
   invitationCodeEnabled.value = settings.invitation_code_enabled
+  affiliateEnabled.value = settings.affiliate_enabled === true
   turnstileEnabled.value = settings.turnstile_enabled
   turnstileSiteKey.value = settings.turnstile_site_key || ''
+  tencentCaptchaEnabled.value = settings.tencent_captcha_enabled === true
+  tencentCaptchaAppId.value = settings.tencent_captcha_app_id || ''
+  tencentCaptchaRegion.value = settings.tencent_captcha_region || 'cn'
+  aliyunCaptchaEnabled.value = settings.aliyun_captcha_enabled === true
+  aliyunCaptchaSceneId.value = settings.aliyun_captcha_scene_id || ''
+  aliyunCaptchaPrefix.value = settings.aliyun_captcha_prefix || ''
+  aliyunCaptchaRegion.value = settings.aliyun_captcha_region || 'cn'
   siteName.value = settings.site_name || 'ikik-api'
   linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled
   wechatOAuthEnabled.value = isWeChatWebOAuthEnabled(settings)
@@ -466,6 +542,7 @@ function applyPublicSettings(settings: PublicSettings): void {
   registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
     settings.registration_email_suffix_whitelist || []
   )
+  emailDomainQuotaEnabled.value = settings.registration_email_domain_quota_enabled === true
   applyLoginAgreementSettings(settings)
 }
 
@@ -740,19 +817,77 @@ function getInvitationErrorMessage(errorCode?: string): string {
 
 // ==================== Turnstile Handlers ====================
 
-function onTurnstileVerify(token: string): void {
+function onTurnstileVerify(token: string, randstr = ''): void {
   turnstileToken.value = token
+  tencentCaptchaRandstr.value = randstr
   errors.turnstile = ''
 }
 
 function onTurnstileExpire(): void {
   turnstileToken.value = ''
+  tencentCaptchaRandstr.value = ''
   errors.turnstile = t('auth.turnstileExpired')
 }
 
 function onTurnstileError(): void {
   turnstileToken.value = ''
+  tencentCaptchaRandstr.value = ''
   errors.turnstile = t('auth.turnstileFailed')
+}
+
+function resetCaptchaProof(): void {
+  turnstileRef.value?.reset()
+  turnstileToken.value = ''
+  tencentCaptchaRandstr.value = ''
+  errors.turnstile = ''
+}
+
+async function acquireActionProof(): Promise<boolean> {
+  if (!actionCaptchaEnabled.value) return true
+
+  const proof = await turnstileRef.value?.verifyAction()
+  if (!proof) return false
+
+  turnstileToken.value = proof.token
+  tencentCaptchaRandstr.value = proof.randstr
+  return true
+}
+
+async function handleOAuthStart(request: OAuthLoginStart): Promise<void> {
+  if (registrationActionDisabled.value) return
+
+  if (!actionCaptchaEnabled.value) {
+    window.location.href = buildOAuthLoginStartURL(request)
+    return
+  }
+
+  isLoading.value = true
+  try {
+    const proof = await turnstileRef.value?.verifyAction()
+    if (!proof) return
+
+    const result = await startOAuthLogin(
+      request,
+      tencentCaptchaEnabled.value
+        ? {
+            tencent_captcha_ticket: proof.token,
+            tencent_captcha_randstr: proof.randstr
+          }
+        : { turnstile_token: proof.token }
+    )
+    window.location.href = result.authorize_url
+  } catch (error: unknown) {
+    errorMessage.value = extractI18nErrorMessage(
+      error,
+      t,
+      'auth.errors',
+      t('auth.turnstileFailed')
+    )
+    appStore.showError(errorMessage.value)
+  } finally {
+    resetCaptchaProof()
+    isLoading.value = false
+  }
 }
 
 // ==================== Validation ====================
@@ -796,8 +931,10 @@ function validateForm(): boolean {
     errors.email = t('auth.invalidEmail')
     isValid = false
   } else if (
+    !emailDomainQuotaEnabled.value &&
     !isRegistrationEmailSuffixAllowed(formData.email, registrationEmailSuffixWhitelist.value)
   ) {
+    // 域名限量注册关闭时保持严格白名单预检；开启时交给后端按域名额度判定
     errors.email = buildEmailSuffixNotAllowedMessage()
     isValid = false
   }
@@ -877,6 +1014,10 @@ async function handleRegister(): Promise<void> {
     }
   }
 
+  if (!(await acquireActionProof())) {
+    return
+  }
+
   isLoading.value = true
 
   try {
@@ -893,7 +1034,10 @@ async function handleRegister(): Promise<void> {
         JSON.stringify({
           email: formData.email,
           password: formData.password,
-          turnstile_token: turnstileToken.value,
+          turnstile_token:
+            turnstileEnabled.value || aliyunCaptchaEnabled.value ? turnstileToken.value : undefined,
+          tencent_captcha_ticket: tencentCaptchaEnabled.value ? turnstileToken.value : undefined,
+          tencent_captcha_randstr: tencentCaptchaEnabled.value ? tencentCaptchaRandstr.value : undefined,
           promo_code: formData.promo_code || undefined,
           invitation_code: formData.invitation_code || undefined,
           login_agreement_revision: loginAgreementEnabled.value ? loginAgreementRevision.value : undefined,
@@ -910,7 +1054,10 @@ async function handleRegister(): Promise<void> {
     await authStore.register({
       email: formData.email,
       password: formData.password,
-      turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined,
+      turnstile_token:
+        turnstileEnabled.value || aliyunCaptchaEnabled.value ? turnstileToken.value : undefined,
+      tencent_captcha_ticket: tencentCaptchaEnabled.value ? turnstileToken.value : undefined,
+      tencent_captcha_randstr: tencentCaptchaEnabled.value ? tencentCaptchaRandstr.value : undefined,
       promo_code: formData.promo_code || undefined,
       invitation_code: formData.invitation_code || undefined,
       login_agreement_revision: loginAgreementEnabled.value ? loginAgreementRevision.value : undefined,
@@ -924,22 +1071,24 @@ async function handleRegister(): Promise<void> {
     // Redirect to dashboard
     await router.push('/dashboard')
   } catch (error: unknown) {
-    // Reset Turnstile on error
-    if (turnstileRef.value) {
-      turnstileRef.value.reset()
-      turnstileToken.value = ''
-    }
-
     // Handle registration error
-    errorMessage.value = buildAuthErrorMessage(error, {
-      fallback: t('auth.registrationFailed')
-    })
+    errorMessage.value = buildRegistrationErrorMessage(error, t('auth.registrationFailed'))
 
     // Also show error toast
     appStore.showError(errorMessage.value)
   } finally {
+    if (captchaEnabled.value) {
+      resetCaptchaProof()
+    }
     isLoading.value = false
   }
+}
+
+function buildRegistrationErrorMessage(error: unknown, fallback: string): string {
+  if (extractApiErrorCode(error) === 'EMAIL_DOMAIN_REGISTRATION_LIMIT') {
+    return t('auth.emailDomainRegistrationLimit')
+  }
+  return buildAuthErrorMessage(error, { fallback })
 }
 </script>
 

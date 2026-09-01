@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 

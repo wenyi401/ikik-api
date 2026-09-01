@@ -87,7 +87,12 @@
             </label>
             <Select
               :modelValue="entry.billing_mode"
-              @update:modelValue="emit('update', { ...entry, billing_mode: $event as BillingMode, intervals: [] })"
+              @update:modelValue="emit('update', {
+                ...entry,
+                billing_mode: $event as BillingMode,
+                intervals: [],
+                time_pricing: { ...entry.time_pricing, periods: [] },
+              })"
               :options="billingModeOptions"
               class="mt-1"
             />
@@ -151,11 +156,18 @@
                 :key="idx"
                 :interval="iv"
                 :mode="entry.billing_mode"
+                :enable-multipliers="enableTierMultipliers"
                 @update="updateInterval(idx, $event)"
                 @remove="removeInterval(idx)"
               />
             </div>
           </div>
+
+          <TimePricingSection
+            v-if="enableTimePricing"
+            :model-value="entry.time_pricing"
+            @update:model-value="emit('update', { ...entry, time_pricing: $event })"
+          />
         </div>
 
         <!-- Per-request mode -->
@@ -238,6 +250,7 @@ import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import IntervalRow from './IntervalRow.vue'
 import ModelTagInput from './ModelTagInput.vue'
+import TimePricingSection from './TimePricingSection.vue'
 import type { PricingFormEntry, IntervalFormEntry } from './types'
 import { perTokenToMTok, getPlatformTagClass } from './types'
 import type { BillingMode } from '@/api/admin/channels'
@@ -249,8 +262,12 @@ const props = withDefaults(defineProps<{
   entry: PricingFormEntry
   platform?: string
   hideTokenIntervals?: boolean
+  enableTimePricing?: boolean
+  enableTierMultipliers?: boolean
 }>(), {
   hideTokenIntervals: false,
+  enableTimePricing: false,
+  enableTierMultipliers: false,
 })
 
 const emit = defineEmits<{
@@ -283,6 +300,8 @@ function addInterval() {
     min_tokens: 0, max_tokens: null, tier_label: '',
     input_price: null, output_price: null, cache_write_price: null,
     cache_read_price: null, per_request_price: null,
+    input_multiplier: null, output_multiplier: null,
+    cache_write_multiplier: null, cache_read_multiplier: null,
     sort_order: intervals.length
   })
   emit('update', { ...props.entry, intervals })
@@ -297,6 +316,8 @@ function addMediaTier() {
     min_tokens: 0, max_tokens: null, tier_label: labels[intervals.length] || '',
     input_price: null, output_price: null, cache_write_price: null,
     cache_read_price: null, per_request_price: null,
+    input_multiplier: null, output_multiplier: null,
+    cache_write_multiplier: null, cache_read_multiplier: null,
     sort_order: intervals.length
   })
   emit('update', { ...props.entry, intervals })

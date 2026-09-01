@@ -327,6 +327,7 @@ export default {
     stream: '流式',
     sync: '同步',
     cyber: '安全策略',
+    live: 'Live',
     unknown: '未知',
     in: '输入',
     out: '输出',
@@ -426,7 +427,39 @@ export default {
       openai: 'OpenAI',
       anthropic: 'Anthropic',
       gemini: 'Gemini',
-      grok: 'Grok'
+      grok: 'Grok',
+      antigravity: 'Antigravity',
+      kimi: 'Kimi',
+      zhipu: '智谱 GLM',
+      deepseek: 'DeepSeek'
+    },
+    // 检查模式（监控条目的工作方式）
+    checkMode: {
+      probe: '探活',
+      quota: '配额',
+      quota_probe: '探活 + 配额'
+    },
+    // 配额快照展示（MonitorQuotaView，管理端与用户端共用）
+    quota: {
+      unavailable: '配额信息不可用',
+      resetSoon: '即将重置',
+      windows: {
+        '5h': '5 小时',
+        '7d': '7 天',
+        '7dSonnet': '7 天 Sonnet',
+        '7dFable': '7 天 Fable',
+        weekly: '周',
+        daily: '日',
+        '30d': '30 天',
+        total: '总量'
+      },
+      labels: {
+        requests: '请求',
+        tokens: 'Token',
+        shared: '共享',
+        pro: 'Pro',
+        flash: 'Flash'
+      }
     },
     extraModelsHeader: '附加模型',
     extraModelsEmpty: '无附加模型',
@@ -526,6 +559,66 @@ export default {
       intervals: '阶梯定价',
       unitPerMillion: '/ 1M token',
       unitPerRequest: '/ 次'
+    }
+  },
+
+  // Model Plaza (public group/model pricing showcase)
+  modelPlaza: {
+    title: '模型广场',
+    description: '按分组浏览可用模型与价格',
+    loading: '加载中...',
+    empty: '暂无可展示的分组',
+    loadFailed: '加载模型广场失败',
+    noSearchResult: '没有匹配的模型',
+    anonymousHint: '登录后可查看你的专属分组与专属倍率',
+    filters: {
+      platformLabel: '平台',
+      groupLabel: '分组',
+      rateLabel: '倍率',
+      modelLabel: '模型',
+      searchPlaceholder: '搜索模型名称',
+      all: '全部'
+    },
+    badges: {
+      exclusive: '专属分组',
+      subscription: '订阅'
+    },
+    detail: {
+      noModels: '该分组暂未配置模型',
+      noPricing: '未配置定价',
+      peakNote: '高峰时段 {window} 计费倍率 ×{multiplier}',
+      longContextDisabledNote: '该分组未启用长上下文阶梯计费，超阈值请求仍按基础档计费，官方阶梯仅供参考'
+    },
+    table: {
+      model: '模型',
+      input: '输入',
+      output: '输出',
+      cache: '缓存',
+      cacheWrite: '写入',
+      cacheRead: '读取',
+      cacheWriteShort: '写',
+      cacheReadShort: '读',
+      tierHint: '按单次请求的总上下文（输入 + 缓存写入 + 缓存读取）所在档位对整单计价',
+      tierHintMarginal: '仅超过阈值的部分按该档计价，输出不加价',
+      marginalBadge: '超出部分计价',
+      timePricingRowHint: '按 {timezone} 时间，在该时段内发起的请求按本行价格计费',
+      timePricingRowHintWeekdays:
+        '按 {timezone} 时间，仅工作日（周一至周五）在该时段内发起的请求按本行价格计费，周末全天按标准价',
+      timePricingRowHintPeak: '；本行价格未含高峰倍率，与高峰时段 {window} 重叠的部分实付再乘 ×{multiplier}',
+      timePricingWeekdays: '工作日',
+      timePricingRateHint: '生效倍率 {rate} × 时段倍率 {multiplier}',
+      paidPrice: '实付价格(折后)',
+      officialPrice: '官方价格',
+      rate: '折扣倍率',
+      unitPerMillion: '$ / 1M token',
+      perUnitRequest: '/ 次',
+      perUnitImage: '/ 张',
+      perRequest: '按次计费',
+      perImage: '按图片计费'
+    },
+    nav: {
+      login: '登录',
+      backToDashboard: '回到后台'
     }
   },
 
@@ -811,6 +904,31 @@ export default {
       sendCode: '发送验证码',
       codeSent: '验证码已发送到您的邮箱',
       sendCodeFailed: '发送验证码失败'
+    },
+    passkey: {
+      title: 'Passkey',
+      description: '使用面容 ID、触控 ID、Windows Hello 或安全密钥免密码登录。',
+      add: '添加 Passkey',
+      continue: '创建 Passkey',
+      name: 'Passkey 名称',
+      namePlaceholder: '例如：MacBook 触控 ID',
+      passwordPlaceholder: '输入当前登录密码以确认',
+      empty: '尚未添加任何 Passkey。',
+      synced: '已同步',
+      createdAt: '创建于 {date}',
+      lastUsed: '上次使用 {date}',
+      featureDisabled: '管理员尚未配置 Passkey 功能。',
+      unsupported: '当前浏览器或设备不支持 Passkey。',
+      loadFailed: '加载 Passkey 失败。',
+      added: 'Passkey 已添加。',
+      addFailed: '添加 Passkey 失败。',
+      renamePrompt: '请输入新的 Passkey 名称',
+      renamed: 'Passkey 已重命名。',
+      renameFailed: '重命名 Passkey 失败。',
+      deleteTitle: '删除 Passkey',
+      deleteConfirm: '删除“{name}”？删除后将无法再使用它登录。',
+      deleted: 'Passkey 已删除。',
+      deleteFailed: '删除 Passkey 失败。'
     },
     balanceNotify: {
       title: '余额不足提醒',

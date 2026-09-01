@@ -168,7 +168,10 @@ func TestOpenAIGatewayService_Forward_CompactKeepsCodexFingerprintHeaders(t *tes
 			"access_token":       "oauth-token",
 			"chatgpt_account_id": "chatgpt-account",
 		},
-		Extra: map[string]any{codexFingerprintModeExtraKey: "full"},
+		Extra: map[string]any{
+			codexFingerprintModeExtraKey: "full",
+			codexFingerprintSeedExtraKey: testCodexFingerprintSeed,
+		},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -183,10 +186,12 @@ func TestOpenAIGatewayService_Forward_CompactKeepsCodexFingerprintHeaders(t *tes
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastReq)
 
-	wantSession := resolveConvergedSessionID(account)
+	seed, ok := codexFingerprintSeed(account.Extra)
+	require.True(t, ok)
+	wantSession := resolveConvergedSessionID(seed)
 	require.Equal(t, wantSession, upstream.lastReq.Header.Get("session-id"))
 	require.Equal(t, wantSession, upstream.lastReq.Header.Get("thread-id"))
-	require.Equal(t, resolveConvergedInstallationID(account), upstream.lastReq.Header.Get("x-codex-installation-id"))
+	require.Equal(t, resolveConvergedInstallationID(account, seed), upstream.lastReq.Header.Get("x-codex-installation-id"))
 	// compact 的 body 契约保持原样，只有出站头进行指纹收敛。
 	require.Equal(t, "client-session", gjson.GetBytes(upstream.lastBody, "client_metadata.session_id").String())
 }
@@ -764,7 +769,7 @@ func TestOpenAIGatewayService_Forward_CodexBridgeInjectionSetsImageBilling(t *te
 	require.Equal(t, "gpt-image-2", result.BillingModel)
 }
 
-func TestOpenAIGatewayService_Forward_HTTPDeletesPreviousResponseIDWhenPresent(t *testing.T) {
+func TestOpenAIGatewayService_Forward_HTTPPreservesPreviousResponseIDForAPIKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -801,7 +806,7 @@ func TestOpenAIGatewayService_Forward_HTTPDeletesPreviousResponseIDWhenPresent(t
 		result, err := svc.Forward(context.Background(), c, account, body)
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		require.False(t, gjson.GetBytes(upstream.lastBody, "previous_response_id").Exists())
+		require.True(t, gjson.GetBytes(upstream.lastBody, "previous_response_id").Exists())
 	}
 }
 
@@ -965,9 +970,16 @@ func TestExtractOpenAIReasoningEffortFromBody(t *testing.T) {
 			wantValue: "xhigh",
 		},
 		{
-			name:      "DeepSeek max 归一化为 xhigh",
+			name:      "DeepSeek V4 保留 max",
 			body:      []byte(`{"reasoning_effort":"max"}`),
 			model:     "deepseek-v4-pro",
+			wantNil:   false,
+			wantValue: "max",
+		},
+		{
+			name:      "旧模型仍将 max 归一化为 xhigh",
+			body:      []byte(`{"reasoning_effort":"max"}`),
+			model:     "gpt-5.5",
 			wantNil:   false,
 			wantValue: "xhigh",
 		},

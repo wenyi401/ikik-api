@@ -246,6 +246,7 @@ const groupOptions = ref<SelectOption[]>([{ value: null, label: t('admin.usage.a
 const requestTypeOptions = ref<SelectOption[]>([
   { value: null, label: t('admin.usage.allTypes') },
   { value: 'ws_v2', label: t('usage.ws') },
+  { value: 'live', label: t('usage.live') },
   { value: 'stream', label: t('usage.stream') },
   { value: 'sync', label: t('usage.sync') }
 ])
@@ -270,6 +271,14 @@ const upstreamModelMismatchOptions = ref<SelectOption[]>([
 ])
 
 const emitChange = () => emit('change')
+
+const clearPendingUserSearch = () => {
+  if (userSearchTimeout) {
+    clearTimeout(userSearchTimeout)
+    userSearchTimeout = null
+  }
+  userSearchRequestVersion += 1
+}
 
 const debounceUserSearch = () => {
   if (userSearchTimeout) clearTimeout(userSearchTimeout)
@@ -306,6 +315,7 @@ const debounceApiKeySearch = () => {
 }
 
 const selectUser = async (u: SimpleUser) => {
+  clearPendingUserSearch()
   userKeyword.value = u.email
   showUserDropdown.value = false
   filters.value.user_id = u.id
@@ -426,6 +436,7 @@ watch(
   () => filters.value.user_id,
   (userId) => {
     if (!userId) {
+      clearPendingUserSearch()
       userKeyword.value = ''
       userResults.value = []
     }
@@ -464,11 +475,23 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  clearPendingUserSearch()
   document.removeEventListener('click', onDocumentClick)
   if (userSearchTimeout) clearTimeout(userSearchTimeout)
   if (apiKeySearchTimeout) clearTimeout(apiKeySearchTimeout)
   if (accountSearchTimeout) clearTimeout(accountSearchTimeout)
 })
+
+const setUserKeyword = (email: string) => {
+  clearPendingUserSearch()
+  userKeyword.value = email
+  userResults.value = []
+  showUserDropdown.value = false
+}
+
+const getUserSearchRevision = () => userSearchRequestVersion
+
+defineExpose({ getUserSearchRevision, setUserKeyword })
 </script>
 
 <style scoped>

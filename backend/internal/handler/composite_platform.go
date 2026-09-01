@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"strings"
+
 	"ikik-api/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 func ensureCompositeTargetPlatform(c *gin.Context, apiKey *service.APIKey, model string) {
@@ -54,4 +57,27 @@ func effectiveAPIKeyPlatform(c *gin.Context, apiKey *service.APIKey) string {
 		return ""
 	}
 	return apiKey.Group.Platform
+}
+
+func applyOpenAIReasoningEffortPolicyForRequest(c *gin.Context, apiKey *service.APIKey, body []byte) ([]byte, bool) {
+	maxEffort, mappings, ok := openAIReasoningEffortPolicyForRequest(c, apiKey)
+	if !ok {
+		return body, false
+	}
+	return service.ApplyOpenAIReasoningEffortPolicy(body, maxEffort, mappings)
+}
+
+func bindOpenAIReasoningEffortPolicyForMessagesRequest(c *gin.Context, apiKey *service.APIKey, body []byte) {
+	if c == nil || c.Request == nil {
+		return
+	}
+	effort := gjson.GetBytes(body, "output_config.effort")
+	if !effort.Exists() || effort.Type != gjson.String || strings.TrimSpace(effort.String()) == "" {
+		return
+	}
+	maxEffort, mappings, ok := openAIReasoningEffortPolicyForRequest(c, apiKey)
+	if !ok {
+		return
+	}
+	c.Request = c.Request.WithContext(service.WithOpenAIReasoningEffortPolicy(c.Request.Context(), maxEffort, mappings))
 }

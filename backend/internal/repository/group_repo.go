@@ -91,6 +91,7 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetNillableVideoPrice480p(groupIn.VideoPrice480P).
 		SetNillableVideoPrice720p(groupIn.VideoPrice720P).
 		SetNillableVideoPrice1080p(groupIn.VideoPrice1080P).
+		SetVideoModelPrices(service.NormalizeVideoModelPrices(groupIn.VideoModelPrices)).
 		SetNillableWebSearchPricePerCall(groupIn.WebSearchPricePerCall).
 		SetNillableSearchPricePer1k(groupIn.SearchPricePer1k).
 		SetNillableAudioRealtimePricePerMin(groupIn.AudioRealtimePricePerMin).
@@ -105,6 +106,7 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetModelRoutingEnabled(groupIn.ModelRoutingEnabled).
 		SetMcpXMLInject(groupIn.MCPXMLInject).
 		SetAllowMessagesDispatch(groupIn.AllowMessagesDispatch).
+		SetAllowLive(groupIn.AllowLive).
 		SetRequireOauthOnly(groupIn.RequireOAuthOnly).
 		SetRequirePrivacySet(groupIn.RequirePrivacySet).
 		SetDefaultMappedModel(groupIn.DefaultMappedModel).
@@ -112,6 +114,8 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetModelsListConfig(groupIn.ModelsListConfig).
 		SetOpenaiExperimentalPromptEnabled(groupIn.OpenAIExperimentalPromptEnabled).
 		SetRpmLimit(groupIn.RPMLimit).
+		SetMaxReasoningEffort(groupIn.MaxReasoningEffort).
+		SetReasoningEffortMappings(groupIn.ReasoningEffortMappings).
 		SetPeakRateEnabled(groupIn.PeakRateEnabled).
 		SetPeakStart(groupIn.PeakStart).
 		SetPeakEnd(groupIn.PeakEnd).
@@ -284,6 +288,7 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetModelRoutingEnabled(groupIn.ModelRoutingEnabled).
 		SetMcpXMLInject(groupIn.MCPXMLInject).
 		SetAllowMessagesDispatch(groupIn.AllowMessagesDispatch).
+		SetAllowLive(groupIn.AllowLive).
 		SetRequireOauthOnly(groupIn.RequireOAuthOnly).
 		SetRequirePrivacySet(groupIn.RequirePrivacySet).
 		SetDefaultMappedModel(groupIn.DefaultMappedModel).
@@ -291,6 +296,8 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetModelsListConfig(groupIn.ModelsListConfig).
 		SetOpenaiExperimentalPromptEnabled(groupIn.OpenAIExperimentalPromptEnabled).
 		SetRpmLimit(groupIn.RPMLimit).
+		SetMaxReasoningEffort(groupIn.MaxReasoningEffort).
+		SetReasoningEffortMappings(groupIn.ReasoningEffortMappings).
 		SetPeakRateEnabled(groupIn.PeakRateEnabled).
 		SetPeakStart(groupIn.PeakStart).
 		SetPeakEnd(groupIn.PeakEnd).
@@ -357,6 +364,26 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		builder = builder.SetWebSearchPricePerCall(*groupIn.WebSearchPricePerCall)
 	} else {
 		builder = builder.ClearWebSearchPricePerCall()
+	}
+	if groupIn.SearchPricePer1k != nil {
+		builder = builder.SetSearchPricePer1k(*groupIn.SearchPricePer1k)
+	} else {
+		builder = builder.ClearSearchPricePer1k()
+	}
+	if groupIn.AudioRealtimePricePerMin != nil {
+		builder = builder.SetAudioRealtimePricePerMin(*groupIn.AudioRealtimePricePerMin)
+	} else {
+		builder = builder.ClearAudioRealtimePricePerMin()
+	}
+	if groupIn.AudioTTSPricePerMillionChars != nil {
+		builder = builder.SetAudioTtsPricePerMillionChars(*groupIn.AudioTTSPricePerMillionChars)
+	} else {
+		builder = builder.ClearAudioTtsPricePerMillionChars()
+	}
+	if groupIn.AudioSTTPricePerHour != nil {
+		builder = builder.SetAudioSttPricePerHour(*groupIn.AudioSTTPricePerHour)
+	} else {
+		builder = builder.ClearAudioSttPricePerHour()
 	}
 
 	// 处理 FallbackGroupID：nil 时清除，否则设置

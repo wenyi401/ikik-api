@@ -493,6 +493,7 @@ func (h *OpenAIOAuthHandler) QueryQuota(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	service.NotifyOpenAIAutoResetCredit(accountID)
 	response.Success(c, usage)
 }
 

@@ -5,11 +5,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 	"ikik-api/internal/handler"
 	adminhandler "ikik-api/internal/handler/admin"
 	servermiddleware "ikik-api/internal/server/middleware"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 )
 
 func TestIngressRejectAdminRoutesRequireAdminAuthentication(t *testing.T) {
@@ -25,7 +25,7 @@ func TestIngressRejectAdminRoutesRequireAdminAuthentication(t *testing.T) {
 	})
 	auditLog := servermiddleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
 	stepUp := servermiddleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() })
-	RegisterAdminRoutes(router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp, nil)
+	RegisterAdminRoutes(router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp, nil, nil)
 
 	for _, path := range []string{
 		"/api/v1/admin/ops/ingress-rejections",

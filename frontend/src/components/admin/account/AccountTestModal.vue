@@ -41,13 +41,28 @@
         </span>
       </div>
 
-      <div class="space-y-1.5">
+      <!-- Grok: mode first, then optional model / mode params -->
+      <div v-if="isGrokAccount" class="space-y-1.5">
+        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {{ t('admin.accounts.grok.testMode') }}
+        </label>
+        <Select
+          v-model="grokTestMode"
+          :options="grokTestModeOptions"
+          :disabled="status === 'connecting'"
+        />
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.accounts.grok.testModeHint') }}
+        </p>
+      </div>
+
+      <div v-if="showModelSelect" class="space-y-1.5">
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.selectTestModel') }}
         </label>
         <Select
           v-model="selectedModelId"
-          :options="availableModels"
+          :options="modelOptionsForMode"
           :disabled="loadingModels || status === 'connecting'"
           value-key="id"
           label-key="display_name"
@@ -134,10 +149,10 @@
         </button>
         <button
           @click="startTest"
-          :disabled="status === 'connecting' || !selectedModelId"
+          :disabled="!canStartTest"
           :class="[
             'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all',
-            status === 'connecting' || !selectedModelId
+            !canStartTest
               ? 'cursor-not-allowed bg-primary-400 text-white'
               : status === 'success'
                 ? 'bg-green-500 text-white hover:bg-green-600'
@@ -208,21 +223,54 @@ const streamingContent = ref('')
 const errorMessage = ref('')
 const availableModels = ref<ClaudeModel[]>([])
 const selectedModelId = ref('')
+const testPrompt = ref('')
+const grokTestMode = ref<'text' | 'image' | 'video' | 'search' | 'tts' | 'stt' | 'realtime'>('text')
 const loadingModels = ref(false)
 let abortController: AbortController | null = null
 const prioritizedGeminiModels = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-2.0-flash']
-const isImageGenerationModel = (modelId: string) => {
-  const modelID = modelId.toLowerCase()
-  const generationSegment = 'image'
-  return (
-    modelID.startsWith(['gpt', generationSegment].join('-') + '-') ||
-    (modelID.startsWith('gemini-') && modelID.includes(`-${generationSegment}`)) ||
-    (modelID.startsWith('grok-') && modelID.includes(`-${generationSegment}`)) ||
-    modelID.startsWith('cog' + 'view')
-  )
-}
 const isUserScope = computed(() => props.accountScope === 'user')
 const testEndpointBase = computed(() => props.testEndpointBase ?? '/api/v1/admin/accounts')
+const isGrokAccount = computed(() => props.account?.platform === 'grok')
+const grokTestModeOptions = computed(() => [
+  { value: 'text', label: t('admin.accounts.grok.testModeText') },
+  { value: 'image', label: t('admin.accounts.grok.testModeImage') },
+  { value: 'video', label: t('admin.accounts.grok.testModeVideo') },
+  { value: 'search', label: t('admin.accounts.grok.testModeSearch') },
+  { value: 'tts', label: t('admin.accounts.grok.testModeTTS') },
+  { value: 'stt', label: t('admin.accounts.grok.testModeSTT') },
+  { value: 'realtime', label: t('admin.accounts.grok.testModeRealtime') }
+])
+const isGrokImageModel = (id: string) => {
+  const model = id.toLowerCase()
+  return model === 'grok-imagine' || model === 'grok-imagine-edit' || model.startsWith('grok-imagine-image')
+}
+const isGrokVideoModel = (id: string) => {
+  const model = id.toLowerCase()
+  return model.startsWith('grok-imagine-video') || model.startsWith('grok-video')
+}
+const showModelSelect = computed(() =>
+  !isGrokAccount.value || ['text', 'image', 'video'].includes(grokTestMode.value)
+)
+const modelOptionsForMode = computed<ClaudeModel[]>(() => {
+  if (!isGrokAccount.value) return availableModels.value
+  if (grokTestMode.value === 'image') return availableModels.value.filter((model) => isGrokImageModel(model.id))
+  if (grokTestMode.value === 'video') return availableModels.value.filter((model) => isGrokVideoModel(model.id))
+  if (grokTestMode.value === 'text') {
+    return availableModels.value.filter((model) => !isGrokImageModel(model.id) && !isGrokVideoModel(model.id))
+  }
+  return []
+})
+const supportsImageTest = computed(() => isGrokAccount.value && grokTestMode.value === 'image')
+const supportsPromptInput = computed(() =>
+  isGrokAccount.value && ['image', 'video', 'search', 'tts'].includes(grokTestMode.value)
+)
+const canStartTest = computed(() => {
+  if (status.value === 'connecting') return false
+  if (isGrokAccount.value && ['search', 'tts', 'stt', 'realtime'].includes(grokTestMode.value)) {
+    return true
+  }
+  return Boolean(selectedModelId.value)
+})
 
 const sortTestModels = (models: ClaudeModel[]) => {
   const priorityMap = new Map(prioritizedGeminiModels.map((id, index) => [id, index]))
@@ -236,17 +284,60 @@ const sortTestModels = (models: ClaudeModel[]) => {
 }
 
 // Load available models when modal opens
+const applyDefaultPromptForMode = () => {
+  if (!supportsPromptInput.value) return
+  if (testPrompt.value.trim()) return
+  if (grokTestMode.value === 'video') {
+    testPrompt.value = t('admin.accounts.videoPromptDefault')
+  } else if (grokTestMode.value === 'image' || supportsImageTest.value) {
+    testPrompt.value = t('admin.accounts.imagePromptDefault')
+  } else if (grokTestMode.value === 'search') {
+    testPrompt.value = t('admin.accounts.grok.searchQueryDefault')
+  } else if (grokTestMode.value === 'tts') {
+    testPrompt.value = t('admin.accounts.grok.ttsTextDefault')
+  }
+}
+
+const pickDefaultModelForMode = () => {
+  const opts = modelOptionsForMode.value
+  if (!opts.length) {
+    selectedModelId.value = ''
+    return
+  }
+  if (opts.some((m) => m.id === selectedModelId.value)) return
+  if (grokTestMode.value === 'text') {
+    const preferred =
+      opts.find((m) => m.id.includes('grok-4.5')) ||
+      opts.find((m) => m.id === 'grok') ||
+      opts[0]
+    selectedModelId.value = preferred.id
+    return
+  }
+  selectedModelId.value = opts[0].id
+}
+
 watch(
   () => props.show,
   async (newVal) => {
     if (newVal && props.account) {
       resetState()
       await loadAvailableModels()
+      if (isGrokAccount.value) {
+        pickDefaultModelForMode()
+        applyDefaultPromptForMode()
+      }
     } else {
       abortStream()
     }
   }
 )
+
+watch(grokTestMode, () => {
+  if (!isGrokAccount.value) return
+  testPrompt.value = ''
+  pickDefaultModelForMode()
+  applyDefaultPromptForMode()
+})
 
 const loadAvailableModels = async () => {
   if (!props.account) return
@@ -257,10 +348,9 @@ const loadAvailableModels = async () => {
     const models = isUserScope.value
       ? getUserDefaultTestModels(props.account)
       : await adminAPI.accounts.getAvailableModels(props.account.id)
-    const testModels = models.filter((model) => !isImageGenerationModel(model.id))
     availableModels.value = props.account.platform === 'gemini' || props.account.platform === 'antigravity'
-      ? sortTestModels(testModels)
-      : testModels
+      ? sortTestModels(models)
+      : models
     // Default selection by platform
     if (availableModels.value.length > 0) {
       if (props.account.platform === 'gemini') {
@@ -331,12 +421,17 @@ const scrollToBottom = async () => {
 }
 
 const startTest = async () => {
-  if (!props.account || !selectedModelId.value) return
+  if (!props.account || !canStartTest.value) return
 
   resetState()
   status.value = 'connecting'
   addLine(t('admin.accounts.startingTestForAccount', { name: props.account.name }), 'text-blue-400')
   addLine(t('admin.accounts.testAccountTypeLabel', { type: props.account.type }), 'text-gray-400')
+  if (isGrokAccount.value) {
+    const modeLabel =
+      grokTestModeOptions.value.find((o) => o.value === grokTestMode.value)?.label || grokTestMode.value
+    addLine(t('admin.accounts.grok.selectedTestMode', { mode: modeLabel }), 'text-gray-400')
+  }
   addLine('', 'text-gray-300')
 
   abortStream()
@@ -355,8 +450,9 @@ const startTest = async () => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model_id: selectedModelId.value,
-        prompt: ''
+        model_id: showModelSelect.value ? selectedModelId.value : '',
+        prompt: supportsPromptInput.value ? testPrompt.value.trim() : '',
+        mode: isGrokAccount.value ? grokTestMode.value : undefined
       }),
       signal: abortController.signal
     })
@@ -367,7 +463,7 @@ const startTest = async () => {
 
     const reader = response.body?.getReader()
     if (!reader) {
-      throw new Error('No response body')
+      throw new Error(t('admin.accounts.grok.noResponseBody'))
     }
 
     const decoder = new TextDecoder()
@@ -401,9 +497,9 @@ const startTest = async () => {
       return
     }
     status.value = 'error'
-    const msg = error instanceof Error ? error.message : 'Unknown error'
+    const msg = error instanceof Error ? error.message : t('common.unknownError')
     errorMessage.value = msg
-    addLine(`Error: ${msg}`, 'text-red-400')
+    addLine(t('admin.accounts.errorPrefix', { message: msg }), 'text-red-400')
   }
 }
 
@@ -442,13 +538,13 @@ const handleEvent = (event: {
         status.value = 'success'
       } else {
         status.value = 'error'
-        errorMessage.value = event.error || 'Test failed'
+        errorMessage.value = event.error || t('admin.accounts.testFailed')
       }
       break
 
     case 'error':
       status.value = 'error'
-      errorMessage.value = event.error || 'Unknown error'
+      errorMessage.value = event.error || t('common.unknownError')
       if (streamingContent.value) {
         addLine(streamingContent.value, 'text-green-300')
         streamingContent.value = ''

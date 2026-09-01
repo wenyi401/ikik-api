@@ -80,7 +80,7 @@ func TestFetchUpstreamSupportedModelsRequiresAPIKey(t *testing.T) {
 	require.Error(t, err)
 	var syncErr *UpstreamModelSyncError
 	require.ErrorAs(t, err, &syncErr)
-	require.Equal(t, UpstreamModelSyncErrorUnsupported, syncErr.Kind)
+	require.Equal(t, UpstreamModelSyncErrorConfiguration, syncErr.Kind)
 }
 
 func insecureURLTestConfig() *config.Config {

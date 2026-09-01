@@ -249,6 +249,21 @@ export async function refreshCredentials(id: number): Promise<Account> {
   return data
 }
 
+export async function applyOAuthCredentials(
+  id: number,
+  payload: {
+    type: 'oauth' | 'setup-token'
+    credentials: Record<string, unknown>
+    extra?: Record<string, unknown>
+  }
+): Promise<Account> {
+  const { data } = await apiClient.post<Account>(
+    `/admin/accounts/${id}/apply-oauth-credentials`,
+    payload
+  )
+  return data
+}
+
 /**
  * Get account usage statistics
  * @param id - Account ID
@@ -280,6 +295,19 @@ export async function clearError(id: number): Promise<Account> {
 export async function getUsage(id: number, source?: 'passive' | 'active'): Promise<AccountUsageInfo> {
   const { data } = await apiClient.get<AccountUsageInfo>(`/admin/accounts/${id}/usage`, {
     params: source ? { source } : undefined
+  })
+  return data
+}
+
+export interface BatchAccountUsageResponse {
+  usage: Record<string, AccountUsageInfo>
+  errors: Record<string, string>
+}
+
+export async function getBatchUsage(accountIds: number[], force?: boolean): Promise<BatchAccountUsageResponse> {
+  const { data } = await apiClient.post<BatchAccountUsageResponse>('/admin/accounts/usage/batch', {
+    account_ids: accountIds,
+    force: force === true
   })
   return data
 }
@@ -419,6 +447,7 @@ export async function bulkUpdate(
   failed: number
   success_ids?: number[]
   failed_ids?: number[]
+  long_context_inherited_count?: number
   results: Array<{ account_id: number; success: boolean; error?: string }>
 }> {
   const payload = Array.isArray(accountIdsOrPayload)
@@ -432,6 +461,7 @@ export async function bulkUpdate(
     failed: number
     success_ids?: number[]
     failed_ids?: number[]
+    long_context_inherited_count?: number
     results: Array<{ account_id: number; success: boolean; error?: string }>
   }>('/admin/accounts/bulk-update', payload)
   return data
@@ -729,6 +759,8 @@ export interface BatchOperationResult {
   total: number
   success: number
   failed: number
+  success_ids?: number[]
+  failed_ids?: number[]
   errors?: Array<{ account_id: number; error: string }>
   warnings?: Array<{ account_id: number; warning: string }>
 }
@@ -817,13 +849,28 @@ export interface OpenAIQuotaResetResult {
   runtime_state_warning?: string
 }
 
+export interface OpenAIQuotaRefreshResult extends OpenAIQuotaUsage {
+  cache_persisted: boolean
+}
+
+export async function refreshOpenAIQuota(id: number): Promise<OpenAIQuotaRefreshResult> {
+  const { data } = await apiClient.post<OpenAIQuotaRefreshResult>(
+    `/admin/openai/accounts/${id}/quota/refresh`
+  )
+  return data
+}
+
 export async function queryOpenAIQuota(id: number): Promise<OpenAIQuotaUsage> {
   const { data } = await apiClient.get<OpenAIQuotaUsage>(`/admin/openai/accounts/${id}/quota`)
   return data
 }
 
 export async function resetOpenAIQuota(id: number): Promise<OpenAIQuotaResetResult> {
-  const { data } = await apiClient.post<OpenAIQuotaResetResult>(`/admin/openai/accounts/${id}/reset-quota`)
+  const { data } = await apiClient.post<OpenAIQuotaResetResult>(
+    `/admin/openai/accounts/${id}/reset-quota`,
+    undefined,
+    { timeout: 90_000 }
+  )
   return data
 }
 
@@ -903,6 +950,13 @@ export async function refreshOllamaCloudUsage(id: number): Promise<OllamaCloudUs
   return data
 }
 
+export async function batchDelete(accountIds: number[]): Promise<BatchOperationResult> {
+  const { data } = await apiClient.post<BatchOperationResult>('/admin/accounts/batch-delete', {
+    account_ids: accountIds
+  })
+  return data
+}
+
 /**
  * Batch clear account errors
  * @param accountIds - Array of account IDs
@@ -974,9 +1028,11 @@ export const accountsAPI = {
   toggleStatus,
   testAccount,
   refreshCredentials,
+  applyOAuthCredentials,
   getStats,
   clearError,
   getUsage,
+  getBatchUsage,
   getTodayStats,
   getBatchTodayStats,
   clearRateLimit,
@@ -1003,13 +1059,14 @@ export const accountsAPI = {
   createOpenAICodexPAT,
   importCredentialContents,
   getAntigravityDefaultModelMapping,
+  batchDelete,
   batchClearError,
   batchRefresh,
   createBatchRefreshTask,
   getBatchTask,
   setPrivacy,
   revertProxyFallback,
-  queryOpenAIQuota,
+  refreshOpenAIQuota,
   resetOpenAIQuota,
   getUpstreamBillingProbeSettings,
   updateUpstreamBillingProbeSettings,

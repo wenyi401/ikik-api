@@ -6,20 +6,47 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDefaultModelsIncludeLatestOAuthModels(t *testing.T) {
-	t.Parallel()
+func TestDefaultModelMappingExcludesCrossClientWildcards(t *testing.T) {
+	original := RuntimeModelMappingOptions()
+	t.Cleanup(func() { SetRuntimeModelMappingOptions(original) })
+	SetRuntimeModelMappingOptions(ModelMappingOptions{})
+	mapping := DefaultModelMapping()
 
-	require.Contains(t, DefaultModelIDs(), "grok-4.5")
-	require.Contains(t, DefaultModelIDs(), "grok-composer-2.5-fast")
+	require.Equal(t, "grok-4.6", mapping["grok"])
+	require.Equal(t, "grok-4.6", mapping["grok-latest"])
+	require.Equal(t, "grok-build-0.1", mapping["grok-build"])
+	require.Equal(t, "grok-build-0.1", mapping["grok-build-latest"])
+	require.Equal(t, DefaultImagineImageQualityModel, mapping["grok-imagine-edit"])
+	require.Equal(t, DefaultImagineVideo15Model, mapping["grok-imagine-video-1.5"])
+	require.Equal(t, DefaultImagineVideo15Model, mapping["grok-imagine-video-1.5-preview"])
+	require.Equal(t, "grok-4.6", mapping["xai/grok"])
+
+	// Cross-vendor wildcards must stay opt-in.
+	_, hasGPT := mapping["gpt-*"]
+	_, hasClaude := mapping["claude-*"]
+	require.False(t, hasGPT)
+	require.False(t, hasClaude)
 }
 
-func TestDefaultModelMappingUsesLatestAliases(t *testing.T) {
+func TestModelMappingWithOptionsCrossClient(t *testing.T) {
 	t.Parallel()
+	mapping := ModelMappingWithOptions(ModelMappingOptions{
+		DefaultText:          "grok-4.3",
+		EnableCrossClientMap: true,
+	})
+	require.Equal(t, "grok-4.3", mapping["grok"])
+	require.Equal(t, "grok-4.3", mapping["gpt-*"])
+	require.Equal(t, "grok-4.3", mapping["claude-*"])
+	require.Equal(t, "grok-4.3", mapping["codex-*"])
+}
 
-	mapping := DefaultModelMapping()
-	require.Equal(t, "grok-4.5", mapping["grok-latest"])
-	require.Equal(t, "grok-4.5", mapping["grok-4.5-latest"])
-	require.Equal(t, "grok-composer-2.5-fast", mapping["grok-composer"])
+func TestCanonicalImagineVideoModel(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, DefaultImagineVideoModel, CanonicalImagineVideoModel("grok-imagine-video"))
+	require.Equal(t, DefaultImagineVideo15Model, CanonicalImagineVideoModel("grok-imagine-video-1.5"))
+	require.Equal(t, DefaultImagineVideo15Model, CanonicalImagineVideoModel("grok-imagine-video-1.5-preview"))
+	require.Equal(t, DefaultImagineVideo15Model, CanonicalImagineVideoModel("xai/grok-video-1.5"))
+	require.Equal(t, "grok-imagine-video-2", CanonicalImagineVideoModel("grok-imagine-video-2"))
 }
 
 func TestIsGrokModelID(t *testing.T) {
@@ -41,7 +68,19 @@ func TestDefaultModelsIncludesGrok46(t *testing.T) {
 
 func TestResolveGrokTextResponsesModelID(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, "grok-4.5", ResolveGrokTextResponsesModelID(""))
+	require.Equal(t, "grok-4.6", ResolveGrokTextResponsesModelID(""))
 	require.Equal(t, "grok-4.3", ResolveGrokTextResponsesModelID("grok", "grok-4.3"))
 	require.Equal(t, "grok-4.20-multi-agent-0309", ResolveGrokTextResponsesModelID("grok-4.20-multi-agent"))
+}
+
+func TestExplicitGrok45DoesNotFollowRuntimeDefault(t *testing.T) {
+	require.Equal(t, "grok-4.5", ResolveGrokTextResponsesModelID("grok-4.5", "grok-4.6"))
+	require.Equal(t, "grok-4.5", ResolveGrokTextResponsesModelID("grok-4.5-latest", "grok-4.6"))
+	require.Equal(t, "grok-4.6", ResolveGrokTextResponsesModelID("grok", "grok-4.6"))
+}
+
+func TestBareGrokAliasesFollowGrok46Default(t *testing.T) {
+	require.Equal(t, "grok-4.6", ResolveGrokTextResponsesModelID("grok"))
+	require.Equal(t, "grok-4.6", ResolveGrokTextResponsesModelID("grok-latest"))
+	require.Equal(t, "grok-build-0.1", ResolveGrokTextResponsesModelID("grok-build-latest"))
 }

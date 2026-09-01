@@ -7,10 +7,10 @@ import (
 	"regexp"
 	"strings"
 
-	"ikik-api/internal/pkg/xai"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"ikik-api/internal/pkg/xai"
 )
 
 const (
@@ -102,24 +102,15 @@ func resolveGrokCacheIdentity(c *gin.Context, body []byte, explicitKey, upstream
 }
 
 func explicitGrokCacheSeed(c *gin.Context, body []byte, explicitKey string) string {
-	seed := ""
-	if c != nil {
-		// Claude Code session is the most stable multi-turn identity for
-		// /v1/messages → Grok bridges. Prefer it over generic session headers
-		// so prompt cache routing matches CPA behavior.
-		seed = extractClaudeCodeSessionID(c, body)
-		if seed == "" {
-			seed = strings.TrimSpace(c.GetHeader("session_id"))
-		}
-		if seed == "" {
-			seed = strings.TrimSpace(c.GetHeader("conversation_id"))
-		}
-		if seed == "" {
-			seed = strings.TrimSpace(c.GetHeader(grokConversationIDHeader))
-		}
+	// Claude Code session is the most stable multi-turn identity for
+	// /v1/messages → Grok bridges. Prefer it over generic session headers so
+	// prompt cache routing follows the gateway's existing cache affinity rules.
+	seed := extractClaudeCodeSessionID(c, body)
+	if seed == "" {
+		seed = explicitOpenAIHeaderSessionID(c)
 	}
-	if seed == "" && len(body) > 0 {
-		seed = extractClaudeCodeSessionIDFromPayload(body)
+	if seed == "" && c != nil {
+		seed = strings.TrimSpace(c.GetHeader(grokConversationIDHeader))
 	}
 	if seed == "" && len(body) > 0 {
 		seed = strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())
@@ -127,12 +118,23 @@ func explicitGrokCacheSeed(c *gin.Context, body []byte, explicitKey string) stri
 	if seed == "" {
 		seed = strings.TrimSpace(explicitKey)
 	}
+	// previous_response_id is last-resort: multi-turn Responses without an
+	// explicit session still share one cache identity (model is already in the
+	// isolated seed). Message ids are rejected by the seed helper.
+	if seed == "" && len(body) > 0 {
+		seed = grokPreviousResponseSessionSeed(body)
+	}
 	return seed
 }
 
 func isGrokRequestContext(c *gin.Context) bool {
 	if c == nil {
 		return false
+	}
+	if c.Request != nil {
+		if platform, ok := ResolvedTargetPlatformFromContext(c.Request.Context()); ok {
+			return platform == PlatformGrok
+		}
 	}
 	v, exists := c.Get("api_key")
 	if !exists {
@@ -302,6 +304,9 @@ func applyGrokFreeToolCacheRoute(body, intentSourceBody []byte, account *Account
 	return appendGrokFreeCacheNativeToolsWithPolicy(body, allowPureClientTools, allowFunctionSearch)
 }
 
+// isKnownGrokFreeAccount recognizes free-tier Grok accounts, used for
+// Free cache routing / media free_tier blocks (broader than soft-gate).
+// Soft-gate uses isExplicitGrokFreeOAuthAccount (exact "free" only).
 func isKnownGrokFreeAccount(account *Account) bool {
 	if account == nil || !account.IsGrokOAuth() {
 		return false
@@ -322,14 +327,12 @@ func isKnownGrokFreeAccount(account *Account) bool {
 				paidSignal = true
 			}
 		}
+		// Usage % or a monthly dollar cap is evidence of a paid plan.
 		if billing.UsagePercent != nil || billing.UsedPercent != nil ||
 			(billing.MonthlyLimitCents != nil && *billing.MonthlyLimitCents > 0) {
 			paidSignal = true
 		}
-		// xAI deliberately reports an empty plan for Free accounts; only paid
-		// subscriptions receive a SuperGrok plan/monthly limit. A successful
-		// monthly billing observation with no paid signal is therefore positive
-		// Free evidence, not an unknown tier. Keep partial probes fail-closed.
+		// Empty plan + successful monthly observation → inferred free (no paid plan/limit).
 		if strings.TrimSpace(billing.MonthlyUpdatedAt) != "" ||
 			(billing.StatusCode >= http.StatusOK && billing.StatusCode < http.StatusMultipleChoices &&
 				!billing.Partial && len(billing.FailedWindows) == 0) {
@@ -349,6 +352,7 @@ func isKnownGrokFreeAccount(account *Account) bool {
 			inferredFreeSignal = true
 		}
 	}
+	// Only credentials subscription_tier is authoritative here (not plan_type / extra keys).
 	if tier := strings.TrimSpace(account.GetCredential("subscription_tier")); tier != "" {
 		if isGrokFreeSubscriptionTier(tier) {
 			freeSignal = true
@@ -356,9 +360,7 @@ func isKnownGrokFreeAccount(account *Account) bool {
 			paidSignal = true
 		}
 	}
-	// Explicit paid evidence always wins over an inferred Free signal. This
-	// protects upgraded/stale accounts whose previous quota snapshot still
-	// carries the historical 2M Free token limit.
+	// Explicit paid evidence always wins over an inferred Free signal.
 	return !paidSignal && (freeSignal || inferredFreeSignal)
 }
 

@@ -215,8 +215,10 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 	upstream := &openAIImagesFailoverHTTPUpstream{}
 	handler := newOpenAIImagesFailoverTestHandler(t, accountRepo, upstream)
 
-	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`)
-	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","quality":"high","size":"1536x1024"}`)
+	core, observedLogs := observer.New(zap.DebugLevel)
+	requestCtx := logger.IntoContext(context.Background(), zap.New(core))
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body)).WithContext(requestCtx)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -234,6 +236,16 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 100, Concurrency: 0})
 
 	handler.Images(c)
+
+	accountSelectingLogs := observedLogs.FilterMessage("openai.images.account_selecting").All()
+	require.NotEmpty(t, accountSelectingLogs)
+	loggedFields := make(map[string]string)
+	for _, field := range accountSelectingLogs[0].Context {
+		loggedFields[field.Key] = field.String
+	}
+	require.Equal(t, "high", loggedFields["img_quality"])
+	require.Equal(t, "1536x1024", loggedFields["img_size"])
+	require.NotContains(t, loggedFields, "prompt")
 
 	require.Equal(t, []int64{1, 2}, upstream.calls())
 	require.Equal(t, http.StatusBadGateway, rec.Code)

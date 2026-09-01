@@ -46,6 +46,8 @@ describe('PlatformTypeBadge Grok plans', () => {
     expect(wrapper.text()).toContain('SuperGrok Heavy')
     expect(wrapper.find('[data-testid="grok-plan-icon"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="grok-free-plan-icon"]').exists()).toBe(false)
+    // Heavy uses purple plan chip
+    expect(wrapper.html()).toContain('bg-purple-100')
 
     await wrapper.setProps({ platform: 'openai', planType: 'free' })
     expect(wrapper.text()).toContain('Free')
@@ -81,6 +83,7 @@ describe('PlatformTypeBadge Grok plans', () => {
     expect(lite.text()).toContain('SuperGrok Lite')
     expect(lite.html()).toContain('bg-cyan-100')
   })
+
   it('uses a dedicated 12px currentColor Grok mark with a Free sparkle', () => {
     const wrapper = mount(GrokFreeIcon)
 

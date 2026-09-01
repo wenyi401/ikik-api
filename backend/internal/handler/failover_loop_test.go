@@ -320,6 +320,22 @@ func TestHandleFailoverError_CacheBilling(t *testing.T) {
 		require.Zero(t, fs.SwitchCount)
 	})
 
+	t.Run("OAuth deadline存在时不按普通计数切换", func(t *testing.T) {
+		mock := &mockTempUnscheduler{}
+		fs := NewFailoverState(3, true)
+		fs.SameAccountRetryCount[100] = maxSameAccountRetries
+		err := newTestFailoverErr(http.StatusTooManyRequests, true, false)
+		err.SameAccountRetryDeadline = time.Now().Add(time.Minute)
+		err.SameAccountRetryDelay = time.Nanosecond
+
+		fs.HandleFailoverError(context.Background(), mock, 100, "openai", maxSameAccountRetries, err)
+
+		require.False(t, fs.ForceCacheBilling)
+		require.Zero(t, fs.SwitchCount)
+		require.Equal(t, maxSameAccountRetries+1, fs.SameAccountRetryCount[100])
+		require.Empty(t, mock.calls)
+	})
+
 	t.Run("同账号重试耗尽并实际切换时设置ForceCacheBilling", func(t *testing.T) {
 		mock := &mockTempUnscheduler{}
 		fs := NewFailoverState(3, true)

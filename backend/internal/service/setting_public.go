@@ -360,10 +360,12 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ChannelMonitorMode:                   normalizeChannelMonitorMode(settings[SettingKeyChannelMonitorMode]),
 		ChannelMonitorDefaultIntervalSeconds: parseChannelMonitorInterval(settings[SettingKeyChannelMonitorDefaultIntervalSeconds]),
 		ChannelMonitorHideThroughput:         !isFalseSettingValue(settings[SettingKeyChannelMonitorHideThroughput]),
+		ChannelMonitorShowQuota:              settings[SettingKeyChannelMonitorShowQuota] == "true",
 
 		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
 		ModelPlazaEnabled:        settings[SettingKeyModelPlazaEnabled] == "true",
 		ModelPlazaRequireAuth:    settings[SettingKeyModelPlazaRequireAuth] == "true",
+		PluginManagementEnabled:  settings[SettingKeyPluginManagementEnabled] == "true",
 		FreeModelsEnabled:        settings[SettingKeyFreeModelsEnabled] == "true",
 		CarpoolEnabled:           settings[SettingKeyCarpoolEnabled] == "true",
 		CarpoolBaseServiceFeeUSD: parseNonNegativeSettingFloat(settings[SettingKeyCarpoolBaseServiceFeeUSD], CarpoolBaseServiceFeeUSDDefault),
@@ -423,12 +425,13 @@ func clampChannelMonitorInterval(v int) int {
 }
 
 // ChannelMonitorRuntime is the lightweight view of the channel monitor feature
-// consumed by the runner and user-facing handlers.
+// consumed by the runner, V2 aggregator, and user-facing handlers.
 type ChannelMonitorRuntime struct {
 	Enabled                bool
 	Mode                   string
 	DefaultIntervalSeconds int
 	HideThroughput         bool
+	ShowQuota              bool
 }
 
 func (r ChannelMonitorRuntime) ActiveProbesAllowed() bool {
@@ -440,7 +443,7 @@ func (r ChannelMonitorRuntime) PassiveAggregationAllowed() bool {
 }
 
 // GetChannelMonitorRuntime reads the channel monitor feature flags directly from
-// the settings store. Fail-open: on error returns Enabled=true with the default interval.
+// the settings store. Fail-open: on error returns Enabled=true, Mode=v1, default interval.
 func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMonitorRuntime {
 	if s == nil || s.settingRepo == nil {
 		return ChannelMonitorRuntime{
@@ -455,6 +458,7 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 		SettingKeyChannelMonitorMode,
 		SettingKeyChannelMonitorDefaultIntervalSeconds,
 		SettingKeyChannelMonitorHideThroughput,
+		SettingKeyChannelMonitorShowQuota,
 	})
 	if err != nil {
 		return ChannelMonitorRuntime{Enabled: true, Mode: defaultChannelMonitorMode, DefaultIntervalSeconds: channelMonitorIntervalFallback, HideThroughput: true}
@@ -464,6 +468,7 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 		Mode:                   normalizeChannelMonitorMode(vals[SettingKeyChannelMonitorMode]),
 		DefaultIntervalSeconds: parseChannelMonitorInterval(vals[SettingKeyChannelMonitorDefaultIntervalSeconds]),
 		HideThroughput:         !isFalseSettingValue(vals[SettingKeyChannelMonitorHideThroughput]),
+		ShowQuota:              vals[SettingKeyChannelMonitorShowQuota] == "true",
 	}
 }
 

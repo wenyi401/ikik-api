@@ -20,6 +20,9 @@ func RegisterAdminRoutes(
 	settingService *service.SettingService,
 	panelRateLimiters ...*middleware.PanelRateLimiter,
 ) {
+	// 插件 UI 使用短时能力 URL，仅提供经过安装校验的静态资源。
+	v1.GET("/plugin-ui/:token/*path", h.Admin.Plugin.ServeUIAsset)
+
 	admin := v1.Group("/admin")
 	admin.Use(gin.HandlerFunc(adminAuth))
 	if len(panelRateLimiters) > 0 && panelRateLimiters[0] != nil {
@@ -61,6 +64,9 @@ func RegisterAdminRoutes(
 		// Grok OAuth
 		registerGrokOAuthRoutes(admin, h)
 
+		// 国产供应商（kimi/zhipu/deepseek）额度与余额
+		registerCNProviderRoutes(admin, h)
+
 		// 代理管理
 		registerProxyRoutes(admin, h, stepUpAuth)
 
@@ -99,6 +105,9 @@ func RegisterAdminRoutes(
 
 		// TLS 指纹模板管理
 		registerTLSFingerprintProfileRoutes(admin, h)
+
+		// 本地进程插件管理
+		registerPluginRoutes(admin, h, stepUpAuth)
 
 		// API Key 管理
 		registerAdminAPIKeyRoutes(admin, h)
@@ -349,6 +358,7 @@ func registerGroupRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		groups.GET("/all", h.Admin.Group.GetAll)
 		groups.GET("/usage-summary", h.Admin.Group.GetUsageSummary)
 		groups.GET("/capacity-summary", h.Admin.Group.GetCapacitySummary)
+		groups.GET("/live-capability", h.Admin.Group.GetLiveCapability)
 		groups.PUT("/sort-order", h.Admin.Group.UpdateSortOrder)
 		groups.GET("/:id/models-list-candidates", h.Admin.Group.GetModelsListCandidates)
 		groups.GET("/:id/composite-routes", h.Admin.Group.ListCompositeRoutes)
@@ -407,6 +417,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/:id/revert-proxy-fallback", h.Admin.Account.RevertProxyFallback)
 		accounts.GET("/:id/usage", h.Admin.Account.GetUsage)
 		accounts.GET("/:id/today-stats", h.Admin.Account.GetTodayStats)
+		accounts.POST("/usage/batch", h.Admin.Account.GetBatchUsage)
 		accounts.POST("/today-stats/batch", h.Admin.Account.GetBatchTodayStats)
 		accounts.POST("/:id/clear-rate-limit", h.Admin.Account.ClearRateLimit)
 		accounts.POST("/:id/reset-quota", h.Admin.Account.ResetQuota)
@@ -465,6 +476,7 @@ func registerOpenAIOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		openai.POST("/create-from-oauth", h.Admin.OpenAIOAuth.CreateAccountFromOAuth)
 		openai.POST("/create-from-codex-pat", h.Admin.OpenAIOAuth.CreateAccountFromCodexPAT)
 		openai.GET("/accounts/:id/quota", h.Admin.OpenAIOAuth.QueryQuota)
+		openai.POST("/accounts/:id/quota/refresh", h.Admin.OpenAIOAuth.RefreshQuota)
 		openai.POST("/accounts/:id/reset-quota", h.Admin.OpenAIOAuth.ResetQuota)
 	}
 }
@@ -490,9 +502,12 @@ func registerAntigravityOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 func registerGrokOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	grok := admin.Group("/grok")
 	{
+		grok.GET("/oauth/capabilities", h.Admin.GrokOAuth.GetCapabilities)
 		grok.POST("/oauth/auth-url", h.Admin.GrokOAuth.GenerateAuthURL)
 		grok.POST("/oauth/exchange-code", h.Admin.GrokOAuth.ExchangeCode)
 		grok.POST("/oauth/refresh-token", h.Admin.GrokOAuth.RefreshToken)
+		grok.POST("/oauth/sso-token", h.Admin.GrokOAuth.ValidateSSOToken)
+		grok.POST("/oauth/password", h.Admin.GrokOAuth.AuthorizePassword)
 		grok.POST("/oauth/create-from-oauth", h.Admin.GrokOAuth.CreateAccountFromOAuth)
 		grok.POST("/sso-to-oauth", h.Admin.GrokOAuth.CreateAccountsFromSSO)
 		grok.POST("/oauth/reconcile", h.Admin.GrokOAuth.ReconcileOAuthAccounts)
@@ -500,6 +515,17 @@ func registerGrokOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		grok.GET("/accounts/:id/quota", h.Admin.GrokOAuth.QueryQuota)
 		grok.POST("/accounts/:id/reset-quota", h.Admin.GrokOAuth.ResetQuota)
 		grok.GET("/runtime-sanity", h.Admin.GrokOAuth.RuntimeSanity)
+	}
+}
+
+// registerCNProviderRoutes 注册国产供应商（kimi/zhipu/deepseek）的额度与余额查询端点。
+func registerCNProviderRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	cn := admin.Group("/cn-providers")
+	{
+		// Coding Plan 滚动窗口用量（kimi/zhipu coding 账号）。
+		cn.GET("/accounts/:id/quota", h.Admin.CNProvider.QueryQuota)
+		// payg 账号余额（kimi/deepseek；zhipu 无余额端点）。
+		cn.GET("/accounts/:id/balance", h.Admin.CNProvider.QueryBalance)
 	}
 }
 
@@ -574,6 +600,9 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// 429默认回避配置
 		adminSettings.GET("/rate-limit-429-cooldown", h.Admin.Setting.GetRateLimit429CooldownSettings)
 		adminSettings.PUT("/rate-limit-429-cooldown", h.Admin.Setting.UpdateRateLimit429CooldownSettings)
+		// 面板 API 限流配置
+		adminSettings.GET("/panel-rate-limit", h.Admin.Setting.GetPanelRateLimitSettings)
+		adminSettings.PUT("/panel-rate-limit", h.Admin.Setting.UpdatePanelRateLimitSettings)
 		// 流超时处理配置
 		adminSettings.GET("/stream-timeout", h.Admin.Setting.GetStreamTimeoutSettings)
 		adminSettings.PUT("/stream-timeout", h.Admin.Setting.UpdateStreamTimeoutSettings)
@@ -745,6 +774,22 @@ func registerTLSFingerprintProfileRoutes(admin *gin.RouterGroup, h *handler.Hand
 	}
 }
 
+func registerPluginRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAuth middleware.StepUpAuthMiddleware) {
+	plugins := admin.Group("/plugins")
+	{
+		plugins.GET("", h.Admin.Plugin.List)
+		plugins.GET("/:id", h.Admin.Plugin.Get)
+		plugins.POST("/upload", gin.HandlerFunc(stepUpAuth), h.Admin.Plugin.Upload)
+		plugins.POST("/:id/enable", gin.HandlerFunc(stepUpAuth), h.Admin.Plugin.Enable)
+		plugins.POST("/:id/disable", gin.HandlerFunc(stepUpAuth), h.Admin.Plugin.Disable)
+		plugins.DELETE("/:id", gin.HandlerFunc(stepUpAuth), h.Admin.Plugin.Delete)
+		plugins.GET("/:id/config", h.Admin.Plugin.GetConfig)
+		plugins.PUT("/:id/config", gin.HandlerFunc(stepUpAuth), h.Admin.Plugin.SaveConfig)
+		plugins.POST("/:id/test", gin.HandlerFunc(stepUpAuth), h.Admin.Plugin.Test)
+		plugins.POST("/:id/ui-session", h.Admin.Plugin.CreateUISession)
+	}
+}
+
 func registerChannelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	channels := admin.Group("/channels")
 	{
@@ -786,9 +831,32 @@ func registerChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers, s
 	}
 }
 
+// registerAffiliateRoutes 注册邀请返利的管理端路由（专属用户配置）
+func registerAffiliateRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	affiliates := admin.Group("/affiliates")
+	{
+		affiliates.GET("/invites", h.Admin.Affiliate.ListInviteRecords)
+		affiliates.GET("/rebates", h.Admin.Affiliate.ListRebateRecords)
+		affiliates.GET("/transfers", h.Admin.Affiliate.ListTransferRecords)
+
+		users := affiliates.Group("/users")
+		{
+			users.GET("", h.Admin.Affiliate.ListUsers)
+			users.GET("/lookup", h.Admin.Affiliate.LookupUsers)
+			users.POST("/batch-rate", h.Admin.Affiliate.BatchSetRate)
+			users.GET("/:user_id/overview", h.Admin.Affiliate.GetUserOverview)
+			users.PUT("/:user_id", h.Admin.Affiliate.UpdateUserSettings)
+			users.DELETE("/:user_id", h.Admin.Affiliate.ClearUserSettings)
+		}
+	}
+}
+
 func registerChannelMonitorV2Routes(admin *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
+	// Config GET/PUT: feature enabled only (operators can prepare V2 before flipping mode).
+	// Read/matrix endpoints: require mode=v2 so V1 deployments do not serve passive data.
 	featureGuard := channelMonitorAdminFeatureGuard(settingService)
 	modeV2Guard := channelMonitorModeV2Guard(settingService)
+
 	monitor := admin.Group("/channel-monitor-v2")
 	{
 		config := monitor.Group("")
@@ -821,7 +889,7 @@ func channelMonitorAdminFeatureGuard(settingService *service.SettingService) gin
 	}
 }
 
-// channelMonitorModeV2Guard requires the monitor feature and passive V2 mode.
+// channelMonitorModeV2Guard requires feature enabled and channel_monitor_mode=v2.
 func channelMonitorModeV2Guard(settingService *service.SettingService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if settingService == nil {
@@ -829,37 +897,17 @@ func channelMonitorModeV2Guard(settingService *service.SettingService) gin.Handl
 			c.Abort()
 			return
 		}
-		runtime := settingService.GetChannelMonitorRuntime(c.Request.Context())
-		if !runtime.Enabled {
+		rt := settingService.GetChannelMonitorRuntime(c.Request.Context())
+		if !rt.Enabled {
 			response.ErrorFrom(c, service.ErrChannelMonitorDisabled)
 			c.Abort()
 			return
 		}
-		if !runtime.PassiveAggregationAllowed() {
+		if !rt.PassiveAggregationAllowed() {
 			response.ErrorFrom(c, service.ErrChannelMonitorModeMismatch)
 			c.Abort()
 			return
 		}
 		c.Next()
-	}
-}
-
-// registerAffiliateRoutes 注册邀请返利的管理端路由（专属用户配置）
-func registerAffiliateRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
-	affiliates := admin.Group("/affiliates")
-	{
-		affiliates.GET("/invites", h.Admin.Affiliate.ListInviteRecords)
-		affiliates.GET("/rebates", h.Admin.Affiliate.ListRebateRecords)
-		affiliates.GET("/transfers", h.Admin.Affiliate.ListTransferRecords)
-
-		users := affiliates.Group("/users")
-		{
-			users.GET("", h.Admin.Affiliate.ListUsers)
-			users.GET("/lookup", h.Admin.Affiliate.LookupUsers)
-			users.POST("/batch-rate", h.Admin.Affiliate.BatchSetRate)
-			users.GET("/:user_id/overview", h.Admin.Affiliate.GetUserOverview)
-			users.PUT("/:user_id", h.Admin.Affiliate.UpdateUserSettings)
-			users.DELETE("/:user_id", h.Admin.Affiliate.ClearUserSettings)
-		}
 	}
 }

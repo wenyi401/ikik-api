@@ -53,6 +53,7 @@ export interface ContentModerationConfig {
   moderation_provider: ContentModerationProvider
   base_url: string
   model: string
+  proxy_id: number | null
   classifier_group_id: number
   classifier_models: string[]
   classifier_prompt: string
@@ -122,6 +123,8 @@ export interface TestContentModerationAPIKeysPayload {
   aliyun_endpoint?: string
   aliyun_service?: string
   timeout_ms?: number
+  // null/undefined 沿用已保存配置的代理；0 强制直连；>0 指定代理
+  proxy_id?: number
   prompt?: string
   images?: string[]
 }
@@ -164,6 +167,8 @@ export interface UpdateContentModerationConfig {
   moderation_provider?: ContentModerationProvider
   base_url?: string
   model?: string
+  // undefined keeps the saved proxy, 0 clears it, and a positive ID selects one.
+  proxy_id?: number
   classifier_group_id?: number
   classifier_models?: string[]
   classifier_prompt?: string

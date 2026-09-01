@@ -147,8 +147,14 @@ type Group struct {
 	VideoPrice480P     *float64 `json:"video_price_480p"`
 	VideoPrice720P     *float64 `json:"video_price_720p"`
 	VideoPrice1080P    *float64 `json:"video_price_1080p"`
+	// VideoModelPrices 可选按模型族×分辨率覆盖视频每秒单价 (USD/s)。
+	VideoModelPrices map[string]map[string]float64 `json:"video_model_prices,omitempty"`
 	// Codex alpha/search 网页搜索单次价格（USD/次）；null 表示使用默认价 0.01
-	WebSearchPricePerCall *float64 `json:"web_search_price_per_call"`
+	WebSearchPricePerCall        *float64 `json:"web_search_price_per_call"`
+	SearchPricePer1k             *float64 `json:"search_price_per_1k"`
+	AudioRealtimePricePerMin     *float64 `json:"audio_realtime_price_per_min"`
+	AudioTtsPricePerMillionChars *float64 `json:"audio_tts_price_per_million_chars"`
+	AudioSttPricePerHour         *float64 `json:"audio_stt_price_per_hour"`
 
 	// Claude Code 客户端限制
 	ClaudeCodeOnly  bool   `json:"claude_code_only"`
@@ -166,6 +172,10 @@ type Group struct {
 
 	// RPMLimit 分组级每分钟请求数上限（0 = 不限制），设置后覆盖用户级 rpm_limit。
 	RPMLimit int `json:"rpm_limit"`
+	// MaxReasoningEffort OpenAI/Codex 请求的推理强度上限，空字符串表示不限制。
+	MaxReasoningEffort string `json:"max_reasoning_effort"`
+	// ReasoningEffortMappings OpenAI/Codex 推理强度精确映射。
+	ReasoningEffortMappings []domain.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -558,6 +568,9 @@ type UsageLog struct {
 	UserAgent *string `json:"user_agent"`
 	// IPAddress is visible to the owner of the usage record.
 	IPAddress *string `json:"ip_address,omitempty"`
+	// SessionID is the explicit client-provided request correlation identifier
+	// (e.g. the session_id / X-Session-Id headers). Omitted when absent.
+	SessionID *string `json:"session_id,omitempty"`
 
 	// Cache TTL Override 标记
 	CacheTTLOverridden bool `json:"cache_ttl_overridden"`

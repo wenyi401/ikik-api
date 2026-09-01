@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/imroc/req/v3"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/service"
-	"github.com/imroc/req/v3"
 )
 
 // NewOpenAIOAuthClient creates a new OpenAI OAuth client
@@ -46,9 +46,11 @@ func (s *openaiOAuthService) ExchangeCode(ctx context.Context, code, codeVerifie
 
 	var tokenResp openai.TokenResponse
 
+	authUA, authOriginator := service.CodexCanonicalAuthIdentity()
 	resp, err := client.R().
 		SetContext(ctx).
-		SetHeader("User-Agent", "codex-cli/0.91.0").
+		SetHeader("User-Agent", authUA).
+		SetHeader("originator", authOriginator).
 		SetFormDataFromValues(formData).
 		SetSuccessResult(&tokenResp).
 		Post(s.tokenURL)
@@ -94,9 +96,11 @@ func (s *openaiOAuthService) refreshTokenWithClientID(ctx context.Context, refre
 
 	var tokenResp openai.TokenResponse
 
+	authUA, authOriginator := service.CodexCanonicalAuthIdentity()
 	resp, err := client.R().
 		SetContext(ctx).
-		SetHeader("User-Agent", "codex-cli/0.91.0").
+		SetHeader("User-Agent", authUA).
+		SetHeader("originator", authOriginator).
 		SetFormDataFromValues(formData).
 		SetSuccessResult(&tokenResp).
 		Post(s.tokenURL)

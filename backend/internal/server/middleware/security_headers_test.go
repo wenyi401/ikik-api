@@ -305,6 +305,21 @@ func TestEnhanceCSPPolicy(t *testing.T) {
 		assert.Contains(t, enhanced, CloudflareInsightsDomain)
 	})
 
+	t.Run("allows_only_same_origin_plugin_frames", func(t *testing.T) {
+		policy := "default-src 'self'; frame-src https://checkout.example.com"
+		enhanced := enhanceCSPPolicy(policy)
+
+		assert.Equal(t, 1, countDirectiveValue(enhanced, "frame-src", "'self'"))
+		assert.Equal(t, 1, countDirectiveValue(enhanced, "frame-src", "https://checkout.example.com"))
+		assert.NotContains(t, enhanced, "frame-src *")
+	})
+
+	t.Run("adds_same_origin_frame_source_once_when_directive_is_missing", func(t *testing.T) {
+		enhanced := enhanceCSPPolicy("default-src 'self'; script-src 'self'")
+
+		assert.Equal(t, 1, countDirectiveValue(enhanced, "frame-src", "'self'"))
+	})
+
 	t.Run("does_not_duplicate_nonce_placeholder", func(t *testing.T) {
 		policy := "default-src 'self'; script-src 'self' __CSP_NONCE__"
 		enhanced := enhanceCSPPolicy(policy)
@@ -455,6 +470,15 @@ func TestAddToDirective(t *testing.T) {
 
 		assert.Contains(t, result, "script-src")
 		assert.Contains(t, result, "https://example.com")
+	})
+
+	t.Run("does_not_match_a_directive_name_suffix", func(t *testing.T) {
+		policy := "default-src 'none'; child-frame-src https://legacy.example.com"
+		result := addToDirective(policy, "frame-src", "'self'")
+
+		assert.Equal(t, 1, countDirectiveValue(result, "frame-src", "'self'"))
+		assert.Equal(t, 0, countDirectiveValue(result, "child-frame-src", "'self'"))
+		assert.Equal(t, 1, countDirectiveValue(result, "child-frame-src", "https://legacy.example.com"))
 	})
 }
 

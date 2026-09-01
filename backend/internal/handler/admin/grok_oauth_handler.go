@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"ikik-api/internal/handler/dto"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/pkg/xai"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 const grokSSOImportConcurrency = 3
@@ -615,8 +615,10 @@ func (h *GrokOAuthHandler) ResetQuota(c *gin.Context) {
 		response.BadRequest(c, "grok quota service is not enabled")
 		return
 	}
+	// ResetQuota 恒返回 GROK_QUOTA_RESET_UNSUPPORTED（xAI 无 OAuth 配额重置接口），err != nil 恒真为预期。
+	//nolint:staticcheck // SA4023
 	result, err := h.quotaService.ResetQuota(c.Request.Context(), accountID)
-	if err != nil {
+	if err != nil { //nolint:staticcheck // SA4023
 		response.ErrorFrom(c, err)
 		return
 	}

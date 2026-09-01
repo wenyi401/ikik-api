@@ -313,6 +313,7 @@ import { useAnnouncementStore } from '@/stores/announcements'
 import { formatRelativeTime, formatRelativeWithDateTime } from '@/utils/format'
 import type { UserAnnouncement } from '@/types'
 import Icon from '@/components/icons/Icon.vue'
+import '@/styles/announcement-markdown.css'
 
 const { t } = useI18n()
 const appStore = useAppStore()

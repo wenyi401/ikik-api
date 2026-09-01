@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"ikik-api/internal/pkg/xai"
 	"github.com/stretchr/testify/require"
+	"ikik-api/internal/pkg/xai"
 )
 
 func TestBuildGrokVoiceURL_UsesAPIDefaultForCLIProxyBase(t *testing.T) {

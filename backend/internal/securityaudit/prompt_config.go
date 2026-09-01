@@ -44,7 +44,7 @@ type ConfigStore interface {
 	// It must stay false when blocking is not intended, even if config is
 	// untrusted—otherwise default-off deployments fail closed for all traffic.
 	BlockingActivationDegraded() bool
-	Public() PublicConfig
+	Public() (PublicConfig, error)
 	Save(ctx context.Context, req UpdateConfigRequest, actorID int64) (PublicConfig, error)
 	RuntimeState() (expected int64, active int64, loadedAt *time.Time, loadError string)
 	Encrypt(value string) (string, error)
@@ -205,6 +205,9 @@ func ParseStorageConfig(raw string) (storageConfig, error) {
 	if strings.TrimSpace(raw) == "" {
 		return cfg, nil
 	}
+	// Distinguish legacy documents that predate enforcement_mode from an
+	// explicit modern "shadow" selection.
+	cfg.EnforcementMode = ""
 	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
 		return storageConfig{}, fmt.Errorf("decode prompt audit config: %w", err)
 	}
@@ -227,6 +230,11 @@ func normalizeStorageConfig(cfg *storageConfig) {
 	}
 	if cfg.EnforcementMode != EnforcementShadow && cfg.EnforcementMode != EnforcementEnforce {
 		cfg.EnforcementMode = EnforcementShadow
+		if cfg.BlockingEnabled {
+			// Configs written before enforcement_mode existed used
+			// blocking_enabled as the complete enforcement intent.
+			cfg.EnforcementMode = EnforcementEnforce
+		}
 	}
 	if cfg.WorkerCount == 0 {
 		cfg.WorkerCount = DefaultWorkerCount
@@ -404,7 +412,13 @@ func (cfg ActiveConfig) InvalidTokenEndpointIDs() []string {
 	return ids
 }
 
-func PublicFromStorage(cfg storageConfig, riskControlEnabled bool) PublicConfig {
+func PublicFromStorage(cfg storageConfig, riskControlEnabled bool, invalidTokenEndpointIDs ...[]string) PublicConfig {
+	invalid := make(map[string]struct{})
+	if len(invalidTokenEndpointIDs) > 0 {
+		for _, id := range invalidTokenEndpointIDs[0] {
+			invalid[id] = struct{}{}
+		}
+	}
 	scanners := append([]string{}, cfg.Scanners...)
 	groupIDs := append([]int64{}, cfg.GroupIDs...)
 	endpoints := make([]PublicEndpoint, 0, len(cfg.Endpoints))
@@ -413,6 +427,9 @@ func PublicFromStorage(cfg storageConfig, riskControlEnabled bool) PublicConfig 
 		status := "missing"
 		if hasToken {
 			status = "configured"
+			if _, ok := invalid[ep.ID]; ok {
+				status = "invalid"
+			}
 		}
 		endpoints = append(endpoints, PublicEndpoint{
 			ID: ep.ID, Name: ep.Name, Protocol: ep.Protocol, BaseURL: ep.BaseURL,

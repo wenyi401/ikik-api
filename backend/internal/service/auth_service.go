@@ -91,6 +91,7 @@ type AuthService struct {
 }
 
 type CaptchaProof struct {
+	// TurnstileToken 承载 Cloudflare Turnstile token；阿里云验证码复用该字段承载 captchaVerifyParam
 	TurnstileToken string
 	TencentTicket  string
 	TencentRandstr string
@@ -171,10 +172,6 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 	if isReservedEmail(email) {
 		return "", nil, ErrEmailReserved
 	}
-	if err := s.validateRegistrationEmailPolicy(ctx, email); err != nil {
-		return "", nil, err
-	}
-
 	// 检查是否需要邀请码
 	var invitationRedeemCode *RedeemCode
 	if s.settingService != nil && s.settingService.IsInvitationCodeEnabled(ctx) {
@@ -212,8 +209,8 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		}
 	}
 
-	// 检查邮箱是否已存在
-	existsEmail, err := s.userRepo.ExistsByEmail(ctx, email)
+	// 检查邮箱是否已存在（含 +别名 / Gmail 点号变体归一化，防止单个收件箱批量派生注册）
+	existsEmail, err := s.existsByEmailOrAlias(ctx, email)
 	if err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Database error checking email exists: %v", err)
 		return "", nil, ErrServiceUnavailable
@@ -250,13 +247,19 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		Status:       StatusActive,
 	}
 
-	if err := s.userRepo.Create(ctx, user); err != nil {
+	if err := s.createUserAndClaimInvitation(ctx, user, invitationRedeemCode); err != nil {
 		// 优先检查邮箱冲突错误（竞态条件下可能发生）
-		if errors.Is(err, ErrEmailExists) {
+		switch {
+		case errors.Is(err, ErrEmailExists):
 			return "", nil, ErrEmailExists
+		case errors.Is(err, ErrEmailDomainRegistrationLimit):
+			return "", nil, ErrEmailDomainRegistrationLimit
+		case errors.Is(err, ErrInvitationCodeInvalid):
+			return "", nil, ErrInvitationCodeInvalid
+		default:
+			logger.LegacyPrintf("service.auth", "[Auth] Database error creating user: %v", err)
+			return "", nil, ErrServiceUnavailable
 		}
-		logger.LegacyPrintf("service.auth", "[Auth] Database error creating user: %v", err)
-		return "", nil, ErrServiceUnavailable
 	}
 	s.postAuthUserBootstrap(ctx, user, "email", true)
 	if err := s.provisionUserPrivateGroups(ctx, user.ID); err != nil {
@@ -277,13 +280,8 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		}
 	}
 
-	// 标记邀请码为已使用（如果使用了邀请码）
-	if invitationRedeemCode != nil {
-		if err := s.redeemRepo.Use(ctx, invitationRedeemCode.ID, user.ID); err != nil {
-			// 邀请码标记失败不影响注册，只记录日志
-			logger.LegacyPrintf("service.auth", "[Auth] Failed to mark invitation code as used for user %d: %v", user.ID, err)
-		}
-	}
+	// 邀请码占用已由 createUserAndClaimInvitation 在“用户创建 + 邀请码占用”的
+	// 同一个数据库事务内原子完成（一次性约束，见函数注释），此处不再单独标记。
 	// 应用优惠码（如果提供且功能已启用）
 	if promoCode != "" && s.promoService != nil && s.settingService != nil && s.settingService.IsPromoCodeEnabled(ctx) {
 		if err := s.promoService.ApplyPromoCode(ctx, user.ID, promoCode); err != nil {
@@ -321,18 +319,17 @@ func (s *AuthService) SendVerifyCode(ctx context.Context, email string, locale .
 	if isReservedEmail(email) {
 		return ErrEmailReserved
 	}
-	if err := s.validateRegistrationEmailPolicy(ctx, email); err != nil {
-		return err
-	}
-
-	// 检查邮箱是否已存在
-	existsEmail, err := s.userRepo.ExistsByEmail(ctx, email)
+	// 检查邮箱是否已存在（含 +别名 / Gmail 点号变体归一化，防止单个收件箱批量派生注册）
+	existsEmail, err := s.existsByEmailOrAlias(ctx, email)
 	if err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Database error checking email exists: %v", err)
 		return ErrServiceUnavailable
 	}
 	if existsEmail {
 		return ErrEmailExists
+	}
+	if err := s.validateRegistrationEmailQuota(ctx, email); err != nil {
+		return err
 	}
 
 	// 发送验证码
@@ -362,12 +359,8 @@ func (s *AuthService) SendVerifyCodeAsync(ctx context.Context, email string, loc
 	if isReservedEmail(email) {
 		return nil, ErrEmailReserved
 	}
-	if err := s.validateRegistrationEmailPolicy(ctx, email); err != nil {
-		return nil, err
-	}
-
-	// 检查邮箱是否已存在
-	existsEmail, err := s.userRepo.ExistsByEmail(ctx, email)
+	// 检查邮箱是否已存在（含 +别名 / Gmail 点号变体归一化；在发信前拦截，避免批量脚本消耗发信配额）
+	existsEmail, err := s.existsByEmailOrAlias(ctx, email)
 	if err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Database error checking email exists: %v", err)
 		return nil, ErrServiceUnavailable
@@ -375,6 +368,9 @@ func (s *AuthService) SendVerifyCodeAsync(ctx context.Context, email string, loc
 	if existsEmail {
 		logger.LegacyPrintf("service.auth", "[Auth] Email already exists: %s", email)
 		return nil, ErrEmailExists
+	}
+	if err := s.validateRegistrationEmailQuota(ctx, email); err != nil {
+		return nil, err
 	}
 
 	// 检查邮件队列服务是否配置
@@ -1270,6 +1266,46 @@ func (s *AuthService) createUserWithRegistrationEmailGuard(ctx context.Context, 
 	return quotaRepo.CreateWithEmailAliasGuardAndDomainLimit(ctx, user, domain)
 }
 
+// createUserAndClaimInvitation atomically creates the user and consumes a
+// one-time invitation code so concurrent registrations cannot reuse it.
+func (s *AuthService) createUserAndClaimInvitation(ctx context.Context, user *User, invitation *RedeemCode) error {
+	commitUser := func(execCtx context.Context) error {
+		if err := s.createUserWithRegistrationEmailGuard(execCtx, user); err != nil {
+			return err
+		}
+		if invitation == nil {
+			return nil
+		}
+		if err := s.redeemRepo.Use(execCtx, invitation.ID, user.ID); err != nil {
+			logger.LegacyPrintf("service.auth",
+				"[Auth] Rejected registration: invitation code %s already claimed (user_id=%d err=%v)",
+				invitation.Code, user.ID, err)
+			return ErrInvitationCodeInvalid
+		}
+		return nil
+	}
+
+	if invitation == nil || s.entClient == nil {
+		return commitUser(ctx)
+	}
+
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to start registration transaction: %v", err)
+		return ErrServiceUnavailable
+	}
+	defer func() { _ = tx.Rollback() }()
+	execCtx := dbent.NewTxContext(ctx, tx)
+	if err := commitUser(execCtx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to commit registration transaction: %v", err)
+		return ErrServiceUnavailable
+	}
+	return nil
+}
+
 func buildEmailSuffixNotAllowedError(whitelist []string) error {
 	if len(whitelist) == 0 {
 		return ErrEmailSuffixNotAllowed
@@ -1897,17 +1933,15 @@ func (s *AuthService) RevokeAllUserSessions(ctx context.Context, userID int64) e
 }
 
 // RevokeAllUserTokens invalidates both stateless access tokens and refresh sessions.
-// Access/refresh token verification both depend on TokenVersion, so bumping it provides
-// immediate revocation even if refresh-token cache cleanup later fails.
+//
+// 注意：users 表没有 token_version 列（resolvedTokenVersion 由 email+password_hash
+// 指纹推导），因此对 user.TokenVersion 自增只影响内存副本。之前紧跟其后的整行
+// Update 不写任何有效数据，却会用旧快照覆盖并发写入的列，故已移除。
+// 会话撤销由下面的 refresh session 清理承担；改密路径通过 password_hash 变化
+// 改变指纹，从而使旧 token 失效。
 func (s *AuthService) RevokeAllUserTokens(ctx context.Context, userID int64) error {
-	user, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
+	if _, err := s.userRepo.GetByID(ctx, userID); err != nil {
 		return fmt.Errorf("get user: %w", err)
-	}
-
-	user.TokenVersion++
-	if err := s.userRepo.Update(ctx, user, UserUpdateFields{PasswordHash: true}); err != nil {
-		return fmt.Errorf("update user: %w", err)
 	}
 
 	if err := s.RevokeAllUserSessions(ctx, userID); err != nil {

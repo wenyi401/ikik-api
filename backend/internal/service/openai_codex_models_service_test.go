@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"golang.org/x/net/http2"
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/pkg/tlsfingerprint"
 )
 
@@ -193,7 +195,7 @@ func TestFetchCodexModelsManifestPassthrough(t *testing.T) {
 	if gotAccountID != "acc-123" {
 		t.Errorf("chatgpt-account-id header: got %q", gotAccountID)
 	}
-	if gotOriginator != "codex_cli_rs" {
+	if gotOriginator != openai.CodexDefaultOriginator {
 		t.Errorf("originator header: got %q", gotOriginator)
 	}
 	if gotClientVersion != "0.137.0" {
@@ -347,8 +349,8 @@ func TestFetchCodexModelsManifestDefaultClientVersion(t *testing.T) {
 	if _, err := s.FetchCodexModelsManifest(context.Background(), newCodexModelsTestAccount(), "", ""); err != nil {
 		t.Fatalf("FetchCodexModelsManifest returned error: %v", err)
 	}
-	if gotClientVersion != openAICodexProbeVersion {
-		t.Errorf("default client_version: got %q, want %q", gotClientVersion, openAICodexProbeVersion)
+	if gotClientVersion != CodexCanonicalClientVersion() {
+		t.Errorf("default client_version: got %q, want %q", gotClientVersion, CodexCanonicalClientVersion())
 	}
 }
 
@@ -447,13 +449,13 @@ func TestFetchCodexModelsManifestAPIKeyCustomUpstream(t *testing.T) {
 	if gotRequest.Header.Get("Authorization") != "Bearer sk-upstream" {
 		t.Errorf("authorization header: got %q", gotRequest.Header.Get("Authorization"))
 	}
-	if gotRequest.Header.Get("Originator") != "codex_cli_rs" {
+	if gotRequest.Header.Get("Originator") != openai.CodexDefaultOriginator {
 		t.Errorf("originator header: got %q", gotRequest.Header.Get("Originator"))
 	}
 	if gotRequest.Header.Get("Version") != "0.144.0" {
-		t.Errorf("version header: got %q", gotRequest.Header.Get("Version"))
+		t.Errorf("version header must match the client_version query param: got %q", gotRequest.Header.Get("Version"))
 	}
-	if gotRequest.Header.Get("User-Agent") != codexCLIUserAgent {
+	if gotRequest.Header.Get("User-Agent") != CodexCanonicalUserAgent() {
 		t.Errorf("user-agent header: got %q", gotRequest.Header.Get("User-Agent"))
 	}
 	if gotRequest.Header.Get("chatgpt-account-id") != "" {
@@ -495,9 +497,79 @@ func TestFetchCodexModelsManifestAPIKeyConvertsStandardOpenAIModelList(t *testin
 	if got, want := string(manifest.Body), `{"models":[{"slug":"gpt-5.6"},{"slug":"gpt-5.6-codex"}]}`; got != want {
 		t.Errorf("converted body: got %q, want %q", got, want)
 	}
-	if manifest.ETag != `W/"openai-list"` {
-		t.Errorf("etag not passed through: got %q", manifest.ETag)
+	require.Equal(t, codexModelsManifestBodyETag(manifest.Body), manifest.ETag)
+	require.Equal(t, `W/"openai-list"`, manifest.upstreamETag)
+}
+
+func TestAdjustAPIKeyCodexModelsManifest(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "affected models disable responses lite and preserve unknown fields",
+			body: `{"models":[{"slug":"gpt-5.6-sol","use_responses_lite":true,"unknown_model":{"enabled":true}},{"slug":"gpt-5.6-terra","use_responses_lite":true},{"slug":"gpt-5.6-luna","use_responses_lite":true}],"unknown_top":{"version":1}}`,
+			want: `{"models":[{"slug":"gpt-5.6-sol","unknown_model":{"enabled":true},"use_responses_lite":false},{"slug":"gpt-5.6-terra","use_responses_lite":false},{"slug":"gpt-5.6-luna","use_responses_lite":false}],"unknown_top":{"version":1}}`,
+		},
+		{
+			name: "unaffected model unchanged",
+			body: ` {"models":[{"slug":"gpt-5.6-codex","use_responses_lite":true}]} `,
+			want: ` {"models":[{"slug":"gpt-5.6-codex","use_responses_lite":true}]} `,
+		},
+		{
+			name: "false missing and alternate entries unchanged",
+			body: `{"models":[{"slug":"gpt-5.6-sol","use_responses_lite":false},{"slug":"gpt-5.6-terra"},null,"gpt-5.6-luna",{"slug":17,"use_responses_lite":true}]}`,
+			want: `{"models":[{"slug":"gpt-5.6-sol","use_responses_lite":false},{"slug":"gpt-5.6-terra"},null,"gpt-5.6-luna",{"slug":17,"use_responses_lite":true}]}`,
+		},
 	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := adjustAPIKeyCodexModelsManifest([]byte(tt.body))
+			require.NoError(t, err)
+			require.Equal(t, tt.want, string(got))
+		})
+	}
+}
+
+func TestFetchCodexModelsManifestAPIKeyDisablesResponsesLiteForAffectedModels(t *testing.T) {
+	const upstreamBody = `{"models":[{"slug":"gpt-5.6-sol","use_responses_lite":true},{"slug":"gpt-5.6-codex","use_responses_lite":true}],"metadata":{"version":1}}`
+	upstream := &codexModelsHTTPUpstreamStub{do: func(_ *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Etag": []string{`"upstream-strong"`}},
+			Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+		}, nil
+	}}
+
+	s := newCodexModelsAPIKeyTestService(upstream)
+	manifest, err := s.FetchCodexModelsManifest(context.Background(), newCodexModelsAPIKeyTestAccount("https://upstream.example"), "0.145.0", "")
+	require.NoError(t, err)
+	require.JSONEq(t, `{"models":[{"slug":"gpt-5.6-sol","use_responses_lite":false},{"slug":"gpt-5.6-codex","use_responses_lite":true}],"metadata":{"version":1}}`, string(manifest.Body))
+	require.Equal(t, codexModelsManifestBodyETag(manifest.Body), manifest.ETag)
+	require.Equal(t, `"upstream-strong"`, manifest.upstreamETag)
+
+	notModified, err := s.FetchCodexModelsManifest(context.Background(), newCodexModelsAPIKeyTestAccount("https://upstream.example"), "0.145.0", manifest.ETag)
+	require.NoError(t, err)
+	require.True(t, notModified.NotModified)
+	require.Equal(t, manifest.ETag, notModified.ETag)
+}
+
+func TestFetchCodexModelsManifestOAuthPreservesResponsesLite(t *testing.T) {
+	const manifestBody = ` {"models":[{"slug":"gpt-5.6-sol","use_responses_lite":true}]} `
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(manifestBody))
+	}))
+	defer server.Close()
+	original := chatgptCodexModelsURL
+	chatgptCodexModelsURL = server.URL
+	defer func() { chatgptCodexModelsURL = original }()
+
+	s := &OpenAIGatewayService{}
+	manifest, err := s.FetchCodexModelsManifest(context.Background(), newCodexModelsTestAccount(), "0.145.0", "")
+	require.NoError(t, err)
+	require.Equal(t, manifestBody, string(manifest.Body))
 }
 
 func TestConvertOpenAIModelListToCodexManifest(t *testing.T) {
@@ -550,6 +622,51 @@ func TestConvertOpenAIModelListToCodexManifest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFetchCodexModelsManifestUsesConfiguredBodyLimit(t *testing.T) {
+	upstream := &codexModelsHTTPUpstreamStub{do: func(_ *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(`{"models":[{"slug":"gpt-5.6"}]}`)),
+		}, nil
+	}}
+
+	s := newCodexModelsAPIKeyTestService(upstream)
+	s.cfg.Gateway.ModelsListReadMaxBytes = 8
+	_, err := s.FetchCodexModelsManifest(
+		context.Background(),
+		newCodexModelsAPIKeyTestAccount("https://upstream.example"),
+		"0.144.0",
+		"",
+	)
+	require.Error(t, err)
+	require.Equal(t, "OPENAI_CODEX_MODELS_UPSTREAM_FAILED", infraerrors.Reason(err))
+	require.Contains(t, err.Error(), "response exceeds 8 bytes")
+	require.True(t, IsRetryableCodexModelsManifestError(err))
+}
+
+func TestFetchCodexModelsManifestAcceptsConfiguredLimitAboveLegacyBoundary(t *testing.T) {
+	manifestBody := `{"models":[{"slug":"gpt-5.6","display_name":"` + strings.Repeat("x", (8<<20)+1024) + `"}]}`
+	require.Greater(t, len(manifestBody), 8<<20)
+	require.Less(t, len(manifestBody), 16<<20)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, manifestBody)
+	}))
+	defer server.Close()
+
+	original := chatgptCodexModelsURL
+	chatgptCodexModelsURL = server.URL
+	defer func() { chatgptCodexModelsURL = original }()
+
+	s := &OpenAIGatewayService{cfg: &config.Config{}}
+	s.cfg.Gateway.ModelsListReadMaxBytes = 16 << 20
+	manifest, err := s.FetchCodexModelsManifest(context.Background(), newCodexModelsTestAccount(), "0.144.0", "")
+	require.NoError(t, err)
+	require.True(t, bytes.Equal([]byte(manifestBody), manifest.Body), "manifest body must be returned intact")
 }
 
 func TestFetchCodexModelsManifestRejectsInvalidEnvelope(t *testing.T) {
@@ -995,19 +1112,19 @@ func TestFetchCodexModelsManifestAPIKeyRevalidatesStaleETag(t *testing.T) {
 		call := calls.Add(1)
 		if call == 1 {
 			header := make(http.Header)
-			header.Set("ETag", `W/"cached"`)
+			header.Set("ETag", `"upstream-cached"`)
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     header,
-				Body:       io.NopCloser(strings.NewReader(`{"models":[{"slug":"cached"}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"models":[{"slug":"gpt-5.6-sol","use_responses_lite":true}]}`)),
 			}, nil
 		}
-		if got := req.Header.Get("If-None-Match"); got != `W/"cached"` {
+		if got := req.Header.Get("If-None-Match"); got != `"upstream-cached"` {
 			t.Errorf("background revalidation If-None-Match: got %q", got)
 		}
 		close(refreshDone)
 		header := make(http.Header)
-		header.Set("ETag", `W/"cached"`)
+		header.Set("ETag", `"upstream-cached"`)
 		return &http.Response{StatusCode: http.StatusNotModified, Header: header, Body: http.NoBody}, nil
 	}}
 	s := newCodexModelsAPIKeyTestService(upstream)
@@ -1026,7 +1143,7 @@ func TestFetchCodexModelsManifestAPIKeyRevalidatesStaleETag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stale fetch returned error: %v", err)
 	}
-	if got := string(manifest.Body); got != `{"models":[{"slug":"cached"}]}` {
+	if got := string(manifest.Body); got != `{"models":[{"slug":"gpt-5.6-sol","use_responses_lite":false}]}` {
 		t.Fatalf("stale body: got %q", got)
 	}
 	select {
@@ -1052,7 +1169,7 @@ func TestFetchCodexModelsManifestAPIKeyRevalidatesStaleETag(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	manifest, err = s.FetchCodexModelsManifest(context.Background(), account, "0.144.0", "")
-	if err != nil || string(manifest.Body) != `{"models":[{"slug":"cached"}]}` {
+	if err != nil || string(manifest.Body) != `{"models":[{"slug":"gpt-5.6-sol","use_responses_lite":false}]}` {
 		t.Fatalf("renewed cached manifest: body=%q err=%v", manifest.Body, err)
 	}
 	if got := calls.Load(); got != 2 {

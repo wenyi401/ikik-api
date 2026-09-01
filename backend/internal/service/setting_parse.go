@@ -15,6 +15,7 @@ import (
 	"ikik-api/internal/pkg/antigravity"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/openai"
+	"ikik-api/internal/pkg/xai"
 )
 
 // InitializeDefaultSettings 初始化默认设置
@@ -57,6 +58,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyRegistrationEnabled:                       "true",
 		SettingKeyEmailVerifyEnabled:                        "false",
 		SettingKeyRegistrationEmailSuffixWhitelist:          "[]",
+		SettingKeyRegistrationEmailDomainQuotaEnabled:       "false",
 		SettingKeyPromoCodeEnabled:                          "true", // 默认启用优惠码功能
 		SettingKeyLoginAgreementEnabled:                     "false",
 		SettingKeyLoginAgreementMode:                        defaultLoginAgreementMode,
@@ -189,12 +191,19 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyChannelMonitorMode:                   ChannelMonitorModeV1,
 		SettingKeyChannelMonitorDefaultIntervalSeconds: "60",
 		SettingKeyChannelMonitorHideThroughput:         "true",
+		SettingKeyChannelMonitorShowQuota:              "false",
+
+		// Grok defaults match the official xAI-compatible path.
+		SettingKeyGrokDefaultTextModel:           "grok-4.6",
+		SettingKeyGrokCrossClientModelMapEnabled: "true",
+		SettingKeyGrokDefaultBaseURLMode:         GrokDefaultBaseURLModeCLI,
 
 		// Available channels feature (default disabled; opt-in)
 		SettingKeyAvailableChannelsEnabled:                  "false",
 		SettingKeyModelPlazaEnabled:                         "false",
 		SettingKeyModelPlazaRequireAuth:                     "false",
 		SettingKeyModelPlazaDescription:                     "",
+		SettingKeyPluginManagementEnabled:                   "false",
 		SettingKeyFreeModelsEnabled:                         "false",
 		SettingKeyAutoModelSettings:                         DefaultAutoModelSettingsJSON(),
 		SettingKeyHomeStatsGroupID:                          "0",
@@ -244,6 +253,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyEnableClientDatelineNormalization:                  "true",
 		SettingKeyAntigravityUserAgentVersion:                        "",
 		SettingKeyOpenAICodexUserAgent:                               "",
+		SettingKeyOpenAICodexClientVersion:                           "",
+		SettingKeyOpenAICodexClientVersionSynced:                     "",
+		SettingKeyOpenAICodexVersionAutoSyncEnabled:                  "true",
 		SettingPaymentVisibleMethodAlipaySource:                      "",
 		SettingPaymentVisibleMethodWxpaySource:                       "",
 		SettingPaymentVisibleMethodAlipayEnabled:                     "false",
@@ -817,11 +829,12 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		settings[SettingKeyChannelMonitorDefaultIntervalSeconds],
 	)
 	result.ChannelMonitorHideThroughput = !isFalseSettingValue(settings[SettingKeyChannelMonitorHideThroughput])
+	result.ChannelMonitorShowQuota = settings[SettingKeyChannelMonitorShowQuota] == "true"
 
 	// Grok defaults are applied only to accounts without an explicit mapping or base URL.
 	result.GrokDefaultTextModel = strings.TrimSpace(settings[SettingKeyGrokDefaultTextModel])
 	if result.GrokDefaultTextModel == "" {
-		result.GrokDefaultTextModel = "grok-4.5"
+		result.GrokDefaultTextModel = "grok-4.6"
 	}
 	result.GrokCrossClientModelMapEnabled = !isFalseSettingValue(settings[SettingKeyGrokCrossClientModelMapEnabled])
 	result.GrokDefaultBaseURLMode = normalizeGrokDefaultBaseURLMode(settings[SettingKeyGrokDefaultBaseURLMode])
@@ -831,6 +844,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.ModelPlazaEnabled = settings[SettingKeyModelPlazaEnabled] == "true"
 	result.ModelPlazaRequireAuth = settings[SettingKeyModelPlazaRequireAuth] == "true"
 	result.ModelPlazaDescription = settings[SettingKeyModelPlazaDescription]
+	result.PluginManagementEnabled = settings[SettingKeyPluginManagementEnabled] == "true"
 	result.FreeModelsEnabled = settings[SettingKeyFreeModelsEnabled] == "true"
 	result.AutoModelSettings = ParseAutoModelSettings(settings[SettingKeyAutoModelSettings])
 	result.CarpoolEnabled = settings[SettingKeyCarpoolEnabled] == "true"
@@ -892,6 +906,14 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	}
 	result.AntigravityUserAgentVersion = antigravity.NormalizeUserAgentVersion(settings[SettingKeyAntigravityUserAgentVersion])
 	result.OpenAICodexUserAgent = strings.TrimSpace(settings[SettingKeyOpenAICodexUserAgent])
+	result.OpenAICodexClientVersion = NormalizeCodexClientVersion(settings[SettingKeyOpenAICodexClientVersion])
+	result.OpenAICodexClientVersionSynced = NormalizeCodexClientVersion(settings[SettingKeyOpenAICodexClientVersionSynced])
+	// 自动同步默认开启：缺失/空值一律视为开启，与 enable_client_dateline_normalization 同一惯例。
+	if v, ok := settings[SettingKeyOpenAICodexVersionAutoSyncEnabled]; ok && v != "" {
+		result.OpenAICodexVersionAutoSyncEnabled = v == "true"
+	} else {
+		result.OpenAICodexVersionAutoSyncEnabled = true
+	}
 	// codex_cli_only 加固
 	result.MinCodexVersion = settings[SettingKeyMinCodexVersion]
 	result.MaxCodexVersion = settings[SettingKeyMaxCodexVersion]
@@ -986,6 +1008,12 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	}
 
 	result.AllowUserViewErrorRequests = settings[SettingKeyAllowUserViewErrorRequests] == "true" // default false
+
+	// Publish Grok default model_mapping options for accounts with empty mapping.
+	xai.SetRuntimeModelMappingOptions(xai.ModelMappingOptions{
+		DefaultText:          result.GrokDefaultTextModel,
+		EnableCrossClientMap: result.GrokCrossClientModelMapEnabled,
+	})
 
 	return result
 }

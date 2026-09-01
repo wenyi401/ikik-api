@@ -188,7 +188,7 @@ function downloadChart() {
         <template v-if="!props.fullscreen">
           <button
             type="button"
-            class="ml-2 inline-flex items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:hover:bg-dark-800"
+            class="inline-flex shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:hover:bg-dark-800"
             :disabled="state !== 'ready'"
             :title="t('admin.ops.requestDetails.title')"
             @click="emit('openDetails')"
@@ -197,7 +197,7 @@ function downloadChart() {
           </button>
           <button
             type="button"
-            class="ml-2 inline-flex items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:hover:bg-dark-800"
+            class="inline-flex shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:hover:bg-dark-800"
             :disabled="state !== 'ready'"
             :title="t('admin.ops.charts.resetZoomHint')"
             @click="resetZoom"
@@ -206,7 +206,7 @@ function downloadChart() {
           </button>
           <button
             type="button"
-            class="inline-flex items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:hover:bg-dark-800"
+            class="inline-flex shrink-0 items-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-300 dark:hover:bg-dark-800"
             :disabled="state !== 'ready'"
             :title="t('admin.ops.charts.downloadChartHint')"
             @click="downloadChart"
@@ -244,7 +244,7 @@ function downloadChart() {
       </button>
     </div>
 
-    <div class="min-h-0 flex-1">
+    <div class="min-h-0 min-w-0 flex-1">
       <Line v-if="state === 'ready' && chartData" ref="throughputChartRef" :data="chartData" :options="options" />
       <div v-else class="flex h-full items-center justify-center">
         <div v-if="state === 'loading'" class="animate-pulse text-sm text-gray-400">{{ t('common.loading') }}</div>

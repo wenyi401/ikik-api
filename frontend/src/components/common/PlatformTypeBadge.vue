@@ -161,6 +161,7 @@ const isGrokFreePlan = computed(() =>
 
 const planIconName = computed<'bolt' | null>(() => {
   if (props.platform !== 'grok') return null
+  // Paid Grok tiers (SuperGrok / Heavy) share the bolt mark; free uses GrokFreeIcon.
   if (
     normalizedPlanType.value === 'supergrok' ||
     normalizedPlanType.value === 'supergrokheavy' ||
@@ -191,6 +192,15 @@ const platformClass = computed(() => {
   if (props.platform === 'custom') {
     return 'bg-stone-100 text-stone-700 dark:bg-stone-900/40 dark:text-stone-300'
   }
+  if (props.platform === 'kimi') {
+    return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400'
+  }
+  if (props.platform === 'zhipu') {
+    return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+  }
+  if (props.platform === 'deepseek') {
+    return 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
+  }
   return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
 })
 
@@ -212,6 +222,15 @@ const typeClass = computed(() => {
   }
   if (props.platform === 'custom') {
     return 'bg-stone-100 text-stone-600 dark:bg-stone-900/40 dark:text-stone-300'
+  }
+  if (props.platform === 'kimi') {
+    return 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400'
+  }
+  if (props.platform === 'zhipu') {
+    return 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+  }
+  if (props.platform === 'deepseek') {
+    return 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400'
   }
   return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
 })

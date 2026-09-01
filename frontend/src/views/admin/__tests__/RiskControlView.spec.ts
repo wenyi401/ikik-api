@@ -56,6 +56,9 @@ vi.mock('@/api/admin', () => ({
     groups: {
       getAll: getGroups,
     },
+    proxies: {
+      getAll: getProxies,
+    },
   },
 }))
 
@@ -96,6 +99,7 @@ const baseConfig = (): ContentModerationConfig => ({
   mode: 'pre_block',
   base_url: 'https://api.openai.com',
   model: 'omni-moderation-latest',
+  proxy_id: null,
   api_key_configured: false,
   api_key_masked: '',
   api_key_count: 0,
@@ -259,6 +263,7 @@ describe('admin RiskControlView', () => {
           Toggle: true,
           Pagination: true,
           ModelWhitelistSelector: ModelWhitelistSelectorStub,
+          ProxySelector: true,
         },
       },
     })
@@ -292,6 +297,7 @@ describe('admin RiskControlView', () => {
           Toggle: true,
           Pagination: true,
           ModelWhitelistSelector: ModelWhitelistSelectorStub,
+          ProxySelector: true,
         },
       },
     })
@@ -470,6 +476,7 @@ describe('admin RiskControlView', () => {
           Toggle: true,
           Pagination: true,
           ModelWhitelistSelector: ModelWhitelistSelectorStub,
+          ProxySelector: true,
         },
       },
     })
@@ -537,6 +544,7 @@ describe('admin RiskControlView', () => {
           Toggle: true,
           Pagination: true,
           ModelWhitelistSelector: ModelWhitelistSelectorStub,
+          ProxySelector: true,
         },
       },
     })

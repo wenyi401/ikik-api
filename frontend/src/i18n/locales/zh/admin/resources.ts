@@ -376,6 +376,7 @@ export default {
     announcements: {
       title: '公告管理',
       description: '创建公告并按条件投放',
+      createFirstAnnouncement: '还没有公告，创建您的第一条公告。',
       createAnnouncement: '创建公告',
       editAnnouncement: '编辑公告',
       deleteAnnouncement: '删除公告',
@@ -434,6 +435,7 @@ export default {
       timeImmediate: '立即',
       timeNever: '永久',
       readStatus: '已读情况',
+      preview: '预览',
       eligible: '符合条件',
       readAt: '已读时间',
       unread: '未读',

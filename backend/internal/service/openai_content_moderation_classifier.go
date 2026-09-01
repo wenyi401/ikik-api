@@ -87,18 +87,18 @@ func (s *OpenAIGatewayService) ForwardContentModerationClassifier(
 			return s.forwardContentModerationClassifierAccount(ctx, &groupID, platform, model, account, input.Body)
 		}()
 		if forwardErr == nil {
-			s.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(model), true, nil)
+			s.ReportOpenAIAccountScheduleResult(account, account.GetMappedModel(model), true, nil)
 			return response, nil
 		}
 
 		lastErr = forwardErr
 		var failoverErr *UpstreamFailoverError
 		if !errors.As(forwardErr, &failoverErr) || failoverErr == nil {
-			s.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(model), false, nil)
+			s.ReportOpenAIAccountScheduleResult(account, account.GetMappedModel(model), false, nil)
 			break
 		}
 		if failoverErr.ShouldReportAccountScheduleFailure() {
-			s.ReportOpenAIAccountScheduleResult(account.ID, account.GetMappedModel(model), false, nil)
+			s.ReportOpenAIAccountScheduleResult(account, account.GetMappedModel(model), false, nil)
 		}
 		if !failoverErr.ShouldRetryNextAccount() {
 			break

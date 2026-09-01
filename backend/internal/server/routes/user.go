@@ -36,7 +36,7 @@ func RegisterUserRoutes(
 			user.POST("/account-bindings/email", h.User.BindEmailIdentity)
 			user.DELETE("/account-bindings/:provider", h.User.UnbindIdentity)
 			user.POST("/auth-identities/bind/start", h.User.StartIdentityBinding)
-			user.GET("/api-keys/:id/usage/daily", h.Usage.GetMyAPIKeyDailyUsage)
+			user.GET("/api-keys/:id/usage/daily", panelRateLimiter.Heavy(), h.Usage.GetMyAPIKeyDailyUsage)
 			user.GET("/platform-quotas", h.User.GetMyPlatformQuotas)
 
 			// 通知邮箱管理
@@ -59,6 +59,15 @@ func RegisterUserRoutes(
 				totp.POST("/disable", h.Totp.Disable)
 				// 敏感操作二次验证：授予当前会话一段时间的 step-up 权限
 				totp.POST("/step-up", h.Totp.StepUp)
+			}
+
+			passkeys := user.Group("/passkeys")
+			{
+				passkeys.GET("", h.Passkey.List)
+				passkeys.POST("/register/begin", h.Passkey.BeginRegistration)
+				passkeys.POST("/register/finish", h.Passkey.FinishRegistration)
+				passkeys.PATCH("/:id", h.Passkey.Rename)
+				passkeys.DELETE("/:id", h.Passkey.Delete)
 			}
 		}
 
@@ -93,6 +102,7 @@ func RegisterUserRoutes(
 
 		// 使用记录
 		usage := authenticated.Group("/usage")
+		usage.Use(panelRateLimiter.Heavy())
 		{
 			usage.GET("", h.Usage.List)
 			usage.GET("/errors", h.Usage.ListErrors)

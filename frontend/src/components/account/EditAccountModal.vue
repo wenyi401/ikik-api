@@ -86,7 +86,7 @@
           </select>
           <p class="input-hint">{{ t('admin.accounts.custom.protocolHint') }}</p>
         </div>
-        <div>
+        <div v-if="!isCNApiKeyAccount || editApiProtocol !== 'adaptive'">
           <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
           <input
             v-model="editBaseUrl"
@@ -95,6 +95,76 @@
             :placeholder="apiKeyBaseUrlPlaceholder"
           />
           <p class="input-hint">{{ baseUrlHint }}</p>
+          <GrokBaseUrlPresets
+            v-if="account.platform === 'grok'"
+            class="mt-2"
+            @select="editBaseUrl = $event"
+          />
+          <CnBaseUrlPresets
+            v-if="isCNApiKeyAccount"
+            class="mt-2"
+            :platform="cnPresetPlatform"
+            :mode="editAccountMode"
+            :protocol="editApiProtocol"
+            :current-url="editBaseUrl"
+            @select="onCnPresetSelect"
+          />
+        </div>
+        <div v-else>
+          <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.endpoints') }}</label>
+          <div class="mt-2 space-y-3">
+            <div v-for="item in editAdaptiveProtocolOptions" :key="item.value">
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                {{ t(`admin.accounts.cnProviders.apiProtocol.${item.labelKey}`) }}
+              </label>
+              <input v-model="editAdaptiveBaseUrls[item.value]" type="text" class="input" />
+            </div>
+          </div>
+          <p v-if="account.platform !== 'deepseek'" class="input-hint">
+            {{ t('admin.accounts.cnProviders.apiProtocol.responsesFallbackDesc') }}
+          </p>
+        </div>
+
+        <div v-if="isCNApiKeyAccount">
+          <label class="input-label">{{ t('admin.accounts.cnProviders.accountMode.title') }}</label>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button
+              v-for="option in cnAccountModeOptions"
+              :key="option.value"
+              type="button"
+              :class="[
+                'rounded-lg border-2 px-3 py-1.5 text-xs transition-all',
+                editAccountMode === option.value
+                  ? 'border-primary-500 bg-primary-50 font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                  : 'border-gray-200 text-gray-700 hover:border-gray-400 dark:border-dark-600 dark:text-gray-300 dark:hover:border-gray-600'
+              ]"
+              @click="editAccountMode = option.value"
+            >
+              {{ t(`admin.accounts.cnProviders.accountMode.${option.labelKey}`) }}
+            </button>
+          </div>
+          <p class="input-hint">{{ t(`admin.accounts.cnProviders.accountMode.${editAccountMode}Desc`) }}</p>
+        </div>
+
+        <div v-if="isCNApiKeyAccount">
+          <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.title') }}</label>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button
+              v-for="option in cnProtocolOptions"
+              :key="option.value"
+              type="button"
+              :class="[
+                'rounded-lg border-2 px-3 py-1.5 text-xs transition-all',
+                editApiProtocol === option.value
+                  ? 'border-primary-500 bg-primary-50 font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                  : 'border-gray-200 text-gray-700 hover:border-gray-400 dark:border-dark-600 dark:text-gray-300 dark:hover:border-gray-600'
+              ]"
+              @click="editApiProtocol = option.value"
+            >
+              {{ t(`admin.accounts.cnProviders.apiProtocol.${option.labelKey}`) }}
+            </button>
+          </div>
+          <p class="input-hint">{{ t(`admin.accounts.cnProviders.apiProtocol.${cnProtocolDescKey}Desc`) }}</p>
         </div>
         <div>
           <label class="input-label">{{ t('admin.accounts.apiKey') }}</label>
@@ -1348,6 +1418,40 @@
         </div>
       </div>
 
+
+      <div
+        v-if="supportsAccountSchedulingThresholdOverride"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+        data-testid="account-scheduling-threshold-section"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.accountSchedulingThresholdOverride') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.accountSchedulingThresholdOverrideHint') }}
+            </p>
+          </div>
+          <input
+            v-model="accountSchedulingThresholdOverrideEnabled"
+            data-testid="account-scheduling-threshold-override-enabled"
+            type="checkbox"
+            class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div v-if="accountSchedulingThresholdOverrideEnabled">
+          <label class="input-label">{{ t('admin.accounts.accountSchedulingThresholdOverrideValue') }}</label>
+          <input
+            v-model.number="accountSchedulingThresholdOverrideValue"
+            data-testid="account-scheduling-threshold-override-value"
+            type="number"
+            min="1"
+            max="100"
+            class="input"
+          />
+          <p class="input-hint">{{ t('admin.accounts.accountSchedulingThresholdOverrideDisabledHint') }}</p>
+        </div>
+      </div>
+
       <!-- Intercept Warmup Requests (Anthropic/Antigravity) -->
       <div
         v-if="account?.platform === 'anthropic' || account?.platform === 'antigravity'"
@@ -1417,8 +1521,43 @@
         </div>
         <div v-if="canManageBillingRate">
           <label class="input-label">{{ t('admin.accounts.billingRateMultiplier') }}</label>
-          <input v-model.number="form.rate_multiplier" type="number" min="0" step="0.001" class="input" />
-          <p class="input-hint">{{ t('admin.accounts.billingRateMultiplierHint') }}</p>
+          <input
+            v-model.number="form.rate_multiplier"
+            type="number"
+            min="0"
+            step="0.001"
+            class="input disabled:cursor-not-allowed disabled:opacity-60"
+            data-testid="account-rate-multiplier"
+            :disabled="upstreamBillingRateSyncEnabled"
+          />
+          <p class="input-hint">
+            {{
+              t(
+                upstreamBillingRateSyncEnabled
+                  ? 'admin.accounts.upstreamBilling.syncRateManagedHint'
+                  : 'admin.accounts.billingRateMultiplierHint'
+              )
+            }}
+          </p>
+          <div
+            v-if="account?.type === 'apikey'"
+            class="mt-3 flex items-center justify-between gap-3"
+          >
+            <div class="min-w-0">
+              <p class="text-xs font-medium text-gray-700 dark:text-gray-200">
+                {{ t('admin.accounts.upstreamBilling.syncRate') }}
+              </p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.accounts.upstreamBilling.syncRateHint') }}
+              </p>
+            </div>
+            <Toggle
+              :model-value="upstreamBillingRateSyncEnabled"
+              data-testid="upstream-billing-rate-sync"
+              :aria-label="t('admin.accounts.upstreamBilling.syncRate')"
+              @update:model-value="handleUpstreamBillingRateSyncChange"
+            />
+          </div>
         </div>
       </div>
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -2374,7 +2513,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
@@ -2391,6 +2530,7 @@ import Icon from '@/components/icons/Icon.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import GrokBaseUrlPresets from '@/components/account/GrokBaseUrlPresets.vue'
+import CnBaseUrlPresets from '@/components/account/CnBaseUrlPresets.vue'
 import HeaderOverrideEditor from '@/components/account/HeaderOverrideEditor.vue'
 import OllamaCloudUsageSettings from '@/components/account/OllamaCloudUsageSettings.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
@@ -2406,8 +2546,13 @@ import {
   isHeaderOverridePlatform,
   splitHeaderOverridesObject,
   validateHeaderOverrideRows,
+  defaultCNAdaptiveBaseUrls,
+  defaultCNBaseUrl,
   HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
   HEADER_OVERRIDES_CREDENTIAL_KEY,
+  type CnAccountMode,
+  type CnApiProtocol,
+  type CnNativeApiProtocol,
   type HeaderOverrideRow
 } from '@/components/account/credentialsBuilder'
 import {
@@ -2534,6 +2679,112 @@ const submitting = ref(false)
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
 const customProtocol = ref<CustomAccountProtocol>('openai_chat_completions')
+
+const isCNApiKeyAccount = computed(
+  () =>
+    props.account?.type === 'apikey' &&
+    (props.account.platform === 'kimi' ||
+      props.account.platform === 'zhipu' ||
+      props.account.platform === 'deepseek')
+)
+const cnPresetPlatform = computed<'kimi' | 'zhipu' | 'deepseek'>(() => {
+  const platform = props.account?.platform
+  if (platform === 'kimi' || platform === 'zhipu' || platform === 'deepseek') {
+    return platform
+  }
+  return 'kimi'
+})
+const editApiProtocol = ref<CnApiProtocol>('adaptive')
+const editAccountMode = ref<CnAccountMode>('payg')
+const editAdaptiveBaseUrls = ref<Record<CnNativeApiProtocol, string>>({
+  chat_completions: '',
+  anthropic: '',
+  responses: ''
+})
+const syncingForm = ref(false)
+const cnAccountModeOptions = computed<Array<{ value: CnAccountMode; labelKey: 'payg' | 'coding' }>>(
+  () => props.account?.platform === 'deepseek'
+    ? [{ value: 'payg', labelKey: 'payg' }]
+    : [
+        { value: 'payg', labelKey: 'payg' },
+        { value: 'coding', labelKey: 'coding' }
+      ]
+)
+const cnProtocolOptions = computed<Array<{ value: CnApiProtocol; labelKey: string }>>(() => {
+  const options: Array<{ value: CnApiProtocol; labelKey: string }> = [
+    { value: 'adaptive', labelKey: 'adaptive' },
+    { value: 'chat_completions', labelKey: 'chatCompletions' },
+    { value: 'anthropic', labelKey: 'anthropic' }
+  ]
+  if (props.account?.platform === 'deepseek') {
+    options.push({ value: 'responses', labelKey: 'responses' })
+  }
+  return options
+})
+const editAdaptiveProtocolOptions = computed<Array<{ value: CnNativeApiProtocol; labelKey: string }>>(() => {
+  const options: Array<{ value: CnNativeApiProtocol; labelKey: string }> = [
+    { value: 'chat_completions', labelKey: 'chatCompletions' },
+    { value: 'anthropic', labelKey: 'anthropic' }
+  ]
+  if (props.account?.platform === 'deepseek') {
+    options.push({ value: 'responses', labelKey: 'responses' })
+  }
+  return options
+})
+
+watch(editApiProtocol, (protocol, previousProtocol) => {
+  if (!isCNApiKeyAccount.value || syncingForm.value) return
+  if (protocol === 'adaptive') {
+    const defaults = defaultCNAdaptiveBaseUrls(cnPresetPlatform.value, editAccountMode.value)
+    for (const item of editAdaptiveProtocolOptions.value) {
+      if (!editAdaptiveBaseUrls.value[item.value]) {
+        editAdaptiveBaseUrls.value[item.value] = defaults[item.value]
+      }
+    }
+    if (previousProtocol !== 'adaptive' && editBaseUrl.value.trim()) {
+      editAdaptiveBaseUrls.value[previousProtocol] = editBaseUrl.value.trim()
+    }
+    editBaseUrl.value = editAdaptiveBaseUrls.value.chat_completions
+    return
+  }
+  if (previousProtocol === 'adaptive') {
+    editBaseUrl.value = editAdaptiveBaseUrls.value[protocol] ||
+      defaultCNBaseUrl(props.account!.platform, editAccountMode.value, protocol)
+    return
+  }
+  editBaseUrl.value = defaultCNBaseUrl(props.account!.platform, editAccountMode.value, protocol)
+})
+
+watch(editAccountMode, (mode, previousMode) => {
+  if (!isCNApiKeyAccount.value || syncingForm.value) return
+  const effectiveMode = props.account!.platform === 'deepseek' && mode === 'coding' ? 'payg' : mode
+  if (effectiveMode !== mode) {
+    editAccountMode.value = effectiveMode
+    return
+  }
+  if (editApiProtocol.value === 'adaptive') {
+    const previousDefaults = defaultCNAdaptiveBaseUrls(cnPresetPlatform.value, previousMode)
+    const nextDefaults = defaultCNAdaptiveBaseUrls(cnPresetPlatform.value, mode)
+    for (const item of editAdaptiveProtocolOptions.value) {
+      if (!editAdaptiveBaseUrls.value[item.value] || editAdaptiveBaseUrls.value[item.value] === previousDefaults[item.value]) {
+        editAdaptiveBaseUrls.value[item.value] = nextDefaults[item.value]
+      }
+    }
+    editBaseUrl.value = editAdaptiveBaseUrls.value.chat_completions
+    return
+  }
+  editBaseUrl.value = defaultCNBaseUrl(props.account!.platform, mode, editApiProtocol.value)
+})
+
+const cnProtocolDescKey = computed(
+  () => cnProtocolOptions.value.find((option) => option.value === editApiProtocol.value)?.labelKey ?? 'chatCompletions'
+)
+
+const onCnPresetSelect = (preset: { mode: CnAccountMode; protocol: CnApiProtocol; url: string }) => {
+  editAccountMode.value = preset.mode
+  editApiProtocol.value = preset.protocol
+  editBaseUrl.value = preset.url
+}
 // Bedrock credentials
 const editBedrockAccessKeyId = ref('')
 const editBedrockSecretAccessKey = ref('')
@@ -2596,12 +2847,23 @@ const grokClientToolCacheEnabled = ref(true)
 
 const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(false)
+const autoResetCreditEnabled = ref(false)
+const autoResetCredit5hThreshold = ref(100)
+const autoResetCredit7dThreshold = ref(100)
+const upstreamBillingAutoProbeEnabled = ref(false)
+const upstreamBillingRateSyncEnabled = ref(false)
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
 const allowOverages = ref(false) // For antigravity accounts: enable AI Credits overages
 const antigravityModelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const antigravityWhitelistModels = ref<string[]>([])
 const antigravityModelMappings = ref<ModelMapping[]>([])
 const tempUnschedEnabled = ref(false)
+const accountSchedulingThresholdOverrideEnabled = ref(false)
+const accountSchedulingThresholdOverrideValue = ref(100)
+const ACCOUNT_SCHEDULING_THRESHOLD_CREDENTIAL_KEY = 'account_scheduling_threshold'
+const supportsAccountSchedulingThresholdOverride = computed(() =>
+  supportsAccountSchedulingThresholdOverridePlatform(props.account?.platform)
+)
 const tempUnschedRules = ref<TempUnschedRuleForm[]>([])
 const getModelMappingKey = createStableObjectKeyResolver<ModelMapping>('edit-model-mapping')
 const getOpenAICompactModelMappingKey = createStableObjectKeyResolver<ModelMapping>('edit-openai-compact-model-mapping')
@@ -2836,6 +3098,9 @@ const defaultBaseUrl = computed(() => {
   if (props.account?.platform === 'gemini') return 'https://generativelanguage.googleapis.com'
   if (props.account?.platform === 'kiro') return ''
   if (props.account?.platform === 'custom') return ''
+  if (isCNApiKeyAccount.value) {
+    return defaultCNBaseUrl(props.account!.platform, editAccountMode.value, editApiProtocol.value)
+  }
   return 'https://api.anthropic.com'
 })
 
@@ -2845,6 +3110,9 @@ const apiKeyBaseUrlPlaceholder = computed(() => {
   if (props.account?.platform === 'antigravity') return 'https://cloudcode-pa.googleapis.com'
   if (props.account?.platform === 'kiro') return 'https://your-kiro-endpoint/v1'
   if (props.account?.platform === 'custom') return 'https://api.example.com'
+  if (isCNApiKeyAccount.value) {
+    return defaultCNBaseUrl(props.account!.platform, editAccountMode.value, editApiProtocol.value)
+  }
   return 'https://api.anthropic.com'
 })
 
@@ -2854,6 +3122,8 @@ const apiKeySecretPlaceholder = computed(() => {
   if (props.account?.platform === 'custom') return 'sk-...'
   if (props.account?.platform === 'antigravity') return 'sk-...'
   if (props.account?.platform === 'kiro') return 'sk-...'
+  if (props.account?.platform === 'zhipu') return '<api-key>.<secret>'
+  if (props.account?.platform === 'kimi' || props.account?.platform === 'deepseek') return 'sk-...'
   return 'sk-ant-...'
 })
 
@@ -2887,6 +3157,13 @@ const accountLevelOptions = computed(() => [
   { value: 'team', label: t('admin.accounts.accountLevel.team') },
   { value: 'k12', label: t('admin.accounts.accountLevel.k12') }
 ])
+
+const handleUpstreamBillingRateSyncChange = (enabled: boolean) => {
+  upstreamBillingRateSyncEnabled.value = enabled
+  if (enabled) {
+    upstreamBillingAutoProbeEnabled.value = true
+  }
+}
 
 const normalizeConcurrencyInput = () => {
   if (isUserScope.value && !canEditConcurrency.value) {
@@ -2996,6 +3273,11 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   if (!newAccount) {
     return
   }
+  // 进入回填窗口：抑制 CN 模式/协议 watcher 联动重置 base_url（见 syncingForm 注释）。
+  syncingForm.value = true
+  void nextTick(() => {
+    syncingForm.value = false
+  })
   antigravityMixedChannelConfirmed.value = false
   showMixedChannelWarning.value = false
   mixedChannelWarningDetails.value = null
@@ -3045,6 +3327,18 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   mixedScheduling.value = extra?.mixed_scheduling === true
   allowOverages.value = extra?.allow_overages === true
   customProtocol.value = normalizeCustomProtocol(extra?.protocol)
+  autoResetCreditEnabled.value = extra?.auto_reset_credit_enabled === true
+  autoResetCredit5hThreshold.value =
+    typeof extra?.auto_reset_credit_5h_threshold === 'number'
+      ? extra.auto_reset_credit_5h_threshold * 100
+      : 100
+  autoResetCredit7dThreshold.value =
+    typeof extra?.auto_reset_credit_7d_threshold === 'number'
+      ? extra.auto_reset_credit_7d_threshold * 100
+      : 100
+  upstreamBillingAutoProbeEnabled.value = extra?.upstream_billing_probe_enabled === true
+  upstreamBillingRateSyncEnabled.value =
+    upstreamBillingAutoProbeEnabled.value && extra?.upstream_billing_rate_sync_enabled === true
 
   // Load OpenAI passthrough toggle (OpenAI OAuth/API Key)
   openaiPassthroughEnabled.value = false
@@ -3201,8 +3495,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   loadQuotaControlSettings(newAccount)
 
   loadTempUnschedRules(credentials)
+  loadAccountSchedulingThresholdOverride(newAccount.platform, credentials)
 
-  // Load header override state (anthropic/openai apikey + grok apikey/oauth)
+  // Load header override state for eligible account platforms/types
   headerOverrideEnabled.value = false
   headerOverrideRows.value = []
   if (newAccount.credentials && isHeaderOverrideCapable(newAccount.platform, newAccount.type)) {
@@ -3235,6 +3530,53 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   // Initialize API Key fields for apikey type
   if (newAccount.type === 'apikey' && newAccount.credentials) {
     const credentials = newAccount.credentials as Record<string, unknown>
+    // 国产供应商：读取 account_mode 与 api_protocol 作为可编辑初始值
+    // （编辑弹窗允许修正两者，用于修复早期存错默认值的账号）。
+    if (newAccount.platform === 'kimi' || newAccount.platform === 'zhipu' || newAccount.platform === 'deepseek') {
+      editAccountMode.value = credentials.account_mode === 'coding' ? 'coding' : 'payg'
+      const storedProtocol = credentials.api_protocol
+      editApiProtocol.value =
+        storedProtocol === 'adaptive' ||
+        storedProtocol === 'chat_completions' ||
+        storedProtocol === 'anthropic' ||
+        storedProtocol === 'responses'
+          ? storedProtocol
+          : 'chat_completions'
+      if (newAccount.platform !== 'deepseek' && editApiProtocol.value === 'responses') {
+        editApiProtocol.value = 'chat_completions'
+      }
+      const adaptiveDefaults = defaultCNAdaptiveBaseUrls(newAccount.platform, editAccountMode.value)
+      const storedBaseUrls = (credentials.api_base_urls as Record<string, unknown> | undefined) || {}
+      const legacyBaseUrl = typeof credentials.base_url === 'string' ? credentials.base_url.trim() : ''
+      const storedChatBaseUrl = typeof storedBaseUrls.chat_completions === 'string'
+        ? storedBaseUrls.chat_completions.trim()
+        : ''
+      const storedAnthropicBaseUrl = typeof storedBaseUrls.anthropic === 'string'
+        ? storedBaseUrls.anthropic.trim()
+        : ''
+      const storedResponsesBaseUrl = typeof storedBaseUrls.responses === 'string'
+        ? storedBaseUrls.responses.trim()
+        : ''
+      const nextAdaptiveBaseUrls: Record<CnNativeApiProtocol, string> = {
+        chat_completions: storedChatBaseUrl || adaptiveDefaults.chat_completions,
+        anthropic: storedAnthropicBaseUrl || adaptiveDefaults.anthropic,
+        responses: storedResponsesBaseUrl || adaptiveDefaults.responses
+      }
+      const legacyProtocol: CnNativeApiProtocol = editApiProtocol.value === 'anthropic'
+        ? 'anthropic'
+        : editApiProtocol.value === 'responses'
+          ? 'responses'
+          : 'chat_completions'
+      const storedLegacyBaseUrl = legacyProtocol === 'anthropic'
+        ? storedAnthropicBaseUrl
+        : legacyProtocol === 'responses'
+          ? storedResponsesBaseUrl
+          : storedChatBaseUrl
+      if (legacyBaseUrl && !storedLegacyBaseUrl) {
+        nextAdaptiveBaseUrls[legacyProtocol] = legacyBaseUrl
+      }
+      editAdaptiveBaseUrls.value = nextAdaptiveBaseUrls
+    }
     const platformDefaultUrl =
       newAccount.platform === 'openai'
         ? 'https://api.openai.com'
@@ -3649,6 +3991,69 @@ const applyTempUnschedConfig = (credentials: Record<string, unknown>) => {
   return true
 }
 
+
+function supportsAccountSchedulingThresholdOverridePlatform(platform: Account['platform'] | undefined) {
+  return platform === 'openai' || platform === 'anthropic' || platform === 'grok'
+}
+
+function normalizeAccountSchedulingThresholdOverride(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) {
+    return null
+  }
+  const integer = Math.trunc(numeric)
+  if (integer < 1 || integer > 100) {
+    return null
+  }
+  return integer
+}
+
+function clampAccountSchedulingThresholdOverride(value: unknown): number {
+  return Math.min(100, Math.max(1, Math.trunc(Number(value) || 100)))
+}
+
+function loadAccountSchedulingThresholdOverride(
+  platform: Account['platform'] | undefined,
+  credentials: Record<string, unknown> | undefined
+) {
+  if (!supportsAccountSchedulingThresholdOverridePlatform(platform)) {
+    accountSchedulingThresholdOverrideEnabled.value = false
+    accountSchedulingThresholdOverrideValue.value = 100
+    return
+  }
+  const value = normalizeAccountSchedulingThresholdOverride(
+    credentials?.[ACCOUNT_SCHEDULING_THRESHOLD_CREDENTIAL_KEY]
+  )
+  accountSchedulingThresholdOverrideEnabled.value = value !== null
+  accountSchedulingThresholdOverrideValue.value = value ?? 100
+}
+
+const applyAccountSchedulingThresholdOverridePatch = (
+  credentials: Record<string, unknown>,
+  currentCredentials: Record<string, unknown>,
+  platform: Account['platform'] | undefined = props.account?.platform
+) => {
+  if (!supportsAccountSchedulingThresholdOverridePlatform(platform)) {
+    return
+  }
+  const current = normalizeAccountSchedulingThresholdOverride(
+    currentCredentials[ACCOUNT_SCHEDULING_THRESHOLD_CREDENTIAL_KEY]
+  )
+  if (!accountSchedulingThresholdOverrideEnabled.value) {
+    if (current !== null) {
+      credentials[ACCOUNT_SCHEDULING_THRESHOLD_CREDENTIAL_KEY] = null
+    }
+    return
+  }
+  const next = clampAccountSchedulingThresholdOverride(accountSchedulingThresholdOverrideValue.value)
+  if (current !== next) {
+    credentials[ACCOUNT_SCHEDULING_THRESHOLD_CREDENTIAL_KEY] = next
+  }
+}
+
 function loadTempUnschedRules(credentials?: Record<string, unknown>) {
   tempUnschedEnabled.value = credentials?.temp_unschedulable_enabled === true
   const rawRules = credentials?.temp_unschedulable_rules
@@ -3959,6 +4364,13 @@ const handleSubmit = async () => {
     appStore.showError(t('admin.accounts.pleaseSelectStatus'))
     return
   }
+	if (autoResetCreditEnabled.value) {
+		const thresholds = [autoResetCredit5hThreshold.value, autoResetCredit7dThreshold.value]
+		if (thresholds.some((value) => !Number.isFinite(value) || value < 0.1 || value > 100)) {
+			appStore.showError(t('admin.accounts.autoResetCredit.thresholdInvalid'))
+			return
+		}
+	}
 
   const updatePayload: Record<string, unknown> = { ...form }
   if (props.account.platform !== 'openai' || isUserScope.value) {
@@ -3978,6 +4390,13 @@ const handleSubmit = async () => {
       updatePayload.load_factor = 0
     }
     updatePayload.auto_pause_on_expired = autoPauseOnExpired.value
+    if (props.account.type === 'apikey') {
+      updatePayload.upstream_billing_probe_enabled = upstreamBillingAutoProbeEnabled.value
+      updatePayload.upstream_billing_rate_sync_enabled = upstreamBillingRateSyncEnabled.value
+      if (upstreamBillingRateSyncEnabled.value) {
+        delete updatePayload.rate_multiplier
+      }
+    }
 
     if (isUserScope.value) {
       updatePayload.concurrency = form.share_mode === 'public'
@@ -4088,6 +4507,7 @@ const handleSubmit = async () => {
 
       // Add intercept warmup requests setting
       applyInterceptWarmup(newCredentials, interceptWarmupRequests.value, 'edit')
+      applyAccountSchedulingThresholdOverridePatch(newCredentials, currentCredentials)
       if (!applyTempUnschedConfig(newCredentials)) {
         return
       }
@@ -4106,6 +4526,7 @@ const handleSubmit = async () => {
       // Add intercept warmup requests setting
       applyInterceptWarmup(newCredentials, interceptWarmupRequests.value, 'edit')
 
+      applyAccountSchedulingThresholdOverridePatch(newCredentials, currentCredentials)
       if (!applyTempUnschedConfig(newCredentials)) {
         return
       }
@@ -4146,6 +4567,7 @@ const handleSubmit = async () => {
       }
 
       applyInterceptWarmup(newCredentials, interceptWarmupRequests.value, 'edit')
+      applyAccountSchedulingThresholdOverridePatch(newCredentials, currentCredentials)
       if (!applyTempUnschedConfig(newCredentials)) {
         return
       }
@@ -4203,6 +4625,7 @@ const handleSubmit = async () => {
       }
 
       applyInterceptWarmup(newCredentials, interceptWarmupRequests.value, 'edit')
+      applyAccountSchedulingThresholdOverridePatch(newCredentials, currentCredentials)
       if (!applyTempUnschedConfig(newCredentials)) {
         return
       }
@@ -4214,6 +4637,7 @@ const handleSubmit = async () => {
       const newCredentials: Record<string, unknown> = { ...currentCredentials }
 
       applyInterceptWarmup(newCredentials, interceptWarmupRequests.value, 'edit')
+      applyAccountSchedulingThresholdOverridePatch(newCredentials, currentCredentials)
       if (!applyTempUnschedConfig(newCredentials)) {
         return
       }
@@ -4493,6 +4917,13 @@ const handleSubmit = async () => {
         }
       }
 
+      if (props.account.type === 'oauth' && !isSparkShadow.value) {
+        newExtra.auto_reset_credit_enabled = autoResetCreditEnabled.value
+        newExtra.auto_reset_credit_5h_threshold = autoResetCredit5hThreshold.value / 100
+        newExtra.auto_reset_credit_7d_threshold = autoResetCredit7dThreshold.value / 100
+      }
+      delete newExtra.codex_auto_reset_credit_state
+
       switch (codexImageToolMode.value) {
         case 'force_inject':
           newExtra.codex_image_generation_bridge = true
@@ -4536,6 +4967,12 @@ const handleSubmit = async () => {
       const currentExtra = (updatePayload.extra as Record<string, unknown>) ||
         (props.account.extra as Record<string, unknown>) || {}
       const newExtra: Record<string, unknown> = { ...currentExtra }
+      // 上游倍率自动探测对全部 API-key 平台开放（sub2api 上游即可应答），
+      // Bedrock 凭证无静态 Key 不参与。
+      if (props.account.type === 'apikey') {
+        delete newExtra.upstream_billing_probe_enabled
+        delete newExtra.upstream_billing_rate_sync_enabled
+      }
       // Total quota
       if (editQuotaLimit.value != null && editQuotaLimit.value > 0) {
         newExtra.quota_limit = editQuotaLimit.value

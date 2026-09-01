@@ -175,6 +175,8 @@ export interface LoginRequest {
   email: string
   password: string
   turnstile_token?: string
+  tencent_captcha_ticket?: string
+  tencent_captcha_randstr?: string
   login_agreement_revision?: string
 }
 
@@ -193,6 +195,8 @@ export interface RegisterRequest {
   password: string
   verify_code?: string
   turnstile_token?: string
+  tencent_captcha_ticket?: string
+  tencent_captcha_randstr?: string
   promo_code?: string
   invitation_code?: string
   aff_code?: string
@@ -238,6 +242,8 @@ export interface AffiliateTransferResponse {
 export interface SendVerifyCodeRequest {
   email: string
   turnstile_token?: string
+  tencent_captcha_ticket?: string
+  tencent_captcha_randstr?: string
   pending_auth_token?: string
   pending_oauth_token?: string
 }
@@ -275,6 +281,7 @@ export interface PublicSettings {
   email_verify_enabled: boolean
   force_email_on_third_party_signup: boolean
   registration_email_suffix_whitelist: string[]
+  registration_email_domain_quota_enabled?: boolean
   promo_code_enabled: boolean
   password_reset_enabled: boolean
   invitation_code_enabled: boolean
@@ -284,7 +291,15 @@ export interface PublicSettings {
   login_agreement_revision?: string
   login_agreement_documents?: LoginAgreementDocument[]
   turnstile_enabled: boolean
+  tencent_captcha_enabled?: boolean
+  tencent_captcha_app_id?: string
+  tencent_captcha_region?: string
+  passkey_enabled?: boolean
   turnstile_site_key: string
+  aliyun_captcha_enabled?: boolean
+  aliyun_captcha_scene_id?: string
+  aliyun_captcha_prefix?: string
+  aliyun_captcha_region?: string
   site_name: string
   site_logo: string
   site_subtitle: string
@@ -292,6 +307,7 @@ export interface PublicSettings {
   contact_info: string
   doc_url: string
   home_content: string
+  compact_home_enabled: boolean
   hide_ccs_import_button: boolean
   payment_enabled: boolean
   purchase_subscription_enabled: boolean
@@ -302,6 +318,7 @@ export interface PublicSettings {
   custom_menu_items: CustomMenuItem[]
   custom_endpoints: CustomEndpoint[]
   linuxdo_oauth_enabled: boolean
+  dingtalk_oauth_enabled?: boolean
   wechat_oauth_enabled: boolean
   wechat_oauth_open_enabled?: boolean
   wechat_oauth_mp_enabled?: boolean
@@ -318,14 +335,25 @@ export interface PublicSettings {
   account_quota_notify_enabled: boolean
   balance_low_notify_threshold: number
   channel_monitor_enabled: boolean
+  /** Exclusive mode: v1 active probes or v2 passive aggregation. Default v2. */
+  channel_monitor_mode?: 'v1' | 'v2'
   channel_monitor_default_interval_seconds: number
+  /** When true, user monitor hides RPM/TPM so scale cannot be reverse-estimated. */
+  channel_monitor_hide_throughput?: boolean
+  /** When true, user monitor shows account quota/balance snapshots (default off). */
+  channel_monitor_show_quota?: boolean
   available_channels_enabled: boolean
+  model_plaza_enabled: boolean
+  model_plaza_require_auth: boolean
+  plugin_management_enabled: boolean
+  service_quota_enabled?: boolean
   free_models_enabled: boolean
   carpool_enabled: boolean
   carpool_base_service_fee_usd: number
   carpool_system_proxy_fee_usd: number
   carpool_risk_control_fee_usd: number
   affiliate_enabled: boolean
+  allow_user_view_error_requests?: boolean
 }
 
 export interface LoginSession {
@@ -602,7 +630,7 @@ export interface PaginationConfig {
 
 // ==================== API Key & Group Types ====================
 
-export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'custom' | 'composite'
+export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'kiro' | 'custom' | 'composite'
 
 export type SubscriptionType = 'standard' | 'subscription'
 export type GroupScope = 'public' | 'user_private' | 'user_carpool'
@@ -624,6 +652,8 @@ export interface ModelsListConfig {
   models: string[]
 }
 
+export type VideoModelPrices = Record<string, Record<string, number>>
+
 export type CompositeRouteMatchType = 'exact' | 'prefix'
 export type CompositeRouteEndpoint =
   | 'any'
@@ -634,7 +664,7 @@ export type CompositeRouteEndpoint =
   | 'embeddings'
   | 'images'
   | 'gemini'
-export type CompositeTargetPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
+export type CompositeTargetPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek'
 export type CompositeRouteSource = 'route' | 'detector' | string
 
 export interface CompositeModelRoute {
@@ -712,7 +742,12 @@ export interface Group {
   video_price_480p: number | null
   video_price_720p: number | null
   video_price_1080p: number | null
+  video_model_prices?: VideoModelPrices
   web_search_price_per_call: number | null
+  search_price_per_1k: number | null
+  audio_realtime_price_per_min: number | null
+  audio_tts_price_per_million_chars: number | null
+  audio_stt_price_per_hour: number | null
   peak_rate_enabled: boolean
   peak_start: string
   peak_end: string
@@ -727,6 +762,7 @@ export interface Group {
   fallback_group_id_on_invalid_request: number | null
   // OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
   allow_messages_dispatch?: boolean
+  allow_live: boolean
   // OpenAI 分组级实验性系统指令
   openai_experimental_prompt_enabled?: boolean
   default_mapped_model?: string
@@ -866,9 +902,31 @@ export interface CreateGroupRequest {
   model_pricing?: import('@/api/admin/channels').ChannelModelPricing[]
   allow_image_generation?: boolean
   allow_batch_image_generation?: boolean
+  image_rate_independent?: boolean
+  image_rate_multiplier?: number
+  batch_image_discount_multiplier?: number
+  batch_image_hold_multiplier?: number
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
+  video_rate_independent?: boolean
+  video_rate_multiplier?: number
+  video_price_480p?: number | null
+  video_price_720p?: number | null
+  video_price_1080p?: number | null
+  video_model_prices?: VideoModelPrices
+  web_search_price_per_call?: number | null
+  search_price_per_1k?: number | null
+  audio_realtime_price_per_min?: number | null
+  audio_tts_price_per_million_chars?: number | null
+  audio_stt_price_per_hour?: number | null
+  peak_rate_enabled?: boolean
+  peak_start?: string
+  peak_end?: string
+  peak_rate_multiplier?: number
+  profit_control_enabled?: boolean
+  profit_min_margin?: number
+  profit_safety_buffer?: number
   claude_code_only?: boolean
   fallback_group_id?: number | null
   fallback_group_id_on_invalid_request?: number | null
@@ -881,6 +939,7 @@ export interface CreateGroupRequest {
   kiro_cache_emulation_ratio?: number
   kiro_endpoint_mode?: 'q' | 'krs' | string
   allow_messages_dispatch?: boolean
+  allow_live?: boolean
   openai_experimental_prompt_enabled?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
@@ -912,9 +971,31 @@ export interface UpdateGroupRequest {
   model_pricing?: import('@/api/admin/channels').ChannelModelPricing[]
   allow_image_generation?: boolean
   allow_batch_image_generation?: boolean
+  image_rate_independent?: boolean
+  image_rate_multiplier?: number
+  batch_image_discount_multiplier?: number
+  batch_image_hold_multiplier?: number
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
+  video_rate_independent?: boolean
+  video_rate_multiplier?: number
+  video_price_480p?: number | null
+  video_price_720p?: number | null
+  video_price_1080p?: number | null
+  video_model_prices?: VideoModelPrices
+  web_search_price_per_call?: number | null
+  search_price_per_1k?: number | null
+  audio_realtime_price_per_min?: number | null
+  audio_tts_price_per_million_chars?: number | null
+  audio_stt_price_per_hour?: number | null
+  peak_rate_enabled?: boolean
+  peak_start?: string
+  peak_end?: string
+  peak_rate_multiplier?: number
+  profit_control_enabled?: boolean
+  profit_min_margin?: number
+  profit_safety_buffer?: number
   claude_code_only?: boolean
   fallback_group_id?: number | null
   fallback_group_id_on_invalid_request?: number | null
@@ -927,6 +1008,7 @@ export interface UpdateGroupRequest {
   kiro_cache_emulation_ratio?: number
   kiro_endpoint_mode?: 'q' | 'krs' | string
   allow_messages_dispatch?: boolean
+  allow_live?: boolean
   openai_experimental_prompt_enabled?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
@@ -942,7 +1024,7 @@ export interface UpdateGroupRequest {
 
 // ==================== Account & Proxy Types ====================
 
-export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kiro' | 'custom'
+export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'kiro' | 'custom'
 export type CustomAccountProtocol =
   | 'openai_responses'
   | 'openai_chat_completions'
@@ -1101,6 +1183,9 @@ export interface UpstreamBillingProbeSnapshot {
   failure_count?: number
   http_status?: number
   last_error?: string
+  // Value this probe wrote into the account rate multiplier; absent when the
+  // probe did not sync a rate.
+  synced_rate_multiplier?: number
 }
 
 export interface UpstreamBillingProbeSettings {
@@ -1558,6 +1643,14 @@ export interface GrokBillingSummary {
   billing_period_start?: string
   billing_period_end?: string
   used_percent?: number | null
+  /** Absolute USD money from billing probes */
+  prepaid_balance?: number | null
+  monthly_limit?: number | null
+  monthly_used?: number | null
+  on_demand_cap?: number | null
+  on_demand_used?: number | null
+  top_up_method?: string
+  is_unified_billing_user?: boolean
   plan?: string
   status_code?: number
   source?: string
@@ -1576,6 +1669,7 @@ export interface AccountUsageInfo {
   seven_day: UsageProgress | null
   seven_day_sonnet: UsageProgress | null
   seven_day_fable?: UsageProgress | null
+  thirty_day?: UsageProgress | null
   gemini_shared_daily?: UsageProgress | null
   gemini_pro_daily?: UsageProgress | null
   gemini_flash_daily?: UsageProgress | null
@@ -1647,6 +1741,8 @@ export interface CodexUsageSnapshot {
 }
 
 export type OpenAICompactMode = 'auto' | 'force_on' | 'force_off'
+export type OpenAIResponsesMode = 'auto' | 'force_responses' | 'force_chat_completions'
+export type OpenAIEndpointCapability = 'chat_completions' | 'embeddings'
 
 export interface OpenAICompactState {
   openai_compact_mode?: OpenAICompactMode
@@ -1654,6 +1750,11 @@ export interface OpenAICompactState {
   openai_compact_checked_at?: string
   openai_compact_last_status?: number
   openai_compact_last_error?: string
+}
+
+export interface OpenAIResponsesState {
+  openai_responses_mode?: OpenAIResponsesMode
+  openai_responses_supported?: boolean
 }
 
 export interface CreateAccountRequest {
@@ -1695,6 +1796,8 @@ export interface UpdateAccountRequest {
   group_ids?: number[]
   expires_at?: number | null
   auto_pause_on_expired?: boolean
+  upstream_billing_probe_enabled?: boolean
+  upstream_billing_rate_sync_enabled?: boolean
   confirm_mixed_channel_risk?: boolean
 }
 
@@ -2190,6 +2293,7 @@ export interface UserUsageTrendPoint {
 export interface UserSpendingRankingItem {
   user_id: number
   email: string
+  username: string
   actual_cost: number
   requests: number
   tokens: number

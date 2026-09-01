@@ -66,6 +66,13 @@
                 {{ modeLabel(tpl.body_override_mode) }}
               </span>
               <span
+                v-if="tpl.provider === PROVIDER_OPENAI"
+                class="inline-flex items-center rounded-md px-1.5 py-0.5 text-xs"
+                :class="apiModeBadgeClass(tpl.api_mode)"
+              >
+                {{ apiModeLabel(tpl.api_mode) }}
+              </span>
+              <span
                 v-if="tpl.associated_monitors > 0"
                 class="text-xs text-gray-500 dark:text-gray-400"
               >
@@ -137,6 +144,23 @@
         </div>
       </div>
 
+      <div v-if="form.provider === PROVIDER_OPENAI" class="rounded-lg border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-500/20 dark:bg-blue-500/10">
+        <label class="input-label">{{ t('admin.channelMonitor.form.apiMode') }}</label>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <button
+            v-for="opt in apiModeOptions"
+            :key="opt.value"
+            type="button"
+            class="rounded-lg border-2 px-3 py-2 text-left transition-colors"
+            :class="apiModeButtonClass(opt.value)"
+            @click="form.api_mode = opt.value"
+          >
+            <span class="block text-sm font-semibold">{{ opt.label }}</span>
+            <span class="mt-0.5 block text-xs opacity-80">{{ opt.hint }}</span>
+          </button>
+        </div>
+      </div>
+
       <div>
         <label class="input-label">
           {{ t('admin.channelMonitor.template.form.description') }}
@@ -150,6 +174,8 @@
       </div>
 
       <MonitorAdvancedRequestConfig
+        :provider="form.provider"
+        :api-mode="form.api_mode"
         :extra-headers="form.extra_headers"
         :body-override-mode="form.body_override_mode"
         :body-override="form.body_override"
@@ -207,6 +233,7 @@ import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { adminAPI } from '@/api/admin'
 import type {
+  APIMode,
   BodyOverrideMode,
   Provider,
 } from '@/api/admin/channelMonitor'
@@ -222,6 +249,13 @@ import {
   PROVIDER_OPENAI,
   PROVIDER_GEMINI,
   PROVIDER_GROK,
+  PROVIDER_ANTIGRAVITY,
+  PROVIDER_KIMI,
+  PROVIDER_ZHIPU,
+  PROVIDER_DEEPSEEK,
+  PROVIDERS,
+  API_MODE_CHAT_COMPLETIONS,
+  API_MODE_RESPONSES,
 } from '@/constants/channelMonitor'
 
 const props = defineProps<{ show: boolean }>()
@@ -240,6 +274,10 @@ const providerTabs = computed<{ value: Provider; label: string }[]>(() => [
   { value: PROVIDER_OPENAI, label: t('monitorCommon.providers.openai') },
   { value: PROVIDER_GEMINI, label: t('monitorCommon.providers.gemini') },
   { value: PROVIDER_GROK, label: t('monitorCommon.providers.grok') },
+  { value: PROVIDER_ANTIGRAVITY, label: t('monitorCommon.providers.antigravity') },
+  { value: PROVIDER_KIMI, label: t('monitorCommon.providers.kimi') },
+  { value: PROVIDER_ZHIPU, label: t('monitorCommon.providers.zhipu') },
+  { value: PROVIDER_DEEPSEEK, label: t('monitorCommon.providers.deepseek') },
 ])
 
 const activeProvider = ref<Provider>(PROVIDER_ANTHROPIC)
@@ -251,12 +289,7 @@ const templatesForActiveProvider = computed(() =>
 )
 
 const countByProvider = computed<Record<Provider, number>>(() => {
-  const out: Record<Provider, number> = {
-    anthropic: 0,
-    openai: 0,
-    gemini: 0,
-    grok: 0,
-  }
+  const out = Object.fromEntries(PROVIDERS.map((p) => [p, 0])) as Record<Provider, number>
   for (const t of templates.value) out[t.provider]++
   return out
 })
@@ -266,6 +299,7 @@ interface TemplateForm {
   id: number | null
   name: string
   provider: Provider
+  api_mode: APIMode
   description: string
   extra_headers: Record<string, string>
   body_override_mode: BodyOverrideMode
@@ -281,6 +315,7 @@ function emptyForm(provider: Provider): TemplateForm {
     id: null,
     name: '',
     provider,
+    api_mode: API_MODE_CHAT_COMPLETIONS,
     description: '',
     extra_headers: {},
     body_override_mode: 'off',
@@ -292,6 +327,7 @@ function loadForm(tpl: ChannelMonitorTemplate) {
   form.id = tpl.id
   form.name = tpl.name
   form.provider = tpl.provider
+  form.api_mode = normalizeAPIMode(tpl.api_mode)
   form.description = tpl.description
   form.extra_headers = { ...(tpl.extra_headers || {}) }
   form.body_override_mode = tpl.body_override_mode
@@ -349,6 +385,7 @@ async function handleSubmit() {
       await adminAPI.channelMonitorTemplate.create({
         name: form.name.trim(),
         provider: form.provider,
+        api_mode: form.provider === PROVIDER_OPENAI ? form.api_mode : API_MODE_CHAT_COMPLETIONS,
         description: form.description.trim(),
         extra_headers: form.extra_headers,
         body_override_mode: form.body_override_mode,
@@ -358,6 +395,7 @@ async function handleSubmit() {
     } else if (typeof editing.value === 'number') {
       await adminAPI.channelMonitorTemplate.update(editing.value, {
         name: form.name.trim(),
+        api_mode: form.provider === PROVIDER_OPENAI ? form.api_mode : API_MODE_CHAT_COMPLETIONS,
         description: form.description.trim(),
         extra_headers: form.extra_headers,
         body_override_mode: form.body_override_mode,
@@ -446,5 +484,49 @@ function modeBadgeClass(mode: BodyOverrideMode): string {
 
 function modeLabel(mode: BodyOverrideMode): string {
   return t(`admin.channelMonitor.advanced.bodyMode${mode.charAt(0).toUpperCase()}${mode.slice(1)}`)
+}
+
+const apiModeOptions = computed<{ value: APIMode; label: string; hint: string }[]>(() => [
+  {
+    value: API_MODE_CHAT_COMPLETIONS,
+    label: t('admin.channelMonitor.form.apiModeChatCompletions'),
+    hint: t('admin.channelMonitor.form.apiModeChatCompletionsHint'),
+  },
+  {
+    value: API_MODE_RESPONSES,
+    label: t('admin.channelMonitor.form.apiModeResponses'),
+    hint: t('admin.channelMonitor.form.apiModeResponsesHint'),
+  },
+])
+
+watch(() => form.provider, (provider) => {
+  if (provider !== PROVIDER_OPENAI) {
+    form.api_mode = API_MODE_CHAT_COMPLETIONS
+  }
+})
+
+function normalizeAPIMode(mode: APIMode | undefined | null): APIMode {
+  return mode === API_MODE_RESPONSES ? API_MODE_RESPONSES : API_MODE_CHAT_COMPLETIONS
+}
+
+function apiModeButtonClass(mode: APIMode): string {
+  const active = form.api_mode === mode
+  if (active) {
+    return 'border-primary-500 bg-white text-primary-700 shadow-sm dark:border-primary-400 dark:bg-primary-500/15 dark:text-primary-300'
+  }
+  return 'border-blue-100 bg-white/70 text-gray-600 hover:border-primary-300 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400'
+}
+
+function apiModeLabel(mode: APIMode): string {
+  return normalizeAPIMode(mode) === API_MODE_RESPONSES
+    ? t('admin.channelMonitor.form.apiModeResponses')
+    : t('admin.channelMonitor.form.apiModeChatCompletions')
+}
+
+function apiModeBadgeClass(mode: APIMode): string {
+  if (normalizeAPIMode(mode) === API_MODE_RESPONSES) {
+    return 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+  }
+  return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
 }
 </script>

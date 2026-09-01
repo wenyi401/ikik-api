@@ -356,6 +356,8 @@ func (s *GatewayService) readUpstreamErrorBody(resp *http.Response) ([]byte, err
 }
 
 func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, requestedModel ...string) (*ForwardResult, error) {
+	// Upstream returned a non-success HTTP status; count Ollama Cloud activity.
+	scheduleOllamaCloudUsageActivity(s.deferredService, account)
 	body, readErr := s.readUpstreamErrorBody(resp)
 	if readErr != nil {
 		// 读取失败时 body 可能被截断，错误分类会基于不完整数据；记录日志以便排查，
@@ -684,6 +686,10 @@ func partialStreamUsageResult(resp *http.Response, streamResult *streamingResult
 }
 
 func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string, mimicClaudeCode bool) (*streamingResult, error) {
+	observer := upstreamResponseModelObserverFromContext(c)
+	if observer == nil {
+		observer = beginUpstreamResponseModelObservation(c)
+	}
 	// 更新5h窗口状态
 	s.rateLimitService.UpdateSessionWindow(ctx, account, resp.Header)
 
@@ -879,6 +885,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		}
 
 		eventType, _ := event["type"].(string)
+		observer.ObserveAnthropic([]byte(dataLine))
 		if eventName == "" {
 			eventName = eventType
 		}
@@ -1227,11 +1234,11 @@ func (s *GatewayService) extractSSEUsagePatch(event map[string]any) *sseUsagePat
 			patch.hasCacheReadInput = true
 		}
 		if cc, ok := usageObj["cache_creation"].(map[string]any); ok {
-			if v, exists := parseSSEUsageInt(cc["ephemeral_5m_input_tokens"]); exists && v > 0 {
+			if v, exists := parseSSEUsageInt(cc["ephemeral_5m_input_tokens"]); exists {
 				patch.cacheCreation5mTokens = v
 				patch.hasCacheCreation5m = true
 			}
-			if v, exists := parseSSEUsageInt(cc["ephemeral_1h_input_tokens"]); exists && v > 0 {
+			if v, exists := parseSSEUsageInt(cc["ephemeral_1h_input_tokens"]); exists {
 				patch.cacheCreation1hTokens = v
 				patch.hasCacheCreation1h = true
 			}
@@ -1374,6 +1381,11 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 	if err != nil {
 		return nil, err
 	}
+	observer := upstreamResponseModelObserverFromContext(c)
+	if observer == nil {
+		observer = beginUpstreamResponseModelObservation(c)
+	}
+	observer.ObserveAnthropic(body)
 
 	// 解析usage
 	var response struct {
@@ -1381,7 +1393,7 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 	}
 	if err := json.Unmarshal(body, &response); err != nil {
 		if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
-			return nil, s.invalidNonStreamingJSONFailoverError(ctx, resp, account, body, err, mappedModel)
+			return nil, invalidNonStreamingJSONFailoverError(ctx, s.rateLimitService, resp, account, body, err, mappedModel)
 		}
 		return nil, fmt.Errorf("parse response: %w", err)
 	}

@@ -78,12 +78,11 @@ const (
 	openAIHTTP2PingTimeout     = 15 * time.Second
 
 	// The Grok CLI proxy rejects requests that do not identify a supported
-	// client version. Keep a known-good stable version in the binary while
-	// allowing operators to bump it without waiting for an ikik-api release.
-	grokCLIProxyHost       = "cli-chat-proxy.grok.com"
+	// client version. Keep service, billing, and transport identities aligned.
+	grokCLIProxyHost       = xai.CLIProxyHost
 	grokOfficialAPIHost    = "api.x.ai"
-	grokCLIStableVersion   = "0.2.114"
-	grokCLIVersionOverride = "XAI_GROK_CLI_VERSION"
+	grokCLIStableVersion   = xai.CLIClientVersion
+	grokCLIVersionOverride = xai.CLIVersionEnv
 	grokFallbackBodyLimit  = 64 << 10
 )
 
@@ -92,6 +91,7 @@ const (
 	upstreamProtocolModeOpenAIH1         = "openai_h1"
 	upstreamProtocolModeOpenAIH2         = "openai_h2"
 	upstreamProtocolModeOpenAIH1Fallback = "openai_h1_fallback"
+	upstreamProtocolModeGrok             = "grok"
 )
 
 var errUpstreamClientLimitReached = errors.New("upstream client cache limit reached")
@@ -443,6 +443,11 @@ type prefixedReadCloser struct {
 // the final shared transport boundary. Keying this behavior to the exact CLI
 // proxy host keeps direct api.x.ai traffic unchanged and automatically covers
 // Responses, Chat Completions, media, quota probes, and account tests.
+//
+// Operator overrides must be >= CLIClientVersion (the preferred pin). Package
+// xai.IsSupportedCLIVersion uses a lower floor (CLIStableVersion) for general
+// validation; transport is stricter so we never silently advertise an older pin
+// than the binary default.
 func applyGrokCLIProxyHeaders(req *http.Request) {
 	if req == nil || req.URL == nil || !strings.EqualFold(strings.TrimSpace(req.URL.Hostname()), grokCLIProxyHost) {
 		return
@@ -887,12 +892,20 @@ func (s *httpUpstreamService) resolvePoolSettings(isolation string, accountConcu
 }
 
 func (s *httpUpstreamService) applyProfilePoolSettings(settings poolSettings, profile service.HTTPUpstreamProfile) poolSettings {
-	if profile != service.HTTPUpstreamProfileOpenAI {
-		return settings
-	}
-	settings.responseHeaderTimeout = 0
-	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIResponseHeaderTimeout > 0 {
-		settings.responseHeaderTimeout = time.Duration(s.cfg.Gateway.OpenAIResponseHeaderTimeout) * time.Second
+	switch profile {
+	case service.HTTPUpstreamProfileOpenAI:
+		settings.responseHeaderTimeout = 0
+		if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIResponseHeaderTimeout > 0 {
+			settings.responseHeaderTimeout = time.Duration(s.cfg.Gateway.OpenAIResponseHeaderTimeout) * time.Second
+		}
+	case service.HTTPUpstreamProfileGrok:
+		// Grok can stall before its first byte under capacity pressure. Keep the
+		// generic 600s gateway timeout from turning one request into a 10-minute
+		// resource hold; streaming after headers is unaffected.
+		settings.responseHeaderTimeout = 120 * time.Second
+		if s != nil && s.cfg != nil {
+			settings.responseHeaderTimeout = time.Duration(s.cfg.Gateway.GrokResponseHeaderTimeout) * time.Second
+		}
 	}
 	return settings
 }
@@ -971,6 +984,9 @@ func (s *httpUpstreamService) resolveOpenAIHTTP2Settings() openAIHTTP2Settings {
 }
 
 func (s *httpUpstreamService) resolveProtocolMode(profile service.HTTPUpstreamProfile, proxyKey string, parsedProxy *url.URL) string {
+	if profile == service.HTTPUpstreamProfileGrok {
+		return upstreamProtocolModeGrok
+	}
 	if profile != service.HTTPUpstreamProfileOpenAI {
 		return upstreamProtocolModeDefault
 	}
@@ -1271,6 +1287,8 @@ func newUpstreamDialer() *net.Dialer {
 //   - error: 代理配置错误
 //
 // Transport 参数说明:
+//   - DialContext: DNS 解析 + TCP 建连超时（不设置则无上限，退化为内核默认重传）
+//   - TLSHandshakeTimeout: TLS 握手超时
 //   - MaxIdleConns: 所有主机的最大空闲连接总数
 //   - MaxIdleConnsPerHost: 每主机最大空闲连接数（影响连接复用率）
 //   - MaxConnsPerHost: 每主机最大连接数（达到后新请求等待）

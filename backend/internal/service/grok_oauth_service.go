@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/xai"
@@ -33,17 +32,6 @@ func NewGrokOAuthService(proxyRepo ProxyRepository, oauthClient GrokOAuthClient,
 		service.config = configs[0]
 	}
 	return service
-}
-
-// WithRedisSessionStore enables cross-instance, single-use OAuth callbacks.
-func (s *GrokOAuthService) WithRedisSessionStore(rdb *redis.Client) *GrokOAuthService {
-	if s != nil && rdb != nil {
-		if s.sessionStore != nil {
-			s.sessionStore.Stop()
-		}
-		s.sessionStore = xai.NewRedisSessionStore(rdb)
-	}
-	return s
 }
 
 // WithSessionStore replaces the in-memory OAuth session store (e.g. Redis-backed
