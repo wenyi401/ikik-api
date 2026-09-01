@@ -118,6 +118,8 @@ type schedulerActiveGroupIDLister interface {
 	ListActiveIDs(ctx context.Context) ([]int64, error)
 }
 
+const schedulerFullRebuildTimeout = 5 * time.Minute
+
 type SchedulerSnapshotService struct {
 	cache                        SchedulerCache
 	outboxRepo                   SchedulerOutboxRepository
@@ -330,7 +332,7 @@ func (s *SchedulerSnapshotService) runInitialRebuild() {
 		return
 	}
 	_ = s.coalesceFullRebuild(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), schedulerFullRebuildTimeout)
 		defer cancel()
 		if err := s.rebuildFullSnapshot(ctx, "startup"); err != nil {
 			logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] rebuild startup failed: %v", err)
@@ -1023,7 +1025,7 @@ func (s *SchedulerSnapshotService) triggerFullRebuild(reason string) error {
 		return ErrSchedulerCacheNotReady
 	}
 	return s.coalesceFullRebuild(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), schedulerFullRebuildTimeout)
 		defer cancel()
 		return s.rebuildFullSnapshot(ctx, reason)
 	})
