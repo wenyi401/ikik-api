@@ -471,9 +471,15 @@ describe('admin UsageView model audit export', () => {
 		const wrapper = mountRouteFilteredUsageView()
 		vi.advanceTimersByTime(120)
 		await flushPromises()
+		;(wrapper.vm as any).filters.native_compaction_v2 = true
 
 		await (wrapper.vm as any).exportToExcel()
 		await flushPromises()
+
+		expect(exportList).toHaveBeenCalledWith(
+			expect.objectContaining({ native_compaction_v2: true }),
+			expect.anything()
+		)
 
 		const headers = aoaToSheet.mock.calls[0][0][0]
 		expect(headers.slice(4, 8)).toEqual([

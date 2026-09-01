@@ -402,6 +402,10 @@ func (s *ownedAccountDuplicateRepoStub) ResetQuotaUsed(context.Context, int64) e
 	panic("unexpected ResetQuotaUsed call")
 }
 
+func (s *ownedAccountDuplicateRepoStub) ResetQuotaUsedAndClearRateLimitCooldown(context.Context, int64) error {
+	panic("unexpected ResetQuotaUsedAndClearRateLimitCooldown call")
+}
+
 func TestAccountServiceValidateOwnedAccountGroupBinding(t *testing.T) {
 	t.Run("allows active standard group and deduplicates ids", func(t *testing.T) {
 		svc := newOwnedAccountGroupValidationService(

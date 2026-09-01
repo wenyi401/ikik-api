@@ -20,6 +20,11 @@ const (
 // channel explicitly configured with billing_model_source = response_model,
 // where a conflict flag makes billing fall back to the baseline model
 // (see responseModelBillingDeclaration).
+//
+// The same observer also records the service tier the upstream reports having
+// used (OpenAI service_tier, Anthropic usage.speed). The observed tier stays
+// separate from the final outbound request tier until usage recording resolves
+// the billable tier for the selected credential protocol.
 type upstreamResponseModelObserver struct {
 	first    string
 	terminal string
@@ -189,12 +194,13 @@ func observedUpstreamResponseServiceTier(c *gin.Context) string {
 	return upstreamResponseModelObserverFromContext(c).ServiceTier()
 }
 
-func resolvedOpenAIUpstreamServiceTierFromObserver(observer *upstreamResponseModelObserver, outboundBodyTier *string) *string {
-	if observer != nil {
-		if tier := strings.TrimSpace(observer.ServiceTier()); tier != "" {
-			return normalizeOpenAIServiceTier(tier)
-		}
-	}
+// resolvedOpenAIUpstreamServiceTierFromObserver preserves the final outbound
+// request tier. The observed response tier remains separate on
+// OpenAIForwardResult.UpstreamResponseServiceTier and is reconciled once, at
+// usage time, where the account protocol is available. In particular, the
+// private ChatGPT Codex backend commonly reports default even for effective
+// Fast turns, while public API response tiers remain authoritative.
+func resolvedOpenAIUpstreamServiceTierFromObserver(_ *upstreamResponseModelObserver, outboundBodyTier *string) *string {
 	return outboundBodyTier
 }
 

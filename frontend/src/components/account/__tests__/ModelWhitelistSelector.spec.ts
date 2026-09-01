@@ -169,4 +169,71 @@ describe('ModelWhitelistSelector', () => {
 
     expect(wrapper.text()).toContain('admin.accounts.noMatchingModels')
   })
+
+  it('warns when model IDs sync but capability metadata is incomplete', async () => {
+    syncUpstreamModels.mockResolvedValue({
+      models: ['x-preview-f-free'],
+      warnings: [
+        {
+          code: 'upstream_model_metadata_incomplete',
+          message: 'Model IDs were synced, but capability metadata could not be updated.'
+        }
+      ]
+    })
+    const wrapper = mount(ModelWhitelistSelector, {
+      props: {
+        modelValue: [],
+        platform: 'openai',
+        accountId: 46
+      },
+      global: {
+        stubs: {
+          ModelIcon: true
+        }
+      }
+    })
+
+    const syncButton = wrapper
+      .findAll('button')
+      .find(button => button.text() === 'admin.accounts.syncUpstreamModels')
+    expect(syncButton).toBeDefined()
+    await syncButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('update:modelValue')).toEqual([[['x-preview-f-free']]])
+    expect(showWarning).toHaveBeenCalledWith('admin.accounts.syncUpstreamModelsMetadataIncomplete')
+    expect(showSuccess).not.toHaveBeenCalled()
+  })
+
+  it('reports a successful preview so account creation can persist metadata', async () => {
+    syncUpstreamModelsPreview.mockResolvedValue({
+      models: ['x-preview-f-free'],
+      metadata: {
+        'x-preview-f-free': {
+          id: 'x-preview-f-free',
+          reasoning: true,
+          supported_reasoning_levels: ['low', 'high', 'max'],
+        },
+      },
+    })
+    const wrapper = mountSelector({
+      syncCredentials: {
+        platform: 'openai',
+        type: 'apikey',
+        base_url: 'https://opencode.ai/zen/v1',
+        api_key: 'test-key',
+      },
+    })
+    const syncButton = wrapper
+      .findAll('button')
+      .find(button => button.text() === 'admin.accounts.syncUpstreamModels')
+
+    expect(syncButton).toBeDefined()
+    await syncButton?.trigger('click')
+    await flushPromises()
+
+    expect(syncUpstreamModelsPreview).toHaveBeenCalledOnce()
+    expect(wrapper.emitted('upstream-synced')).toEqual([[]])
+    expect(wrapper.emitted('update:modelValue')).toEqual([[['x-preview-f-free']]])
+  })
 })

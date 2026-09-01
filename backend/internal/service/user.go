@@ -34,6 +34,7 @@ type User struct {
 	ShareCardTextColor               string
 	AllowedGroups                    []int64
 	BlockedGroups                    []int64
+	RestrictPublicGroups             bool
 	RiskGroupBlocks                  []UserRiskGroupBlock
 	TokenVersion                     int64 // Incremented on password change to invalidate existing tokens
 	// TokenVersionResolved indicates TokenVersion already contains the fingerprint-derived
@@ -93,19 +94,18 @@ func (u *User) IsActive() bool {
 }
 
 // CanBindGroup checks whether a user can bind to a given group.
-// For standard groups:
-// - Explicitly blocked groups: user cannot bind
-// - Public groups (non-exclusive): all other users can bind
-// - Exclusive groups: only users with the group in AllowedGroups can bind
+// Explicitly blocked groups cannot bind. Public groups are available by default;
+// restricted users and exclusive groups require an explicit AllowedGroups grant.
+// Public groups are available by default; restricted users and exclusive groups
+// require an explicit AllowedGroups grant. Explicit blocks always win.
 func (u *User) CanBindGroup(groupID int64, isExclusive bool) bool {
 	if u.IsGroupBlocked(groupID) {
 		return false
 	}
-	// 公开分组（非专属）：所有用户都可以绑定
-	if !isExclusive {
+	if !isExclusive && !u.RestrictPublicGroups {
 		return true
 	}
-	// 专属分组：需要在 AllowedGroups 中
+	// 专属分组，以及受限用户的公开分组：需要在 AllowedGroups 中
 	for _, id := range u.AllowedGroups {
 		if id == groupID {
 			return true

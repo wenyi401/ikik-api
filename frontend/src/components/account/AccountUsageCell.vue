@@ -661,7 +661,6 @@ type UsageLoader = (id: number, source?: 'passive' | 'active') => Promise<Accoun
 // Module-level cache shared across all AccountUsageCell instances
 const _usageCache = new Map<string, { data: AccountUsageInfo; ts: number }>()
 const USAGE_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-// How long a quota-reset response may suppress the row-patch usage refetch.
 const SUPPRESS_USAGE_REFRESH_WINDOW_MS = 5 * 1000
 
 const props = withDefaults(
@@ -1678,10 +1677,6 @@ watch(
 watch(openAIUsageRefreshKey, (nextKey, prevKey) => {
   if (!prevKey || nextKey === prevKey) return
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return
-  if (Date.now() < suppressOpenAIUsageRefreshUntil.value) {
-    suppressOpenAIUsageRefreshUntil.value = 0
-    return
-  }
 
   if (isBatchManaged.value) {
     requestParentBatchUsage({ force: true })

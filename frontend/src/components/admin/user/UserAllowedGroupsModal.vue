@@ -112,11 +112,12 @@
 
         <!-- 公开分组区域 -->
         <div v-if="publicGroups.length > 0">
-          <div class="mb-3 flex items-center gap-2">
+          <div class="mb-3 flex flex-wrap items-center gap-2">
             <div class="h-1.5 w-1.5 rounded-full bg-green-500"></div>
             <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.users.publicGroups') }}</h4>
             <span class="text-xs text-gray-400">({{ publicGroupConfigs.filter(c => !c.isBlocked).length }}/{{ publicGroupConfigs.length }})</span>
           </div>
+          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.users.restrictPublicGroupsHint') }}</p>
           <div class="grid gap-3">
             <div
               v-for="config in publicGroupConfigs"
@@ -249,6 +250,7 @@ const groupConfigs = ref<GroupRateConfig[]>([])
 const originalGroupRates = ref<Record<number, number>>({}) // 记录原始专属倍率，用于检测删除
 const loading = ref(false)
 const submitting = ref(false)
+const restrictPublicGroups = ref(false)
 
 // 分离专属分组和公开分组
 const exclusiveGroups = computed(() => groups.value.filter((g) => g.is_exclusive))
@@ -277,6 +279,7 @@ const load = async () => {
     const userAllowedGroups = props.user?.allowed_groups || []
     const userBlockedGroups = props.user?.blocked_groups || []
     const userGroupRates = props.user?.group_rates || {}
+    restrictPublicGroups.value = props.user?.restrict_public_groups ?? false
 
     // 保存原始专属倍率，用于检测删除操作
     originalGroupRates.value = { ...userGroupRates }

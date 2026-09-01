@@ -189,6 +189,9 @@ func (s *userAccountBatchRepoStub) IncrementQuotaUsed(context.Context, int64, fl
 func (s *userAccountBatchRepoStub) ResetQuotaUsed(context.Context, int64) error {
 	panic("unexpected ResetQuotaUsed call")
 }
+func (s *userAccountBatchRepoStub) ResetQuotaUsedAndClearRateLimitCooldown(context.Context, int64) error {
+	panic("unexpected ResetQuotaUsedAndClearRateLimitCooldown call")
+}
 func (s *userAccountBatchRepoStub) RevertProxyFallback(context.Context, int64) error {
 	panic("unexpected RevertProxyFallback call")
 }

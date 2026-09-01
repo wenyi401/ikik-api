@@ -167,6 +167,9 @@ export interface AdminUser extends User {
   last_used_at?: string | null
   // 用户专属分组倍率配置 (group_id -> rate_multiplier)
   group_rates?: Record<number, number>
+  // 为 true 时该用户仅可使用 allowed_groups 中列出的公开分组。
+  // 管理侧权限开关，普通用户接口不返回。
+  restrict_public_groups?: boolean
   // 当前并发数（仅管理员列表接口返回）
   current_concurrency?: number
 }
@@ -1199,6 +1202,18 @@ export interface UpstreamBillingProbeResult {
   error?: string
 }
 
+export interface UpstreamBillingRateSnapshotItem {
+  account_id: number
+  snapshot?: UpstreamBillingProbeSnapshot | null
+}
+
+export interface UpstreamBillingRatesResponse {
+  items: UpstreamBillingRateSnapshotItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export type OllamaCloudUsageStatus = 'ok' | 'unauthorized' | 'failed'
 
 export interface OllamaCloudUsageWindow {
@@ -2051,6 +2066,7 @@ export interface UsageLogAccountSummary {
 
 export interface AdminUsageLog extends UsageLog {
   upstream_model?: string | null
+  upstream_reasoning_effort?: string | null
   upstream_response_model?: string | null
   upstream_model_mismatch?: boolean | null
   model_mapping_chain?: string | null
@@ -2452,6 +2468,7 @@ export interface UsageQueryParams {
   model?: string
   request_type?: UsageRequestType
   stream?: boolean
+  native_compaction_v2?: boolean | null
   billing_type?: number | null
   start_date?: string
   end_date?: string

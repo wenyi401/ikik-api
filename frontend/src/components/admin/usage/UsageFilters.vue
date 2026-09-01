@@ -132,6 +132,11 @@
           <Select v-model="filters.request_type" :options="requestTypeOptions" @change="emitChange" />
         </div>
 
+        <div class="usage-filter-field">
+          <label class="input-label">{{ t('usage.compactionFilter') }}</label>
+          <Select v-model="filters.native_compaction_v2" :options="compactionOptions" @change="emitChange" />
+        </div>
+
         <!-- Billing Type Filter -->
         <div class="usage-filter-field">
           <label class="input-label">{{ t('admin.usage.billingType') }}</label>
@@ -249,6 +254,11 @@ const requestTypeOptions = ref<SelectOption[]>([
   { value: 'live', label: t('usage.live') },
   { value: 'stream', label: t('usage.stream') },
   { value: 'sync', label: t('usage.sync') }
+])
+
+const compactionOptions = ref<SelectOption[]>([
+  { value: null, label: t('usage.allCompactionTypes') },
+  { value: true, label: t('usage.compactionOnly') }
 ])
 
 const billingTypeOptions = ref<SelectOption[]>([

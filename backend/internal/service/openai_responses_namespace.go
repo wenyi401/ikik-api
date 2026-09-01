@@ -39,13 +39,62 @@ func shouldStripOpenAIResponsesInputNamespaces(account *Account, transport OpenA
 	return transport != OpenAIUpstreamTransportResponsesWebsocketV2 || passthroughEnabled
 }
 
-func shouldKeepOpenAIResponsesToolCallNamespaces(account *Account, transport OpenAIUpstreamTransport, passthroughEnabled bool, compactPath bool) bool {
-	if account == nil || !account.IsOpenAIOAuth() || compactPath {
+// shouldKeepOpenAIResponsesToolCallNamespaces 判定清理 input 残留 namespace 时是否
+// 保留工具调用项上的 namespace。
+//
+// 上游对这个字段有两套互斥要求，判定按「出口 + 端点」而非工具声明内容：
+//   - /backend-api/codex/responses 会按 namespace 解析历史调用，缺字段直接 400
+//     `Missing namespace for function_call '...'. Round-trip the model's
+//     function_call item with its namespace field included.`（issue #4761 回帖），
+//     故 OAuth 非 compact 请求必须保留。
+//   - compact 端点的 schema 不含该字段，携带即 400 `Unknown parameter:
+//     input[N].namespace`（issue #4761 正文），故 compact 一律清理。
+//   - API Key 出口默认按标准 Responses API 处理并清理该字段；但当请求本身声明
+//     namespace 工具时，上游显然使用了 namespace 扩展，此时必须保留调用项上的
+//     namespace，否则声明与历史调用会失配并触发 Missing namespace。
+//   - 摊平模式下调用项已被改写成平名，残留 namespace 指向的声明已不存在，一律清理。
+func shouldKeepOpenAIResponsesToolCallNamespaces(
+	account *Account,
+	transport OpenAIUpstreamTransport,
+	passthroughEnabled bool,
+	compactPath bool,
+	body []byte,
+) bool {
+	if account == nil {
+		return false
+	}
+	if compactPath {
+		return false
+	}
+	if account.IsOpenAIApiKey() {
+		return hasOpenAIResponsesNamespaceToolDeclaration(body)
+	}
+	if !account.IsOpenAIOAuthLike() {
 		return false
 	}
 	return !shouldFlattenOpenAIResponsesNamespaces(account, transport, passthroughEnabled, compactPath)
 }
 
+func hasOpenAIResponsesNamespaceToolDeclaration(body []byte) bool {
+	tools := gjson.GetBytes(body, "tools")
+	if !tools.IsArray() {
+		return false
+	}
+	found := false
+	tools.ForEach(func(_, tool gjson.Result) bool {
+		if strings.EqualFold(strings.TrimSpace(tool.Get("type").String()), "namespace") {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+// openAIResponsesToolCallItemTypes 是携带 namespace 的调用项类型集合。与
+// removeOpenAIResponsesRejectedNamespaceAtIndex 的反应式白名单保持一致；codex-rs
+// protocol/src/models.rs 中只有 FunctionCall 与 CustomToolCall 序列化 namespace，
+// 其余类型带该字段一定是非 Codex 客户端或历史残留，清掉才安全。
 var openAIResponsesToolCallItemTypes = map[string]bool{
 	"function_call":    true,
 	"tool_call":        true,

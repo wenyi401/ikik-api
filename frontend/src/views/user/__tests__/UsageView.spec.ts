@@ -225,6 +225,7 @@ describe('user UsageView tooltip', () => {
     resolveModels(modelResponse)
     resolveSnapshot(snapshotResponse)
     await flushPromises()
+    ;(wrapper.vm as any).filters.native_compaction_v2 = true
 
     expect(modelChart.props('modelStats')).toEqual(modelResponse.models)
     expect(modelChart.props('enableBreakdown')).toBe(false)

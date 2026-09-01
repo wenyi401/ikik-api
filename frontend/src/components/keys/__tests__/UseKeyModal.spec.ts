@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 vi.mock('vue-i18n', () => ({
@@ -12,6 +12,10 @@ vi.mock('@/composables/useClipboard', () => ({
   useClipboard: () => ({
     copyToClipboard: vi.fn().mockResolvedValue(true)
   })
+}))
+
+vi.mock('file-saver', () => ({
+  saveAs: saveAsMock
 }))
 
 import UseKeyModal from '../UseKeyModal.vue'
