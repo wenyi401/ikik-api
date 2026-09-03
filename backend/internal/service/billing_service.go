@@ -1254,18 +1254,16 @@ func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, 
 func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input CostInput) (*CostBreakdown, error) {
 	totalContext := input.Tokens.InputTokens + input.Tokens.CacheCreationTokens + input.Tokens.CacheReadTokens
 
-	// The group switch is the unified entry point. OpenAI also supplies an
-	// account-level gate and requires both switches; platforms without that
-	// setting (for example Grok) pass nil and remain governed by the group.
+	// 分组开关是统一入口；账号 API 开关保留为额外开启能力，但 false 不否决分组配置。
 	contextTierPricingEnabled := resolved.longContextPricingEnabled
-	if input.LongContextBillingEnabled != nil {
-		contextTierPricingEnabled = contextTierPricingEnabled && *input.LongContextBillingEnabled
+	if input.LongContextBillingEnabled != nil && *input.LongContextBillingEnabled {
+		contextTierPricingEnabled = true
 	}
 
 	pricingContext := totalContext
 	if !contextTierPricingEnabled {
-		// Select the lowest interval while tier pricing is disabled. If none
-		// matches, the resolver naturally falls back to the channel base price.
+		// 渠道可能显式配置了第一档，也可能只配置高上下文档。用 1 token
+		// 选择最低档；未命中时自然回退到渠道基础价。
 		pricingContext = 1
 	}
 	pricing := input.Resolver.GetIntervalPricing(resolved, pricingContext)
@@ -1301,6 +1299,13 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	applyLongCtx := len(resolved.Intervals) == 0 && contextTierPricingEnabled
 
 	breakdown := s.computeTokenBreakdown(pricing, input.Tokens, input.RateMultiplier, input.ServiceTier, applyLongCtx)
+	// 区间定价路径需要显式记录实际命中的高上下文档。不能仅依赖费用差异判断：
+	// 运营者可能配置相同单价或仅配置部分字段，此时价格可能不变但仍应准确标记命中。
+	if contextTierPricingEnabled && len(resolved.Intervals) > 0 {
+		if interval := FindMatchingInterval(resolved.Intervals, totalContext); interval != nil && interval.MinTokens > 0 {
+			breakdown.LongContextBillingApplied = true
+		}
+	}
 	applyCostBreakdownMultiplier(breakdown, resolvedChannelTimeMultiplier(resolved, input.PricingAt))
 	return breakdown, nil
 }
