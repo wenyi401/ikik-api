@@ -58,7 +58,7 @@ func EvaluateAccountSchedulingThreshold(account *Account, thresholds map[string]
 		winner = pickLatestResetSchedulingCandidate(anthropicThresholdCandidates(account), threshold, now)
 	case PlatformGrok:
 		winner = pickLatestResetSchedulingCandidate(grokThresholdCandidates(account), threshold, now)
-	case PlatformKimi, PlatformZhipu, PlatformMiniMax:
+	case PlatformKimi, PlatformZhipu, PlatformMiniMax, PlatformOpenCodeGo:
 		winner = pickLatestResetSchedulingCandidate(cnProviderThresholdCandidates(account, decision.Platform), threshold, now)
 	default:
 		return decision
@@ -347,6 +347,52 @@ func grokThresholdCandidates(account *Account) []*accountSchedulingThresholdCand
 	}
 }
 
+// cnProviderThresholdCandidates 读取国产供应商 Coding Plan 账号的 5h / weekly 滚动窗口
+// 用量快照（由 CNProviderQuotaService 写入 account.Extra，键形如
+// <provider>_5h_used_percent / <provider>_weekly_reset_at）。payg 账号无此快照，
+// 候选为空 → 不触发阈值停调（余额型走余额检测）。与 openai 的快照驱动停调一致：
+// 仅当用量超阈值且窗口尚未重置时才停调。
+func cnProviderThresholdCandidates(account *Account, provider string) []*accountSchedulingThresholdCandidate {
+	if account == nil || len(account.Extra) == 0 {
+		return nil
+	}
+	candidates := []*accountSchedulingThresholdCandidate{
+		cnThresholdCandidate(account.Extra, provider, "5h"),
+		cnThresholdCandidate(account.Extra, provider, "weekly"),
+	}
+	if provider == PlatformOpenCodeGo {
+		candidates = append(candidates, cnThresholdCandidate(account.Extra, provider, "monthly"))
+	}
+	return candidates
+}
+
+func cnThresholdCandidate(extra map[string]any, provider, window string) *accountSchedulingThresholdCandidate {
+	var usedKey, resetKey string
+	switch window {
+	case "5h":
+		usedKey = cnExtraKey(provider, cnExtraSuffix5hUsed)
+		resetKey = cnExtraKey(provider, cnExtraSuffix5hReset)
+	case "weekly":
+		usedKey = cnExtraKey(provider, cnExtraSuffixWeeklyUsed)
+		resetKey = cnExtraKey(provider, cnExtraSuffixWeeklyReset)
+	case "monthly":
+		usedKey = cnExtraKey(provider, cnExtraSuffixMonthlyUsed)
+		resetKey = cnExtraKey(provider, cnExtraSuffixMonthlyReset)
+	default:
+		return nil
+	}
+	usedPercent, ok := extra[usedKey]
+	if !ok {
+		return nil
+	}
+	return &accountSchedulingThresholdCandidate{
+		window:      window,
+		scope:       provider,
+		usedPercent: schedulingPercentValue(usedPercent),
+		until:       parseSchedulingResetAt(extra[resetKey]),
+	}
+}
+
 func pickLatestResetSchedulingCandidate(candidates []*accountSchedulingThresholdCandidate, threshold int, now time.Time) *accountSchedulingThresholdCandidate {
 	var winner *accountSchedulingThresholdCandidate
 	for _, candidate := range candidates {
@@ -515,40 +561,3 @@ func cloneTimePtr(src *time.Time) *time.Time {
 }
 
 // cnProviderThresholdCandidates 读取国产供应商 Coding Plan 账号的 5h / weekly 滚动窗口
-// 用量快照（由 CNProviderQuotaService 写入 account.Extra，键形如
-// <provider>_5h_used_percent / <provider>_weekly_reset_at）。payg 账号无此快照，
-// 候选为空 → 不触发阈值停调（余额型走余额检测）。与 openai 的快照驱动停调一致：
-// 仅当用量超阈值且窗口尚未重置时才停调。
-func cnProviderThresholdCandidates(account *Account, provider string) []*accountSchedulingThresholdCandidate {
-	if account == nil || len(account.Extra) == 0 {
-		return nil
-	}
-	return []*accountSchedulingThresholdCandidate{
-		cnThresholdCandidate(account.Extra, provider, "5h"),
-		cnThresholdCandidate(account.Extra, provider, "weekly"),
-	}
-}
-
-func cnThresholdCandidate(extra map[string]any, provider, window string) *accountSchedulingThresholdCandidate {
-	var usedKey, resetKey string
-	switch window {
-	case "5h":
-		usedKey = cnExtraKey(provider, cnExtraSuffix5hUsed)
-		resetKey = cnExtraKey(provider, cnExtraSuffix5hReset)
-	case "weekly":
-		usedKey = cnExtraKey(provider, cnExtraSuffixWeeklyUsed)
-		resetKey = cnExtraKey(provider, cnExtraSuffixWeeklyReset)
-	default:
-		return nil
-	}
-	usedPercent, ok := extra[usedKey]
-	if !ok {
-		return nil
-	}
-	return &accountSchedulingThresholdCandidate{
-		window:      window,
-		scope:       provider,
-		usedPercent: schedulingPercentValue(usedPercent),
-		until:       parseSchedulingResetAt(extra[resetKey]),
-	}
-}

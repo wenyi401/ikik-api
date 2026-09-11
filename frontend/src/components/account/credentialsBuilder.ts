@@ -44,7 +44,8 @@ export function isHeaderOverrideCapable(platform: string, type: string): boolean
     platform === 'kimi' ||
     platform === 'zhipu' ||
     platform === 'deepseek' ||
-    platform === 'minimax'
+    platform === 'minimax' ||
+    platform === 'opencode_go'
   ) {
     return type === 'apikey'
   }
@@ -256,6 +257,7 @@ export const GROK_BASE_URL_PRESETS: GrokBaseUrlPreset[] = [
 ]
 
 export type CnAccountMode = 'payg' | 'coding'
+export type OpenCodeAccountMode = 'zen' | 'go'
 export type CnProviderPlatform = 'kimi' | 'zhipu' | 'deepseek' | 'minimax'
 
 /** deepseek / kimi / minimax 支持原生 responses；adaptive 会按入站协议选择原生端点。 */
@@ -268,7 +270,93 @@ export function isCNProviderPlatform(platform: string): platform is CnProviderPl
 
 /** DeepSeek、Kimi 与 MiniMax 提供原生 Responses 端点。 */
 export function cnSupportsNativeResponses(platform: string): boolean {
-  return platform === 'deepseek' || platform === 'kimi' || platform === 'minimax'
+  return platform === 'deepseek' || platform === 'kimi' || platform === 'minimax' || platform === 'opencode_go'
+}
+
+export const OPENCODE_GO_BASE_URL = 'https://opencode.ai/zen/go/v1'
+export const OPENCODE_GO_ANTHROPIC_BASE_URL = 'https://opencode.ai/zen/go'
+export const OPENCODE_ZEN_BASE_URL = 'https://opencode.ai/zen/v1'
+export const OPENCODE_ZEN_ANTHROPIC_BASE_URL = 'https://opencode.ai/zen'
+
+export function isOpenCodeGoPlatform(platform: string): boolean {
+  return platform === 'opencode_go'
+}
+
+export const OPENCODE_GO_PROTOCOL_RULES_KEY = 'protocol_rules'
+
+export interface OpenCodeGoProtocolRule {
+  pattern: string
+  protocol: CnNativeApiProtocol
+}
+
+export const DEFAULT_OPENCODE_GO_PROTOCOL_RULES: OpenCodeGoProtocolRule[] = [
+  { pattern: 'grok-*', protocol: 'responses' },
+  { pattern: 'gpt-*', protocol: 'responses' },
+  { pattern: 'muse-spark-*', protocol: 'responses' },
+  { pattern: 'minimax-*', protocol: 'anthropic' },
+  { pattern: 'qwen*', protocol: 'anthropic' }
+]
+
+export const DEFAULT_OPENCODE_ZEN_PROTOCOL_RULES: OpenCodeGoProtocolRule[] = [
+  { pattern: 'grok-*', protocol: 'responses' },
+  { pattern: 'gpt-*', protocol: 'responses' },
+  { pattern: 'muse-spark-*', protocol: 'responses' },
+  { pattern: 'claude-*', protocol: 'anthropic' },
+  { pattern: 'qwen*', protocol: 'anthropic' }
+]
+
+export function resolveOpenCodeAccountMode(value: unknown): OpenCodeAccountMode {
+  return value === 'zen' ? 'zen' : 'go'
+}
+
+export function defaultOpenCodeProtocolRules(mode: OpenCodeAccountMode = 'go'): OpenCodeGoProtocolRule[] {
+  return mode === 'zen' ? DEFAULT_OPENCODE_ZEN_PROTOCOL_RULES : DEFAULT_OPENCODE_GO_PROTOCOL_RULES
+}
+
+export function cloneOpenCodeGoProtocolRules(
+  rules: OpenCodeGoProtocolRule[] = DEFAULT_OPENCODE_GO_PROTOCOL_RULES
+): OpenCodeGoProtocolRule[] {
+  return rules.map(rule => ({ pattern: rule.pattern, protocol: rule.protocol }))
+}
+
+function isNativeOpenCodeGoProtocol(value: unknown): value is CnNativeApiProtocol {
+  return value === 'chat_completions' || value === 'anthropic' || value === 'responses'
+}
+
+export function parseOpenCodeGoProtocolRules(raw: unknown): OpenCodeGoProtocolRule[] | null {
+  if (raw == null) return null
+  if (!Array.isArray(raw)) return cloneOpenCodeGoProtocolRules()
+  const rules: OpenCodeGoProtocolRule[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const pattern = typeof (item as { pattern?: unknown }).pattern === 'string'
+      ? (item as { pattern: string }).pattern.trim()
+      : ''
+    const protocol = (item as { protocol?: unknown }).protocol
+    if (!pattern || !isNativeOpenCodeGoProtocol(protocol)) continue
+    rules.push({ pattern, protocol })
+  }
+  return rules
+}
+
+export function applyOpenCodeGoProtocolRules(
+  credentials: Record<string, unknown>,
+  rules: OpenCodeGoProtocolRule[],
+  mode: 'create' | 'edit'
+): void {
+  const serialized = rules
+    .map(rule => ({
+      pattern: rule.pattern.trim().toLowerCase(),
+      protocol: rule.protocol
+    }))
+    .filter(rule => rule.pattern.length > 0 && isNativeOpenCodeGoProtocol(rule.protocol))
+  if (serialized.length > 0 || mode === 'edit') {
+    credentials[OPENCODE_GO_PROTOCOL_RULES_KEY] = serialized
+  }
+}
+
+export function isMultiProtocolApiKeyPlatform(platform: string): boolean {
+  return platform === 'kimi' || platform === 'zhipu' || platform === 'deepseek' || platform === 'minimax' || platform === 'opencode_go'
 }
 
 export interface CnBaseUrlPreset {
@@ -317,7 +405,7 @@ export const CN_BASE_URL_PRESETS: Record<CnProviderPlatform, CnBaseUrlPreset[]> 
 
 export function defaultCNBaseUrl(
   platform: string,
-  mode: CnAccountMode,
+  mode: CnAccountMode | OpenCodeAccountMode,
   protocol: CnApiProtocol = 'chat_completions'
 ): string {
   if (protocol === 'anthropic') {
@@ -330,6 +418,8 @@ export function defaultCNBaseUrl(
         return 'https://api.deepseek.com/anthropic'
       case 'minimax':
         return 'https://api.minimaxi.com/anthropic'
+      case 'opencode_go':
+        return mode === 'zen' ? OPENCODE_ZEN_ANTHROPIC_BASE_URL : OPENCODE_GO_ANTHROPIC_BASE_URL
       default:
         return ''
     }
@@ -346,6 +436,8 @@ export function defaultCNBaseUrl(
       return 'https://api.deepseek.com'
     case 'minimax':
       return 'https://api.minimaxi.com/v1'
+    case 'opencode_go':
+      return mode === 'zen' ? OPENCODE_ZEN_BASE_URL : OPENCODE_GO_BASE_URL
     default:
       return ''
   }
@@ -358,8 +450,8 @@ export function defaultCNBaseUrl(
 }
 
 export function defaultCNAdaptiveBaseUrls(
-  platform: CnProviderPlatform,
-  mode: CnAccountMode
+  platform: CnProviderPlatform | 'opencode_go',
+  mode: CnAccountMode | OpenCodeAccountMode
 ): Record<CnNativeApiProtocol, string> {
   return {
     chat_completions: defaultCNBaseUrl(platform, mode, 'chat_completions'),
@@ -369,6 +461,7 @@ export function defaultCNAdaptiveBaseUrls(
 }
 
 export function cnQuotaCellVisible(platform: string, accountMode: string): boolean {
+  if (platform === 'opencode_go') return accountMode !== 'zen'
   return (platform === 'kimi' || platform === 'zhipu' || platform === 'minimax') && accountMode === 'coding'
 }
 

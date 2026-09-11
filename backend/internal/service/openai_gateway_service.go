@@ -311,6 +311,21 @@ func (r *OpenAIForwardResult) SucceededForScheduling() bool {
 	}
 }
 
+const openAIResponsesUpstreamEndpoint = "/v1/responses"
+
+// stampOpenAIResponsesUpstreamEndpoint records that this attempt hit the
+// Responses API. OpenCode Go / CN accounts cannot derive that from inbound
+// path (DeriveUpstreamEndpoint falls back to the client URL).
+func stampOpenAIResponsesUpstreamEndpoint(c *gin.Context, result *OpenAIForwardResult) {
+	SetActualOpenAIUpstreamEndpoint(c, openAIResponsesUpstreamEndpoint)
+	if result == nil {
+		return
+	}
+	if strings.TrimSpace(result.UpstreamEndpoint) == "" {
+		result.UpstreamEndpoint = openAIResponsesUpstreamEndpoint
+	}
+}
+
 // SetActualOpenAIUpstreamEndpoint records the endpoint selected by the current
 // forwarding attempt. It covers error paths where no OpenAIForwardResult is
 // available for usage and operations logging.

@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import { applyInterceptWarmup } from '../credentialsBuilder'
 
 describe('applyInterceptWarmup', () => {
   it('create + enabled=true: should set intercept_warmup_requests to true', () => {
@@ -79,6 +78,53 @@ describe('applyAntigravityProjectID', () => {
   })
 })
 
+describe('openCodeGo protocol rules', () => {
+  it('resolves missing OpenCode account_mode as GO and zen as Zen', () => {
+    expect(resolveOpenCodeAccountMode(undefined)).toBe('go')
+    expect(resolveOpenCodeAccountMode('coding')).toBe('go')
+    expect(resolveOpenCodeAccountMode('zen')).toBe('zen')
+    expect(resolveOpenCodeAccountMode('go')).toBe('go')
+  })
+
+  it('uses Zen vs GO default endpoints and protocol rules', () => {
+    expect(defaultCNBaseUrl('opencode_go', 'zen', 'adaptive')).toBe('https://opencode.ai/zen/v1')
+    expect(defaultCNBaseUrl('opencode_go', 'zen', 'anthropic')).toBe('https://opencode.ai/zen')
+    expect(defaultCNBaseUrl('opencode_go', 'go', 'adaptive')).toBe('https://opencode.ai/zen/go/v1')
+    expect(defaultCNBaseUrl('opencode_go', 'go', 'anthropic')).toBe('https://opencode.ai/zen/go')
+    expect(defaultOpenCodeProtocolRules('zen').some(rule => rule.pattern === 'claude-*')).toBe(true)
+    expect(defaultOpenCodeProtocolRules('go').some(rule => rule.pattern === 'minimax-*')).toBe(true)
+    expect(cnQuotaCellVisible('opencode_go', 'zen')).toBe(false)
+    expect(cnQuotaCellVisible('opencode_go', 'go')).toBe(true)
+    expect(cnQuotaCellVisible('opencode_go', '')).toBe(true)
+  })
+
+  it('parses stored rules and skips invalid entries', () => {
+    expect(parseOpenCodeGoProtocolRules(null)).toBeNull()
+    expect(parseOpenCodeGoProtocolRules([])).toEqual([])
+    expect(
+      parseOpenCodeGoProtocolRules([
+        { pattern: 'grok-*', protocol: 'responses' },
+        { pattern: '', protocol: 'anthropic' },
+        { pattern: 'qwen*', protocol: 'adaptive' },
+        { pattern: 'minimax-*', protocol: 'anthropic' }
+      ])
+    ).toEqual([
+      { pattern: 'grok-*', protocol: 'responses' },
+      { pattern: 'minimax-*', protocol: 'anthropic' }
+    ])
+  })
+
+  it('writes lowercase patterns on create and keeps an empty list on edit', () => {
+    const created: Record<string, unknown> = {}
+    applyOpenCodeGoProtocolRules(created, cloneOpenCodeGoProtocolRules(), 'create')
+    expect(created[OPENCODE_GO_PROTOCOL_RULES_KEY]).toEqual(cloneOpenCodeGoProtocolRules())
+
+    const edited: Record<string, unknown> = { api_key: 'sk' }
+    applyOpenCodeGoProtocolRules(edited, [], 'edit')
+    expect(edited[OPENCODE_GO_PROTOCOL_RULES_KEY]).toEqual([])
+  })
+})
+
 describe('isHeaderOverrideCapable', () => {
   it('anthropic/openai only support apikey accounts', () => {
     expect(isHeaderOverrideCapable('anthropic', 'apikey')).toBe(true)
@@ -88,7 +134,7 @@ describe('isHeaderOverrideCapable', () => {
   })
 
   it('kimi/zhipu/deepseek only support apikey accounts', () => {
-    for (const platform of ['kimi', 'zhipu', 'deepseek', 'minimax']) {
+    for (const platform of ['kimi', 'zhipu', 'deepseek', 'minimax', 'opencode_go']) {
       expect(isHeaderOverrideCapable(platform, 'apikey')).toBe(true)
       expect(isHeaderOverrideCapable(platform, 'oauth')).toBe(false)
     }

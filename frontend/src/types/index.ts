@@ -635,7 +635,6 @@ export interface PaginationConfig {
 
 // ==================== API Key & Group Types ====================
 
-export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'minimax' | 'kiro' | 'custom' | 'composite'
 
 export type VideoModelPrices = Record<string, Record<string, number>>
 
@@ -1115,7 +1114,7 @@ export interface UpdateGroupRequest {
 
 // ==================== Account & Proxy Types ====================
 
-export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'minimax' | 'kiro' | 'custom'
+export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'minimax' | 'kiro' | 'custom' | 'opencode_go'
 export type CustomAccountProtocol =
   | 'openai_responses'
   | 'openai_chat_completions'

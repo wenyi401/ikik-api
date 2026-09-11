@@ -28,6 +28,9 @@ const (
 	PlatformZhipu    = "zhipu"    // 智谱 GLM (bigmodel)
 	PlatformDeepseek = "deepseek" // DeepSeek
 	PlatformMiniMax  = "minimax"  // MiniMax (M 系列)
+	// PlatformOpenCodeGo 是 OpenCode 平台（账号类型 Zen 按量 / Go 订阅）。
+	// 值保持 opencode_go 以兼容已落库的分组、配额与 Composite 路由 CHECK。
+	PlatformOpenCodeGo = "opencode_go"
 	// ikik 扩展平台：Kiro 与自定义兼容平台。
 	PlatformKiro      = "kiro"
 	PlatformCustom    = "custom"
@@ -37,8 +40,10 @@ const (
 // Account mode constants distinguish pay-as-you-go balance accounts from
 // fixed-window coding plans for compatible domestic providers.
 const (
-	AccountModePayG   = "payg"
-	AccountModeCoding = "coding"
+	AccountModePayG   = "payg"   // 按量付费：消耗余额，做余额检测冷却
+	AccountModeCoding = "coding" // Coding Plan：滚动用量窗口冷却（5h / weekly）
+	AccountModeZen    = "zen"    // OpenCode Zen：按量付费，https://opencode.ai/zen/v1
+	AccountModeGo     = "go"     // OpenCode Go：订阅额度窗口，https://opencode.ai/zen/go/v1
 )
 
 // API protocol constants are independent from account mode: the protocol
