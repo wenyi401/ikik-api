@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/antigravity"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestClassifyAntigravity429(t *testing.T) {

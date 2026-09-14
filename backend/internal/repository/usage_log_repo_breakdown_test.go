@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/stretchr/testify/require"
+
 	"ikik-api/internal/pkg/usagestats"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 func TestResolveEndpointColumn(t *testing.T) {

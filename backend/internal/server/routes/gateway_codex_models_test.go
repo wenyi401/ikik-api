@@ -5,10 +5,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"ikik-api/internal/server/middleware"
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 )
 
 func TestGatewayRoutesCodexModelsManifestPathIsRegistered(t *testing.T) {

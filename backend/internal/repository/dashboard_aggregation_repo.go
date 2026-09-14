@@ -9,9 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
+
 	"ikik-api/internal/pkg/timezone"
 	"ikik-api/internal/service"
-	"github.com/lib/pq"
 )
 
 type dashboardAggregationRepository struct {

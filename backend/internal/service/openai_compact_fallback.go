@@ -8,9 +8,10 @@ import (
 	"net/http"
 	"strings"
 
+	"ikik-api/internal/pkg/logger"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
-	"ikik-api/internal/pkg/logger"
 )
 
 type openAICompactFallbackSignal struct {
@@ -215,6 +216,8 @@ func (s *OpenAIGatewayService) appendOpenAICompactFallbackRetryOps(
 		detail = truncateString(string(payload), maxBytes)
 	}
 	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+		ProxyID:              opsUpstreamProxyID(account),
+		ProxyName:            opsUpstreamProxyName(account),
 		Platform:             account.Platform,
 		AccountID:            account.ID,
 		AccountName:          account.Name,

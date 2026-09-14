@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
+
+	"github.com/stretchr/testify/require"
 )
 
 const teamLinkedDeactivatedBody = `{"detail":{"code":"deactivated_workspace","message":"This workspace has been deactivated."}}`

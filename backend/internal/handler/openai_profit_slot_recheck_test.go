@@ -14,11 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/pkg/ctxkey"
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"ikik-api/internal/pkg/ctxkey"
+	"ikik-api/internal/service"
 )
 
 type profitCountingConcurrencyCache struct {

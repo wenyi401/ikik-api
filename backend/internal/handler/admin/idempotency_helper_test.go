@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 type storeUnavailableRepoStub struct{}

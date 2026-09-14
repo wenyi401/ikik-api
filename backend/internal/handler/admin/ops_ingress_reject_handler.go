@@ -6,9 +6,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 var ingressRejectReasons = map[string]struct{}{

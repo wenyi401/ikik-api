@@ -3,10 +3,11 @@ package testutil
 import (
 	"testing"
 
-	"ikik-api/internal/repository"
-	"ikik-api/internal/service"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+
+	"ikik-api/internal/repository"
+	"ikik-api/internal/service"
 )
 
 // NewRedisGatewayCache returns a real Redis-backed gateway cache for tests.

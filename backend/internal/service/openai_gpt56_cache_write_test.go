@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+
 	"ikik-api/internal/config"
 )
 
@@ -124,7 +125,7 @@ func TestGPT56PricingAndChannelCacheWriteOverride(t *testing.T) {
 	require.InDelta(t, 2e-6, pricing.InputPricePerToken, 1e-15)
 	require.InDelta(t, 2.5e-6, pricing.CacheCreationPricePerToken, 1e-15)
 	require.InDelta(t, 5e-6, pricing.CacheCreationPricePerTokenPriority, 1e-15)
-	require.Equal(t, openAIGPT54LongContextInputThreshold, pricing.LongContextInputThreshold)
+	require.Equal(t, 272000, pricing.LongContextInputThreshold)
 
 	cost, err := svc.CalculateCostWithServiceTier("gpt-5.6-terra", UsageTokens{
 		InputTokens:         100,

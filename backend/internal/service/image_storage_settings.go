@@ -8,9 +8,10 @@ import (
 	"strings"
 	"sync"
 
+	"go.uber.org/zap"
+
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/logger"
-	"go.uber.org/zap"
 )
 
 const settingKeyImageStorageConfig = "image_storage_config"

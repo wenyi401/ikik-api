@@ -9,7 +9,6 @@ import (
 )
 
 const (
-	PlatformKiro   = domain.PlatformKiro
 	PlatformCustom = domain.PlatformCustom
 )
 

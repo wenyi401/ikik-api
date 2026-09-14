@@ -6,8 +6,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 func TestAuthRequestsBindTencentCaptchaProof(t *testing.T) {

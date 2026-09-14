@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"ikik-api/internal/pkg/usagestats"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUsageLog_UpstreamModelMismatchFilterAndPartialIndex(t *testing.T) {

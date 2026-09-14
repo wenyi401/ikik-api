@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
+
+	"github.com/stretchr/testify/require"
 )
 
 // countingOpenAI403CounterCache 在既有桩的基础上记录递增次数。

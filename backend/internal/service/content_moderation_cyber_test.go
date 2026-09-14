@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/pagination"
+
+	"github.com/stretchr/testify/require"
 )
 
 // cyberOrderingTestRepo records the sequence of repo calls to verify F7 ordering.

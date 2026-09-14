@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/xai"
+
+	"github.com/stretchr/testify/require"
 )
 
 func grokInt64PtrForTest(v int64) *int64 { return &v }

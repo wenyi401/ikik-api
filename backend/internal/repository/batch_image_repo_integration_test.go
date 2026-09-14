@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 func newBatchImageRepositoryWithSQL(sqlq batchImageSQLExecutor) *batchImageRepository {

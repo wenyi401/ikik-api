@@ -8,10 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/imroc/req/v3"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/openai"
 	"ikik-api/internal/service"
+
+	"github.com/imroc/req/v3"
 )
 
 // NewOpenAIOAuthClient creates a new OpenAI OAuth client

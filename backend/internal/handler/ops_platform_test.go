@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 func TestResolveOpsPlatformPrefersResolvedCompositeTarget(t *testing.T) {

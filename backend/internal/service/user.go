@@ -7,18 +7,19 @@ import (
 )
 
 type User struct {
-	ID                               int64
-	Email                            string
-	Username                         string
-	Notes                            string
-	AvatarURL                        string
-	AvatarSource                     string
-	AvatarMIME                       string
-	AvatarByteSize                   int
-	AvatarSHA256                     string
-	PasswordHash                     string
-	Role                             string
-	Balance                          float64
+	ID             int64
+	Email          string
+	Username       string
+	Notes          string
+	AvatarURL      string
+	AvatarSource   string
+	AvatarMIME     string
+	AvatarByteSize int
+	AvatarSHA256   string
+	PasswordHash   string
+	Role           string
+	Balance        float64
+	// ikik 扩展：分账余额、积分与成长/分享相关字段。
 	RechargeBalance                  float64
 	InviteIncomeBalance              float64
 	ShareIncomeBalance               float64
@@ -34,9 +35,12 @@ type User struct {
 	ShareCardTextColor               string
 	AllowedGroups                    []int64
 	BlockedGroups                    []int64
-	RestrictPublicGroups             bool
-	RiskGroupBlocks                  []UserRiskGroupBlock
-	TokenVersion                     int64 // Incremented on password change to invalidate existing tokens
+	// RestrictPublicGroups narrows the public groups this user may bind to the
+	// ones listed in AllowedGroups. False keeps the default, where every public
+	// group is bindable.
+	RestrictPublicGroups bool
+	RiskGroupBlocks      []UserRiskGroupBlock
+	TokenVersion         int64 // Incremented on password change to invalidate existing tokens
 	// TokenVersionResolved indicates TokenVersion already contains the fingerprint-derived
 	// value expected in JWT claims and refresh-token state.
 	TokenVersionResolved bool

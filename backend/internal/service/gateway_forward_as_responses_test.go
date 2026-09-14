@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"ikik-api/internal/pkg/apicompat"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"ikik-api/internal/pkg/apicompat"
 )
 
 func TestAdaptResponsesClientToolsForAnthropic_FlattensNamespace(t *testing.T) {

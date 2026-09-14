@@ -3,8 +3,9 @@ package service
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/xai"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNormalizeOpenAIMessagesDispatchModelConfig(t *testing.T) {

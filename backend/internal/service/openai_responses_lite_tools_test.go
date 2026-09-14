@@ -11,10 +11,11 @@ import (
 	"strings"
 	"testing"
 
+	"ikik-api/internal/config"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"ikik-api/internal/config"
 )
 
 func TestNormalizeOpenAIResponsesLiteTools_MovesNamespacesAndKeepsSupportedTools(t *testing.T) {

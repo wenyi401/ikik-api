@@ -3,10 +3,11 @@ package admin
 import (
 	"net/http"
 
+	"github.com/gin-gonic/gin"
+
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 // GetEmailNotificationConfig returns Ops email notification config (DB-backed).

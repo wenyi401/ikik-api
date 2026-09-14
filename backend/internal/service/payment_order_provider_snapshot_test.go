@@ -7,8 +7,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/payment"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildPaymentOrderProviderSnapshot_ExcludesSensitiveConfig(t *testing.T) {

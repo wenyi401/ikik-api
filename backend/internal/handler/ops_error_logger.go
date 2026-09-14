@@ -18,11 +18,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gin-gonic/gin"
 	"ikik-api/internal/pkg/ctxkey"
 	"ikik-api/internal/pkg/ip"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -2189,9 +2190,17 @@ func classifyOpsErrorLog(c *gin.Context, errType, message, code string, status i
 	routingCapacityLimited := isOpsRoutingCapacityLimited(c)
 	clientBusinessLimited := service.HasOpsClientBusinessLimited(c)
 	localModelConfiguration := clientBusinessLimited && service.OpsClientBusinessLimitedReason(c) == service.OpsClientBusinessLimitedReasonLocalModelConfiguration
+	// 分组模型白名单的入口拒绝发生在调度之前（本地面请求策略，业务限流原因与
+	// 账号模型映射复用 local_model_configuration）：保持 classifyOpsPhase 的
+	// 自然分类（not_found/invalid_request → request，owner=client），不落到
+	// routing；上游归因仍由 suppressOpsUpstreamAttributionForLocalModelConfiguration 清空。
+	ingressModelNotAllowed := false
+	if reason, rejected := middleware2.GetIngressRejectReason(c); rejected && reason == middleware2.IngressRejectModelNotAllowed {
+		ingressModelNotAllowed = true
+	}
 	upstreamError := hasOpsUpstreamErrorContext(c)
 	accountAuthFailure := hasOpsAccountAuthFailure(c)
-	if localModelConfiguration {
+	if localModelConfiguration && !ingressModelNotAllowed {
 		phase = "routing"
 	} else if accountAuthFailure && !routingCapacityLimited {
 		phase = "account_auth"
@@ -2287,6 +2296,7 @@ func isOpsLocalBusinessLimitError(code string, msg string) bool {
 		strings.Contains(msg, "this group is restricted to claude code clients") ||
 		strings.Contains(msg, "this group does not allow /v1/messages dispatch") ||
 		strings.Contains(msg, "image generation is not enabled for this group") ||
+		(strings.Contains(msg, "reasoning effort") && strings.Contains(msg, "exceeds this group's limit")) ||
 		strings.Contains(msg, "token counting is not supported for this platform") ||
 		strings.Contains(msg, "images api is not supported for this platform") ||
 		(strings.Contains(msg, "model ") && strings.Contains(msg, " not in whitelist")) ||

@@ -7,10 +7,11 @@ import (
 	"regexp"
 	"strings"
 
+	"ikik-api/internal/pkg/xai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-	"ikik-api/internal/pkg/xai"
 )
 
 const (

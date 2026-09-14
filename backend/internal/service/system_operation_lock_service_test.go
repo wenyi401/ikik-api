@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	infraerrors "ikik-api/internal/pkg/errors"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSystemOperationLockService_AcquireBusyAndRelease(t *testing.T) {

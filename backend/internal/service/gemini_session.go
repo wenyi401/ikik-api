@@ -7,8 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cespare/xxhash/v2"
 	"ikik-api/internal/pkg/antigravity"
+
+	"github.com/cespare/xxhash/v2"
 )
 
 // shortHash 使用 XXHash64 + Base36 生成短 hash（16 字符）

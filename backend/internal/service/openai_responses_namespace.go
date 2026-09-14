@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"strings"
 
+	"ikik-api/internal/pkg/apicompat"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-	"ikik-api/internal/pkg/apicompat"
 )
 
 const openAIResponsesNamespaceNamesContextKey = "openai_responses_namespace_names"

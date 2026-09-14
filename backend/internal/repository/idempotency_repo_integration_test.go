@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 // hashedTestValue returns a unique SHA-256 hex string (64 chars) that fits VARCHAR(64) columns.

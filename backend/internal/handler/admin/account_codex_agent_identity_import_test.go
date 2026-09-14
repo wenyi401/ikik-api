@@ -9,8 +9,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/service"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNormalizeCodexImportEntryAcceptsAgentIdentityAuthJSON(t *testing.T) {

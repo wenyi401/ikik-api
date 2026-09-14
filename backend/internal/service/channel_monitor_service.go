@@ -11,8 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sync/errgroup"
 	"ikik-api/internal/domain"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // ChannelMonitorRepository 渠道监控数据访问接口。

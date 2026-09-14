@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/service"
+
+	"github.com/stretchr/testify/require"
 )
 
 type grokMediaEligibilityProberStub struct {

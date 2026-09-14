@@ -11,10 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/xai"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 type grokCredentialPersistingRepo struct {
@@ -292,6 +293,34 @@ func TestGetRequestCredentialMapsPermanentGrokOAuthFailureAndRedactsSecrets(t *t
 	require.Zero(t, events[0].UpstreamStatusCode)
 	require.NotContains(t, events[0].Message, "leaked-access")
 	require.NotContains(t, events[0].Message, "leaked-refresh")
+}
+
+func TestNewGrokCredentialFailoverDoesNotAttributeInferenceProxy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	proxyID := int64(43)
+	account := &Account{
+		ID:       701,
+		Platform: PlatformGrok,
+		ProxyID:  &proxyID,
+		Proxy:    &Proxy{ID: proxyID, Name: "bound-proxy"},
+	}
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	err := (&OpenAIGatewayService{}).newGrokCredentialFailover(c, account, grokCredentialFailureClass{
+		scope:   GatewayFailureScopeAccount,
+		reason:  GrokCredentialReasonAccountChanged,
+		action:  NextAccountRetry,
+		message: "credential unavailable",
+	})
+	require.Error(t, err)
+
+	rawEvents, ok := c.Get(OpsUpstreamErrorsKey)
+	require.True(t, ok)
+	events, ok := rawEvents.([]*OpsUpstreamErrorEvent)
+	require.True(t, ok)
+	require.Len(t, events, 1)
+	require.Nil(t, events[0].ProxyID)
+	require.Equal(t, opsProxyNameUnknown, events[0].ProxyName)
 }
 
 func TestGetRequestCredentialPermanentMappingsPersistAndInvalidate(t *testing.T) {

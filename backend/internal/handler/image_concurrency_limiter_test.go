@@ -8,12 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
-	middleware2 "ikik-api/internal/server/middleware"
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+
+	"ikik-api/internal/config"
+	middleware2 "ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 )
 
 func TestImageConcurrencyLimiter_DefaultDisabledAllowsRequests(t *testing.T) {

@@ -10,11 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"ikik-api/internal/config"
+	pluginv1 "ikik-api/pkg/pluginapi/v1"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"ikik-api/internal/config"
-	pluginv1 "ikik-api/pkg/pluginapi/v1"
 )
 
 type pluginTokenRepository struct {

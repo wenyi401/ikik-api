@@ -6,11 +6,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/response"
-	"ikik-api/internal/riskengine"
 	"ikik-api/internal/server/middleware"
+
+	"github.com/gin-gonic/gin"
+	"ikik-api/internal/riskengine"
 )
 
 type PromptAdminService interface {

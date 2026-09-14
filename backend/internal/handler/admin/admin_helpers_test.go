@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/handler/dto"
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/handler/dto"
+	"ikik-api/internal/service"
 )
 
 func TestParseTimeRange(t *testing.T) {
@@ -278,13 +279,15 @@ func TestOpenAIFastPolicySettingsFromDTO_NormalizesServiceTier(t *testing.T) {
 			Rules: []dto.OpenAIFastPolicyRule{
 				{ServiceTier: "priority", Action: "filter", Scope: "all"},
 				{ServiceTier: "flex", Action: "block", Scope: "oauth"},
+				{ServiceTier: "ultrafast", Action: "pass", Scope: "all"},
 				{ServiceTier: "all", Action: "pass", Scope: "apikey"},
 			},
 		}
 		out := openaiFastPolicySettingsFromDTO(in)
-		require.Len(t, out.Rules, 3)
+		require.Len(t, out.Rules, 4)
 		require.Equal(t, service.OpenAIFastTierPriority, out.Rules[0].ServiceTier)
 		require.Equal(t, service.OpenAIFastTierFlex, out.Rules[1].ServiceTier)
-		require.Equal(t, service.OpenAIFastTierAny, out.Rules[2].ServiceTier)
+		require.Equal(t, service.OpenAIFastTierUltrafast, out.Rules[2].ServiceTier)
+		require.Equal(t, service.OpenAIFastTierAny, out.Rules[3].ServiceTier)
 	})
 }

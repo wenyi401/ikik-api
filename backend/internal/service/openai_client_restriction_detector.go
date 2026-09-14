@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/openai"
+
+	"github.com/gin-gonic/gin"
 )
 
 // CodexOfficialClientsOnlyMessage 是 codex_cli_only 拒绝时面向客户端的通用兜底文案。

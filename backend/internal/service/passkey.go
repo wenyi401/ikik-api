@@ -9,10 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"ikik-api/internal/config"
-	infraerrors "ikik-api/internal/pkg/errors"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
+
+	"ikik-api/internal/config"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 const (

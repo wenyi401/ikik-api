@@ -14,9 +14,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/pagination"
+
+	"github.com/google/uuid"
 )
 
 const (

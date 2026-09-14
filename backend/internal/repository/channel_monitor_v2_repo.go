@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/lib/pq"
+
+	"ikik-api/internal/service"
 )
 
 type channelMonitorV2Repository struct{ db *sql.DB }

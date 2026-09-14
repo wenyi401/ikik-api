@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	infraerrors "ikik-api/internal/pkg/errors"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAccountIsOpenAILongContextBillingEnabled(t *testing.T) {

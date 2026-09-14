@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/service"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 本文件覆盖：worker 池已停止（进程关停窗口）时，计费任务不得静默丢失，

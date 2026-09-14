@@ -6,11 +6,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	middleware2 "ikik-api/internal/server/middleware"
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+
+	middleware2 "ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 )
 
 func TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling(t *testing.T) {

@@ -6,8 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"ikik-api/internal/pkg/openai"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/pkg/openai"
 )
 
 func TestOpenAIOAuthService_ValidateCodexPersonalAccessToken(t *testing.T) {

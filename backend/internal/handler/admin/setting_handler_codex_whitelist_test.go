@@ -9,10 +9,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"ikik-api/internal/config"
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/config"
+	"ikik-api/internal/service"
 )
 
 // updateSettingsCodexStatus PUT /settings 仅带给定字段，返回 HTTP 状态码（轻量 stub repo，无 DB）。

@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
+
+	"github.com/stretchr/testify/require"
 )
 
 type openAIAPIKeyHealthSettingRepo struct {

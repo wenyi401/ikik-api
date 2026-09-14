@@ -8,9 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"ikik-api/internal/pkg/logger"
+
 	coderws "github.com/coder/websocket"
 	"go.uber.org/zap"
-	"ikik-api/internal/pkg/logger"
 )
 
 const (
@@ -255,6 +256,9 @@ type OpenAIWSIngressHooks struct {
 	InitialTurnStartedAt time.Time
 	// MaxReasoningEffort limits explicit reasoning effort values for this WS session.
 	MaxReasoningEffort string
+	// MaxReasoningEffortOverLimit is the access control when an explicit effort
+	// exceeds the ceiling: downgrade (default) or deny.
+	MaxReasoningEffortOverLimit string
 	// ReasoningEffortMappings rewrites explicit effort values for this WS session.
 	ReasoningEffortMappings []ReasoningEffortMapping
 	TurnStarted             func(turn int, startedAt time.Time)

@@ -7,9 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/openai_compat"
+
+	"github.com/stretchr/testify/require"
 )
 
 func newResponsesProbeAccount(id int64) Account {

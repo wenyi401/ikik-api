@@ -10,11 +10,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	dbent "ikik-api/ent"
 	"ikik-api/ent/enttest"
 	"ikik-api/ent/securitysecret"
 	"ikik-api/internal/config"
-	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"

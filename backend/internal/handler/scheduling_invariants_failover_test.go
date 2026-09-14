@@ -344,7 +344,7 @@ func schedInvNewHandler(t *testing.T, group *service.Group, accounts []*service.
 		upstream,
 		nil,                // deferredService
 		nil, nil, nil, nil, // claudeTokenProvider / sessionLimitCache / rpmCache / digestStore
-		nil,                     // settingService
+		nil,                          // settingService
 		nil, nil, nil, nil, nil, nil, // tlsFPProfileService / channelService / resolver / compositeResolver / balanceNotifyService / userPlatformQuotaRepo
 	)
 

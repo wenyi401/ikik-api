@@ -6,11 +6,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/redeemcode"
 	"ikik-api/ent/user"
 	"ikik-api/internal/service"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestCreateWithEmailAliasGuardJoinsOuterTransaction 验证用户创建会加入调用方开启的

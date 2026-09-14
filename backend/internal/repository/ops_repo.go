@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/lib/pq"
+
+	"ikik-api/internal/service"
 )
 
 type opsRepository struct {

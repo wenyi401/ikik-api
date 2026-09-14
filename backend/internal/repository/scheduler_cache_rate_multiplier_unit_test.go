@@ -6,8 +6,9 @@ import (
 	"context"
 	"testing"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 // TestSchedulerCachePreservesRateMultiplier 钉死账号调度快照的两份 payload

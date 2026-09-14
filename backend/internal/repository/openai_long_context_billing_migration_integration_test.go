@@ -6,8 +6,9 @@ import (
 	"context"
 	"testing"
 
-	dbmigrations "ikik-api/migrations"
 	"github.com/stretchr/testify/require"
+
+	dbmigrations "ikik-api/migrations"
 )
 
 func TestMigration175EnforcesOpenAILongContextBillingWriteInvariant(t *testing.T) {

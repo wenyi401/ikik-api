@@ -15,14 +15,15 @@ import (
 	"testing"
 	"time"
 
+	coderws "github.com/coder/websocket"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
+
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/xai"
 	"ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	coderws "github.com/coder/websocket"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 )
 
 type grokCredentialHandlerRepo struct {

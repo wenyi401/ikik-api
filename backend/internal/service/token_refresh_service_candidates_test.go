@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"ikik-api/internal/config"
+
 	"github.com/imroc/req/v3"
 	"github.com/stretchr/testify/require"
-	"ikik-api/internal/config"
 )
 
 type tokenRefreshCandidateRepo struct {

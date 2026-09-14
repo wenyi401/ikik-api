@@ -9,10 +9,11 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+
 	"ikik-api/internal/pkg/response"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 var validSlugPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)

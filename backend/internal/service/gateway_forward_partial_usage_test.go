@@ -9,9 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"ikik-api/internal/config"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"ikik-api/internal/config"
 )
 
 // 本文件覆盖 issue #5148：流式转发中途出错（缺失 terminal 事件、读错误等）时，

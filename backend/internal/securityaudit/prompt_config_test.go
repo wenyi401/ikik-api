@@ -9,9 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
+
+	"github.com/stretchr/testify/require"
 )
 
 type prefixEncryptor struct{}

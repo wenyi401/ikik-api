@@ -16,9 +16,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	pluginv1 "ikik-api/pkg/pluginapi/v1"
+
 	hclog "github.com/hashicorp/go-hclog"
 	hcplugin "github.com/hashicorp/go-plugin"
-	pluginv1 "ikik-api/pkg/pluginapi/v1"
 )
 
 type pluginRuntime struct {

@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"ikik-api/internal/service"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 func TestChannelMonitorV2DisplayModelIsPlatformScoped(t *testing.T) {

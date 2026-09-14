@@ -9,10 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
+
 	dbent "ikik-api/ent"
 	"ikik-api/ent/user"
 	"ikik-api/internal/service"
-	"github.com/lib/pq"
 )
 
 const (

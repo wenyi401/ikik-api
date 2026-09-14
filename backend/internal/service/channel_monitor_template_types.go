@@ -1,8 +1,9 @@
 package service
 
 import (
-	infraerrors "ikik-api/internal/pkg/errors"
 	"time"
+
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 // ChannelMonitorRequestTemplate 请求模板（service 层模型）。

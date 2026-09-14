@@ -12,9 +12,10 @@ import (
 	"strings"
 	"testing"
 
+	"ikik-api/internal/config"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"ikik-api/internal/config"
 )
 
 // ---------------------------------------------------------------------------

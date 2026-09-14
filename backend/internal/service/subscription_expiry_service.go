@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"ikik-api/internal/pkg/pagination"
+
+	"github.com/google/uuid"
 )
 
 const (

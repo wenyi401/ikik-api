@@ -7,9 +7,10 @@ import (
 	"sort"
 	"strings"
 
+	"ikik-api/internal/pkg/claude"
+
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-	"ikik-api/internal/pkg/claude"
 )
 
 // toolNameRewriteKey 是 gin.Context 上存 ToolNameRewrite 映射的 key。

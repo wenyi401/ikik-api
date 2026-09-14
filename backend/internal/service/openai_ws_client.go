@@ -12,9 +12,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	openaiwsv2 "ikik-api/internal/service/openai_ws_v2"
+
 	coderws "github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
-	openaiwsv2 "ikik-api/internal/service/openai_ws_v2"
 )
 
 const openAIWSMessageReadLimitBytes int64 = 16 * 1024 * 1024

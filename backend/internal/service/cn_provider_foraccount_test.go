@@ -9,8 +9,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	infraerrors "ikik-api/internal/pkg/errors"
+
+	"github.com/stretchr/testify/require"
 )
 
 func codingAccount(platform string) *Account {
@@ -46,6 +47,7 @@ func TestValidateCodingPlanAccount_Matrix(t *testing.T) {
 		{name: "payg has no quota endpoint", account: paygAccount(PlatformKimi), wantReason: "CN_QUOTA_NOT_CODING_PLAN"},
 		{name: "kimi coding ok", account: codingAccount(PlatformKimi)},
 		{name: "zhipu coding ok", account: codingAccount(PlatformZhipu)},
+		{name: "minimax coding ok", account: codingAccount(PlatformMiniMax)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

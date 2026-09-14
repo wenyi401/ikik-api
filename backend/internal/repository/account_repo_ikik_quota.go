@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/lib/pq"
+
 	"ikik-api/internal/service"
 )
 

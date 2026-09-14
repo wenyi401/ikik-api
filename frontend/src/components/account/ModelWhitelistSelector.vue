@@ -226,6 +226,29 @@ const normalizedPlatforms = computed(() => {
 
 const primaryPlatform = computed(() => normalizedPlatforms.value[0] || 'openai')
 
+const upstreamSyncPlatforms = new Set([
+  "anthropic",
+  "openai",
+  "gemini",
+  "antigravity",
+  "grok",
+  "kimi",
+  "zhipu",
+  "deepseek",
+  "minimax",
+  "kiro"
+])
+const canSyncUpstream = computed(() => {
+  if (props.accountId) {
+    if (normalizedPlatforms.value.length === 0) return true
+    return normalizedPlatforms.value.some(platform => upstreamSyncPlatforms.has(platform.toLowerCase()))
+  }
+  if (props.syncCredentials) {
+    return upstreamSyncPlatforms.has(props.syncCredentials.platform.toLowerCase())
+  }
+  return false
+})
+
 const probeScopeKey = computed(() => normalizedPlatforms.value.join('|'))
 
 watch(probeScopeKey, () => {
@@ -260,13 +283,6 @@ const availableOptions = computed(() => {
     append({ value: model, label: model })
   }
   return Array.from(optionMap.values())
-})
-
-const upstreamSyncPlatforms = new Set(['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kiro'])
-const canSyncUpstream = computed(() => {
-  const credentials = props.syncCredentials
-  if (!credentials?.api_key) return false
-  return upstreamSyncPlatforms.has(credentials.platform.toLowerCase())
 })
 
 const filteredModels = computed(() => {
@@ -338,15 +354,43 @@ const syncUpstreamModels = async () => {
       appStore.showInfo(t('admin.accounts.syncUpstreamModelsEmpty'))
       return
     }
-    upstreamModels.value = models
-    emit('update:modelValue', models)
-    appStore.showSuccess(t('admin.accounts.syncUpstreamModelsSuccess', { count: models.length }))
-  } catch (error: any) {
-    appStore.showError(
-      error.response?.data?.message ||
-        error.response?.data?.detail ||
-        t('admin.accounts.syncUpstreamModelsFailed')
+
+    if (!props.accountId) {
+      emit('upstream-synced')
+    }
+
+    const newModels = [...props.modelValue]
+    let addedCount = 0
+    for (const model of upstreamModels) {
+      if (!newModels.includes(model)) {
+        newModels.push(model)
+        addedCount += 1
+      }
+    }
+
+    emit('update:modelValue', newModels)
+    const warnings = result.warnings ?? []
+    const hasPartialMetadata = warnings.some(
+      warning => warning.code === 'upstream_model_metadata_partial'
     )
+    const hasIncompleteMetadata = warnings.some(
+      warning => warning.code === 'upstream_model_metadata_incomplete'
+    )
+    if (hasIncompleteMetadata) {
+      appStore.showWarning(t('admin.accounts.syncUpstreamModelsMetadataIncomplete'))
+      return
+    }
+    if (addedCount > 0) {
+      appStore.showSuccess(t('admin.accounts.syncUpstreamModelsSuccess', { count: addedCount, total: upstreamModels.length }))
+    } else {
+      appStore.showInfo(t('admin.accounts.syncUpstreamModelsNoChanges', { count: upstreamModels.length }))
+    }
+    if (hasPartialMetadata) {
+      appStore.showWarning(t('admin.accounts.syncUpstreamModelsMetadataPartial'))
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : t('admin.accounts.syncUpstreamModelsFailed')
+    appStore.showError(t('admin.accounts.syncUpstreamModelsError', { message }))
   } finally {
     isSyncingUpstream.value = false
   }

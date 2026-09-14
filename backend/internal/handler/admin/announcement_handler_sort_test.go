@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/pkg/pagination"
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/pkg/pagination"
+	"ikik-api/internal/service"
 )
 
 type announcementRepoCapture struct {

@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"ikik-api/internal/pkg/logger"
 	"github.com/google/uuid"
+
+	"ikik-api/internal/pkg/logger"
 )
 
 const (

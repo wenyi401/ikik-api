@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"ikik-api/internal/config"
 )
 
@@ -113,6 +114,44 @@ func TestSettingService_ChannelMonitorHideThroughputDefaultsToPrivate(t *testing
 			SettingKeyChannelMonitorHideThroughput: value,
 		}}, &config.Config{}).GetChannelMonitorRuntime(context.Background())
 		require.False(t, runtime.HideThroughput, "value=%q", value)
+	}
+}
+
+func TestSettingService_ChannelMonitorShowQuotaFailsClosed(t *testing.T) {
+	// 缺省（迁移插入 'false' / 老库无行）一律不展示。
+	missingRuntime := NewSettingService(&settingPublicRepoStub{values: map[string]string{}}, &config.Config{}).GetChannelMonitorRuntime(context.Background())
+	require.False(t, missingRuntime.ShowQuota)
+	missingPublic, err := NewSettingService(&settingPublicRepoStub{values: map[string]string{}}, &config.Config{}).
+		GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, missingPublic.ChannelMonitorShowQuota)
+
+	// 仅字面 "true" 视为开启；其余值（含异常值）fail-closed。
+	runtime := NewSettingService(&settingPublicRepoStub{values: map[string]string{
+		SettingKeyChannelMonitorShowQuota: "true",
+	}}, &config.Config{}).GetChannelMonitorRuntime(context.Background())
+	require.True(t, runtime.ShowQuota)
+
+	for _, value := range []string{"false", "TRUE", "1", "yes", "on", "garbage"} {
+		rt := NewSettingService(&settingPublicRepoStub{values: map[string]string{
+			SettingKeyChannelMonitorShowQuota: value,
+		}}, &config.Config{}).GetChannelMonitorRuntime(context.Background())
+		require.False(t, rt.ShowQuota, "value=%q", value)
+	}
+}
+
+func TestSettingService_ChannelMonitorHideUserRankingDefaultsToVisible(t *testing.T) {
+	missing := NewSettingService(&settingPublicRepoStub{values: map[string]string{}}, &config.Config{}).GetChannelMonitorRuntime(context.Background())
+	require.False(t, missing.HideUserRanking)
+	public, err := NewSettingService(&settingPublicRepoStub{values: map[string]string{}}, &config.Config{}).GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, public.ChannelMonitorHideUserRanking)
+
+	for _, value := range []string{"true", "1", "on", "enabled"} {
+		runtime := NewSettingService(&settingPublicRepoStub{values: map[string]string{
+			SettingKeyChannelMonitorHideUserRanking: value,
+		}}, &config.Config{}).GetChannelMonitorRuntime(context.Background())
+		require.True(t, runtime.HideUserRanking, "value=%q", value)
 	}
 }
 

@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/ctxkey"
-	"github.com/stretchr/testify/require"
 )
 
 func profitControlWSAccount(id int64, rate float64, now time.Time) Account {

@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"testing"
 
-	"ikik-api/internal/pkg/apicompat"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+
+	"ikik-api/internal/pkg/apicompat"
 )
 
 // codexNamespaceRequestBody 模拟 Codex 多智能体请求：collaboration 命名空间声明 +

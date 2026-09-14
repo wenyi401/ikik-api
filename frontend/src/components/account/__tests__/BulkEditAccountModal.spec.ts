@@ -217,6 +217,112 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
+  it('全部目标为 Grok OAuth 时，官方主机 base_url 作为手动端点切换正常提交', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['grok'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-base-url-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-base-url').setValue('https://api.x.ai/v1')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      credentials: {
+        base_url: 'https://api.x.ai/v1'
+      }
+    })
+  })
+
+  it('所选全为 grok 时展示快捷端点，点击后填入并自动勾选 base_url', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['grok'],
+      selectedTypes: ['oauth']
+    })
+
+    const presets = wrapper.findAll('[data-testid="grok-base-url-preset"]')
+    expect(presets.length).toBe(5)
+
+    // 第三个预设为区域 API (us-east-1.api.x.ai/v1)
+    await presets[2].trigger('click')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      credentials: {
+        base_url: 'https://us-east-1.api.x.ai/v1'
+      }
+    })
+  })
+
+  it('所选含非 grok 平台时不展示快捷端点', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['grok', 'anthropic'],
+      selectedTypes: ['apikey']
+    })
+
+    expect(wrapper.findAll('[data-testid="grok-base-url-preset"]').length).toBe(0)
+  })
+
+  it.each(['kimi', 'zhipu', 'deepseek', 'minimax'])('全部目标为 %s API Key 时展示请求头覆写', (platform) => {
+    const wrapper = mountModal({
+      selectedPlatforms: [platform],
+      selectedTypes: ['apikey']
+    })
+
+    expect(wrapper.find('#bulk-edit-header-override-enabled').exists()).toBe(true)
+  })
+
+  it.each(['kimi', 'zhipu', 'deepseek', 'minimax'])('目标为 %s OAuth 时不展示请求头覆写', (platform) => {
+    const wrapper = mountModal({
+      selectedPlatforms: [platform],
+      selectedTypes: ['oauth']
+    })
+
+    expect(wrapper.find('#bulk-edit-header-override-enabled').exists()).toBe(false)
+  })
+
+  it('全部目标为 Grok OAuth 时，第三方 base_url 正常提交', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['grok'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-base-url-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-base-url').setValue('https://relay.example.com/v1')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      credentials: {
+        base_url: 'https://relay.example.com/v1'
+      }
+    })
+  })
+
+  it('混合类型选择（含 apikey）时官方主机 base_url 不拦截', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['grok'],
+      selectedTypes: ['apikey', 'oauth']
+    })
+
+    await wrapper.get('#bulk-edit-base-url-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-base-url').setValue('https://api.x.ai/v1')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      credentials: {
+        base_url: 'https://api.x.ai/v1'
+      }
+    })
+  })
+
   it('OpenAI 账号批量编辑可开启自动透传', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['openai'],
@@ -798,7 +904,14 @@ describe('BulkEditAccountModal', () => {
       status: 'active'
     })
   })
-
+  // issue #6327：批量编辑无法把 Codex 指纹收敛关掉。
+  //
+  // 批量更新走 JSONB 顶层合并（extra = COALESCE(extra,'{}') || payload），删掉 payload
+  // 里的键只表示「本次不更新该键」，清不掉账号已有的 device/session/full；而且只删不写会让
+  // payload 退化成 {extra:{}}，被后端 len(req.Extra) > 0 判为空更新直接 400
+  // "No updates provided"。Create/Edit 那两个表单能删键，是因为它们提交完整 extra 对象、
+  // 后端整体 SetExtra 覆盖——两种持久化语义不能共用同一套写法。
+  it('OpenAI OAuth 批量编辑选择「关闭」时应显式提交 codex_fingerprint_mode=off（issue #6327）', async () => {
   it('用户作用域批量编辑分组只展示当前账号平台兼容分组', async () => {
     const wrapper = mountModal({
       accountScope: 'user',
@@ -820,12 +933,10 @@ describe('BulkEditAccountModal', () => {
         `
       }
     })
-
     expect(wrapper.find('#bulk-edit-share-mode-enabled').exists()).toBe(true)
     expect(wrapper.find('#bulk-edit-groups-enabled').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('private-u9-openai')
   })
-
   it('用户作用域提交分组更新时调用用户接口', async () => {
     const wrapper = mountModal({
       accountScope: 'user',
@@ -854,18 +965,15 @@ describe('BulkEditAccountModal', () => {
         `
       }
     })
-
     await wrapper.get('#bulk-edit-share-mode-enabled').setValue(true)
     await wrapper.get('select[aria-labelledby="bulk-edit-share-mode-label"]').setValue('public')
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
-
     expect(accountsAPI.bulkUpdate).toHaveBeenCalledWith([1, 2], {
       share_mode: 'public'
     })
     expect(adminAPI.accounts.bulkUpdate).not.toHaveBeenCalled()
   })
-
   it('allows a user to apply a proxy and public sharing together', async () => {
     const wrapper = mountModal({
       accountScope: 'user',
@@ -883,24 +991,20 @@ describe('BulkEditAccountModal', () => {
         `
       }
     })
-
     await wrapper.get('#bulk-edit-proxy-enabled').setValue(true)
     await wrapper.get('[data-testid="select-proxy"]').trigger('click')
     await flushPromises()
     await wrapper.get('#bulk-edit-share-mode-enabled').setValue(true)
-
     const shareModeSelect = wrapper.get('select[aria-labelledby="bulk-edit-share-mode-label"]')
     expect(shareModeSelect.get('option[value="public"]').attributes('disabled')).toBeUndefined()
     await shareModeSelect.setValue('public')
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
-
     expect(accountsAPI.bulkUpdate).toHaveBeenCalledWith([1, 2], {
       proxy_id: 7,
       share_mode: 'public'
     })
   })
-
   it('用户作用域批量改为公共共享时支持后台任务响应', async () => {
     vi.mocked(accountsAPI.bulkUpdate).mockResolvedValueOnce({
       async: true,
@@ -924,12 +1028,10 @@ describe('BulkEditAccountModal', () => {
       selectedPlatforms: ['openai'],
       selectedTypes: ['oauth']
     })
-
     await wrapper.get('#bulk-edit-share-mode-enabled').setValue(true)
     await wrapper.get('select[aria-labelledby="bulk-edit-share-mode-label"]').setValue('public')
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
-
     expect(accountsAPI.bulkUpdate).toHaveBeenCalledWith([1, 2], {
       share_mode: 'public'
     })
@@ -940,13 +1042,14 @@ describe('BulkEditAccountModal', () => {
       })
     ])
   })
-
   it('admin OpenAI bulk edit submits account_level', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['openai'],
       selectedTypes: ['oauth']
     })
 
+    // 下拉框默认就是 off，用户只勾选「编辑该项」即提交——正是 issue 描述的操作路径。
+    await wrapper.get('#bulk-edit-openai-codex-fingerprint-mode-enabled').setValue(true)
     await wrapper.get('#bulk-edit-account-level-enabled').setValue(true)
     await wrapper.get('[data-testid="bulk-edit-account-level-select"]').setValue('plus')
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
@@ -954,6 +1057,55 @@ describe('BulkEditAccountModal', () => {
 
     expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
     expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        codex_fingerprint_mode: 'off'
+      }
+    })
+
+    // 缺陷时期的形状：extra 为空对象，后端必然回 400。显式钉死不得回退。
+    const payload = vi.mocked(adminAPI.accounts.bulkUpdate).mock.calls[0][1] as {
+      extra: Record<string, unknown>
+    }
+    expect(Object.keys(payload.extra).length).toBeGreaterThan(0)
+  })
+
+  // 与兄弟字段 codex_cli_only 的写法对齐：关闭态同样落显式值，不靠省略表达。
+  it('OpenAI OAuth 批量编辑显式 opt-in 模式仍原样提交', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-openai-codex-fingerprint-mode-enabled').setValue(true)
+    await wrapper
+      .get('[data-testid="bulk-codex-fingerprint-mode-select"]')
+      .setValue('session')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        codex_fingerprint_mode: 'session'
+      }
+    })
+  })
+
+  // 未勾选「编辑该项」时不得写入该键，否则批量编辑别的字段会顺手清掉账号的收敛设置。
+  it('未勾选编辑该项时不写入 codex_fingerprint_mode', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-openai-codex-cli-only-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-openai-codex-cli-only-toggle').trigger('click')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        codex_cli_only: true
+      }
       account_level: 'plus'
     })
   })

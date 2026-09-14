@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/domain"
 	"ikik-api/internal/service"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 配额模式 repo 层集成测试：

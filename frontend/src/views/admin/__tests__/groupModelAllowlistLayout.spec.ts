@@ -10,10 +10,17 @@ const groupsViewSource = readFileSync(
   "utf8",
 );
 
-describe("groups models list layout", () => {
+describe("groups model allowlist layout", () => {
   it("keeps the toolbar outside of the scrolling list content", () => {
     expect(groupsViewSource).toContain("overflow-hidden rounded-lg border");
     expect(groupsViewSource).toContain("max-h-64 space-y-2 overflow-y-auto p-2");
     expect(groupsViewSource).not.toContain("sticky top-0");
+  });
+
+  it("uses a wide dialog and keeps model pricing controls responsive", () => {
+    expect(groupsViewSource).toContain('width="wide"');
+    expect(groupsViewSource).toContain(
+      "btn btn-secondary shrink-0 whitespace-nowrap",
+    );
   });
 });

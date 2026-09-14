@@ -3,8 +3,9 @@ package service
 import (
 	"math"
 
-	"github.com/shopspring/decimal"
 	"ikik-api/internal/payment"
+
+	"github.com/shopspring/decimal"
 )
 
 const defaultBalanceRechargeMultiplier = 1.0

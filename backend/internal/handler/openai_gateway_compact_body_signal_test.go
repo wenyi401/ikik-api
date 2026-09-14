@@ -6,11 +6,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
+
+	"ikik-api/internal/service"
 )
 
 func newCompactBodySignalTestContext(t *testing.T, path string, body []byte) *gin.Context {

@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/internal/payment"
 	infraerrors "ikik-api/internal/pkg/errors"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestUnionFloat(t *testing.T) {

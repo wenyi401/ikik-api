@@ -3,8 +3,9 @@ package service
 import (
 	"testing"
 
-	"ikik-api/internal/pkg/antigravity"
 	"github.com/stretchr/testify/assert"
+
+	"ikik-api/internal/pkg/antigravity"
 )
 
 func TestNormalizeAntigravitySubscription_PaidTierWithIneligible(t *testing.T) {

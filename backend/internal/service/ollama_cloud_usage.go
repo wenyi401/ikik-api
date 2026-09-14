@@ -22,6 +22,7 @@ import (
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
+
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/logger"
@@ -835,7 +836,7 @@ func OllamaCloudUsageStateFromAccount(account *Account) *OllamaCloudUsageState {
 // （ollamaCloudUsagePlatformsSQL）是本列表的镜像，两侧必须同步修改。
 func isOllamaCloudUsagePlatform(platform string) bool {
 	switch platform {
-	case PlatformOpenAI, PlatformAnthropic, PlatformKimi, PlatformZhipu, PlatformDeepseek:
+	case PlatformOpenAI, PlatformAnthropic, PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformMiniMax:
 		return true
 	default:
 		return false

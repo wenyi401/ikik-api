@@ -8,9 +8,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"ikik-api/internal/pkg/ctxkey"
 	"ikik-api/internal/pkg/logger"
+
+	"github.com/gin-gonic/gin"
 )
 
 type testLogSink struct {

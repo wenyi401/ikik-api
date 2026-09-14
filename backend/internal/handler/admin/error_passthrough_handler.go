@@ -3,10 +3,11 @@ package admin
 import (
 	"strconv"
 
+	"github.com/gin-gonic/gin"
+
 	"ikik-api/internal/model"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 // ErrorPassthroughHandler 处理错误透传规则的 HTTP 请求

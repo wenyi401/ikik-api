@@ -6,8 +6,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/ctxkey"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGatewayService_isModelSupportedByAccount_AntigravityModelMapping(t *testing.T) {

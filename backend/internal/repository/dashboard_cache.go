@@ -5,9 +5,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"ikik-api/internal/config"
 	"ikik-api/internal/service"
-	"github.com/redis/go-redis/v9"
 )
 
 const dashboardStatsCacheKey = "dashboard:stats:v1"

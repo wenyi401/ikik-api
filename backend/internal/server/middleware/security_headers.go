@@ -7,8 +7,9 @@ import (
 	"log"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"ikik-api/internal/config"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (

@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"ikik-api/internal/pkg/servertiming"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (

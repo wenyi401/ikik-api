@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/zap"
 	"ikik-api/internal/pkg/logger"
+
+	"go.uber.org/zap"
 )
 
 const openAIAPIKeyHealthBreakerReason = "openai_apikey_health_breaker"

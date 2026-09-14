@@ -16,11 +16,11 @@ type walletBucketDebitBreakdown struct {
 }
 
 type walletBucketUpdateResult struct {
-	NewBalance          float64
-	NewRechargeBalance  float64
-	NewInviteBalance    float64
-	NewShareBalance     float64
-	Debit               walletBucketDebitBreakdown
+	NewBalance         float64
+	NewRechargeBalance float64
+	NewInviteBalance   float64
+	NewShareBalance    float64
+	Debit              walletBucketDebitBreakdown
 }
 
 func creditWalletBucket(ctx context.Context, exec sqlQueryExecutor, userID int64, amount float64, bucket string) (float64, error) {

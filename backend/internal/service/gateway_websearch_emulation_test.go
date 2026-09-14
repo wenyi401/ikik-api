@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/websearch"
+
+	"github.com/stretchr/testify/require"
 )
 
 // --- isOnlyWebSearchToolInBody ---

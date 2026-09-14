@@ -15,8 +15,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/sync/singleflight"
 	"ikik-api/internal/config"
+
+	"golang.org/x/sync/singleflight"
 )
 
 const (

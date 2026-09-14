@@ -1,8 +1,9 @@
 package handler
 
 import (
-	"go.uber.org/zap"
 	"ikik-api/internal/service"
+
+	"go.uber.org/zap"
 )
 
 // openAIPassthroughFailoverState tracks whether this forwarding loop has attempted

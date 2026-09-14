@@ -10,8 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/redis/go-redis/v9"
+
+	"ikik-api/internal/service"
 )
 
 const (

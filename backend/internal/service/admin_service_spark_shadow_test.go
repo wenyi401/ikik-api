@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/pagination"
+
+	"github.com/stretchr/testify/require"
 )
 
 // sparkShadowRepoStub 是 AccountRepository 的内存测试桩，

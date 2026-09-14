@@ -7,9 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"ikik-api/internal/model"
 	"ikik-api/internal/service"
-	"github.com/redis/go-redis/v9"
 )
 
 const (

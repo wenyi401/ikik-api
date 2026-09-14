@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/pagination"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestMergeBalanceHistoryCodesIncludesAffiliateTransfersByDefault(t *testing.T) {

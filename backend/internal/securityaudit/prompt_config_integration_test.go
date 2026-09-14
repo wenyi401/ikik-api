@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
-	"github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/repository"
 	"ikik-api/internal/service"
+
+	"github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/require"
 )
 
 const promptAuditRedisTestEnv = "PROMPT_AUDIT_TEST_REDIS_ADDR"

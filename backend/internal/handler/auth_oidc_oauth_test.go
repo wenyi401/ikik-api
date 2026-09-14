@@ -14,9 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/stretchr/testify/require"
 	dbent "ikik-api/ent"
 	"ikik-api/ent/authidentity"
 	"ikik-api/ent/identityadoptiondecision"
@@ -25,6 +22,10 @@ import (
 	"ikik-api/internal/config"
 	servermiddleware "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOIDCSyntheticEmailStableAndDistinct(t *testing.T) {

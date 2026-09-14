@@ -4,9 +4,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/openai"
+
+	"github.com/stretchr/testify/require"
 )
 
 func requireOpenAICodexProbeHeaders(t *testing.T, h http.Header) {

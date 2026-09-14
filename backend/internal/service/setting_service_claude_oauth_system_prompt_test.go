@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
+
+	"github.com/stretchr/testify/require"
 )
 
 func resetGatewayForwardingSettingsCacheForTest(t *testing.T) {

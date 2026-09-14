@@ -11,8 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	infraerrors "ikik-api/internal/pkg/errors"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestBatchImageProviderRegistry_ReturnsGeminiAPI(t *testing.T) {

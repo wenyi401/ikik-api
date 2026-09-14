@@ -5,12 +5,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"ikik-api/internal/pkg/ctxkey"
-	openaipkg "ikik-api/internal/pkg/openai"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
+
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+	openaipkg "ikik-api/internal/pkg/openai"
 )
 
 // 本文件保留 WebSocket 调用点（openai_gateway_handler.go ResponsesWebSocket 的

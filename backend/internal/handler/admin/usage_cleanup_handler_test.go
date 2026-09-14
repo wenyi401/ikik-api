@@ -12,14 +12,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
+
 	"ikik-api/internal/config"
 	"ikik-api/internal/handler/dto"
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/pkg/response"
 	"ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 )
 
 type cleanupRepoStub struct {

@@ -13,10 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
+
 	_ "ikik-api/ent/runtime"
 	"ikik-api/internal/config"
 	"ikik-api/internal/repository"
-	"github.com/lib/pq"
 )
 
 const classifierVersion = "ingress-reject-v1"

@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/pkg/servertiming"
 	"github.com/redis/go-redis/v9"
+
+	"ikik-api/internal/pkg/servertiming"
 )
 
 func TestServerTimingRedisHookRecordsCommands(t *testing.T) {

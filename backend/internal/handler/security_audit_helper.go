@@ -5,12 +5,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
-	"ikik-api/internal/gatewayhook"
 	"ikik-api/internal/securityaudit"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
+
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+
+	"ikik-api/internal/gatewayhook"
 )
 
 const securityAuditCompletedContextKey = "sub2api.security_audit.completed"

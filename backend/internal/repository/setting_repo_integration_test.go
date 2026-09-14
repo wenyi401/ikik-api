@@ -6,8 +6,9 @@ import (
 	"context"
 	"testing"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/suite"
+
+	"ikik-api/internal/service"
 )
 
 type SettingRepoSuite struct {

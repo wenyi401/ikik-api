@@ -6,10 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/claude"
+
+	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 type gatewayTTLSettingRepo struct {

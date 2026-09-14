@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
 	coderws "github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/config"
 )
 
 type liveTestFrame struct {

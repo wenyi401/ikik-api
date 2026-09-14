@@ -9,12 +9,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/ip"
 	"ikik-api/internal/pkg/response"
 	middleware2 "ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
+
+	"github.com/gin-gonic/gin"
 )
 
 type PasskeyHandler struct {

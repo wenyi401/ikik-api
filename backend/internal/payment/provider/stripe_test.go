@@ -7,9 +7,10 @@ import (
 	"context"
 	"testing"
 
-	"ikik-api/internal/payment"
 	"github.com/stretchr/testify/require"
 	stripe "github.com/stripe/stripe-go/v85"
+
+	"ikik-api/internal/payment"
 )
 
 type stripeRefundBackend struct {

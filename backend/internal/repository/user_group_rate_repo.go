@@ -5,8 +5,9 @@ import (
 	"database/sql"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/lib/pq"
+
+	"ikik-api/internal/service"
 )
 
 type userGroupRateRepository struct {

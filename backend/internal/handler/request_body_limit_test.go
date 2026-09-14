@@ -7,9 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"ikik-api/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/server/middleware"
 )
 
 func TestRequestBodyLimitTooLarge(t *testing.T) {

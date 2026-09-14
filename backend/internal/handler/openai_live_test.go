@@ -8,9 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 func TestParseLiveCallRequestMultipartPreservesSession(t *testing.T) {

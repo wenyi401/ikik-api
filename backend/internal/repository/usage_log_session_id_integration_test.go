@@ -9,8 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 // TestUsageLog_SessionIDPersistence proves session_id round-trips from insert to

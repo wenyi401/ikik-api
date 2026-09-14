@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"ikik-api/internal/pkg/apicompat"
+
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"ikik-api/internal/pkg/apicompat"
 )
 
 func TestEffectiveOpenAISSEEventTypePrefersPayload(t *testing.T) {

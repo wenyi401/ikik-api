@@ -5,8 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestOpenAIGatewayService_SelectAccountWithScheduler_CompactPrefersSupportedOverUnknown

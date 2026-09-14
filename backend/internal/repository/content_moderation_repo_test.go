@@ -8,8 +8,11 @@ import (
 	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	"github.com/stretchr/testify/require"
+
 	"ikik-api/internal/service"
+
+	"github.com/stretchr/testify/require"
+
 )
 
 func TestBuildContentModerationLogWhere_BlockedIncludesAllBlockActions(t *testing.T) {

@@ -9,10 +9,11 @@ import (
 	"sync"
 	"testing"
 
+	"ikik-api/internal/pkg/xai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"ikik-api/internal/pkg/xai"
 )
 
 func newGrokCacheTestContext(apiKeyID int64) *gin.Context {

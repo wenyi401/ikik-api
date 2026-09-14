@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/redis/go-redis/v9"
+
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/service"
-	"github.com/redis/go-redis/v9"
 )
 
 // 并发控制缓存常量定义
@@ -1102,10 +1103,12 @@ func (c *concurrencyCache) reconcileExpiredIndexCandidates(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	members, err := c.rdb.ZRangeByScore(ctx, spec.indexKey, &redis.ZRangeBy{
-		Min:   "-inf",
-		Max:   strconv.FormatInt(now, 10),
-		Count: activeIndexCleanupBatchSize,
+	members, err := c.rdb.ZRangeArgs(ctx, redis.ZRangeArgs{
+		Key:     spec.indexKey,
+		Start:   "-inf",
+		Stop:    strconv.FormatInt(now, 10),
+		ByScore: true,
+		Count:   activeIndexCleanupBatchSize,
 	}).Result()
 	if err != nil {
 		return fmt.Errorf("read expired index %s: %w", spec.indexKey, err)

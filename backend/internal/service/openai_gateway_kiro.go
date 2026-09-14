@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+
 	"ikik-api/internal/pkg/apicompat"
 	"ikik-api/internal/pkg/kiro"
 	"ikik-api/internal/pkg/logger"
@@ -215,7 +216,7 @@ func (s *OpenAIGatewayService) handleKiroOAuthErrorResponse(
 	}
 	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
 
-	if s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody) {
+	if s.shouldFailoverOpenAIUpstreamResponse(account, resp.StatusCode, upstreamMsg, respBody) {
 		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 			Platform:           account.Platform,
 			AccountID:          account.ID,

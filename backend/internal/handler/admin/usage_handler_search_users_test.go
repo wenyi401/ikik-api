@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 // 捕获 ListUsers 入参、返回一个已删用户的 admin service 桩。

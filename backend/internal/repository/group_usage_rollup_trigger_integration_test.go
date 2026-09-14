@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"ikik-api/migrations"
+
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
-	"ikik-api/migrations"
 )
 
 func TestGroupUsageRollupTriggerInvalidatesCascadedHistoricalDelete(t *testing.T) {

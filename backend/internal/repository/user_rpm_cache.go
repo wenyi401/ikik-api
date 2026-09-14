@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/redis/go-redis/v9"
+
+	"ikik-api/internal/service"
 )
 
 // 用户/分组级 RPM 计数器 Redis 实现。

@@ -3,8 +3,9 @@ package repository
 import (
 	"testing"
 
-	"ikik-api/internal/config"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/config"
 )
 
 func TestNewDashboardCacheKeyPrefix(t *testing.T) {

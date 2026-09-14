@@ -3,11 +3,12 @@ package middleware
 import (
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"ikik-api/internal/pkg/ctxkey"
 	"ikik-api/internal/pkg/ip"
 	"ikik-api/internal/pkg/logger"
+
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 // Logger 请求日志中间件

@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/service"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAccountUpdatePreservesConcurrentProbeSnapshot(t *testing.T) {

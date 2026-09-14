@@ -6,9 +6,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/openai"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetCodexRestrictionPolicy(t *testing.T) {

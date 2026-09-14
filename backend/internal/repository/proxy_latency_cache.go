@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"ikik-api/internal/service"
 	"github.com/redis/go-redis/v9"
+
+	"ikik-api/internal/service"
 )
 
 const proxyLatencyKeyPrefix = "proxy:latency:"

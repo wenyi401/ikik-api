@@ -14,13 +14,14 @@ import (
 	"testing"
 	"time"
 
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/openai"
+
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"ikik-api/internal/config"
-	"ikik-api/internal/pkg/openai"
 )
 
 func TestOpenAIGatewayService_Forward_WSv2_SuccessAndBindSticky(t *testing.T) {

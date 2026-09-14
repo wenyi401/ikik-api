@@ -9,9 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/imroc/req/v3"
 	"ikik-api/internal/config"
 	infraerrors "ikik-api/internal/pkg/errors"
+
+	"github.com/imroc/req/v3"
 )
 
 // CoerceDingTalkCorpPolicyForWrite 是 coerceDeprecatedDingTalkCorpPolicy 的导出版本，

@@ -8,11 +8,12 @@ import (
 	"strings"
 	"testing"
 
+	"ikik-api/internal/config"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"ikik-api/internal/config"
 )
 
 // compactProbeSSESuccessBody 是原生 v2 压缩成功的最小 SSE 形态：

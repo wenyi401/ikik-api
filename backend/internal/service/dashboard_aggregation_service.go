@@ -8,9 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/logger"
+
+	"github.com/google/uuid"
 )
 
 const (

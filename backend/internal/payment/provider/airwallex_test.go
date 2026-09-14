@@ -16,8 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/payment"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/payment"
 )
 
 func TestNewAirwallexValidatesConfig(t *testing.T) {

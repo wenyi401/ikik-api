@@ -12,12 +12,14 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
+
+	"ikik-api/internal/config"
+	pluginv1 "ikik-api/pkg/pluginapi/v1"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"ikik-api/internal/config"
-	pluginv1 "ikik-api/pkg/pluginapi/v1"
 )
 
 func TestPluginPackageInstallerInstallUnsignedDevelopmentPackage(t *testing.T) {
@@ -33,7 +35,9 @@ func TestPluginPackageInstallerInstallUnsignedDevelopmentPackage(t *testing.T) {
 	assert.FileExists(t, installation.ArtifactPath)
 	info, statErr := os.Stat(installation.BinaryPath)
 	require.NoError(t, statErr)
-	assert.NotZero(t, info.Mode()&0o100)
+	if runtime.GOOS != "windows" {
+		assert.NotZero(t, info.Mode()&0o100)
+	}
 	assert.Contains(t, installation.InstallPath, filepath.Join("installed", "com.example.openai-transport"))
 }
 

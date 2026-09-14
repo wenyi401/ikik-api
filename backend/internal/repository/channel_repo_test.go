@@ -8,9 +8,10 @@ import (
 	"fmt"
 	"testing"
 
-	"ikik-api/internal/pkg/pagination"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/pkg/pagination"
 )
 
 // --- marshalModelMapping ---

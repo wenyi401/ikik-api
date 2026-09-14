@@ -6,10 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 // partialMessageStartSSE 模拟 handleStreamingResponse 已写入的首批 SSE 事件。

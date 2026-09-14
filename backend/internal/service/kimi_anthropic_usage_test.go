@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/apicompat"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseSSEUsagePassthroughNormalizesKimiPromptUsage(t *testing.T) {

@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/timezone"
-	"github.com/stretchr/testify/require"
 )
 
 // WithOpenAIRequestPricingContext：装门 + 固定 pricingAt；显式抑制标记

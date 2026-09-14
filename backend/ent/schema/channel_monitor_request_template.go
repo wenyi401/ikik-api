@@ -39,7 +39,12 @@ func (ChannelMonitorRequestTemplate) Fields() []ent.Field {
 			NotEmpty().
 			MaxLen(100),
 		field.Enum("provider").
-			Values("openai", "anthropic", "gemini"),
+			Values("openai", "anthropic", "gemini", "grok",
+				"antigravity", "kimi", "zhipu", "deepseek", "minimax"),
+		field.String("api_mode").
+			Default("chat_completions").
+			MaxLen(32).
+			Comment("OpenAI request protocol: chat_completions or responses; non-OpenAI uses chat_completions"),
 		field.String("description").
 			Optional().
 			Default("").
@@ -61,9 +66,7 @@ func (ChannelMonitorRequestTemplate) Fields() []ent.Field {
 		// body_override: JSON 对象，根据 body_override_mode 使用。
 		// 用 map[string]any 以便前端传任意结构（含嵌套）。
 		field.JSON("body_override", map[string]any{}).
-			Optional(), field.String("api_mode").
-			Default("chat_completions").
-			MaxLen(32).Comment("OpenAI request protocol: chat_completions or responses; non-OpenAI uses chat_completions"),
+			Optional(),
 	}
 }
 
@@ -77,8 +80,7 @@ func (ChannelMonitorRequestTemplate) Edges() []ent.Edge {
 func (ChannelMonitorRequestTemplate) Indexes() []ent.Index {
 	return []ent.Index{
 		// 同一 provider 内 name 唯一：允许 Anthropic + OpenAI 重名 "伪装官方客户端"。
-		index.Fields("provider", "name").Unique(), index.Fields("provider",
-
-			"api_mode"),
+		index.Fields("provider", "name").Unique(),
+		index.Fields("provider", "api_mode"),
 	}
 }

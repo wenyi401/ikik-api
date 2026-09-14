@@ -3,9 +3,10 @@ package service
 import (
 	"testing"
 
+	pluginv1 "ikik-api/pkg/pluginapi/v1"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	pluginv1 "ikik-api/pkg/pluginapi/v1"
 )
 
 func TestEvaluatePluginCompatibility(t *testing.T) {

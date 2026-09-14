@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/pagination"
+
+	"github.com/stretchr/testify/require"
 )
 
 // accountRepoStub 是 AccountRepository 接口的测试桩实现。

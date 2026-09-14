@@ -5,10 +5,11 @@ import (
 	"net/http"
 	"strings"
 
-	"ikik-api/internal/pkg/logger"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 	"golang.org/x/net/http/httpguts"
+
+	"ikik-api/internal/pkg/logger"
 )
 
 const openAICodexRoutingHintHeader = "x-codex-routing-hint"
@@ -37,14 +38,14 @@ func setOpenAICodexRoutingHint(headers http.Header, account *Account, model stri
 
 	// Codex treats "default" as an explicit standard-routing sentinel, not as a
 	// service tier sent to the backend. Fast follows the gateway's existing
-	// canonicalization and therefore becomes "priority"; flex stays "flex".
+	// canonicalization and therefore becomes "priority"; flex and ultrafast
+	// stay as themselves.
 	canonicalTier := normalizedOpenAIServiceTierValue(serviceTier)
-	// This backport has no Codex model-catalog snapshot with which to validate
-	// arbitrary tier ids. Keep the hint to the two effective tiers Codex itself
-	// selects; default, missing, and other gateway-compatible API values remain
-	// model-only rather than expanding the ChatGPT routing protocol here.
+	// Keep the hint to the effective tiers Codex itself selects. default,
+	// missing, auto, and scale remain model-only rather than expanding the
+	// ChatGPT routing protocol here.
 	switch canonicalTier {
-	case OpenAIFastTierPriority, OpenAIFastTierFlex:
+	case OpenAIFastTierPriority, OpenAIFastTierFlex, OpenAIFastTierUltrafast:
 	default:
 		canonicalTier = ""
 	}

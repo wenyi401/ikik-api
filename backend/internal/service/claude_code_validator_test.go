@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/ctxkey"
+
+	"github.com/stretchr/testify/require"
 )
 
 const claudeCodeMetadataUserIDJSON = `{"device_id":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","account_uuid":"","session_id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}`
@@ -45,9 +46,10 @@ func TestClaudeCodeValidator_MessagesWithoutProbeStillNeedStrictValidation(t *te
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/v1/messages", nil)
 	req.Header.Set("User-Agent", "claude-cli/1.2.3 (darwin; arm64)")
 
+	// max_tokens=2 不是探测请求：没有 system prompt 仍走严格校验并被拒。
 	ok := validator.Validate(req, map[string]any{
 		"model":      "claude-haiku-4-5",
-		"max_tokens": 1,
+		"max_tokens": 2,
 	})
 	require.False(t, ok)
 }
@@ -573,4 +575,27 @@ func TestSetGetClaudeCodeVersion(t *testing.T) {
 
 	ctx = SetClaudeCodeVersion(ctx, "2.1.63")
 	require.Equal(t, "2.1.63", GetClaudeCodeVersion(ctx))
+}
+
+func TestClaudeCodeValidator_MaxTokensOneProbeIsNotLimitedToHaiku(t *testing.T) {
+	validator := NewClaudeCodeValidator()
+
+	for _, model := range []string{"claude-sonnet-4-5", "claude-opus-4-1", "claude-haiku-4-5"} {
+		t.Run(model, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "http://example.com/v1/messages", nil)
+			req.Header.Set("User-Agent", "claude-cli/2.1.260 (external, cli)")
+			// No context flag, no system prompt, no extra headers: the body alone marks the probe.
+			for _, mt := range []any{float64(1), 1} {
+				require.True(t, validator.Validate(req, map[string]any{"model": model, "max_tokens": mt}), "max_tokens=%v (%T)", mt, mt)
+			}
+		})
+	}
+}
+
+func TestClaudeCodeValidator_MaxTokensOneProbeStillRequiresClaudeCodeUA(t *testing.T) {
+	validator := NewClaudeCodeValidator()
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/v1/messages", nil)
+	req.Header.Set("User-Agent", "python-requests/2.32")
+
+	require.False(t, validator.Validate(req, map[string]any{"model": "claude-sonnet-4-5", "max_tokens": 1}))
 }

@@ -9,9 +9,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/tlsfingerprint"
+
+	"github.com/stretchr/testify/require"
 )
 
 func cnProbeAllowlistConfig(hosts ...string) *config.Config {

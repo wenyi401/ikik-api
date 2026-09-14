@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/service"
 )
 
 func uniqueTestValue(t *testing.T, prefix string) string {

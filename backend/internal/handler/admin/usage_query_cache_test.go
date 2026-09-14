@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/pkg/usagestats"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/pkg/usagestats"
 )
 
 func TestUsageStatsCacheKey_StableAndDistinct(t *testing.T) {

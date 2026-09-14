@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/pkg/logger"
 )
 
 func TestIngressRejectAccessSamplerConcurrentGlobalLimit(t *testing.T) {

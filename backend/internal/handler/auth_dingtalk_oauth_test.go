@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/config"
 )
 
 // TestDingTalkOAuthStart_Disabled は sentinel テスト。

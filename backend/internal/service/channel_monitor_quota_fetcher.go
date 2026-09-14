@@ -10,10 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sync/singleflight"
 	"ikik-api/internal/config"
 	"ikik-api/internal/domain"
 	"ikik-api/internal/pkg/xai"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // 渠道监控「配额模式」的配额抓取器。
@@ -216,7 +217,7 @@ func (f *ChannelMonitorQuotaFetcher) fetchUncached(ctx context.Context, accountI
 	// （GetUsageForAccount / QueryUsageForAccount / QueryBalanceForAccount），
 	// 下游服务不再各自 GetByID（每次含 proxies/groups 联查）。
 	switch account.Platform {
-	case domain.PlatformKimi, domain.PlatformZhipu, domain.PlatformDeepseek:
+	case domain.PlatformKimi, domain.PlatformZhipu, domain.PlatformDeepseek, domain.PlatformMiniMax:
 		if account.IsCodingPlan() {
 			return f.fetchCNQuota(ctx, account, now)
 		}

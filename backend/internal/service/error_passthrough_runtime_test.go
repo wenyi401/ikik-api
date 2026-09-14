@@ -10,10 +10,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"ikik-api/internal/model"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"ikik-api/internal/model"
 )
 
 func TestApplyErrorPassthroughRule_NoBoundService(t *testing.T) {

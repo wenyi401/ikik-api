@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/pkg/usagestats"
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/pkg/usagestats"
+	"ikik-api/internal/service"
 )
 
 // --- mock repo ---

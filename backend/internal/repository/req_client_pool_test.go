@@ -11,9 +11,10 @@ import (
 	"time"
 	"unsafe"
 
-	"ikik-api/internal/pkg/servertiming"
 	"github.com/imroc/req/v3"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/pkg/servertiming"
 )
 
 func forceHTTPVersion(t *testing.T, client *req.Client) string {

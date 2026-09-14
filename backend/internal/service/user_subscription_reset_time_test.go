@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/pkg/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/pkg/timezone"
 )
 
 // 周窗口初始化在开通日零点（legacy anchor）时，automaticWindowStartAt 会把实际

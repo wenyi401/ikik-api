@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	infraerrors "ikik-api/internal/pkg/errors"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestBatchImageProviderRegistry_ReturnsVertex(t *testing.T) {

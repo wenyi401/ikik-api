@@ -6,11 +6,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	dbent "ikik-api/ent"
 	"ikik-api/ent/channelmonitor"
 	"ikik-api/ent/channelmonitorrequesttemplate"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 func TestApplyChannelMonitorTemplatePreservesDuplicateOperationMetadata(t *testing.T) {

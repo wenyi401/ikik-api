@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"ikik-api/internal/pkg/xai"
+
+	"github.com/gin-gonic/gin"
 )
 
 type grokStandaloneSearchRequest struct {

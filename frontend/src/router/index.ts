@@ -1124,7 +1124,6 @@ router.beforeEach(async (to, _from, next) => {
 
   if (authStore.isSimpleMode) {
     const restrictedPaths = [
-      '/admin/groups',
       '/admin/subscriptions',
       '/admin/redeem',
       '/subscriptions',

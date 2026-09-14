@@ -11,10 +11,11 @@ import (
 	"strings"
 	"testing"
 
+	"ikik-api/internal/pkg/xai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"ikik-api/internal/pkg/xai"
 )
 
 func TestForwardGrokChatViaResponsesDropsRedundantViewImage(t *testing.T) {

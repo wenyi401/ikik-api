@@ -11,13 +11,17 @@ import (
 	"sync"
 	"testing"
 
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/logger"
+	middleware2 "ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"ikik-api/internal/config"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	"ikik-api/internal/pkg/ctxkey"
-	middleware2 "ikik-api/internal/server/middleware"
-	"ikik-api/internal/service"
 )
 
 type openAIImagesFailoverAccountRepo struct {

@@ -3,8 +3,9 @@ package handler
 import (
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"ikik-api/internal/service"
+
+	"github.com/gin-gonic/gin"
 )
 
 // ──────────────────────────────────────────────────────────
@@ -279,7 +280,7 @@ func InboundEndpointMiddleware() gin.HandlerFunc {
 
 // ──────────────────────────────────────────────────────────
 // Context helpers — used by handlers before building
-// RecordUsageInput / RecordUsageLongContextInput.
+// RecordUsageInput.
 // ──────────────────────────────────────────────────────────
 
 // GetInboundEndpoint returns the canonical inbound endpoint stored by

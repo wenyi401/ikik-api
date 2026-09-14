@@ -10,11 +10,12 @@ import (
 	"strings"
 	"testing"
 
+	infraerrors "ikik-api/internal/pkg/errors"
+	servermiddleware "ikik-api/internal/server/middleware"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/riskengine"
-	servermiddleware "ikik-api/internal/server/middleware"
 )
 
 type fakePromptAdminService struct {

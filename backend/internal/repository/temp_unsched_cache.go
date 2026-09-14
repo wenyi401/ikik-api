@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"ikik-api/internal/service"
+
+	"github.com/redis/go-redis/v9"
 )
 
 const tempUnschedPrefix = "temp_unsched:account:"

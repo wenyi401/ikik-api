@@ -8,11 +8,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
+
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/server/middleware"
 	"ikik-api/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 type testSettingRepo struct {

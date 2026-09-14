@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	dbent "ikik-api/ent"
 	"ikik-api/ent/apikey"
 	"ikik-api/ent/schema/mixins"
 	"ikik-api/ent/usersubscription"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 func uniqueSoftDeleteValue(t *testing.T, prefix string) string {

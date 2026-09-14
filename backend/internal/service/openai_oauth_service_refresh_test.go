@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"ikik-api/internal/pkg/openai"
+
 	"github.com/imroc/req/v3"
 	"github.com/stretchr/testify/require"
-	"ikik-api/internal/pkg/openai"
 )
 
 type openaiOAuthClientRefreshStub struct {

@@ -30,7 +30,12 @@ export interface UserPricingInterval {
   input_price: number | null
   output_price: number | null
   cache_write_price: number | null
+  cache_write_1h_price?: number | null
   cache_read_price: number | null
+  input_multiplier?: number | null
+  output_multiplier?: number | null
+  cache_write_multiplier?: number | null
+  cache_read_multiplier?: number | null
   per_request_price: number | null
 }
 
@@ -39,7 +44,9 @@ export interface UserSupportedModelPricing {
   input_price: number | null
   output_price: number | null
   cache_write_price: number | null
+  cache_write_1h_price?: number | null
   cache_read_price: number | null
+  max_reasoning_effort_multiplier?: number | null
   /** 图片输入按 token 计费时的单价；旧服务端响应可能省略。 */
   image_input_price?: number | null
   image_output_price: number | null

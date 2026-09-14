@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	dbent "ikik-api/ent"
 	"github.com/stretchr/testify/require"
+
+	dbent "ikik-api/ent"
 )
 
 func TestComputeBasicStatsGroupsAmountsByCurrency(t *testing.T) {

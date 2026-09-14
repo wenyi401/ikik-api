@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"ikik-api/internal/pkg/servertiming"
+
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"ikik-api/internal/pkg/servertiming"
 )
 
 func TestBuildVertexGeminiURL(t *testing.T) {

@@ -5,9 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"ikik-api/internal/pkg/openai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"ikik-api/internal/pkg/openai"
 )
 
 func hdrCtx(h map[string]string) *gin.Context {

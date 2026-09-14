@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"github.com/redis/go-redis/v9"
+
 	dbent "ikik-api/ent"
+	"ikik-api/internal/config"
 	"ikik-api/internal/payment"
 	"ikik-api/internal/pkg/kirocooldown"
 )
@@ -28,6 +30,7 @@ func ProvideAccountService(
 }
 
 func ProvideAdminService(
+	cfg *config.Config,
 	userRepo UserRepository,
 	groupRepo AdminGroupRepository,
 	accountRepo AdminAccountRepository,
@@ -53,6 +56,7 @@ func ProvideAdminService(
 	channelCacheInvalidator ChannelCacheInvalidator,
 ) AdminService {
 	svc := NewAdminService(
+		cfg,
 		userRepo,
 		groupRepo,
 		accountRepo,

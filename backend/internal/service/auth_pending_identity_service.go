@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect"
+
 	dbent "ikik-api/ent"
 	"ikik-api/ent/identityadoptiondecision"
 	"ikik-api/ent/pendingauthsession"

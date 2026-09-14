@@ -5,11 +5,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/handler"
 	adminhandler "ikik-api/internal/handler/admin"
 	servermiddleware "ikik-api/internal/server/middleware"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIngressRejectAdminRoutesRequireAdminAuthentication(t *testing.T) {

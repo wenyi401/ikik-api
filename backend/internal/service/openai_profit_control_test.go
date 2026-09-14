@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/ctxkey"
 	"ikik-api/internal/pkg/timezone"
-	"github.com/stretchr/testify/require"
 )
 
 func profitControlTestGroup(id int64, margin, buffer float64) *Group {

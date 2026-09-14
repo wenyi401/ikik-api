@@ -7,10 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	infraerrors "ikik-api/internal/pkg/errors"
-	"ikik-api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/service"
 )
 
 func TestAccountAdminBoundariesRejectMalformedOpenAILongContextBillingValue(t *testing.T) {

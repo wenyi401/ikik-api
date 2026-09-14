@@ -9,11 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lib/pq"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/timezone"
 	"ikik-api/internal/pkg/usagestats"
 	"ikik-api/internal/service"
+
+	"github.com/lib/pq"
 )
 
 // GetUserStatsAggregated returns aggregated usage statistics for a user using database-level aggregation

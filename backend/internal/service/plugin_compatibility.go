@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"golang.org/x/mod/semver"
 	pluginv1 "ikik-api/pkg/pluginapi/v1"
+
+	"golang.org/x/mod/semver"
 )
 
 type PluginHostInfo struct {

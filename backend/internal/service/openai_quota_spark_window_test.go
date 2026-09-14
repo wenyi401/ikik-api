@@ -32,7 +32,6 @@ type stubQuotaAccountRepo struct {
 	extraUpdateCalls int
 	extraUpdateErr   error
 }
-
 type quotaResetRuntimeRepo struct {
 	*stubQuotaAccountRepo
 	clearRateLimitCalls      int
@@ -48,17 +47,14 @@ func (r *quotaResetRuntimeRepo) ClearRateLimit(ctx context.Context, _ int64) err
 	r.clearRateLimitContextErr = ctx.Err()
 	return r.clearRateLimitErr
 }
-
 func (r *quotaResetRuntimeRepo) ClearAntigravityQuotaScopes(_ context.Context, _ int64) error {
 	r.clearAntigravityCalls++
 	return nil
 }
-
 func (r *quotaResetRuntimeRepo) ClearModelRateLimits(_ context.Context, _ int64) error {
 	r.clearModelRateLimitCalls++
 	return nil
 }
-
 func (r *quotaResetRuntimeRepo) ClearTempUnschedulable(_ context.Context, _ int64) error {
 	r.clearTempUnschedCalls++
 	return nil

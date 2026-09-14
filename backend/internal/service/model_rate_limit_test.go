@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/ctxkey"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsModelRateLimited(t *testing.T) {

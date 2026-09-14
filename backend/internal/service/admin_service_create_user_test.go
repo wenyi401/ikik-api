@@ -7,8 +7,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAdminService_CreateUser_Success(t *testing.T) {

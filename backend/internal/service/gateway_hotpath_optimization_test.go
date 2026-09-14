@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
-	gocache "github.com/patrickmn/go-cache"
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/ctxkey"
 	"ikik-api/internal/pkg/usagestats"
+
+	gocache "github.com/patrickmn/go-cache"
+	"github.com/stretchr/testify/require"
 )
 
 type userGroupRateRepoHotpathStub struct {

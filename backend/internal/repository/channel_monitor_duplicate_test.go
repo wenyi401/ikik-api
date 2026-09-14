@@ -5,9 +5,10 @@ package repository
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	dbent "ikik-api/ent"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 func TestChannelMonitorDuplicateOperationMetadataStaysOutOfRuntimeHeaders(t *testing.T) {

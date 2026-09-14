@@ -148,3 +148,57 @@ func TestToModelPlazaOfficialPricing_NilPassthrough(t *testing.T) {
 }
 
 func testPtr(v float64) *float64 { return &v }
+
+func TestToModelPlazaGroupDTO_TimePricing(t *testing.T) {
+	g := service.PlazaGroup{
+		ID: 4, Name: "cn", Platform: "deepseek", SubscriptionType: "standard", RateMultiplier: 1,
+		Models: []service.PlazaModel{{
+			Name:     "deepseek-chat",
+			Platform: "deepseek",
+			Pricing:  &service.ChannelModelPricing{BillingMode: service.BillingModeToken, InputPrice: testPtr(0.28e-6)},
+			TimePricing: &service.TimePricingSchedule{Timezone: "Asia/Shanghai", Periods: []service.TimePricingPeriod{
+				{StartTime: "00:30", EndTime: "08:30", Multiplier: 0.5},
+			}},
+		}, {
+			Name:     "deepseek-reasoner",
+			Platform: "deepseek",
+			Pricing:  &service.ChannelModelPricing{BillingMode: service.BillingModeToken, InputPrice: testPtr(0.56e-6)},
+			TimePricing: &service.TimePricingSchedule{Timezone: "Asia/Shanghai", WeekdaysOnly: true, Periods: []service.TimePricingPeriod{
+				{StartTime: "00:30", EndTime: "08:30", Multiplier: 0.5},
+			}},
+		}},
+	}
+	raw, err := json.Marshal(toModelPlazaGroupDTO(&g, nil))
+	require.NoError(t, err)
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	model := decoded["models"].([]any)[0].(map[string]any)
+	tp := model["time_pricing"].(map[string]any)
+	require.Equal(t, "Asia/Shanghai", tp["timezone"])
+	_, hasWeekdaysOnly := tp["weekdays_only"]
+	require.False(t, hasWeekdaysOnly, "未开启仅工作日时字段省略")
+	periods := tp["periods"].([]any)
+	require.Len(t, periods, 1)
+	first := periods[0].(map[string]any)
+	require.Equal(t, "00:30", first["start_time"])
+	require.Equal(t, "08:30", first["end_time"])
+	require.InDelta(t, 0.5, first["multiplier"].(float64), 1e-12)
+
+	weekdaysModel := decoded["models"].([]any)[1].(map[string]any)
+	weekdaysTP := weekdaysModel["time_pricing"].(map[string]any)
+	require.Equal(t, true, weekdaysTP["weekdays_only"])
+}
+
+func TestFilterPlazaVisibleGroups_SubscribedExclusiveGroup(t *testing.T) {
+	groups := []service.PlazaGroup{
+		{ID: 42, IsExclusive: true, SubscriptionType: "subscription"},
+		{ID: 43, IsExclusive: true, SubscriptionType: "subscription"},
+		{ID: 44, IsExclusive: true, SubscriptionType: "standard"},
+	}
+	require.Empty(t, filterPlazaVisibleGroups(groups, nil, false))
+	for _, restricted := range []bool{false, true} {
+		visible := filterPlazaVisibleGroups(groups, map[int64]struct{}{42: {}}, restricted)
+		require.Len(t, visible, 1)
+		require.Equal(t, int64(42), visible[0].ID)
+	}
+}

@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/config"
 )
 
 func TestNormalizePasskeyName(t *testing.T) {

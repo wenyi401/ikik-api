@@ -6,15 +6,16 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/wire"
-	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 	dbent "ikik-api/ent"
 	"ikik-api/internal/config"
 	"ikik-api/internal/payment"
 	"ikik-api/internal/pkg/antigravity"
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/pkg/xai"
+
+	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 func ProvideGrokOAuthService(proxyRepo ProxyRepository, oauthClient GrokOAuthClient, cfg *config.Config, redisClient *redis.Client) *GrokOAuthService {
@@ -274,6 +275,7 @@ func ProvideAccountTestService(
 	)
 	service.kiroTokenProvider = kiroTokenProvider
 	service.agentIdentityWS = openAIGatewayService
+	service.SetOpenAIGatewayService(openAIGatewayService)
 	service.SetSettingService(settingService)
 	return service
 }

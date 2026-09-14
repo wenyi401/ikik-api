@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"ikik-api/internal/config"
 	"ikik-api/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSchedulerSnapshotOutboxReplay(t *testing.T) {

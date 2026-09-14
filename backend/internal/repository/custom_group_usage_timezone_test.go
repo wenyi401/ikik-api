@@ -3,8 +3,9 @@ package repository
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	appTimezone "ikik-api/internal/pkg/timezone"
+
+	"github.com/stretchr/testify/require"
 )
 
 func useGroupUsageRepositoryTestTimezone(t *testing.T, name string) {

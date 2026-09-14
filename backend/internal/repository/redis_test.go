@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/config"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/config"
 )
 
 func TestBuildRedisOptions(t *testing.T) {

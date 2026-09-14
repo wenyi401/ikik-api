@@ -9,9 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lib/pq"
+
+	"ikik-api/internal/service"
 )
 
 type passkeyRepository struct {

@@ -5,9 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	middleware2 "ikik-api/internal/server/middleware"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	middleware2 "ikik-api/internal/server/middleware"
 )
 
 func TestOpsCaptureWriterDoesNotCopyIngressRejectBody(t *testing.T) {

@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tidwall/gjson"
 	"ikik-api/internal/pkg/xai"
+
+	"github.com/tidwall/gjson"
 )
 
 const (

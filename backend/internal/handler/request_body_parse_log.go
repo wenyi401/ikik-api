@@ -3,8 +3,9 @@ package handler
 import (
 	"strconv"
 
-	"ikik-api/internal/service"
 	"go.uber.org/zap"
+
+	"ikik-api/internal/service"
 )
 
 // parseFailureSnippetLen bounds the head/tail snippets logged on body parse

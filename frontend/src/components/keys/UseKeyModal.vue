@@ -327,18 +327,22 @@ const codexModelManifestContent = ref('')
 const codexModelManifestModelCount = ref(0)
 let codexModelManifestController: AbortController | null = null
 let codexModelManifestRequestID = 0
+
 const showCodexModelCatalog = computed(() =>
-  props.show && (activeClientTab.value === 'codex' ||
+  props.show &&
+  (activeClientTab.value === 'codex' ||
     (props.platform === 'openai' && activeClientTab.value === 'codex-ws'))
 )
+
 const codexModelCatalogPath = computed(() => {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
   return joinConfigPath(configDir, 'codex-models.json', isWindows)
 })
-const codexManifestContext = computed(() =>
-  showCodexModelCatalog.value ? `${props.platform}|${props.baseUrl}|${props.apiKey}` : ''
-)
+const codexManifestContext = computed(() => {
+  if (!showCodexModelCatalog.value) return ''
+  return `${props.platform}|${props.baseUrl}|${props.apiKey}`
+})
 const selectedBaseUrl = ref<string>('')
 
 // Reset tabs when platform changes
@@ -364,26 +368,16 @@ watch(() => props.platform, () => {
 }, { immediate: true })
 
 watch(() => props.show, (show) => {
-  if (show) codexAuthMode.value = 'legacy'
-  else resetCodexModelManifest()
+  if (show) {
+    codexAuthMode.value = 'legacy'
+  } else {
+    resetCodexModelManifest()
+  }
 })
 
 watch(codexManifestContext, (context, previousContext) => {
-  if (context !== previousContext) resetCodexModelManifest()
-})
-
-const fallbackBaseUrl = computed(() => props.baseUrl || (typeof window !== 'undefined' ? window.location.origin : ''))
-
-const endpointOptions = computed<EndpointOption[]>(() => {
-  const items: EndpointOption[] = []
-  const seen = new Set<string>()
-  const push = (item: EndpointOption) => {
-    const endpoint = normalizeEndpointUrl(item.endpoint)
-    if (!endpoint) return
-    const key = endpointKey(endpoint)
-    if (seen.has(key)) return
-    seen.add(key)
-    items.push({ ...item, endpoint })
+  if (context !== previousContext) {
+    resetCodexModelManifest()
   }
 
   push({
@@ -526,6 +520,7 @@ const clientTabs = computed((): TabConfig[] => {
         { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
       ]
     case 'deepseek':
+    case 'minimax':
     case 'composite':
       return [
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
@@ -573,6 +568,7 @@ const platformDescription = computed(() => {
     props.platform !== 'openai' &&
     props.platform !== 'grok' &&
     props.platform !== 'deepseek' &&
+    props.platform !== 'minimax' &&
     props.platform !== 'composite') {
     return t('keys.useKeyModal.routedCodex.description')
   }
@@ -594,6 +590,10 @@ const platformDescription = computed(() => {
       return activeClientTab.value === 'codex'
         ? t('keys.useKeyModal.deepseek.codexDescription')
         : t('keys.useKeyModal.deepseek.description')
+    case 'minimax':
+      return activeClientTab.value === 'codex'
+        ? t('keys.useKeyModal.minimax.codexDescription')
+        : t('keys.useKeyModal.minimax.description')
     case 'composite':
       return activeClientTab.value === 'codex'
         ? t('keys.useKeyModal.composite.codexDescription')
@@ -608,6 +608,7 @@ const platformNote = computed(() => {
     props.platform !== 'openai' &&
     props.platform !== 'grok' &&
     props.platform !== 'deepseek' &&
+    props.platform !== 'minimax' &&
     props.platform !== 'composite') {
     return t('keys.useKeyModal.routedCodex.note')
   }
@@ -636,6 +637,10 @@ const platformNote = computed(() => {
     case 'deepseek':
       return activeClientTab.value === 'codex'
         ? t('keys.useKeyModal.deepseek.codexNote')
+        : t('keys.useKeyModal.note')
+    case 'minimax':
+      return activeClientTab.value === 'codex'
+        ? t('keys.useKeyModal.minimax.codexNote')
         : t('keys.useKeyModal.note')
     case 'composite':
       return activeClientTab.value === 'codex'
@@ -796,6 +801,11 @@ const currentFiles = computed((): FileConfig[] => {
     case 'deepseek':
       if (activeClientTab.value === 'codex') {
         return generateRoutedCodexFiles(apiBase, apiKey, 'deepseek')
+      }
+      return generateAnthropicFiles(baseRoot, apiKey)
+    case 'minimax':
+      if (activeClientTab.value === 'codex') {
+        return generateRoutedCodexFiles(apiBase, apiKey, 'minimax')
       }
       return generateAnthropicFiles(baseRoot, apiKey)
     case 'composite':
@@ -1255,6 +1265,7 @@ function generateRoutedCodexFiles(
     kimi: 'kimi-k2.5',
     zhipu: 'glm-4.7',
     deepseek: 'deepseek-v4-pro',
+    minimax: 'MiniMax-M3',
     composite: 'gpt-5.5'
   }
   const preferredModel = preferredModels[platform] || ''
@@ -1270,6 +1281,7 @@ function generateRoutedCodexFiles(
     deepseek: 'DeepSeek',
     kiro: 'Kiro',
     custom: 'Custom',
+    minimax: 'MiniMax',
     composite: 'Composite'
   }
   const label = labels[platform]
@@ -1298,7 +1310,7 @@ supports_websockets = false`
       path: joinConfigPath(configDir, 'config.toml', isWindows),
       content: configContent,
       hint: t(
-        platform === 'deepseek' || platform === 'composite'
+        platform === 'deepseek' || platform === 'minimax' || platform === 'composite'
           ? `keys.useKeyModal.${platform}.codexConfigTomlHint`
           : 'keys.useKeyModal.routedCodex.configTomlHint'
       )
@@ -1345,6 +1357,40 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     }
   }
   const openaiModels = {
+    'gpt-6': {
+      name: 'GPT-6 (Astra)',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
+    'gpt-6-astra': {
+      name: 'GPT-6 Astra',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
     'gpt-5.2': {
       name: 'GPT-5.2',
       limit: {
@@ -1717,6 +1763,38 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     },
   }
   const claudeModels = {
+    'claude-fable-5-1': {
+      name: 'Claude Fable 5.1',
+      limit: {
+        context: 1048576,
+        output: 128000
+      },
+      modalities: {
+        input: ['text', 'image', 'pdf'],
+        output: ['text']
+      },
+      options: {
+        thinking: {
+          type: 'adaptive'
+        }
+      }
+    },
+    'claude-fable-5': {
+      name: 'Claude Fable 5',
+      limit: {
+        context: 1048576,
+        output: 128000
+      },
+      modalities: {
+        input: ['text', 'image', 'pdf'],
+        output: ['text']
+      },
+      options: {
+        thinking: {
+          type: 'adaptive'
+        }
+      }
+    },
     'claude-opus-4-6-thinking': {
       name: 'Claude 4.6 Opus (Thinking)',
       limit: {

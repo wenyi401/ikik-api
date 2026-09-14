@@ -7,8 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/redis/go-redis/v9"
+
+	"ikik-api/internal/service"
 )
 
 // 会话限制缓存常量定义
@@ -214,6 +215,15 @@ func (c *sessionLimitCache) RegisterSession(ctx context.Context, accountID int64
 		return true, err // 失败开放：缓存错误时允许请求通过
 	}
 	return result == 1, nil
+}
+
+// UnregisterSession 立即移除会话注册（不等待空闲超时）
+// 请求最终失败时调用：上游从未服务该会话，继续占槽会卡住 max_sessions 受限的账号
+func (c *sessionLimitCache) UnregisterSession(ctx context.Context, accountID int64, sessionUUID string) error {
+	if sessionUUID == "" {
+		return nil
+	}
+	return c.rdb.ZRem(ctx, sessionLimitKey(accountID), sessionUUID).Err()
 }
 
 // RefreshSession 刷新会话时间戳

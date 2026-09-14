@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/internal/service"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"ikik-api/internal/service"
 )
 
 // 测试用 TTL 配置（15 分钟，与默认值一致）

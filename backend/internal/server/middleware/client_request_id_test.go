@@ -7,9 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"ikik-api/internal/pkg/ctxkey"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"ikik-api/internal/pkg/ctxkey"
 )
 
 func TestClientRequestIDGeneratesAndExposesID(t *testing.T) {

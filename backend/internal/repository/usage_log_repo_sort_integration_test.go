@@ -5,10 +5,11 @@ package repository
 import (
 	"time"
 
+	"github.com/google/uuid"
+
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/pkg/usagestats"
 	"ikik-api/internal/service"
-	"github.com/google/uuid"
 )
 
 func (s *UsageLogRepoSuite) TestListWithFilters_SortByModelAsc() {

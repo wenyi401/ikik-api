@@ -5,12 +5,16 @@ package service
 import (
 	"bytes"
 	"context"
-	"github.com/stretchr/testify/require"
+
 	"ikik-api/internal/pkg/tlsfingerprint"
+
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
 )
 
 // stubSmartRetryCache 用于 handleSmartRetry 测试的 GatewayCache mock

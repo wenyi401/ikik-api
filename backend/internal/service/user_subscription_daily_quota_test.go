@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/pkg/timezone"
+
+	"github.com/stretchr/testify/require"
 )
 
 type dailyResetTrackingUserSubRepo struct {

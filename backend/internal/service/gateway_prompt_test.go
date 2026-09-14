@@ -5,9 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	"ikik-api/internal/pkg/claude"
+
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"ikik-api/internal/pkg/claude"
 )
 
 func TestIsClaudeCodeClient(t *testing.T) {

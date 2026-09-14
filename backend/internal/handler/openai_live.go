@@ -9,13 +9,14 @@ import (
 	"strconv"
 	"strings"
 
-	"ikik-api/internal/pkg/ip"
-	middleware2 "ikik-api/internal/server/middleware"
-	"ikik-api/internal/service"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
+
+	"ikik-api/internal/pkg/ip"
+	middleware2 "ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 )
 
 func (h *OpenAIGatewayHandler) Live(c *gin.Context) {

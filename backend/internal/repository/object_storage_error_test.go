@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/smithy-go"
 	"github.com/stretchr/testify/require"
+
 	infraerrors "ikik-api/internal/pkg/errors"
 )
 

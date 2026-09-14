@@ -1,8 +1,10 @@
 package securityaudit
 
-import "github.com/google/wire"
+import (
+	"github.com/google/wire"
 
-import "ikik-api/internal/riskengine"
+	"ikik-api/internal/riskengine"
+)
 
 var ProviderSet = wire.NewSet(
 	NewPostgreSQLRepository,

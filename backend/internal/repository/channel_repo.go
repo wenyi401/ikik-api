@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lib/pq"
+
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/service"
-	"github.com/lib/pq"
 )
 
 type channelRepository struct {

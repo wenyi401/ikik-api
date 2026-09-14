@@ -7,9 +7,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/ctxkey"
-	"github.com/stretchr/testify/require"
 )
 
 func gatewayProfitTestGroup(id int64, platform string) *Group {

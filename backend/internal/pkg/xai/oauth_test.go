@@ -6,8 +6,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/util/urlvalidator"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseAuthorizationInput(t *testing.T) {

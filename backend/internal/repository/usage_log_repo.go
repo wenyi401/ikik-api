@@ -7,9 +7,10 @@ import (
 	"sync"
 	"time"
 
+	gocache "github.com/patrickmn/go-cache"
+
 	dbent "ikik-api/ent"
 	"ikik-api/internal/service"
-	gocache "github.com/patrickmn/go-cache"
 )
 
 const rawUsageLogModelColumn = "model"

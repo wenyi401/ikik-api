@@ -10,16 +10,17 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"ikik-api/internal/pkg/claude"
 	"ikik-api/internal/pkg/openai"
+
+	"github.com/gin-gonic/gin"
 )
 
 const accountTestSuppressCompletionContextKey = "account_test_suppress_completion"
 
 // testCNProviderAdaptiveConnection verifies every native endpoint used by an
-// adaptive CN-provider account. Kimi and Zhipu use Chat Completions plus
-// Anthropic; DeepSeek additionally uses its native Responses endpoint.
+// adaptive CN-provider account. Zhipu uses Chat Completions plus Anthropic;
+// DeepSeek and Kimi additionally use their native Responses endpoints.
 func (s *AccountTestService) testCNProviderAdaptiveConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
 	testModelID := strings.TrimSpace(modelID)
 	if testModelID == "" {
@@ -44,7 +45,7 @@ func (s *AccountTestService) testCNProviderAdaptiveConnection(c *gin.Context, ac
 		return err
 	}
 
-	if account.Platform == PlatformDeepseek {
+	if account.SupportsNativeCNResponses() {
 		if err := s.testCNProviderAdaptiveResponsesConnection(c, account, testModelID, authToken); err != nil {
 			return err
 		}
@@ -81,7 +82,9 @@ func (s *AccountTestService) testCNProviderAdaptiveAnthropicConnection(c *gin.Co
 		req.Header.Set(key, value)
 	}
 	req.Header.Set("anthropic-beta", claude.APIKeyBetaHeader)
-	setAnthropicAPIKeyAuthHeader(req.Header, account, authToken)
+	// Ollama Cloud Anthropic 兼容端点按 adaptive 实际选用的 Anthropic
+	// base_url 强制 Bearer，其余保持 extra/default 行为。
+	setAnthropicAPIKeyAuthHeader(req.Header, account, authToken, account.GetCNProtocolBaseURL(APIProtocolAnthropic))
 	account.ApplyHeaderOverrides(req.Header)
 
 	resp, err := s.doCNProviderAdaptiveRequest(req, account)
@@ -159,8 +162,8 @@ func (s *AccountTestService) testCNProviderAdaptiveResponsesConnection(c *gin.Co
 	apiURL := buildOpenAIResponsesURLForPlatform(account.Platform, baseURL)
 
 	payload := createOpenAITestPayload(testModelID, false)
-	// DeepSeek's native Responses endpoint is stateless and does not need the
-	// OpenAI probe's synthetic instructions.
+	// DeepSeek / Kimi native Responses endpoints are stateless and do not need
+	// the OpenAI probe's synthetic instructions.
 	delete(payload, "instructions")
 	payloadBytes, _ := json.Marshal(payload)
 	payloadBytes = normalizeDeepSeekResponsesRequestBody(account, payloadBytes)
@@ -260,7 +263,9 @@ func (s *AccountTestService) testCNProviderAnthropicConnection(c *gin.Context, a
 	for key, value := range claude.DefaultHeaders {
 		req.Header.Set(key, value)
 	}
-	setAnthropicAPIKeyAuthHeader(req.Header, account, authToken)
+	// Ollama Cloud Anthropic 兼容端点按实际 base_url 强制 Bearer，其余保持
+	// extra/default 行为。
+	setAnthropicAPIKeyAuthHeader(req.Header, account, authToken, account.GetAnthropicProtocolBaseURL())
 	account.ApplyHeaderOverrides(req.Header)
 
 	resp, err := s.doCNProviderAdaptiveRequest(req, account)

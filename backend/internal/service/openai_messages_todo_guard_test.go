@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+
 	"ikik-api/internal/pkg/apicompat"
 )
 

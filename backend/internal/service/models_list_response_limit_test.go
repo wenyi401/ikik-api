@@ -3,8 +3,9 @@ package service
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestResolveModelsListReadLimit(t *testing.T) {

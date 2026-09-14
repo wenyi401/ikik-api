@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/redis/go-redis/v9"
+
 	"ikik-api/internal/pkg/logger"
 	"ikik-api/internal/service"
-	"github.com/redis/go-redis/v9"
 )
 
 // Redis Key 模式（使用 hash tag 确保 Redis Cluster 下同一 accountID 的 key 落入同一 slot）
@@ -186,10 +187,12 @@ func (c *userMsgQueueCache) ReconcileExpiredLockCandidates(ctx context.Context, 
 	if err != nil {
 		return 0, err
 	}
-	members, err := c.rdb.ZRangeByScore(ctx, umqLockIndexKey, &redis.ZRangeBy{
-		Min:   "-inf",
-		Max:   strconv.FormatInt(nowMs, 10),
-		Count: int64(maxCount),
+	members, err := c.rdb.ZRangeArgs(ctx, redis.ZRangeArgs{
+		Key:     umqLockIndexKey,
+		Start:   "-inf",
+		Stop:    strconv.FormatInt(nowMs, 10),
+		ByScore: true,
+		Count:   int64(maxCount),
 	}).Result()
 	if err != nil {
 		return 0, fmt.Errorf("umq read lock index: %w", err)

@@ -3,9 +3,10 @@ package handler
 import (
 	"testing"
 
+	"ikik-api/internal/pkg/xai"
+
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"ikik-api/internal/pkg/xai"
 )
 
 func TestBuildGrokXSearchResponsesBody(t *testing.T) {

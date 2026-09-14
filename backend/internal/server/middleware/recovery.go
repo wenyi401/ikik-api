@@ -7,9 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/response"
+
+	"github.com/gin-gonic/gin"
 )
 
 // Recovery converts panics into the project's standard JSON error envelope.

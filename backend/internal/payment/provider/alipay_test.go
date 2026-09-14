@@ -9,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"ikik-api/internal/payment"
 	"github.com/smartwalle/alipay/v3"
+
+	"ikik-api/internal/payment"
 )
 
 func TestIsTradeNotExist(t *testing.T) {

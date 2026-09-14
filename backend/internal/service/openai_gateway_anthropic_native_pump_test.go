@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/apicompat"
+
+	"github.com/gin-gonic/gin"
 )
 
 func newNativeAnthropicHangTestService(intervalSec int) *OpenAIGatewayService {

@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/usagestats"
+
+	"github.com/stretchr/testify/require"
 )
 
 type usageRepoStub struct {

@@ -7,10 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"ikik-api/internal/pkg/ctxkey"
-	"ikik-api/internal/securityaudit"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/internal/pkg/ctxkey"
+	"ikik-api/internal/securityaudit"
 )
 
 func promptGuardDecision(kind securityaudit.DecisionKind) *securityaudit.Decision {

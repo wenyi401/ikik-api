@@ -7,9 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"ikik-api/internal/pkg/tlsfingerprint"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"ikik-api/internal/pkg/tlsfingerprint"
 )
 
 type pluginRoutingHTTPUpstream struct {

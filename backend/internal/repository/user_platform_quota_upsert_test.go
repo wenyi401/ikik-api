@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"ikik-api/ent/userplatformquota"
 	"github.com/stretchr/testify/require"
+
+	"ikik-api/ent/userplatformquota"
 )
 
 func TestUpsertForUser_NewUserInsertsAllRecords(t *testing.T) {

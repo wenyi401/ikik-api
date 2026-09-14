@@ -23,6 +23,8 @@ const (
 	FieldName = "name"
 	// FieldProvider holds the string denoting the provider field in the database.
 	FieldProvider = "provider"
+	// FieldAPIMode holds the string denoting the api_mode field in the database.
+	FieldAPIMode = "api_mode"
 	// FieldDescription holds the string denoting the description field in the database.
 	FieldDescription = "description"
 	// FieldExtraHeaders holds the string denoting the extra_headers field in the database.
@@ -31,8 +33,6 @@ const (
 	FieldBodyOverrideMode = "body_override_mode"
 	// FieldBodyOverride holds the string denoting the body_override field in the database.
 	FieldBodyOverride = "body_override"
-	// FieldAPIMode holds the string denoting the api_mode field in the database.
-	FieldAPIMode = "api_mode"
 	// EdgeMonitors holds the string denoting the monitors edge name in mutations.
 	EdgeMonitors = "monitors"
 	// Table holds the table name of the channelmonitorrequesttemplate in the database.
@@ -53,11 +53,11 @@ var Columns = []string{
 	FieldUpdatedAt,
 	FieldName,
 	FieldProvider,
+	FieldAPIMode,
 	FieldDescription,
 	FieldExtraHeaders,
 	FieldBodyOverrideMode,
 	FieldBodyOverride,
-	FieldAPIMode,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -79,6 +79,10 @@ var (
 	UpdateDefaultUpdatedAt func() time.Time
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
 	NameValidator func(string) error
+	// DefaultAPIMode holds the default value on creation for the "api_mode" field.
+	DefaultAPIMode string
+	// APIModeValidator is a validator for the "api_mode" field. It is called by the builders before save.
+	APIModeValidator func(string) error
 	// DefaultDescription holds the default value on creation for the "description" field.
 	DefaultDescription string
 	// DescriptionValidator is a validator for the "description" field. It is called by the builders before save.
@@ -89,10 +93,6 @@ var (
 	DefaultBodyOverrideMode string
 	// BodyOverrideModeValidator is a validator for the "body_override_mode" field. It is called by the builders before save.
 	BodyOverrideModeValidator func(string) error
-	// DefaultAPIMode holds the default value on creation for the "api_mode" field.
-	DefaultAPIMode string
-	// APIModeValidator is a validator for the "api_mode" field. It is called by the builders before save.
-	APIModeValidator func(string) error
 )
 
 // Provider defines the type for the "provider" enum field.
@@ -100,9 +100,15 @@ type Provider string
 
 // Provider values.
 const (
-	ProviderOpenai    Provider = "openai"
-	ProviderAnthropic Provider = "anthropic"
-	ProviderGemini    Provider = "gemini"
+	ProviderOpenai      Provider = "openai"
+	ProviderAnthropic   Provider = "anthropic"
+	ProviderGemini      Provider = "gemini"
+	ProviderGrok        Provider = "grok"
+	ProviderAntigravity Provider = "antigravity"
+	ProviderKimi        Provider = "kimi"
+	ProviderZhipu       Provider = "zhipu"
+	ProviderDeepseek    Provider = "deepseek"
+	ProviderMinimax     Provider = "minimax"
 )
 
 func (pr Provider) String() string {
@@ -112,7 +118,7 @@ func (pr Provider) String() string {
 // ProviderValidator is a validator for the "provider" field enum values. It is called by the builders before save.
 func ProviderValidator(pr Provider) error {
 	switch pr {
-	case ProviderOpenai, ProviderAnthropic, ProviderGemini:
+	case ProviderOpenai, ProviderAnthropic, ProviderGemini, ProviderGrok, ProviderAntigravity, ProviderKimi, ProviderZhipu, ProviderDeepseek, ProviderMinimax:
 		return nil
 	default:
 		return fmt.Errorf("channelmonitorrequesttemplate: invalid enum value for provider field: %q", pr)
@@ -147,6 +153,11 @@ func ByProvider(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldProvider, opts...).ToFunc()
 }
 
+// ByAPIMode orders the results by the api_mode field.
+func ByAPIMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAPIMode, opts...).ToFunc()
+}
+
 // ByDescription orders the results by the description field.
 func ByDescription(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDescription, opts...).ToFunc()
@@ -155,11 +166,6 @@ func ByDescription(opts ...sql.OrderTermOption) OrderOption {
 // ByBodyOverrideMode orders the results by the body_override_mode field.
 func ByBodyOverrideMode(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBodyOverrideMode, opts...).ToFunc()
-}
-
-// ByAPIMode orders the results by the api_mode field.
-func ByAPIMode(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldAPIMode, opts...).ToFunc()
 }
 
 // ByMonitorsCount orders the results by monitors count.
