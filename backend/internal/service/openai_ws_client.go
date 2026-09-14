@@ -13,7 +13,6 @@ import (
 	"time"
 
 	openaiwsv2 "ikik-api/internal/service/openai_ws_v2"
-
 	coderws "github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )

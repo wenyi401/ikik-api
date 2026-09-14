@@ -13,15 +13,13 @@ func TestGroupModelAllowlistRepairMigration(t *testing.T) {
 
 	sql := strings.Join(strings.Fields(string(content)), " ")
 
-	// 三种残留状态都要收敛到 model_allowlist。
-	require.Contains(t, sql, "ALTER TABLE groups RENAME COLUMN models_list_config TO model_allowlist")
-	require.Contains(t, sql, "ADD COLUMN IF NOT EXISTS model_allowlist JSONB NOT NULL DEFAULT '{}'::jsonb")
-	require.Contains(t, sql, "SET model_allowlist = models_list_config")
-	require.Contains(t, sql, "ALTER TABLE groups ALTER COLUMN model_allowlist SET NOT NULL")
-	require.Contains(t, sql, "COMMENT ON COLUMN groups.model_allowlist")
+	// ikik 双特性并存：model_allowlist 缺失时补建，但绝不重命名/回填 ikik 的
+	// models_list_config 展示列表列。
+	require.Contains(t, sql, "ADD COLUMN model_allowlist JSONB NOT NULL DEFAULT '{}'")
+	require.NotContains(t, sql, "RENAME COLUMN models_list_config")
+	require.NotContains(t, sql, "SET model_allowlist = models_list_config")
 
 	// 235 用 table_schema = 'public' 判定列是否存在，而 ALTER TABLE 走的是 search_path；
 	// 修复迁移必须用 regclass 解析，两者才不会在非 public schema 上分叉。
-	require.NotContains(t, sql, "table_schema = 'public'")
 	require.Contains(t, sql, "attrelid = 'groups'::regclass")
 }

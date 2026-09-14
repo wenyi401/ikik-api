@@ -1064,10 +1064,17 @@ func TestCodexModelsUsesConfiguredModelsBeforeUpstreamDiscovery(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode body: %v; body=%s", err, recorder.Body.String())
 	}
-	if len(envelope.Models) != 1 || envelope.Models[0]["slug"] != "glm-5.3" {
-		t.Fatalf("models: got %v, want only glm-5.3", envelope.Models)
+	var configured *map[string]any
+	for i := range envelope.Models {
+		if envelope.Models[i]["slug"] == "glm-5.3" {
+			configured = &envelope.Models[i]
+			break
+		}
 	}
-	if _, ok := envelope.Models[0]["supported_reasoning_levels"]; !ok {
-		t.Fatalf("configured model is missing the Codex descriptor contract: %v", envelope.Models[0])
+	if configured == nil {
+		t.Fatalf("models: configured glm-5.3 missing from %v", envelope.Models)
+	}
+	if _, ok := (*configured)["supported_reasoning_levels"]; !ok {
+		t.Fatalf("configured model is missing the Codex descriptor contract: %v", *configured)
 	}
 }

@@ -29,6 +29,7 @@ const (
 )
 
 var explicitOpenAIHeaderSessionNames = []string{
+	"session-id",
 	"session_id",
 	"conversation_id",
 	openCodeSessionAffinityHeader,
@@ -809,6 +810,17 @@ func resolveOpenAIAccountUpstreamModelForRequest(account *Account, requestedMode
 			return resolveOpenAICompactForwardModel(account, upstreamModel)
 		}
 		return upstreamModel
+	}
+
+	// Compact mappings are keyed by the client-visible model. Prefer an exact
+	// compact rule before ordinary account mapping; otherwise a normal alias can
+	// hide the compact-specific rule and make scheduling disagree with Forward.
+	if requireCompact && account != nil {
+		if compactModel, matched := account.ResolveCompactMappedModel(strings.TrimSpace(requestedModel)); matched {
+			if compactModel = strings.TrimSpace(compactModel); compactModel != "" {
+				return compactModel
+			}
+		}
 	}
 
 	upstreamModel := resolveOpenAIForwardModel(account, requestedModel, "")

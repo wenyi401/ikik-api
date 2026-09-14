@@ -125,7 +125,7 @@ func TestGPT56PricingAndChannelCacheWriteOverride(t *testing.T) {
 	require.InDelta(t, 2e-6, pricing.InputPricePerToken, 1e-15)
 	require.InDelta(t, 2.5e-6, pricing.CacheCreationPricePerToken, 1e-15)
 	require.InDelta(t, 5e-6, pricing.CacheCreationPricePerTokenPriority, 1e-15)
-	require.Equal(t, 272000, pricing.LongContextInputThreshold)
+	require.Zero(t, pricing.LongContextInputThreshold, "ikik: 阶梯改由目录数据驱动（对齐上游 v0.2.4 语义）")
 
 	cost, err := svc.CalculateCostWithServiceTier("gpt-5.6-terra", UsageTokens{
 		InputTokens:         100,
