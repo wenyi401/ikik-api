@@ -11,10 +11,10 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/Wei-Shaw/sub2api/internal/domain"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"ikik-api/internal/domain"
+	"ikik-api/internal/pkg/antigravity"
+	"ikik-api/internal/pkg/claude"
+	"ikik-api/internal/pkg/logger"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )

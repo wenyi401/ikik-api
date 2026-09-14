@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
+	"ikik-api/internal/pkg/antigravity"
+	"ikik-api/internal/pkg/claude"
+	"ikik-api/internal/pkg/geminicli"
 )
 
 const (

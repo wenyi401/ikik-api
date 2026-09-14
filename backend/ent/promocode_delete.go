@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Wei-Shaw/sub2api/ent/predicate"
-	"github.com/Wei-Shaw/sub2api/ent/promocode"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/promocode"
 )
 
 // PromoCodeDelete is the builder for deleting a PromoCode entity.

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
+	"ikik-api/internal/config"
 )
 
 // cnQuotaProber 抽象额度探测（*CNProviderQuotaService 实现，测试可替换）。

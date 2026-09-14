@@ -2,10 +2,10 @@
 package routes
 
 import (
-	"github.com/Wei-Shaw/sub2api/internal/handler"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
-	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/handler"
+	"ikik-api/internal/pkg/response"
+	"ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

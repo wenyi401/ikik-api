@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/group"
-	"github.com/Wei-Shaw/sub2api/ent/predicate"
-	"github.com/Wei-Shaw/sub2api/ent/schema/mixins"
-	"github.com/Wei-Shaw/sub2api/ent/user"
-	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/group"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/schema/mixins"
+	"ikik-api/ent/user"
+	"ikik-api/ent/usersubscription"
+	"ikik-api/internal/pkg/pagination"
+	"ikik-api/internal/service"
 )
 
 type userSubscriptionRepository struct {

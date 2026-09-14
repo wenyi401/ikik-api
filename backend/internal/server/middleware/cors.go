@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
+	"ikik-api/internal/config"
 	"github.com/gin-gonic/gin"
 )
 

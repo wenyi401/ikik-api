@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/userplatformquota"
+	"ikik-api/internal/pkg/timezone"
 	"github.com/lib/pq"
 )
 

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
+	"ikik-api/internal/pkg/httpclient"
 )
 
 // DriveStorageInfo represents Google Drive storage quota information

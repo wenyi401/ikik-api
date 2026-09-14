@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Wei-Shaw/sub2api/ent/predicate"
-	"github.com/Wei-Shaw/sub2api/ent/tlsfingerprintprofile"
+	"ikik-api/ent/predicate"
+	"ikik-api/ent/tlsfingerprintprofile"
 )
 
 // TLSFingerprintProfileDelete is the builder for deleting a TLSFingerprintProfile entity.

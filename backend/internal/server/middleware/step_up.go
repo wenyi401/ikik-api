@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

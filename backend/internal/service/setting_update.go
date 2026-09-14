@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/antigravity"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 // OmittedSettingKeys marks setting keys the caller's payload never carried.

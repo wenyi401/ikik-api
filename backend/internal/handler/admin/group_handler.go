@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
-	"github.com/Wei-Shaw/sub2api/internal/platform/liveattestation"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/config"
+	"ikik-api/internal/handler/dto"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/response"
+	"ikik-api/internal/platform/liveattestation"
+	"ikik-api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

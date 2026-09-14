@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"strings"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/internal/config"
+	dbent "ikik-api/ent"
+	"ikik-api/internal/config"
 	"github.com/google/wire"
 )
 

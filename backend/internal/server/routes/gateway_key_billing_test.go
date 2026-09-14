@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/handler"
-	servermiddleware "github.com/Wei-Shaw/sub2api/internal/server/middleware"
-	"github.com/Wei-Shaw/sub2api/internal/service"
-	"github.com/Wei-Shaw/sub2api/internal/web"
+	"ikik-api/internal/config"
+	"ikik-api/internal/handler"
+	servermiddleware "ikik-api/internal/server/middleware"
+	"ikik-api/internal/service"
+	"ikik-api/internal/web"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

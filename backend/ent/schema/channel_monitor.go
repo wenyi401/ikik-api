@@ -1,7 +1,7 @@
 package schema
 
 import (
-	"github.com/Wei-Shaw/sub2api/ent/schema/mixins"
+	"ikik-api/ent/schema/mixins"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/entsql"

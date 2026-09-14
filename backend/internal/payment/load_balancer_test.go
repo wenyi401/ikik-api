@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
+	dbent "ikik-api/ent"
 )
 
 func TestInstanceSupportsType(t *testing.T) {

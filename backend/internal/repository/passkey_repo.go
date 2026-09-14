@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/service"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lib/pq"
 )

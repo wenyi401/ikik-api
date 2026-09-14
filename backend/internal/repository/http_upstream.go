@@ -26,14 +26,14 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/net/http2"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyurl"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyutil"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/servertiming"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
-	"github.com/Wei-Shaw/sub2api/internal/service"
-	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/proxyurl"
+	"ikik-api/internal/pkg/proxyutil"
+	"ikik-api/internal/pkg/servertiming"
+	"ikik-api/internal/pkg/tlsfingerprint"
+	"ikik-api/internal/pkg/xai"
+	"ikik-api/internal/service"
+	"ikik-api/internal/util/urlvalidator"
 )
 
 // 默认配置常量

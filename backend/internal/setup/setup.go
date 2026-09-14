@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/repository"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/logger"
+	"ikik-api/internal/repository"
+	"ikik-api/internal/service"
 
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"

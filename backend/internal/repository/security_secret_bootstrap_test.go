@@ -10,10 +10,10 @@ import (
 	"sync"
 	"testing"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/enttest"
-	"github.com/Wei-Shaw/sub2api/ent/securitysecret"
-	"github.com/Wei-Shaw/sub2api/internal/config"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/enttest"
+	"ikik-api/ent/securitysecret"
+	"ikik-api/internal/config"
 	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"

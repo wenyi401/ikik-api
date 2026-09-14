@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
+	"ikik-api/internal/config"
 )
 
 // ModelAvailabilityDiagnosis describes whether the requested model can be

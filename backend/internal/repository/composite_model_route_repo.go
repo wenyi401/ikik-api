@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/compositemodelroute"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/compositemodelroute"
+	"ikik-api/internal/service"
 )
 
 type compositeModelRouteRepository struct {

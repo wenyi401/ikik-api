@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"ikik-api/internal/pkg/claude"
+	"ikik-api/internal/pkg/openai"
 	"github.com/gin-gonic/gin"
 )
 

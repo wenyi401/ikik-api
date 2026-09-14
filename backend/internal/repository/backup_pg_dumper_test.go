@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/Wei-Shaw/sub2api/internal/config"
+	"ikik-api/internal/config"
 	"github.com/stretchr/testify/require"
 )
 

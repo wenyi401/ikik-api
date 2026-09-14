@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"ikik-api/internal/pkg/pagination"
 )
 
 const (

@@ -16,11 +16,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	"ikik-api/internal/pkg/claude"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/httpclient"
+	"ikik-api/internal/pkg/openai"
+	"ikik-api/internal/pkg/xai"
 	"golang.org/x/net/http2"
 	"golang.org/x/sync/singleflight"
 )

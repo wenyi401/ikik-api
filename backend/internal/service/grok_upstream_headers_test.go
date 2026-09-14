@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	"ikik-api/internal/pkg/tlsfingerprint"
+	"ikik-api/internal/pkg/xai"
 )
 
 func TestApplyDefaultGrokUpstreamHeadersUsesCLIUserAgent(t *testing.T) {

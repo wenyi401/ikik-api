@@ -18,10 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
-	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/logger"
+	"ikik-api/internal/pkg/openai"
+	"ikik-api/internal/util/urlvalidator"
 	"go.uber.org/zap"
 )
 

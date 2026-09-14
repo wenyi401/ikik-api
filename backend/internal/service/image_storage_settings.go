@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/logger"
 	"go.uber.org/zap"
 )
 

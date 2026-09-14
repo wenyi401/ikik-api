@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/domain"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	"ikik-api/internal/config"
+	"ikik-api/internal/domain"
+	"ikik-api/internal/pkg/xai"
 	"github.com/stretchr/testify/require"
 )
 

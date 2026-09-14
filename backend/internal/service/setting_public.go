@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"ikik-api/internal/pkg/timezone"
 )
 
 func normalizeLoginAgreementMode(raw string) string {

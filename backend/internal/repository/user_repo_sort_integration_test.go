@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/pkg/pagination"
+	"ikik-api/internal/service"
 )
 
 func (s *UserRepoSuite) mustInsertUsageLog(userID int64, createdAt time.Time) {

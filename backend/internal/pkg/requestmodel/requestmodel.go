@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
+	"ikik-api/internal/pkg/httputil"
 	"github.com/tidwall/gjson"
 )
 

@@ -11,7 +11,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Wei-Shaw/sub2api/ent/usagecleanuptask"
+	"ikik-api/ent/usagecleanuptask"
 )
 
 // UsageCleanupTask is the model entity for the UsageCleanupTask schema.

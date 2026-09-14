@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
-	"github.com/Wei-Shaw/sub2api/ent/predicate"
+	"ikik-api/ent/identityadoptiondecision"
+	"ikik-api/ent/predicate"
 )
 
 // IdentityAdoptionDecisionDelete is the builder for deleting a IdentityAdoptionDecision entity.

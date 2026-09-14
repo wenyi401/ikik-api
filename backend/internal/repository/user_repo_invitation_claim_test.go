@@ -6,10 +6,10 @@ import (
 	"context"
 	"testing"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
-	"github.com/Wei-Shaw/sub2api/ent/user"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/redeemcode"
+	"ikik-api/ent/user"
+	"ikik-api/internal/service"
 	"github.com/stretchr/testify/require"
 )
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"ikik-api/internal/domain"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )

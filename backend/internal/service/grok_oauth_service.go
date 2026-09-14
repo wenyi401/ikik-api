@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	"ikik-api/internal/config"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/xai"
 )
 
 const grokDefaultAccessTokenTTL = 6 * time.Hour

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"ikik-api/internal/domain"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )

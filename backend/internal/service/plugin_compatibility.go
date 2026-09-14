@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	pluginv1 "github.com/Wei-Shaw/sub2api/pkg/pluginapi/v1"
+	pluginv1 "ikik-api/pkg/pluginapi/v1"
 	"golang.org/x/mod/semver"
 )
 

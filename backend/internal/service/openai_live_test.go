@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/tlsfingerprint"
 	coderws "github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
 )

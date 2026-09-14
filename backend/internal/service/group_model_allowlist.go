@@ -5,10 +5,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/domain"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"ikik-api/internal/domain"
+	"ikik-api/internal/pkg/claude"
+	infraerrors "ikik-api/internal/pkg/errors"
+	"ikik-api/internal/pkg/openai"
 )
 
 // GroupModelAllowlist 是 service 层的分组模型白名单（与 domain.GroupModelAllowlist

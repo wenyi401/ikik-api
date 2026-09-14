@@ -15,8 +15,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	pluginv1 "github.com/Wei-Shaw/sub2api/pkg/pluginapi/v1"
+	"ikik-api/internal/config"
+	pluginv1 "ikik-api/pkg/pluginapi/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

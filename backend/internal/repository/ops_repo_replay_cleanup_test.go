@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/service"
 )
 
 func TestOpsErrorLogInsertDoesNotPersistRequestReplayFields(t *testing.T) {

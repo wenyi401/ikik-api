@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
-	"github.com/Wei-Shaw/sub2api/internal/payment"
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	dbent "ikik-api/ent"
+	"ikik-api/ent/paymentproviderinstance"
+	"ikik-api/internal/payment"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 const (

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	"ikik-api/internal/pkg/xai"
 	"github.com/stretchr/testify/require"
 )
 

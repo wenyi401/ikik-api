@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
+	"ikik-api/internal/config"
 )
 
 // issue #5281：stream=false 时上游仍可能回 SSE（其他 sub2api 实例、部分 OpenAI 兼容

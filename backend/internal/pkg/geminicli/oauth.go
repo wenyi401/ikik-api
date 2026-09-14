@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 type OAuthConfig struct {

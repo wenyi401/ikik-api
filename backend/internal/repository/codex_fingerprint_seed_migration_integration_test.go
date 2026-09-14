@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/service"
-	dbmigrations "github.com/Wei-Shaw/sub2api/migrations"
+	"ikik-api/internal/service"
+	dbmigrations "ikik-api/migrations"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"

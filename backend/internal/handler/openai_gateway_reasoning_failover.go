@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/service"
 	"go.uber.org/zap"
 )
 

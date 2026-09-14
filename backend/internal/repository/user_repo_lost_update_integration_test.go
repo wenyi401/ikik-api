@@ -3,7 +3,7 @@
 package repository
 
 import (
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/service"
 )
 
 // 这一组用例覆盖用户行上的 lost update：调用方手里的快照可能早于并发发生的

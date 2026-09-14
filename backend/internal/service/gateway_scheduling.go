@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/claude"
+	"ikik-api/internal/pkg/ctxkey"
+	"ikik-api/internal/pkg/logger"
+	"ikik-api/internal/pkg/usagestats"
 )
 
 // SelectAccount 选择账号（粘性会话+优先级）

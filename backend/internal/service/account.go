@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/domain"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	"ikik-api/internal/config"
+	"ikik-api/internal/domain"
+	"ikik-api/internal/pkg/geminicli"
+	"ikik-api/internal/pkg/openai_compat"
+	"ikik-api/internal/pkg/xai"
 )
 
 type Account struct {

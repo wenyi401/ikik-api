@@ -7,8 +7,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/ctxkey"
 	"github.com/stretchr/testify/require"
 )
 

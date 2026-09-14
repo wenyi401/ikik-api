@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 const (

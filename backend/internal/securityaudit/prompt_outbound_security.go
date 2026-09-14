@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	infraerrors "ikik-api/internal/pkg/errors"
 )
 
 const maxGuardResponseBytes int64 = 256 * 1024

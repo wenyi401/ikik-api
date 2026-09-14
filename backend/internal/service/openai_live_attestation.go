@@ -12,7 +12,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
+	"ikik-api/internal/config"
 )
 
 const liveAttestationHeader = "x-oai-attestation"

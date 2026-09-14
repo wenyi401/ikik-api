@@ -10,9 +10,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Wei-Shaw/sub2api/ent/channelmonitor"
-	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
-	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"ikik-api/ent/channelmonitor"
+	"ikik-api/ent/channelmonitorhistory"
+	"ikik-api/internal/domain"
 )
 
 // ChannelMonitorHistory is the model entity for the ChannelMonitorHistory schema.

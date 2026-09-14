@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
+	"ikik-api/internal/pkg/httputil"
 )
 
 func TestFromBodyJSONModel(t *testing.T) {

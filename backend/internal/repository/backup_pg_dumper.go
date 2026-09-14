@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"ikik-api/internal/config"
+	"ikik-api/internal/service"
 )
 
 // PgDumper implements service.DBDumper using pg_dump/psql

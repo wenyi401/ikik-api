@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"ikik-api/internal/config"
+	"ikik-api/internal/pkg/geminicli"
+	"ikik-api/internal/pkg/pagination"
 )
 
 // =====================

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
+	"ikik-api/internal/pkg/antigravity"
+	"ikik-api/internal/pkg/apicompat"
 	"github.com/gin-gonic/gin"
 )
 
