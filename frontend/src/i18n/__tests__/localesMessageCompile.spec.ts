@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { baseCompile } from '@intlify/message-compiler'
 
-import en from '../locales/en'
-import zh from '../locales/zh'
+import en from '../locales/runtime-en'
+import zh from '../locales/runtime-zh'
 
 // vue-i18n 在运行时才编译消息：文案里未转义的花括号（如内嵌 JSON 示例
 // "{\"user-agent\": ...}"）会在渲染时抛 "Invalid token in placeholder"，

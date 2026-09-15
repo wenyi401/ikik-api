@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import en from '../locales/en'
-import zh from '../locales/zh'
+import en from '../locales/runtime-en'
+import zh from '../locales/runtime-zh'
 
 describe('risk control locale copy', () => {
   it('describes worker runtime as audit and pre-block record processing', () => {

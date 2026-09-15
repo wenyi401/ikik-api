@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import en from '../locales/en'
-import zh from '../locales/zh'
+import en from '../locales/runtime-en'
+import zh from '../locales/runtime-zh'
 
 describe('OpenAI Fast/Flex policy locale keys', () => {
   it('exposes user scope copy at the runtime zh path', () => {
