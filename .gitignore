@@ -160,3 +160,10 @@ nul
 /.codex_tmp/
 /.vite/
 /.playwright-cli/
+
+# ===================
+# 例外：前端 vitest 运行必需的测试基础设施（src/test/ 曾被 "test/" 规则误伤，
+# 导致 fresh checkout 无法运行前端单测）
+# ===================
+!frontend/src/test/
+!frontend/src/test/**
