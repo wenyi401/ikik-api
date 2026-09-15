@@ -424,10 +424,33 @@ const openFilePicker = () => {
   fileInput.value?.click()
 }
 
+const validateSelectedJSONFiles = async (files: File[]): Promise<string | null> => {
+  if (compatibilityMode.value) return null
+  for (const candidate of files) {
+    if (!candidate.name.toLowerCase().endsWith('.json')) continue
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(await readFileAsText(candidate))
+    } catch {
+      return t('admin.accounts.dataImportParseFailedFile', { name: candidate.name })
+    }
+    if (!normalizeDataPayload(parsed) && !isLikelyCodexImportPayload(parsed)) {
+      return t('admin.accounts.dataImportInvalidFile', { name: candidate.name })
+    }
+  }
+  return null
+}
+
 const setSelectedFiles = async (selectedFiles: File[]) => {
   extracting.value = true
   try {
     const expandedFiles = await expandSelectedImportFiles(selectedFiles)
+    // 选择阶段先做一次逐文件校验：报错时保留上一次的有效选择
+    const validationError = await validateSelectedJSONFiles(expandedFiles)
+    if (validationError) {
+      appStore.showError(validationError)
+      return
+    }
     files.value = expandedFiles
     if (selectedFiles.length > 0 && expandedFiles.length === 0) {
       appStore.showError(t('admin.accounts.dataImportZipNoImportableFiles'))

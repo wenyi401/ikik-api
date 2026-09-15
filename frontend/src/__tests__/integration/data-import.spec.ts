@@ -51,6 +51,31 @@ vi.mock('vue-i18n', async (importOriginal) => {
   }
 })
 
+const mountModal = () =>
+  mount(ImportDataModal, {
+    props: { show: true },
+    global: {
+      stubs: {
+        BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' }
+      }
+    }
+  })
+
+const makeJsonFile = (name: string, content: string, type = 'application/json') => {
+  const file = new File([content], name, { type })
+  Object.defineProperty(file, 'text', {
+    value: () => Promise.resolve(content)
+  })
+  return file
+}
+
+const setInputFiles = (element: Element, files: File[]) => {
+  Object.defineProperty(element, 'files', {
+    value: files,
+    configurable: true
+  })
+}
+
 describe('ImportDataModal', () => {
   beforeEach(() => {
     showError.mockReset()
@@ -102,10 +127,12 @@ describe('ImportDataModal', () => {
     })
 
     await input.trigger('change')
+    await flushPromises()
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(showError).toHaveBeenCalledWith('admin.accounts.dataImportParseFailed')
+    // 选择阶段即按文件名报错（上游契约）
+    expect(showError).toHaveBeenCalledWith('admin.accounts.dataImportParseFailedFile')
   })
 
   it('选择导入目标分组后提交请求携带 group_ids 且不修改数据文件', async () => {
@@ -167,6 +194,7 @@ describe('ImportDataModal', () => {
     })
 
     await input.trigger('change')
+    await flushPromises()
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
@@ -214,10 +242,145 @@ describe('ImportDataModal', () => {
     })
 
     await input.trigger('change')
+    await flushPromises()
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
     expect(importAdminData).not.toHaveBeenCalled()
     expect(showError).toHaveBeenCalledWith('admin.accounts.dataImportTargetGroupMixedPlatforms')
   })
+  it('invalid JSON is rejected per file name before importing', async () => {
+    const wrapper = mountModal()
+    const input = wrapper.find('input[type="file"]')
+
+    setInputFiles(input.element, [makeJsonFile('data.json', 'invalid json')])
+
+    await input.trigger('change')
+    await flushPromises()
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    // fork 在选择阶段就按文件名报错，并且不会发起导入
+    expect(showError).toHaveBeenCalledWith('admin.accounts.dataImportParseFailedFile')
+    expect(importAdminData).not.toHaveBeenCalled()
+  })
+
+  it('a JSON that is not an export file is rejected by name', async () => {
+    const wrapper = mountModal()
+    const input = wrapper.find('input[type="file"]')
+
+    setInputFiles(input.element, [makeJsonFile('random.json', JSON.stringify({ name: 'test' }))])
+
+    await input.trigger('change')
+    await flushPromises()
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(showError).toHaveBeenCalledWith('admin.accounts.dataImportInvalidFile')
+    expect(importAdminData).not.toHaveBeenCalled()
+  })
+
+  it('a rejected selection keeps the previously chosen files', async () => {
+    const wrapper = mountModal()
+    const input = wrapper.find('input[type="file"]')
+
+    const valid = makeJsonFile(
+      'valid.json',
+      JSON.stringify({ exported_at: '2026-07-05T00:00:00Z', proxies: [], accounts: [{ name: 'a' }] })
+    )
+    setInputFiles(input.element, [valid])
+    await input.trigger('change')
+
+    setInputFiles(input.element, [makeJsonFile('broken.json', 'not json')])
+    await input.trigger('change')
+    await flushPromises()
+    expect(showError).toHaveBeenCalledWith('admin.accounts.dataImportParseFailedFile')
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(importAdminData).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        accounts: [{ name: 'a' }]
+      }),
+      skip_default_group_bind: true
+    })
+  })
+
+  it('imports every selected JSON file and merges the results', async () => {
+    vi.mocked(importAdminData).mockResolvedValue({
+      proxy_created: 0,
+      proxy_reused: 0,
+      proxy_failed: 0,
+      account_created: 1,
+      account_failed: 0
+    })
+
+    const wrapper = mountModal()
+    const input = wrapper.find('input[type="file"]')
+
+    setInputFiles(input.element, [
+      makeJsonFile(
+        'first.json',
+        JSON.stringify({ exported_at: '2026-07-05T00:00:00Z', proxies: [], accounts: [{ name: 'a' }] })
+      ),
+      makeJsonFile(
+        'second.json',
+        JSON.stringify({
+          exported_at: '2026-07-05T00:00:01Z',
+          proxies: [{ proxy_key: 'p' }],
+          accounts: [{ name: 'b' }]
+        })
+      )
+    ])
+
+    await input.trigger('change')
+    await flushPromises()
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    // fork 逐个文件调用导入接口，再在本地合并结果
+    expect(importAdminData).toHaveBeenCalledTimes(2)
+    const importedAccounts = vi
+      .mocked(importAdminData)
+      .mock.calls.flatMap((call) => {
+        const payload = call[0] as { data?: { accounts?: Array<{ name: string }> } }
+        return payload.data?.accounts?.map((account) => account.name) ?? []
+      })
+    expect(importedAccounts).toEqual(['a', 'b'])
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.dataImportSuccess')
+  })
+
+  it('notifies the parent when the modal is closed after a partial import', async () => {
+    vi.mocked(importAdminData).mockResolvedValue({
+      proxy_created: 0,
+      proxy_reused: 0,
+      proxy_failed: 0,
+      account_created: 1,
+      account_failed: 1
+    })
+
+    const wrapper = mountModal()
+    const input = wrapper.find('input[type="file"]')
+    setInputFiles(input.element, [
+      makeJsonFile(
+        'mixed.json',
+        JSON.stringify({
+          exported_at: '2026-07-05T00:00:00Z',
+          proxies: [],
+          accounts: [{ name: 'a' }, { name: 'b' }]
+        })
+      )
+    ])
+
+    await input.trigger('change')
+    await flushPromises()
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    // fork 用 warning + imported({close:false}) 通知父组件刷新，而不是直接关闭
+    expect(showWarning).toHaveBeenCalledWith('admin.accounts.dataImportCompletedWithErrors')
+    expect(wrapper.emitted('imported')?.[0]?.[0]).toEqual({ close: false })
+  })
+
 })

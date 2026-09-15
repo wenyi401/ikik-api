@@ -114,6 +114,7 @@ describe('ImportDataModal user scope', () => {
       value: [file]
     })
     await fileInput.trigger('change')
+    await flushPromises()
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
@@ -153,6 +154,7 @@ describe('ImportDataModal user scope', () => {
       value: [file]
     })
     await fileInput.trigger('change')
+    await flushPromises()
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
@@ -198,6 +200,7 @@ describe('ImportDataModal user scope', () => {
     Object.defineProperty(fileInput.element, 'files', { configurable: true, value: [file] })
 
     await fileInput.trigger('change')
+    await flushPromises()
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
@@ -242,6 +245,7 @@ describe('ImportDataModal user scope', () => {
     Object.defineProperty(fileInput.element, 'files', { configurable: true, value: files })
 
     await fileInput.trigger('change')
+    await flushPromises()
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 

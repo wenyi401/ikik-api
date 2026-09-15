@@ -255,6 +255,7 @@
                   class="inline-flex h-7 items-center gap-1 rounded-md border border-gray-200 bg-white px-2 text-[11px] font-medium text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-300 dark:hover:border-dark-500 dark:hover:bg-dark-700 dark:hover:text-white"
                   :class="usageSort ? 'border-primary-200 text-primary-700 dark:border-primary-700/60 dark:text-primary-300' : ''"
                   :title="t('admin.users.sortBy')"
+                  :data-test="`usage-sort-trigger-${column.key}`"
                   @click.stop="toggleUsageSortMenu"
                 >
                   <span v-if="usageSort">
@@ -273,6 +274,7 @@
                     type="button"
                     class="flex w-full items-center justify-between px-3 py-2 text-left text-gray-700 transition-colors hover:bg-primary-50 hover:text-primary-700 dark:text-dark-200 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
                     :class="isUsageSortActive(metric) ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300' : ''"
+                    :data-test="`usage-sort-${column.key}-${metric}`"
                     @click="toggleUsageSort(metric)"
                   >
                     <span>{{ metric === 'today' ? t('admin.users.today') : t('admin.users.total') }}</span>
