@@ -44,6 +44,7 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   affCode?: string
   loginAgreementRevision?: string
+  promoCode?: string
   githubEnabled?: boolean
   googleEnabled?: boolean
   showDivider?: boolean
@@ -93,6 +94,10 @@ function startLogin(provider: EmailOAuthProvider): void {
   }
   if (props.loginAgreementRevision?.trim()) {
     params.login_agreement_revision = props.loginAgreementRevision.trim()
+  }
+  const promoCode = props.promoCode?.trim()
+  if (promoCode) {
+    params.promo_code = promoCode
   }
   emit('start', { provider, params })
 }

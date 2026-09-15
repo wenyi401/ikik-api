@@ -49,6 +49,7 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   affCode?: string
   loginAgreementRevision?: string
+  promoCode?: string
   showDivider?: boolean
   beforeStart?: () => boolean
 }>(), {
@@ -70,6 +71,10 @@ function startLogin(): void {
   const params: Record<string, string> = { redirect: redirectTo }
   if (props.loginAgreementRevision?.trim()) {
     params.login_agreement_revision = props.loginAgreementRevision.trim()
+  }
+  const promoCode = props.promoCode?.trim()
+  if (promoCode) {
+    params.promo_code = promoCode
   }
   emit('start', { provider: 'linuxdo', params })
 }
