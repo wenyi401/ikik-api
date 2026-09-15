@@ -122,4 +122,56 @@ describe('authSession', () => {
     expect(outcome.kind).toBe('authenticated')
     expect(auth.getAccessToken()).toBe('race-winner')
   })
+  it('shares a single refresh request between concurrent callers', async () => {
+    const auth = await import('./authSession')
+    auth.acceptAuthBundle(bundle(), false)
+
+    let resolvePost!: (value: unknown) => void
+    post.mockImplementation(() => new Promise((resolve) => {
+      resolvePost = resolve
+    }))
+
+    const first = auth.refreshAuthentication()
+    const second = auth.refreshAuthentication()
+
+    expect(post).toHaveBeenCalledTimes(1)
+    resolvePost({ status: 200, data: { code: 0, data: bundle('22222222-2222-4222-8222-222222222222') } })
+
+    const [a, b] = await Promise.all([first, second])
+    expect(a.kind).toBe('authenticated')
+    expect(b.kind).toBe('authenticated')
+    expect(post).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not restore a session that was logged out while the refresh was in flight', async () => {
+    const auth = await import('./authSession')
+    auth.acceptAuthBundle(bundle(), false)
+
+    let resolvePost!: (value: unknown) => void
+    post.mockImplementation(() => new Promise((resolve) => {
+      resolvePost = resolve
+    }))
+
+    const refresh = auth.refreshAuthentication()
+    auth.clearAuthentication(false)
+    resolvePost({ status: 200, data: { code: 0, data: bundle('33333333-3333-4333-8333-333333333333') } })
+
+    const outcome = await refresh
+    expect(outcome.kind).toBe('out_of_sync')
+    expect(auth.getAccessToken()).toBeNull()
+    expect(auth.getCurrentAuthBundle()).toBeNull()
+  })
+
+  it('reports a server session mismatch without adopting the refreshed bundle', async () => {
+    const auth = await import('./authSession')
+    const original = bundle()
+    auth.acceptAuthBundle(original, false)
+
+    post.mockRejectedValue(axiosFailure(409, 'AUTH_SESSION_MISMATCH'))
+
+    const outcome = await auth.refreshAuthentication()
+    expect(outcome.kind).toBe('out_of_sync')
+    expect(auth.getAccessToken()).toBeNull()
+  })
+
 })
