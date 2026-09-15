@@ -3134,6 +3134,7 @@ import { VERTEX_LOCATION_OPTIONS } from '@/constants/account'
 import {
   OPENAI_WS_MODE_CTX_POOL,
   OPENAI_WS_MODE_OFF,
+  OPENAI_WS_MODE_HTTP_BRIDGE,
   OPENAI_WS_MODE_PASSTHROUGH,
   isOpenAIWSModeEnabled,
   resolveOpenAIWSModeConcurrencyHintKey,
@@ -3144,7 +3145,8 @@ import {
   getPresetMappingsByPlatform,
   commonErrorCodes,
   buildModelMappingObject,
-  isValidWildcardPattern
+  isValidWildcardPattern,
+  splitModelMappingObject
 } from '@/composables/useModelWhitelist'
 import { accountAssignableGroups } from '@/utils/accountGroups'
 
@@ -3736,7 +3738,6 @@ const openAIResponsesStatusKey = computed(() => {
 })
 
 // HTTP bridge 模式：上游 v0.2.4 引入；此处本地声明，避免依赖 utils/openaiWsMode 的同步进度。
-const OPENAI_WS_MODE_HTTP_BRIDGE = 'http_bridge' as unknown as OpenAIWSMode
 
 const openAIWSModeOptions = computed(() => [
   { value: OPENAI_WS_MODE_OFF, label: t('admin.accounts.openai.wsModeOff') },
@@ -3865,29 +3866,8 @@ const buildEditableModelMapping = (platform: string): Record<string, string> | n
     : getKiroDefaultModelMappings()
   return buildModelMappingObject('mapping', [], mappings)
 }
-// 与 upstream useModelWhitelist.splitModelMappingObject 等价：identity 条目归入白名单，
-// 其余归入映射；该工具函数尚未随上游同步导出，故在此本地实现。
-const splitModelRestrictionFromMapping = (rawMapping?: Record<string, unknown>) => {
-  const parsedAllowed: string[] = []
-  const parsedMappings: { from: string; to: string }[] = []
-  if (rawMapping && typeof rawMapping === 'object') {
-    for (const [rawFrom, rawTo] of Object.entries(rawMapping)) {
-      if (typeof rawTo !== 'string') continue
-      const from = rawFrom.trim()
-      const to = rawTo.trim()
-      if (!from || !to) continue
-      if (from === to) {
-        parsedAllowed.push(from)
-      } else {
-        parsedMappings.push({ from, to })
-      }
-    }
-  }
-  return { allowedModels: parsedAllowed, modelMappings: parsedMappings }
-}
-
 const loadModelRestrictionFromMapping = (rawMapping?: Record<string, unknown>) => {
-  const parsed = splitModelRestrictionFromMapping(rawMapping)
+  const parsed = splitModelMappingObject(rawMapping)
   allowedModels.value = parsed.allowedModels
   modelMappings.value = parsed.modelMappings
   modelRestrictionMode.value =

@@ -904,14 +904,7 @@ describe('BulkEditAccountModal', () => {
       status: 'active'
     })
   })
-  // issue #6327：批量编辑无法把 Codex 指纹收敛关掉。
-  //
-  // 批量更新走 JSONB 顶层合并（extra = COALESCE(extra,'{}') || payload），删掉 payload
-  // 里的键只表示「本次不更新该键」，清不掉账号已有的 device/session/full；而且只删不写会让
-  // payload 退化成 {extra:{}}，被后端 len(req.Extra) > 0 判为空更新直接 400
-  // "No updates provided"。Create/Edit 那两个表单能删键，是因为它们提交完整 extra 对象、
-  // 后端整体 SetExtra 覆盖——两种持久化语义不能共用同一套写法。
-  it('OpenAI OAuth 批量编辑选择「关闭」时应显式提交 codex_fingerprint_mode=off（issue #6327）', async () => {
+
   it('用户作用域批量编辑分组只展示当前账号平台兼容分组', async () => {
     const wrapper = mountModal({
       accountScope: 'user',
@@ -933,10 +926,12 @@ describe('BulkEditAccountModal', () => {
         `
       }
     })
+
     expect(wrapper.find('#bulk-edit-share-mode-enabled').exists()).toBe(true)
     expect(wrapper.find('#bulk-edit-groups-enabled').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('private-u9-openai')
   })
+
   it('用户作用域提交分组更新时调用用户接口', async () => {
     const wrapper = mountModal({
       accountScope: 'user',
@@ -965,15 +960,18 @@ describe('BulkEditAccountModal', () => {
         `
       }
     })
+
     await wrapper.get('#bulk-edit-share-mode-enabled').setValue(true)
     await wrapper.get('select[aria-labelledby="bulk-edit-share-mode-label"]').setValue('public')
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
+
     expect(accountsAPI.bulkUpdate).toHaveBeenCalledWith([1, 2], {
       share_mode: 'public'
     })
     expect(adminAPI.accounts.bulkUpdate).not.toHaveBeenCalled()
   })
+
   it('allows a user to apply a proxy and public sharing together', async () => {
     const wrapper = mountModal({
       accountScope: 'user',
@@ -991,20 +989,24 @@ describe('BulkEditAccountModal', () => {
         `
       }
     })
+
     await wrapper.get('#bulk-edit-proxy-enabled').setValue(true)
     await wrapper.get('[data-testid="select-proxy"]').trigger('click')
     await flushPromises()
     await wrapper.get('#bulk-edit-share-mode-enabled').setValue(true)
+
     const shareModeSelect = wrapper.get('select[aria-labelledby="bulk-edit-share-mode-label"]')
     expect(shareModeSelect.get('option[value="public"]').attributes('disabled')).toBeUndefined()
     await shareModeSelect.setValue('public')
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
+
     expect(accountsAPI.bulkUpdate).toHaveBeenCalledWith([1, 2], {
       proxy_id: 7,
       share_mode: 'public'
     })
   })
+
   it('用户作用域批量改为公共共享时支持后台任务响应', async () => {
     vi.mocked(accountsAPI.bulkUpdate).mockResolvedValueOnce({
       async: true,
@@ -1028,10 +1030,12 @@ describe('BulkEditAccountModal', () => {
       selectedPlatforms: ['openai'],
       selectedTypes: ['oauth']
     })
+
     await wrapper.get('#bulk-edit-share-mode-enabled').setValue(true)
     await wrapper.get('select[aria-labelledby="bulk-edit-share-mode-label"]').setValue('public')
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
+
     expect(accountsAPI.bulkUpdate).toHaveBeenCalledWith([1, 2], {
       share_mode: 'public'
     })
@@ -1042,7 +1046,31 @@ describe('BulkEditAccountModal', () => {
       })
     ])
   })
+
   it('admin OpenAI bulk edit submits account_level', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-account-level-enabled').setValue(true)
+    await wrapper.get('[data-testid="bulk-edit-account-level-select"]').setValue('plus')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      account_level: 'plus'
+    })
+  })
+  // issue #6327：批量编辑无法把 Codex 指纹收敛关掉。
+  //
+  // 批量更新走 JSONB 顶层合并（extra = COALESCE(extra,'{}') || payload），删掉 payload
+  // 里的键只表示「本次不更新该键」，清不掉账号已有的 device/session/full；而且只删不写会让
+  // payload 退化成 {extra:{}}，被后端 len(req.Extra) > 0 判为空更新直接 400
+  // "No updates provided"。Create/Edit 那两个表单能删键，是因为它们提交完整 extra 对象、
+  // 后端整体 SetExtra 覆盖——两种持久化语义不能共用同一套写法。
+  it('OpenAI OAuth 批量编辑选择「关闭」时应显式提交 codex_fingerprint_mode=off（issue #6327）', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['openai'],
       selectedTypes: ['oauth']
@@ -1050,8 +1078,6 @@ describe('BulkEditAccountModal', () => {
 
     // 下拉框默认就是 off，用户只勾选「编辑该项」即提交——正是 issue 描述的操作路径。
     await wrapper.get('#bulk-edit-openai-codex-fingerprint-mode-enabled').setValue(true)
-    await wrapper.get('#bulk-edit-account-level-enabled').setValue(true)
-    await wrapper.get('[data-testid="bulk-edit-account-level-select"]').setValue('plus')
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
 
@@ -1106,7 +1132,6 @@ describe('BulkEditAccountModal', () => {
       extra: {
         codex_cli_only: true
       }
-      account_level: 'plus'
     })
   })
 })

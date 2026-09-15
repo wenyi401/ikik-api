@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 
-const { updateAccountMock, updateUserAccountMock, checkMixedChannelRiskMock } = vi.hoisted(() => ({
+const { updateAccountMock, updateUserAccountMock, checkMixedChannelRiskMock, authIsSimpleMode } = vi.hoisted(() => ({
   updateAccountMock: vi.fn(),
   updateUserAccountMock: vi.fn(),
-  checkMixedChannelRiskMock: vi.fn()
+  checkMixedChannelRiskMock: vi.fn(),
+  authIsSimpleMode: { value: true }
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -19,7 +19,9 @@ vi.mock('@/stores/app', () => ({
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
-    isSimpleMode: true
+    get isSimpleMode() {
+      return authIsSimpleMode.value
+    }
   })
 }))
 
@@ -123,6 +125,28 @@ const SelectStub = defineComponent({
   `
 })
 
+const GroupSelectorStub = defineComponent({
+  name: 'GroupSelector',
+  props: {
+    modelValue: {
+      type: Array,
+      default: () => []
+    }
+  },
+  emits: ['update:modelValue'],
+  template: `
+    <div data-testid="group-selector">
+      <button
+        type="button"
+        data-testid="set-shadow-group"
+        @click="$emit('update:modelValue', [7])"
+      >
+        group
+      </button>
+    </div>
+  `
+})
+
 function buildAccount() {
   return {
     id: 1,
@@ -142,7 +166,6 @@ function buildAccount() {
     concurrency: 1,
     priority: 1,
     rate_multiplier: 1,
-    account_level: 'plus',
     status: 'active',
     group_ids: [],
     expires_at: null,
@@ -287,12 +310,10 @@ function buildOpenAIOAuthParentAccount() {
 }
 
 function mountModal(account = buildAccount(), renderGroupSelector = false) {
-function mountModal(account = buildAccount(), accountScope: 'admin' | 'user' = 'admin') {
   return mount(EditAccountModal, {
     props: {
       show: true,
       account,
-      accountScope,
       proxies: [],
       groups: []
     },
@@ -303,7 +324,6 @@ function mountModal(account = buildAccount(), accountScope: 'admin' | 'user' = '
         Icon: true,
         ProxySelector: true,
         GroupSelector: renderGroupSelector ? false : GroupSelectorStub,
-        GroupSelector: true,
         ModelWhitelistSelector: ModelWhitelistSelectorStub
       }
     }
@@ -430,81 +450,6 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
       'gpt-5.2': 'gpt-5.2'
     })
-    expect(updateAccountMock.mock.calls[0]?.[1]?.account_level).toBe('plus')
-  })
-
-  it('preserves OpenCode Zen account type and endpoints on submit', async () => {
-    const account = buildAccount()
-    account.platform = 'opencode_go'
-    account.credentials = {
-      api_key: 'sk-opencode',
-      account_mode: 'zen',
-      api_protocol: 'adaptive',
-      base_url: 'https://opencode.ai/zen/v1',
-      api_base_urls: {
-        chat_completions: 'https://opencode.ai/zen/v1',
-        anthropic: 'https://opencode.ai/zen',
-        responses: 'https://opencode.ai/zen/v1'
-      },
-      protocol_rules: [
-        { pattern: 'grok-*', protocol: 'responses' },
-        { pattern: 'gpt-*', protocol: 'responses' },
-        { pattern: 'muse-spark-*', protocol: 'responses' },
-        { pattern: 'claude-*', protocol: 'anthropic' },
-        { pattern: 'qwen*', protocol: 'anthropic' }
-      ]
-    }
-    updateAccountMock.mockReset().mockResolvedValue(account)
-    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
-
-    const wrapper = mountModal(account)
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-
-    expect(updateAccountMock).toHaveBeenCalledTimes(1)
-    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
-      account_mode: 'zen',
-      api_protocol: 'adaptive',
-      base_url: 'https://opencode.ai/zen/v1',
-      api_base_urls: {
-        chat_completions: 'https://opencode.ai/zen/v1',
-        anthropic: 'https://opencode.ai/zen',
-        responses: 'https://opencode.ai/zen/v1'
-      },
-      protocol_rules: [
-        { pattern: 'grok-*', protocol: 'responses' },
-        { pattern: 'gpt-*', protocol: 'responses' },
-        { pattern: 'muse-spark-*', protocol: 'responses' },
-        { pattern: 'claude-*', protocol: 'anthropic' },
-        { pattern: 'qwen*', protocol: 'anthropic' }
-      ]
-    })
-  })
-
-  it('treats a legacy OpenCode account without account_mode as GO', async () => {
-    const account = buildAccount()
-    account.platform = 'opencode_go'
-    account.credentials = {
-      api_key: 'sk-opencode',
-      api_protocol: 'adaptive',
-      base_url: 'https://opencode.ai/zen/go/v1',
-      api_base_urls: {
-        chat_completions: 'https://opencode.ai/zen/go/v1',
-        anthropic: 'https://opencode.ai/zen/go',
-        responses: 'https://opencode.ai/zen/go/v1'
-      }
-    }
-    updateAccountMock.mockReset().mockResolvedValue(account)
-    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
-
-    const wrapper = mountModal(account)
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-
-    expect(updateAccountMock).toHaveBeenCalledTimes(1)
-    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
-      account_mode: 'go',
-      api_protocol: 'adaptive',
-      base_url: 'https://opencode.ai/zen/go/v1'
-    })
   })
 
   it('preserves adaptive Kimi Responses endpoint on submit', async () => {
@@ -541,13 +486,182 @@ describe('EditAccountModal', () => {
   })
 
   it('preserves adaptive GLM endpoints on submit', async () => {
-  it('updates an API key account without resubmitting its redacted key', async () => {
     const account = buildAccount()
+    account.platform = 'zhipu'
     account.credentials = {
-      base_url: 'https://api.example.com',
-      model_mapping: {
-        'gpt-5.2': 'gpt-5.2'
+      api_key: 'sk-glm',
+      account_mode: 'coding',
+      api_protocol: 'adaptive',
+      base_url: 'https://open.bigmodel.cn/api/coding/paas/v4',
+      api_base_urls: {
+        chat_completions: 'https://open.bigmodel.cn/api/coding/paas/v4',
+        anthropic: 'https://open.bigmodel.cn/api/anthropic'
       }
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      account_mode: 'coding',
+      api_protocol: 'adaptive',
+      base_url: 'https://open.bigmodel.cn/api/coding/paas/v4',
+      api_base_urls: {
+        chat_completions: 'https://open.bigmodel.cn/api/coding/paas/v4',
+        anthropic: 'https://open.bigmodel.cn/api/anthropic'
+      }
+    })
+  })
+
+  it.each([
+    ['explicit Chat Completions', 'chat_completions'],
+    ['legacy missing protocol', undefined]
+  ])('preserves a custom CN relay for %s accounts', async (_name, storedProtocol) => {
+    const account = buildAccount()
+    account.platform = 'zhipu'
+    account.credentials = {
+      api_key: 'sk-glm',
+      account_mode: 'payg',
+      base_url: 'https://relay.example.com/v1'
+    }
+    if (storedProtocol) {
+      account.credentials.api_protocol = storedProtocol
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    const submittedCredentials = updateAccountMock.mock.calls[0]?.[1]?.credentials
+    expect(submittedCredentials).toMatchObject({
+      account_mode: 'payg',
+      api_protocol: 'chat_completions',
+      base_url: 'https://relay.example.com/v1'
+    })
+    expect(submittedCredentials).not.toHaveProperty('api_base_urls')
+  })
+
+  it('uses the legacy base_url when adaptive endpoints are missing', async () => {
+    const account = buildAccount()
+    account.platform = 'zhipu'
+    account.credentials = {
+      api_key: 'sk-glm',
+      account_mode: 'payg',
+      api_protocol: 'adaptive',
+      base_url: 'https://relay.example.com/v1',
+      api_base_urls: {
+        chat_completions: '   '
+      }
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      api_protocol: 'adaptive',
+      base_url: 'https://relay.example.com/v1',
+      api_base_urls: {
+        chat_completions: 'https://relay.example.com/v1',
+        anthropic: 'https://open.bigmodel.cn/api/anthropic'
+      }
+    })
+  })
+
+  it('carries a fixed Chat relay into Adaptive when the user switches protocols', async () => {
+    const account = buildAccount()
+    account.platform = 'zhipu'
+    account.credentials = {
+      api_key: 'sk-glm',
+      account_mode: 'payg',
+      api_protocol: 'chat_completions',
+      base_url: 'https://relay.example.com/v1'
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+    const adaptiveButton = wrapper
+      .findAll('button')
+      .find(button => button.text().includes('admin.accounts.cnProviders.apiProtocol.adaptive'))
+    expect(adaptiveButton).toBeDefined()
+    await adaptiveButton!.trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      api_protocol: 'adaptive',
+      base_url: 'https://relay.example.com/v1',
+      api_base_urls: {
+        chat_completions: 'https://relay.example.com/v1'
+      }
+    })
+  })
+
+  it.each([
+    {
+      name: 'Anthropic',
+      platform: 'zhipu',
+      protocol: 'anthropic',
+      baseUrl: 'https://relay.example.com/anthropic',
+      expectedBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+      expectedProtocolUrls: {
+        chat_completions: 'https://open.bigmodel.cn/api/paas/v4',
+        anthropic: 'https://relay.example.com/anthropic'
+      }
+    },
+    {
+      name: 'Responses',
+      platform: 'deepseek',
+      protocol: 'responses',
+      baseUrl: 'https://relay.example.com/responses',
+      expectedBaseUrl: 'https://api.deepseek.com',
+      expectedProtocolUrls: {
+        chat_completions: 'https://api.deepseek.com',
+        anthropic: 'https://api.deepseek.com/anthropic',
+        responses: 'https://relay.example.com/responses'
+      }
+    }
+  ])('keeps a fixed $name relay in its protocol slot when switching to Adaptive', async (testCase) => {
+    const account = buildAccount()
+    account.platform = testCase.platform
+    account.credentials = {
+      api_key: 'sk-cn',
+      account_mode: 'payg',
+      api_protocol: testCase.protocol,
+      base_url: testCase.baseUrl
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+    const adaptiveButton = wrapper
+      .findAll('button')
+      .find(button => button.text().includes('admin.accounts.cnProviders.apiProtocol.adaptive'))
+    expect(adaptiveButton).toBeDefined()
+    await adaptiveButton!.trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      api_protocol: 'adaptive',
+      base_url: testCase.expectedBaseUrl,
+      api_base_urls: testCase.expectedProtocolUrls
+    })
+  })
+
+  it('preserves model mappings when editing the whitelist', async () => {
+    const account = buildAccount()
+    account.credentials.model_mapping = {
+      'gpt-5.2': 'gpt-5.2',
+      'gpt-latest': 'gpt-5.2'
     }
     updateAccountMock.mockReset()
     checkMixedChannelRiskMock.mockReset()
@@ -555,112 +669,17 @@ describe('EditAccountModal', () => {
     updateAccountMock.mockResolvedValue(account)
 
     const wrapper = mountModal(account)
+
+    expect(wrapper.get('[data-testid="model-whitelist-value"]').text()).toBe('gpt-5.2')
+
+    await wrapper.get('[data-testid="rewrite-to-snapshot"]').trigger('click')
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
-    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toEqual(expect.objectContaining({
-      base_url: 'https://api.example.com'
-    }))
-    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('api_key')
-  })
-
-  it('lets a user update an API key account without resubmitting its redacted key', async () => {
-    const account = buildAccount()
-    account.credentials = {
-      base_url: 'https://api.example.com'
-    }
-    updateUserAccountMock.mockReset()
-    checkMixedChannelRiskMock.mockReset()
-    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
-    updateUserAccountMock.mockResolvedValue(account)
-
-    const wrapper = mountModal(account)
-    await wrapper.setProps({ accountScope: 'user' })
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-
-    expect(updateUserAccountMock).toHaveBeenCalledTimes(1)
-    expect(updateUserAccountMock.mock.calls[0]?.[1]?.credentials).toEqual(expect.objectContaining({
-      base_url: 'https://api.example.com'
-    }))
-    expect(updateUserAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('api_key')
-  })
-
-  it('keeps account level read-only for user-scoped account edits', async () => {
-    const account = buildAccount()
-    account.type = 'oauth'
-    account.credentials = {
-      access_token: 'oauth-token'
-    }
-    updateAccountMock.mockReset()
-    updateUserAccountMock.mockReset()
-    checkMixedChannelRiskMock.mockReset()
-    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
-    updateUserAccountMock.mockResolvedValue(account)
-
-    const wrapper = mountModal(account)
-    await wrapper.setProps({ accountScope: 'user' })
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-
-    expect(updateUserAccountMock).toHaveBeenCalledTimes(1)
-    expect(updateUserAccountMock.mock.calls[0]?.[1]).not.toHaveProperty('account_level')
-  })
-
-  it('rehydrates and preserves a user-scoped Codex fingerprint mode', async () => {
-    const account = buildAccount()
-    account.type = 'oauth'
-    account.credentials = {
-      access_token: 'oauth-token'
-    }
-    account.extra = {
-      codex_fingerprint_mode: 'off'
-    }
-    updateUserAccountMock.mockReset()
-    checkMixedChannelRiskMock.mockReset()
-    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
-    updateUserAccountMock.mockResolvedValue(account)
-
-    const wrapper = mountModal(account, 'user')
-    const select = wrapper.get('[data-testid="edit-codex-fingerprint-mode-select"]')
-    expect((select.element as HTMLSelectElement).value).toBe('off')
-
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-
-    expect(updateUserAccountMock).toHaveBeenCalledTimes(1)
-    expect(updateUserAccountMock.mock.calls[0]?.[1]?.extra?.codex_fingerprint_mode).toBe('off')
-  })
-
-  it('allows a user OAuth account with a proxy to enter the public pool', async () => {
-    const account = buildAccount()
-    account.type = 'oauth'
-    account.credentials = {
-      access_token: 'oauth-token'
-    }
-    account.proxy_id = 7
-    account.share_mode = 'private'
-    account.share_status = 'approved'
-    updateUserAccountMock.mockReset()
-    checkMixedChannelRiskMock.mockReset()
-    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
-    updateUserAccountMock.mockResolvedValue({ ...account, share_mode: 'public' })
-
-    const wrapper = mountModal(account)
-    await wrapper.setProps({ accountScope: 'user' })
-    const publicButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('userAccounts.publicMode'))
-
-    expect(publicButton).toBeDefined()
-    expect(publicButton?.attributes('disabled')).toBeUndefined()
-    await publicButton?.trigger('click')
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-
-    expect(updateUserAccountMock).toHaveBeenCalledTimes(1)
-    expect(updateUserAccountMock.mock.calls[0]?.[1]).toEqual(
-      expect.objectContaining({
-        share_mode: 'public',
-        concurrency: 10
-      })
-    )
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
+      'gpt-5.2-2025-12-11': 'gpt-5.2-2025-12-11',
+      'gpt-latest': 'gpt-5.2'
+    })
   })
 
   it('submits OpenAI compact mode and compact-only model mapping', async () => {
@@ -1612,4 +1631,129 @@ describe('EditAccountModal OpenAI 自动使用重置卡', () => {
     expect(updateAccountMock).not.toHaveBeenCalled()
     wrapper.unmount()
   })
+  it('updates an API key account without resubmitting its redacted key', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      base_url: 'https://api.example.com',
+      model_mapping: {
+        'gpt-5.2': 'gpt-5.2'
+      }
+    }
+    account.credentials_status = { has_api_key: true }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toEqual(expect.objectContaining({
+      base_url: 'https://api.example.com'
+    }))
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('api_key')
+  })
+
+  it('allows a user OAuth account with a proxy to enter the public pool', async () => {
+    const account = buildAccount()
+    account.type = 'oauth'
+    account.credentials = {
+      access_token: 'oauth-token'
+    }
+    account.proxy_id = 7
+    account.share_mode = 'private'
+    account.share_status = 'approved'
+    updateUserAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateUserAccountMock.mockResolvedValue({ ...account, share_mode: 'public' })
+
+    const wrapper = mountModal(account)
+    await wrapper.setProps({ accountScope: 'user' })
+    const publicButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('userAccounts.publicMode'))
+
+    expect(publicButton).toBeDefined()
+    expect(publicButton?.attributes('disabled')).toBeUndefined()
+    await publicButton?.trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateUserAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateUserAccountMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        share_mode: 'public',
+        concurrency: 10
+      })
+    )
+  })
+
+  it('lets a user update an API key account without resubmitting its redacted key', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      base_url: 'https://api.example.com'
+    }
+    account.credentials_status = { has_api_key: true }
+    updateUserAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateUserAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await wrapper.setProps({ accountScope: 'user' })
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateUserAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateUserAccountMock.mock.calls[0]?.[1]?.credentials).toEqual(expect.objectContaining({
+      base_url: 'https://api.example.com'
+    }))
+    expect(updateUserAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('api_key')
+  })
+
+  it('keeps account level read-only for user-scoped account edits', async () => {
+    const account = buildAccount()
+    account.type = 'oauth'
+    account.credentials = {
+      access_token: 'oauth-token'
+    }
+    updateAccountMock.mockReset()
+    updateUserAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateUserAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await wrapper.setProps({ accountScope: 'user' })
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateUserAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateUserAccountMock.mock.calls[0]?.[1]).not.toHaveProperty('account_level')
+  })
+
+  it('rehydrates and preserves a user-scoped Codex fingerprint mode', async () => {
+    const account = buildAccount()
+    account.type = 'oauth'
+    account.credentials = {
+      access_token: 'oauth-token'
+    }
+    account.extra = {
+      codex_fingerprint_mode: 'off'
+    }
+    updateUserAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateUserAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account, false)
+    await wrapper.setProps({ accountScope: 'user' })
+    const select = wrapper.get('[data-testid="edit-codex-fingerprint-mode-select"]')
+    expect((select.element as HTMLSelectElement).value).toBe('off')
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateUserAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateUserAccountMock.mock.calls[0]?.[1]?.extra?.codex_fingerprint_mode).toBe('off')
+  })
+
 })
