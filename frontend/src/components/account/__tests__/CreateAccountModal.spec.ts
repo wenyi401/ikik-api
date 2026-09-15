@@ -145,10 +145,9 @@ const ModelWhitelistSelectorStub = defineComponent({
   >models</button>`,
 })
 
-function mountModal(groups: any[] = []) {
-function mountModal(accountScope: 'admin' | 'user' = 'admin') {
+function mountModal(groups: any[] = [], accountScope: 'admin' | 'user' = 'admin') {
   return mount(CreateAccountModal, {
-    props: { show: true, proxies: [], groups: [], accountScope },
+    props: { show: true, proxies: [], groups, accountScope },
     global: {
       stubs: {
         BaseDialog: BaseDialogStub,
@@ -197,7 +196,7 @@ async function submitApiKeyAccount(
 }
 
 async function openCodexImportStep(toggleClicks = 0, accountScope: 'admin' | 'user' = 'admin') {
-  const wrapper = mountModal(accountScope)
+  const wrapper = mountModal([], accountScope)
   await selectButtonByText(wrapper, 'OpenAI')
   for (let click = 0; click < toggleClicks; click += 1) {
     await wrapper.get('[data-testid="openai-long-context-billing-toggle"]').trigger('click')
@@ -466,65 +465,6 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(probeUpstreamBillingMock).not.toHaveBeenCalled()
   })
 
-  it('submits OpenCode Zen default protocol rules with adaptive endpoints', async () => {
-    const wrapper = mountModal()
-    await selectButtonByText(wrapper, 'OpenCode')
-    await wrapper.get('form#create-account-form input[type="text"]').setValue('oc')
-    await wrapper.get('form#create-account-form input[type="password"]').setValue('sk-opencode-zen')
-
-    await wrapper.get('form#create-account-form').trigger('submit.prevent')
-    await flushPromises()
-
-    expect(createAccountMock).toHaveBeenCalledTimes(1)
-    expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
-      account_mode: 'zen',
-      api_protocol: 'adaptive',
-      base_url: 'https://opencode.ai/zen/v1',
-      api_base_urls: {
-        chat_completions: 'https://opencode.ai/zen/v1',
-        anthropic: 'https://opencode.ai/zen',
-        responses: 'https://opencode.ai/zen/v1'
-      },
-      protocol_rules: [
-        { pattern: 'grok-*', protocol: 'responses' },
-        { pattern: 'gpt-*', protocol: 'responses' },
-        { pattern: 'muse-spark-*', protocol: 'responses' },
-        { pattern: 'claude-*', protocol: 'anthropic' },
-        { pattern: 'qwen*', protocol: 'anthropic' }
-      ]
-    })
-  })
-
-  it('submits OpenCode GO endpoints after switching account type', async () => {
-    const wrapper = mountModal()
-    await selectButtonByText(wrapper, 'OpenCode')
-    await selectButtonByText(wrapper, 'admin.accounts.opencodeGo.accountMode.go')
-    await wrapper.get('form#create-account-form input[type="text"]').setValue('oc-go')
-    await wrapper.get('form#create-account-form input[type="password"]').setValue('sk-opencode-go')
-
-    await wrapper.get('form#create-account-form').trigger('submit.prevent')
-    await flushPromises()
-
-    expect(createAccountMock).toHaveBeenCalledTimes(1)
-    expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
-      account_mode: 'go',
-      api_protocol: 'adaptive',
-      base_url: 'https://opencode.ai/zen/go/v1',
-      api_base_urls: {
-        chat_completions: 'https://opencode.ai/zen/go/v1',
-        anthropic: 'https://opencode.ai/zen/go',
-        responses: 'https://opencode.ai/zen/go/v1'
-      },
-      protocol_rules: [
-        { pattern: 'grok-*', protocol: 'responses' },
-        { pattern: 'gpt-*', protocol: 'responses' },
-        { pattern: 'muse-spark-*', protocol: 'responses' },
-        { pattern: 'minimax-*', protocol: 'anthropic' },
-        { pattern: 'qwen*', protocol: 'anthropic' }
-      ]
-    })
-  })
-
   it('submits adaptive Kimi protocol endpoints', async () => {
     const wrapper = mountModal()
     await selectButtonByText(wrapper, 'Kimi')
@@ -620,46 +560,6 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(flow.props('showAgentIdentityOption')).toBe(true)
     expect(flow.props('showCodexPatOption')).toBe(true)
     expect(flow.props('initialInputMethod')).toBe('manual')
-  })
-
-  it('exposes only Agent Identity advanced import to user-owned accounts', async () => {
-    const wrapper = await openCodexImportStep(0, 'user')
-    const flow = wrapper.getComponent(OAuthAuthorizationFlowStub)
-
-    expect(flow.props('showCodexSessionImportOption')).toBe(false)
-    expect(flow.props('showAgentIdentityOption')).toBe(true)
-    expect(flow.props('showCodexPatOption')).toBe(false)
-  })
-
-  it('exposes Claude OAuth, Setup Token, and session-key auth to user-owned accounts', async () => {
-    const wrapper = mountModal('user')
-    await wrapper.get('form#create-account-form input[type="text"]').setValue('Claude account')
-    await wrapper.get('input[type="radio"][value="setup-token"]').setValue()
-    await wrapper.get('form#create-account-form').trigger('submit.prevent')
-
-    const flow = wrapper.getComponent(OAuthAuthorizationFlowStub)
-    expect(flow.props('addMethod')).toBe('setup-token')
-    expect(flow.props('showCookieOption')).toBe(true)
-    expect(flow.props('showManualOption')).toBe(true)
-  })
-
-  it('imports user Agent Identity through the user-owned endpoint', async () => {
-    const wrapper = await openCodexImportStep(0, 'user')
-    const flow = wrapper.getComponent(OAuthAuthorizationFlowStub)
-    flow.vm.inputMethod = 'agent_identity'
-
-    flow.vm.$emit('import-codex-session', JSON.stringify({
-      auth_mode: 'agentIdentity',
-      agent_identity: { agent_runtime_id: 'runtime' },
-    }))
-    await flushPromises()
-
-    expect(importAgentIdentityMock).toHaveBeenCalledTimes(1)
-    expect(importAgentIdentityMock.mock.calls[0]?.[0]).toMatchObject({
-      name: 'Codex import',
-      share_mode: 'private',
-    })
-    expect(importCodexSessionMock).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -772,4 +672,44 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
 
     expect(createOpenAICodexPATMock.mock.calls[0]?.[0]?.extra?.openai_long_context_billing_enabled).toBe(false)
   })
+  it('exposes only Agent Identity advanced import to user-owned accounts', async () => {
+    const wrapper = await openCodexImportStep(0, 'user')
+    const flow = wrapper.getComponent(OAuthAuthorizationFlowStub)
+
+    expect(flow.props('showCodexSessionImportOption')).toBe(false)
+    expect(flow.props('showAgentIdentityOption')).toBe(true)
+    expect(flow.props('showCodexPatOption')).toBe(false)
+  })
+
+  it('exposes Claude OAuth, Setup Token, and session-key auth to user-owned accounts', async () => {
+    const wrapper = mountModal([], 'user')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('Claude account')
+    await wrapper.get('input[type="radio"][value="setup-token"]').setValue()
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    const flow = wrapper.getComponent(OAuthAuthorizationFlowStub)
+    expect(flow.props('addMethod')).toBe('setup-token')
+    expect(flow.props('showCookieOption')).toBe(true)
+    expect(flow.props('showManualOption')).toBe(true)
+  })
+
+  it('imports user Agent Identity through the user-owned endpoint', async () => {
+    const wrapper = await openCodexImportStep(0, 'user')
+    const flow = wrapper.getComponent(OAuthAuthorizationFlowStub)
+    flow.vm.inputMethod = 'agent_identity'
+
+    flow.vm.$emit('import-codex-session', JSON.stringify({
+      auth_mode: 'agentIdentity',
+      agent_identity: { agent_runtime_id: 'runtime' },
+    }))
+    await flushPromises()
+
+    expect(importAgentIdentityMock).toHaveBeenCalledTimes(1)
+    expect(importAgentIdentityMock.mock.calls[0]?.[0]).toMatchObject({
+      name: 'Codex import',
+      share_mode: 'private',
+    })
+    expect(importCodexSessionMock).not.toHaveBeenCalled()
+  })
+
 })

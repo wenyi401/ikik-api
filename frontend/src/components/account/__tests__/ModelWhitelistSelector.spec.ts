@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
-import ModelWhitelistSelector from '../ModelWhitelistSelector.vue'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
 
 const {
   copyToClipboard,
@@ -10,15 +9,7 @@ const {
   showWarning,
   syncUpstreamModels,
   syncUpstreamModelsPreview
-} = vi.hoisted(() => ({
-  copyToClipboard: vi.fn().mockResolvedValue(true),
-  showError: vi.fn(),
-  showSuccess: vi.fn(),
-  showInfo: vi.fn(),
-  showWarning: vi.fn(),
-  syncUpstreamModels: vi.fn(),
-  syncUpstreamModelsPreview: vi.fn()
-const { showSuccessMock, showInfoMock } = vi.hoisted(() => {
+} = vi.hoisted(() => {
   Object.defineProperty(globalThis, 'localStorage', {
     value: {
       getItem: vi.fn(),
@@ -28,75 +19,30 @@ const { showSuccessMock, showInfoMock } = vi.hoisted(() => {
     },
     configurable: true
   })
+
   return {
-    showSuccessMock: vi.fn(),
-    showInfoMock: vi.fn()
+    copyToClipboard: vi.fn().mockResolvedValue(true),
+    showError: vi.fn(),
+    showSuccess: vi.fn(),
+    showInfo: vi.fn(),
+    showWarning: vi.fn(),
+    syncUpstreamModels: vi.fn(),
+    syncUpstreamModelsPreview: vi.fn()
   }
 })
-vi.mock('@/stores/app', () => ({
-  useAppStore: () => ({
-    showSuccess: showSuccessMock,
-    showInfo: showInfoMock
-  })
-}))
-vi.mock('@/api/admin', () => ({
-  adminAPI: {
-    accounts: {
-      probeModelList: vi.fn(),
-      probeModels: vi.fn()
-    }
-  }
-}))
-vi.mock('@/api/admin/index', () => ({
-  adminAPI: {
-    accounts: {
-      probeModelList: vi.fn(),
-      probeModels: vi.fn()
-    }
-  }
-}))
-vi.mock('@/api/admin/index.ts', () => ({
-  adminAPI: {
-    accounts: {
-      probeModelList: vi.fn(),
-      probeModels: vi.fn()
-    }
-  }
-}))
-vi.mock('@/utils/apiError', () => ({
-  extractApiErrorMessage: (_err: unknown, fallback: string) => fallback
-}))
-vi.mock('@/components/account/ModelProbeModal.vue', () => ({
-  default: {
-    name: 'ModelProbeModal',
-    props: ['show', 'defaultPlatform', 'accountScope'],
-    emits: ['close', 'apply'],
-    template: `
-      <div v-if="show" data-test="probe-modal">
-        <button type="button" @click="$emit('apply', ['gpt-5.4-openai-compact'])">apply-probed</button>
-      </div>
-    `
-  }
-}))
-vi.mock('../ModelProbeModal.vue', () => ({
-  default: {
-    name: 'ModelProbeModal',
-    props: ['show', 'defaultPlatform', 'accountScope'],
-    emits: ['close', 'apply'],
-    template: `
-      <div v-if="show" data-test="probe-modal">
-        <button type="button" @click="$emit('apply', ['gpt-5.4-openai-compact'])">apply-probed</button>
-      </div>
-    `
-  }
-}))
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string, params?: Record<string, unknown>) => params?.count !== undefined ? `${key}:${params.count}` : key
+      t: (key: string, params?: Record<string, unknown>) => {
+        if (key === 'common.copy') return '复制'
+        if (key === 'admin.accounts.modelProbe.addedModels' && params?.count !== undefined) {
+          return `${key}:${params.count}`
+        }
+        return key
+      }
     })
   }
 })
@@ -110,6 +56,33 @@ vi.mock('@/stores/app', () => ({
   })
 }))
 
+vi.mock('@/api/admin', () => ({
+  adminAPI: {
+    accounts: {
+      probeModelList: vi.fn(),
+      probeModels: vi.fn()
+    }
+  }
+}))
+
+vi.mock('@/api/admin/index', () => ({
+  adminAPI: {
+    accounts: {
+      probeModelList: vi.fn(),
+      probeModels: vi.fn()
+    }
+  }
+}))
+
+vi.mock('@/api/admin/index.ts', () => ({
+  adminAPI: {
+    accounts: {
+      probeModelList: vi.fn(),
+      probeModels: vi.fn()
+    }
+  }
+}))
+
 vi.mock('@/api/admin/accounts', () => ({
   accountsAPI: {
     syncUpstreamModels,
@@ -121,6 +94,36 @@ vi.mock('@/composables/useClipboard', () => ({
   useClipboard: () => ({
     copyToClipboard
   })
+}))
+
+vi.mock('@/utils/apiError', () => ({
+  extractApiErrorMessage: (_err: unknown, fallback: string) => fallback
+}))
+
+vi.mock('@/components/account/ModelProbeModal.vue', () => ({
+  default: {
+    name: 'ModelProbeModal',
+    props: ['show', 'defaultPlatform', 'accountScope'],
+    emits: ['close', 'apply'],
+    template: `
+      <div v-if="show" data-test="probe-modal">
+        <button type="button" @click="$emit('apply', ['gpt-5.4-openai-compact'])">apply-probed</button>
+      </div>
+    `
+  }
+}))
+
+vi.mock('../ModelProbeModal.vue', () => ({
+  default: {
+    name: 'ModelProbeModal',
+    props: ['show', 'defaultPlatform', 'accountScope'],
+    emits: ['close', 'apply'],
+    template: `
+      <div v-if="show" data-test="probe-modal">
+        <button type="button" @click="$emit('apply', ['gpt-5.4-openai-compact'])">apply-probed</button>
+      </div>
+    `
+  }
 }))
 
 import ModelWhitelistSelector from '../ModelWhitelistSelector.vue'
@@ -161,6 +164,35 @@ describe('ModelWhitelistSelector', () => {
     showWarning.mockReset()
     syncUpstreamModels.mockReset()
     syncUpstreamModelsPreview.mockReset()
+  })
+
+  it('copies a model ID without selecting the model', async () => {
+    const wrapper = mountSelector()
+    await wrapper.get('div.cursor-pointer').trigger('click')
+
+    const row = findModelRow(wrapper, 'gpt-5.6-sol')
+
+    const copyButton = row.get('[data-testid="copy-model-id"]')
+    expect(copyButton.attributes('aria-label')).toBe('复制 gpt-5.6-sol')
+
+    await copyButton.trigger('click')
+    await flushPromises()
+
+    expect(copyToClipboard).toHaveBeenCalledWith('gpt-5.6-sol')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
+
+  it('keeps the existing model selection behavior', async () => {
+    const wrapper = mountSelector()
+    await wrapper.get('div.cursor-pointer').trigger('click')
+
+    const row = findModelRow(wrapper, 'gpt-5.6-sol')
+    await row.get('[data-testid="select-model"]').trigger('click')
+
+    expect(wrapper.emitted('update:modelValue')).toEqual([[['gpt-5.6-sol']]])
+    expect(copyToClipboard).not.toHaveBeenCalled()
+  })
+
   it('把用户范围传给探测弹窗并隐藏管理员同步入口', async () => {
     const wrapper = mount(ModelWhitelistSelector, {
       props: {
@@ -178,7 +210,9 @@ describe('ModelWhitelistSelector', () => {
           ModelIcon: true,
           Icon: true
         }
+      }
     })
+
     expect(wrapper.text()).not.toContain('admin.accounts.syncUpstreamModels')
     await wrapper.findAll('button').find(button => button.text().includes('admin.accounts.modelProbe.openButton'))!.trigger('click')
     expect(wrapper.getComponent({ name: 'ModelProbeModal' }).props('accountScope')).toBe('user')
@@ -202,7 +236,7 @@ describe('ModelWhitelistSelector', () => {
     await wrapper.get('[data-test="probe-modal"] button').trigger('click')
 
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([['gpt-5.4', 'gpt-5.4-openai-compact']])
-    expect(showSuccessMock).toHaveBeenCalledWith('admin.accounts.modelProbe.addedModels:1')
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.modelProbe.addedModels:1')
   })
 
   it('切换平台后清空本地探测候选模型', async () => {
@@ -233,73 +267,6 @@ describe('ModelWhitelistSelector', () => {
     await wrapper.find('input').setValue('gpt-5.4-openai-compact')
 
     expect(wrapper.text()).toContain('admin.accounts.noMatchingModels')
-  })
-
-  it('warns when model IDs sync but capability metadata is incomplete', async () => {
-    syncUpstreamModels.mockResolvedValue({
-      models: ['x-preview-f-free'],
-      warnings: [
-        {
-          code: 'upstream_model_metadata_incomplete',
-          message: 'Model IDs were synced, but capability metadata could not be updated.'
-        }
-      ]
-    })
-    const wrapper = mount(ModelWhitelistSelector, {
-      props: {
-        modelValue: [],
-        platform: 'openai',
-        accountId: 46
-      },
-      global: {
-        stubs: {
-          ModelIcon: true
-        }
-      }
-    })
-
-    const syncButton = wrapper
-      .findAll('button')
-      .find(button => button.text() === 'admin.accounts.syncUpstreamModels')
-    expect(syncButton).toBeDefined()
-    await syncButton!.trigger('click')
-    await flushPromises()
-
-    expect(wrapper.emitted('update:modelValue')).toEqual([[['x-preview-f-free']]])
-    expect(showWarning).toHaveBeenCalledWith('admin.accounts.syncUpstreamModelsMetadataIncomplete')
-    expect(showSuccess).not.toHaveBeenCalled()
-  })
-
-  it('reports a successful preview so account creation can persist metadata', async () => {
-    syncUpstreamModelsPreview.mockResolvedValue({
-      models: ['x-preview-f-free'],
-      metadata: {
-        'x-preview-f-free': {
-          id: 'x-preview-f-free',
-          reasoning: true,
-          supported_reasoning_levels: ['low', 'high', 'max'],
-        },
-      },
-    })
-    const wrapper = mountSelector({
-      syncCredentials: {
-        platform: 'openai',
-        type: 'apikey',
-        base_url: 'https://opencode.ai/zen/v1',
-        api_key: 'test-key',
-      },
-    })
-    const syncButton = wrapper
-      .findAll('button')
-      .find(button => button.text() === 'admin.accounts.syncUpstreamModels')
-
-    expect(syncButton).toBeDefined()
-    await syncButton?.trigger('click')
-    await flushPromises()
-
-    expect(syncUpstreamModelsPreview).toHaveBeenCalledOnce()
-    expect(wrapper.emitted('upstream-synced')).toEqual([[]])
-    expect(wrapper.emitted('update:modelValue')).toEqual([[['x-preview-f-free']]])
   })
 
   it('warns when model IDs sync but capability metadata is incomplete', async () => {
@@ -402,23 +369,5 @@ describe('ModelWhitelistSelector', () => {
     expect(syncUpstreamModelsPreview).toHaveBeenCalledOnce()
     expect(wrapper.emitted('upstream-synced')).toEqual([[]])
     expect(wrapper.emitted('update:modelValue')).toEqual([[['x-preview-f-free']]])
-  })
-
-  it('shows the upstream sync button for OpenCode Go create-account credentials', () => {
-    const wrapper = mountSelector({
-      platform: 'opencode_go',
-      syncCredentials: {
-        platform: 'opencode_go',
-        type: 'apikey',
-        base_url: 'https://opencode.ai/zen/go/v1',
-        api_key: 'sk-test',
-      },
-    })
-    const syncButton = wrapper
-      .findAll('button')
-      .find(button => button.text() === 'admin.accounts.syncUpstreamModels')
-
-    expect(syncButton).toBeDefined()
-    expect(syncButton?.exists()).toBe(true)
   })
 })

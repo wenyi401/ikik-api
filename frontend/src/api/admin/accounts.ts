@@ -1182,6 +1182,7 @@ export const accountsAPI = {
   resetTempUnschedulable,
   setSchedulable,
   getAvailableModels,
+  syncUpstreamModels,
   syncUpstreamModelsPreview,
   probeModelList,
   probeModels,

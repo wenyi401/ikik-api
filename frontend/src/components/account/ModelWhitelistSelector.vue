@@ -228,6 +228,16 @@ const normalizedPlatforms = computed(() => {
 const primaryPlatform = computed(() => normalizedPlatforms.value[0] || 'openai')
 
 const upstreamSyncPlatforms = new Set<string>([
+  'anthropic',
+  'openai',
+  'gemini',
+  'antigravity',
+  'grok',
+  'kimi',
+  'zhipu',
+  'deepseek',
+  'minimax',
+  'kiro'
 ])
 const canSyncUpstream = computed(() => {
   if (props.accountId) {
@@ -333,18 +343,29 @@ const fillRelated = () => {
 }
 
 const syncUpstreamModels = async () => {
-  if (isSyncingUpstream.value || !props.syncCredentials) return
+  if (isSyncingUpstream.value) return
+  if (!props.accountId && !props.syncCredentials) return
 
   isSyncingUpstream.value = true
   try {
-    const result = await accountsAPI.syncUpstreamModelsPreview(props.syncCredentials)
-    const models = Array.from(
+    let result
+    if (props.accountId) {
+      result = await accountsAPI.syncUpstreamModels(props.accountId)
+    } else if (props.syncCredentials) {
+      result = await accountsAPI.syncUpstreamModelsPreview(props.syncCredentials as SyncUpstreamPreviewParams)
+    } else {
+      return
+    }
+
+    const syncedModels = Array.from(
       new Set(result.models.map(model => model.trim()).filter(Boolean))
     )
-    if (models.length === 0) {
+    if (syncedModels.length === 0) {
       appStore.showInfo(t('admin.accounts.syncUpstreamModelsEmpty'))
       return
     }
+
+    upstreamModels.value = syncedModels
 
     if (!props.accountId) {
       emit('upstream-synced')
@@ -352,7 +373,7 @@ const syncUpstreamModels = async () => {
 
     const newModels = [...props.modelValue]
     let addedCount = 0
-    for (const model of upstreamModels.value) {
+    for (const model of syncedModels) {
       if (!newModels.includes(model)) {
         newModels.push(model)
         addedCount += 1
@@ -372,9 +393,9 @@ const syncUpstreamModels = async () => {
       return
     }
     if (addedCount > 0) {
-      appStore.showSuccess(t('admin.accounts.syncUpstreamModelsSuccess', { count: addedCount, total: upstreamModels.value.length }))
+      appStore.showSuccess(t('admin.accounts.syncUpstreamModelsSuccess', { count: addedCount, total: syncedModels.length }))
     } else {
-      appStore.showInfo(t('admin.accounts.syncUpstreamModelsNoChanges', { count: upstreamModels.value.length }))
+      appStore.showInfo(t('admin.accounts.syncUpstreamModelsNoChanges', { count: syncedModels.length }))
     }
     if (hasPartialMetadata) {
       appStore.showWarning(t('admin.accounts.syncUpstreamModelsMetadataPartial'))
