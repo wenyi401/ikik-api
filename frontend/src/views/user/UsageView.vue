@@ -1050,10 +1050,13 @@ const loadModelStats = async () => {
   modelStatsLoading.value = true
   try {
     const response = await usageAPI.getDashboardModels({
-      ...filters.value,
       start_date: filters.value.start_date || startDate.value,
       end_date: filters.value.end_date || endDate.value,
       api_key_id: selectedApiKeyId(),
+      model: filters.value.model,
+      group_id: filters.value.group_id,
+      request_type: filters.value.request_type,
+      native_compaction_v2: filters.value.native_compaction_v2,
       model_source: 'requested',
     })
     if (requestSequence !== modelStatsRequestSequence) return
@@ -1074,10 +1077,10 @@ const loadGroupStats = async () => {
   groupStatsLoading.value = true
   try {
     const response = await usageAPI.getDashboardSnapshotV2({
-      ...filters.value,
       start_date: filters.value.start_date || startDate.value,
       end_date: filters.value.end_date || endDate.value,
       api_key_id: selectedApiKeyId(),
+      native_compaction_v2: filters.value.native_compaction_v2,
       include_trend: false,
       include_model_stats: false,
       include_group_stats: true,

@@ -4,7 +4,7 @@ import { defineComponent, ref } from 'vue'
 
 import UsageView from '../UsageView.vue'
 
-const { list, exportList, getStats, getSnapshotV2, getModelStats, getById, routeQuery, saveAs } = vi.hoisted(() => {
+const { list, exportList, getStats, getSnapshotV2, getModelStats, getById, routeQuery, saveAs, aoaToSheet, sheetAddAoa, xlsxWrite } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -20,6 +20,9 @@ const { list, exportList, getStats, getSnapshotV2, getModelStats, getById, route
     getById: vi.fn(),
     routeQuery: {} as Record<string, string>,
     saveAs: vi.fn(),
+    aoaToSheet: vi.fn(() => ({})),
+    sheetAddAoa: vi.fn(),
+    xlsxWrite: vi.fn(() => new Uint8Array([1, 2, 3])),
   }
 })
 
@@ -75,6 +78,16 @@ vi.mock('@/api/admin/usage', () => ({
 }))
 
 vi.mock('file-saver', () => ({ saveAs }))
+
+vi.mock('xlsx', () => ({
+  utils: {
+    aoa_to_sheet: aoaToSheet,
+    sheet_add_aoa: sheetAddAoa,
+    book_new: vi.fn(() => ({})),
+    book_append_sheet: vi.fn(),
+  },
+  write: xlsxWrite,
+}))
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
@@ -687,15 +700,18 @@ describe('admin UsageView model audit export', () => {
 			expect.anything()
 		)
 
-		const headers = aoaToSheet.mock.calls[0][0][0]
-		expect(headers.slice(4, 8)).toEqual([
+		// fork 的管理端导出实现为 CSV + UTF-8 BOM（xlsx 依赖未引入）；
+		// 列语义与上游一致：requested / sent / response / mismatch 四列。
+		expect(saveAs).toHaveBeenCalledTimes(1)
+		expect(saveAs.mock.calls[0][1]).toMatch(/^usage_.*.csv$/)
+		vi.useRealTimers()
+		const csv = await readBlob(saveAs.mock.calls[0][0] as Blob)
+		expect(csv).toContain([
 			'Requested model',
 			'Sent upstream model',
 			'Upstream response model',
 			'Upstream model mismatch',
-		])
-		const row = sheetAddAoa.mock.calls[0][1][0]
-		expect(row.slice(4, 8)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
-		expect(saveAs).toHaveBeenCalledTimes(1)
+		].join(','))
+		expect(csv).toContain('gpt-5.6-sol,gpt-5.5,gpt-5.4,Yes')
 	})
 })
