@@ -20,7 +20,7 @@
   `getQuotaUsageClass` 用量配色、`accountsCount`、`admin.groups.accountFilters.*` 文案
   （约 22 个 i18n key + 30 个 helper）未移植；移植会覆盖 fork 现有的价格编辑 UI。
 
-## 上游 spec 中有、合并时丢失的用例（恢复进度 104/~180）
+## 上游 spec 中有、合并时丢失的用例（恢复进度 112/~180）
 
 已恢复并全绿：
 
@@ -42,6 +42,9 @@
 * `components/payment/__tests__/PaymentStatusPanel.spec.ts`（3 条，8/8 全绿）：主动核销（pending 时调用 `verifyOrder` 并按服务端结果结算）用例此前因 spec 缺少 `verifyOrder` mock 整组失败，组件本身已是上游版本
 * `api/authSession.spec.ts`（再 +1 条，10/10 全绿）：冷启动清掉损坏的 legacy `auth_token`/`refresh_token`/`auth_user` 而不影响会话 —— 对应上游 auth store 的 localStorage 容错用例
 * `router/__tests__/title.spec.ts` + `utils/__tests__/tablePreferences.spec.ts` + `composables/__tests__/useOpenAIOAuth.spec.ts`（共 3 条，5/5、7/7、6/6 全绿）：补回上游的 `resolveRouteDocumentTitle`（自定义页面用后台配置的菜单名作页签标题，App.vue 增加 title watcher、语言切换时同样走该解析），页签标题随站点名/自定义菜单变化即时更新；表格每页条数默认值按 fork 的 `[10,20,50,100,1000]` 断言（比上游多一档 1000，属 fork 有意差异）
+* `views/user/__tests__/PaymentResultView.spec.ts`（3 条，15/15 全绿）：订单校验改为「已登录走鉴权接口、失败再退回公开校验」，金额按订单返回的币种用 `formatPaymentAmount` 渲染（此前固定按 ¥ 显示）
+* `components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts`（1 条恢复 + 3 条原本失败，11/11 全绿）：**修掉两个真实缺陷** —— 验证码控件此前只在启用 Cloudflare Turnstile 时才渲染，导致启用腾讯/阿里云 人机验证时挂载不到 widget、`verifyAction()` 取不到凭据，发验证码与提交会被静默中止；提交 payload 也补上了父组件要转发的 `turnstileToken` / 腾讯 ticket 字段
+* `components/account/__tests__/AccountStatusIndicator.spec.ts`（2 条，12/12 全绿）、`components/charts/__tests__/TokenUsageTrend.spec.ts`（2 条，4/4 全绿，缓存命中率数据集按 fork 的 i18n 标签断言）
 
 仍未恢复（每条都对应一处上游功能/行为，需要实现后才能放回）：
 
@@ -59,7 +62,7 @@
 
 ## 验证基线
 
-* 前端全量：`70 failed / 2062 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）
+* 前端全量：`67 failed / 2073 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）
 * `vue-tsc --noEmit`：0 错误；`pnpm run build`：成功
 * 后端：`go build ./...` 通过；`go test -p 1 ./internal/...` 41 个失败，
   抽样 4 个在合并前的 worktree 上同样失败（fork 既有差异）

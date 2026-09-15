@@ -16,7 +16,7 @@
       :placeholder="t('auth.passwordPlaceholder')"
       :disabled="isSubmitting"
     />
-    <div v-if="turnstileEnabled && turnstileSiteKey" class="space-y-2">
+    <div v-if="captchaEnabled" class="space-y-2">
       <TurnstileWidget
         ref="turnstileRef"
         :site-key="turnstileSiteKey"
@@ -34,7 +34,7 @@
         @error="onTurnstileError"
       />
     </div>
-    <div class="flex gap-3">
+    <div v-if="emailVerifyEnabled" class="flex gap-3">
     <input
       v-model="verifyCode"
       :data-testid="`${testIdPrefix}-create-account-verify-code`"
@@ -61,10 +61,10 @@
         }}
       </button>
     </div>
-    <p v-if="sendCodeSuccess" class="text-sm text-green-600 dark:text-green-400">
+    <p v-if="emailVerifyEnabled && sendCodeSuccess" class="text-sm text-green-600 dark:text-green-400">
       {{ t('auth.codeSentSuccess') }}
     </p>
-    <p v-else class="text-xs text-gray-500 dark:text-dark-400">
+    <p v-else-if="emailVerifyEnabled" class="text-xs text-gray-500 dark:text-dark-400">
       {{ t('auth.verificationCodeHint') }}
     </p>
     <input
@@ -135,6 +135,7 @@ const invitationCode = ref('')
 const isSendingCode = ref(false)
 const sendCodeError = ref('')
 const sendCodeSuccess = ref(false)
+const emailVerifyEnabled = ref(true)
 const countdown = ref(0)
 const invitationCodeEnabled = ref(false)
 const turnstileEnabled = ref(false)
@@ -320,7 +321,16 @@ async function handleSubmit() {
   emit('submit', {
     email: trimmedEmail,
     password: password.value,
-    verifyCode: verifyCode.value.trim(),
+    verifyCode: emailVerifyEnabled.value ? verifyCode.value.trim() : '',
+    ...((turnstileEnabled.value || aliyunCaptchaEnabled.value) && turnstileToken.value
+      ? { turnstileToken: turnstileToken.value }
+      : {}),
+    ...(tencentCaptchaEnabled.value && turnstileToken.value
+      ? {
+          tencentCaptchaTicket: turnstileToken.value,
+          tencentCaptchaRandstr: tencentCaptchaRandstr.value
+        }
+      : {}),
     invitationCode: invitationCode.value.trim() || undefined
   })
 
@@ -337,6 +347,7 @@ onMounted(async () => {
   try {
     const settings = await getPublicSettings()
     invitationCodeEnabled.value = settings.invitation_code_enabled === true
+    emailVerifyEnabled.value = settings.email_verify_enabled !== false
     turnstileEnabled.value = settings.turnstile_enabled === true
     turnstileSiteKey.value = settings.turnstile_site_key || ''
     tencentCaptchaEnabled.value = settings.tencent_captcha_enabled === true

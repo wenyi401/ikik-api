@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { formatPaymentAmount } from '@/components/payment/currency'
 
 const routeState = vi.hoisted(() => ({
   query: {} as Record<string, unknown>,
@@ -7,6 +8,7 @@ const routeState = vi.hoisted(() => ({
 
 const routerPush = vi.hoisted(() => vi.fn())
 const pollOrderStatus = vi.hoisted(() => vi.fn())
+const verifyOrder = vi.hoisted(() => vi.fn())
 const verifyOrderPublic = vi.hoisted(() => vi.fn())
 const resolveOrderPublicByResumeToken = vi.hoisted(() => vi.fn())
 const refreshUser = vi.hoisted(() => vi.fn())
@@ -44,6 +46,7 @@ vi.mock('@/stores/auth', () => ({
 
 vi.mock('@/api/payment', () => ({
   paymentAPI: {
+    verifyOrder,
     verifyOrderPublic,
     resolveOrderPublicByResumeToken,
   },
@@ -479,4 +482,90 @@ describe('PaymentResultView', () => {
     expect(wrapper.text()).toContain('payment.methods.alipay')
     expect(wrapper.text()).not.toContain('payment.methods.alipay_direct')
   })
+
+  it('renders the minimal public out_trade_no verification result without payment_type', async () => {
+    routeState.query = {
+      out_trade_no: 'legacy-minimal',
+      trade_status: 'TRADE_SUCCESS',
+    }
+    verifyOrder.mockRejectedValue(new Error('auth required'))
+    verifyOrderPublic.mockResolvedValue({
+      data: {
+        out_trade_no: 'legacy-minimal',
+        status: 'PAID',
+        paid: true,
+        created_at: '2026-04-20T12:00:00Z',
+        expires_at: '2026-04-20T12:30:00Z',
+      },
+    })
+
+    const wrapper = mount(PaymentResultView, {
+      global: {
+        stubs: {
+          OrderStatusBadge: true,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('payment.result.success')
+    expect(wrapper.text()).toContain('legacy-minimal')
+    expect(wrapper.text()).not.toContain('payment.orders.paymentMethod')
+  })
+
+
+  it('prefers authenticated order verification before falling back to public lookup', async () => {
+    routeState.query = {
+      out_trade_no: 'auth-verify-123',
+      trade_status: 'TRADE_SUCCESS',
+    }
+    verifyOrder.mockResolvedValue({
+      data: orderFactory('COMPLETED'),
+    })
+
+    const wrapper = mount(PaymentResultView, {
+      global: {
+        stubs: {
+          OrderStatusBadge: true,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(verifyOrder).toHaveBeenCalledWith('auth-verify-123')
+    expect(verifyOrderPublic).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('payment.result.success')
+  })
+
+
+  it('uses the currency returned by the order API when rendering amounts', async () => {
+    routeState.query = {
+      resume_token: 'resume-hkd',
+    }
+    resolveOrderPublicByResumeToken.mockResolvedValue({
+      data: {
+        ...orderFactory('PAID'),
+        currency: 'HKD',
+        amount: 100,
+        pay_amount: 103,
+        fee_rate: 3,
+      },
+    })
+
+    const wrapper = mount(PaymentResultView, {
+      global: {
+        stubs: {
+          OrderStatusBadge: true,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain(formatPaymentAmount(103, 'HKD'))
+  })
+
 })
+

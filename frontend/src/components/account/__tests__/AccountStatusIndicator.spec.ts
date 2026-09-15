@@ -300,4 +300,61 @@ describe('AccountStatusIndicator', () => {
       vi.useRealTimers()
     }
   })
+  it('Claude 5 模型限流时显示 Opus 和 Sonnet 的短别名', () => {
+    const wrapper = mount(AccountStatusIndicator, {
+      props: {
+        account: makeAccount({
+          extra: {
+            model_rate_limits: {
+              'claude-opus-5': {
+                rate_limited_at: '2026-07-28T00:00:00Z',
+                rate_limit_reset_at: '2099-07-28T00:00:00Z'
+              },
+              'claude-sonnet-5': {
+                rate_limited_at: '2026-07-28T00:00:00Z',
+                rate_limit_reset_at: '2099-07-28T00:00:00Z'
+              }
+            }
+          }
+        })
+      },
+      global: {
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('COpus5')
+    expect(wrapper.text()).toContain('CSon5')
+    expect(wrapper.text()).not.toContain('claude-sonnet-5')
+  })
+
+
+  it('Grok 账号额度限流时显示自动恢复时间而非临时不可调度', () => {
+    const wrapper = mount(AccountStatusIndicator, {
+      props: {
+        account: makeAccount({
+          id: 5,
+          name: 'grok-free-1',
+          platform: 'grok',
+          rate_limited_at: '2026-07-11T12:00:00Z',
+          rate_limit_reset_at: '2099-07-11T13:00:00Z',
+          temp_unschedulable_until: '2099-07-11T12:30:00Z',
+          temp_unschedulable_reason: 'legacy grok rate limited'
+        })
+      },
+      global: {
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    expect(wrapper.find('.badge-warning').text()).toBe('admin.accounts.status.rateLimited')
+    expect(wrapper.text()).toContain('admin.accounts.status.rateLimitedAutoResume')
+    expect(wrapper.text()).not.toContain('admin.accounts.status.tempUnschedulable')
+  })
+
 })
+

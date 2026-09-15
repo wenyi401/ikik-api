@@ -45,19 +45,19 @@
             </div>
             <div v-if="hasAmountFields(order)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.baseAmount') }}</span>
-              <span class="font-medium text-gray-900 dark:text-white">&#165;{{ baseAmount.toFixed(2) }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(baseAmount) }}</span>
             </div>
             <div v-if="hasAmountFields(order) && order.fee_rate > 0" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.fee') }} ({{ order.fee_rate }}%)</span>
-              <span class="font-medium text-gray-900 dark:text-white">&#165;{{ feeAmount.toFixed(2) }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(feeAmount) }}</span>
             </div>
             <div v-if="hasAmountFields(order)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
-              <span class="font-bold text-primary-600 dark:text-primary-400">&#165;{{ order.pay_amount.toFixed(2) }}</span>
+              <span class="font-bold text-primary-600 dark:text-primary-400">{{ formatGatewayAmount(order.pay_amount) }}</span>
             </div>
             <div v-if="hasAmountFields(order) && order.amount !== order.pay_amount" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ order.order_type === 'balance' ? '$' : '¥' }}{{ order.amount.toFixed(2) }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ order.order_type === 'balance' ? '$' + order.amount.toFixed(2) : formatGatewayAmount(order.amount) }}</span>
             </div>
             <div v-if="hasPaymentType(order)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</span>
@@ -174,8 +174,9 @@ import { formatStoreDrawReward } from '@/utils/storeRewards'
 import type { OrderStatus, PaymentOrder } from '@/types/payment'
 import type { StoreOrder } from '@/types/store'
 import { normalizePaymentMethodForDisplay, paymentMethodI18nKey } from './paymentUx'
-
-const { t } = useI18n()
+import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
+const i18n = useI18n()
+const { t } = i18n
 const route = useRoute()
 const router = useRouter()
 const paymentStore = usePaymentStore()
@@ -184,6 +185,20 @@ const authStore = useAuthStore()
 type ResolvedOrder = PaymentOrder | PublicOrderVerifyResult
 
 const order = ref<ResolvedOrder | null>(null)
+const currency = ref('CNY')
+
+const localeCode = computed(() => {
+  const raw = i18n.locale as unknown
+  if (typeof raw === 'string') return raw
+  if (raw && typeof raw === 'object' && 'value' in raw) {
+    return String((raw as { value?: string }).value || '')
+  }
+  return undefined
+})
+
+function formatGatewayAmount(value: number): string {
+  return formatPaymentAmount(value, currency.value, localeCode.value)
+}
 const shopOrder = ref<StoreOrder | null>(null)
 const loading = ref(true)
 const loadingShopOrder = ref(false)
@@ -244,6 +259,9 @@ function normalizedOrderPaymentType(paymentType: string): string {
 
 function setResolvedOrder(nextOrder: ResolvedOrder | null): void {
   order.value = nextOrder
+  if (nextOrder && 'currency' in nextOrder && nextOrder.currency) {
+    currency.value = normalizePaymentCurrency(nextOrder.currency)
+  }
   refreshUserBalanceForSuccessfulOrder(nextOrder)
 }
 
@@ -424,10 +442,16 @@ async function resolveOrderFromResumeToken(resumeToken: string): Promise<Resolve
 
 async function resolveOrderFromOutTradeNo(outTradeNo: string): Promise<ResolvedOrder | null> {
   try {
-    const result = await paymentAPI.verifyOrderPublic(outTradeNo)
+    // 已登录用户优先走鉴权接口，拿到的订单信息更完整；失败再退回公开校验
+    const result = await paymentAPI.verifyOrder(outTradeNo)
     return result.data
   } catch (_err: unknown) {
-    return null
+    try {
+      const result = await paymentAPI.verifyOrderPublic(outTradeNo)
+      return result.data
+    } catch (_innerErr: unknown) {
+      return null
+    }
   }
 }
 

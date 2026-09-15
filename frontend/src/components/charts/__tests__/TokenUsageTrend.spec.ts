@@ -6,6 +6,7 @@ import TokenUsageTrend from '../TokenUsageTrend.vue'
 const messages: Record<string, string> = {
   'admin.dashboard.tokenUsageTrend': 'Token Usage Trend',
   'admin.dashboard.noDataAvailable': 'No data available',
+  'dashboard.cache': 'Cache Hit Rate',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -81,4 +82,68 @@ describe('TokenUsageTrend', () => {
     const hitRateDataset = chartData.datasets.find((ds: any) => ds.yAxisID === 'yPercent')
     expect(hitRateDataset.data[0]).toBe(50)
   })
+
+  it('returns 0 hit rate when all prompt tokens are zero', () => {
+    const wrapper = mount(TokenUsageTrend, {
+      props: {
+        trendData: [
+          {
+            date: '2026-05-08',
+            requests: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_creation_tokens: 0,
+            cache_read_tokens: 0,
+            cost: 0,
+            actual_cost: 0,
+          },
+        ],
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+        },
+      },
+    })
+
+    const chartData = JSON.parse(wrapper.find('.chart-data').text())
+    const hitRateDataset = chartData.datasets.find(
+      (ds: any) => ds.label === 'Cache Hit Rate %'
+    )
+    expect(hitRateDataset.data[0]).toBe(0)
+  })
+
+
+  it('includes cache_creation_tokens in denominator for Anthropic models', () => {
+    const wrapper = mount(TokenUsageTrend, {
+      props: {
+        trendData: [
+          {
+            date: '2026-05-08',
+            requests: 1,
+            input_tokens: 200,
+            output_tokens: 50,
+            cache_creation_tokens: 300,
+            cache_read_tokens: 500,
+            cost: 0.02,
+            actual_cost: 0.01,
+          },
+        ],
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+        },
+      },
+    })
+
+    const chartData = JSON.parse(wrapper.find('.chart-data').text())
+    const hitRateDataset = chartData.datasets.find(
+      (ds: any) => ds.label === 'Cache Hit Rate %'
+    )
+    // Hit rate = 500 / (200 + 500 + 300) * 100 = 50%
+    expect(hitRateDataset.data[0]).toBe(50)
+  })
+
 })
+
