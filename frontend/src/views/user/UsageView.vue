@@ -226,7 +226,7 @@
           </template>
 
           <template #cell-reasoning_effort="{ row }">
-            <span class="text-sm text-[var(--app-text)]">
+            <span data-testid="reasoning-effort-cell" class="text-sm text-[var(--app-text)]">
               {{ formatReasoningEffort(row.reasoning_effort) }}
             </span>
           </template>

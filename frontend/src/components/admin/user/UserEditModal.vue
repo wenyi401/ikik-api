@@ -38,11 +38,14 @@
         <input
           v-model.number="form.concurrency"
           type="number"
-          min="1"
+          min="0"
+          step="1"
           class="input"
+          :placeholder="t('admin.users.form.concurrencyPlaceholder')"
+          data-test="concurrency-input"
           @input="normalizeConcurrencyInput"
         />
-        <p class="input-hint">{{ t('admin.users.concurrencyRangeHint') }}</p>
+        <p class="input-hint">{{ t('admin.users.form.concurrencyHint') }}</p>
       </div>
       <div>
         <label class="input-label">{{ t('admin.users.form.rpmLimit') }}</label>
@@ -111,7 +114,12 @@ const form = reactive({
 })
 
 const normalizeConcurrencyInput = () => {
-  form.concurrency = Math.max(1, form.concurrency || 1)
+  // 0 = 不限制（后端 AcquireUserSlot 以 maxConcurrency <= 0 判定）；
+  // 负数保留给提交前的校验拦截，这里只兜底清空输入的情况。
+  const value = form.concurrency as unknown
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    form.concurrency = 0
+  }
 }
 
 watch(() => props.user, (u) => {
@@ -146,9 +154,9 @@ const handleUpdateUser = async () => {
     appStore.showError(t('admin.users.emailRequired'))
     return
   }
-  normalizeConcurrencyInput()
-  if (form.concurrency < 1) {
-    appStore.showError(t('admin.users.concurrencyRange'))
+  // 0 = 不限制，与网关 (AcquireUserSlot: maxConcurrency <= 0) 和批量改限额一致
+  if (!Number.isInteger(form.concurrency) || form.concurrency < 0) {
+    appStore.showError(t('admin.users.concurrencyNonNegative'))
     return
   }
   submitting.value = true

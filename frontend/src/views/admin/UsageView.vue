@@ -75,6 +75,7 @@
           <div class="relative" ref="columnDropdownRef">
             <UiIconButton
               :label="t('admin.users.columnSettings')"
+              data-testid="usage-column-settings"
               @click="showColumnDropdown = !showColumnDropdown"
             >
               <Icon name="grid" size="md" />
@@ -86,6 +87,7 @@
               <button
                 v-for="col in toggleableColumns"
                 :key="col.key"
+                :data-testid="`usage-column-toggle-${col.key}`"
                 @click="toggleColumn(col.key)"
                 class="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-[var(--app-muted-strong)] hover:bg-[var(--app-surface-muted)] hover:text-[var(--app-text)]"
               >
@@ -678,7 +680,7 @@ const exportToExcel = async () => {
 
 // Column visibility
 const ALWAYS_VISIBLE = ['user', 'created_at']
-const DEFAULT_HIDDEN_COLUMNS = ['upstream_request_id', 'user_agent']
+const DEFAULT_HIDDEN_COLUMNS = ['reasoning_effort', 'upstream_request_id', 'user_agent']
 const HIDDEN_COLUMNS_KEY = 'usage-hidden-columns-v2'
 const HIDDEN_COLUMNS_VERSION_KEY = 'usage-hidden-columns-version'
 const HIDDEN_COLUMNS_CURRENT_VERSION = 'upstream-request-id-hidden-by-default'
@@ -740,8 +742,10 @@ const loadSavedColumns = () => {
       (JSON.parse(saved) as string[]).forEach((key) => {
         hiddenColumns.add(key)
       })
+      // 版本迁移：逐级把当级新增的默认隐藏列补进用户已有偏好，不重置用户已显式打开的列
       if (localStorage.getItem(HIDDEN_COLUMNS_VERSION_KEY) !== HIDDEN_COLUMNS_CURRENT_VERSION) {
-        hiddenColumns.add('request_id')
+        hiddenColumns.add('reasoning_effort')
+        hiddenColumns.add('upstream_request_id')
         localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
         localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
       }
