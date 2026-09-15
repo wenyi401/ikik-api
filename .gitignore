@@ -142,6 +142,7 @@ docs/*
 !docs/DEVELOPER_ACCOUNT_API.md
 !docs/developer-account-api.openapi.yaml
 !docs/OFFICIAL_UPDATE_AND_DEPLOY_CN.md
+!docs/OFFICIAL_UPDATE_V024_MERGE_RESIDUE_CN.md
 !docs/LOCAL_IMAGE_UPLOAD_DEPLOY_CN.md
 !docs/legal/
 !docs/legal/*.md
