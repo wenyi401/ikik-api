@@ -25,6 +25,8 @@ const {
   getOllamaCloudUsageSettings,
   updateOllamaCloudUsageSettings,
   getGroups,
+  getPanelRateLimitSettings,
+  updatePanelRateLimitSettings,
   listProxies,
   getProviders,
   updateProvider,
@@ -60,6 +62,8 @@ const {
   }),
   updateOllamaCloudUsageSettings: vi.fn().mockImplementation(async (payload) => payload),
   getGroups: vi.fn(),
+  getPanelRateLimitSettings: vi.fn(),
+  updatePanelRateLimitSettings: vi.fn(),
   listProxies: vi.fn(),
   getProviders: vi.fn(),
   updateProvider: vi.fn(),
@@ -76,6 +80,8 @@ const localeRef = vi.hoisted(() => ({ value: "zh-CN" }));
 vi.mock("@/api", () => ({
   adminAPI: {
     settings: {
+      getPanelRateLimitSettings,
+      updatePanelRateLimitSettings,
       getSettings,
       updateSettings,
       getWebSearchEmulationConfig,
