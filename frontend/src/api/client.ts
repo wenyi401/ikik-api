@@ -7,42 +7,19 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResp
 import type { ApiResponse } from '@/types'
 import { getLocale } from '@/i18n'
 import { getAccessToken, refreshAuthentication } from './authSession'
+import {
+  ADMIN_UI_REQUEST_HEADER,
+  USER_UI_REQUEST_HEADER,
+  shouldMarkAdminUIRequest,
+  shouldMarkUserUIRequest
+} from './adminUIRequest'
+import { getAPIBaseURL } from './url'
+export { buildApiUrl, buildGatewayUrl } from './url'
 
 // ==================== Axios Instance Configuration ====================
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-
-function normalizePath(path: string): string {
-  return path.startsWith('/') ? path : `/${path}`
-}
-
-export function buildApiUrl(path: string): string {
-  const base = String(API_BASE_URL || '/api/v1').replace(/\/+$/, '')
-  let suffix = normalizePath(path)
-  if (suffix === '/api/v1') {
-    suffix = ''
-  } else if (suffix.startsWith('/api/v1/')) {
-    suffix = suffix.slice('/api/v1'.length)
-  }
-  return `${base}${suffix}`
-}
-
-export function buildGatewayUrl(path: string): string {
-  const suffix = normalizePath(path)
-  const base = String(API_BASE_URL || '/api/v1')
-  try {
-    const origin =
-      typeof window === 'undefined'
-        ? new URL(base).origin
-        : new URL(base, window.location.origin).origin
-    return `${origin}${suffix}`
-  } catch {
-    return suffix
-  }
-}
-
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getAPIBaseURL(),
   withCredentials: true,
   timeout: 30000,
   headers: {
@@ -51,6 +28,19 @@ export const apiClient: AxiosInstance = axios.create({
 })
 
 // ==================== Request Interceptor ====================
+
+// UI markers let the backend distinguish admin-console traffic from user traffic
+// (used by compliance auditing and Server-Timing allowlists).
+function applyUIRequestHeaders(config: InternalAxiosRequestConfig): void {
+  if (!config.headers) return
+  const requestURL = String(config.url || '')
+  if (shouldMarkAdminUIRequest(requestURL)) {
+    config.headers[ADMIN_UI_REQUEST_HEADER] = '1'
+  }
+  if (shouldMarkUserUIRequest(requestURL)) {
+    config.headers[USER_UI_REQUEST_HEADER] = '1'
+  }
+}
 
 // Get user's timezone
 const getUserTimezone = (): string => {
@@ -63,7 +53,9 @@ const getUserTimezone = (): string => {
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = getAccessToken()
+    applyUIRequestHeaders(config)
+
+  const token = getAccessToken()
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -195,6 +187,15 @@ apiClient.interceptors.response.use(
               status: 0,
               code: 'TOKEN_REFRESH_DEFERRED',
               message: 'Authentication is temporarily unavailable. Please retry shortly.'
+            })
+          }
+          if (outcome.kind === 'out_of_sync') {
+            // 刷新期间会话已被切换（换号/他标签页登录）：旧请求必须失败，
+            // 但不能清除新会话。
+            return Promise.reject({
+              status: 0,
+              code: 'AUTH_SESSION_CHANGED',
+              message: 'Authentication session changed during refresh.'
             })
           }
           if (outcome.kind === 'anonymous') {

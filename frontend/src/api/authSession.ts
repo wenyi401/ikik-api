@@ -221,9 +221,9 @@ function wait(delay: number): Promise<void> {
 }
 
 async function runRefresh(refreshEpoch: number, raceAttempt = 0, allowMismatchRetry = true): Promise<RefreshOutcome> {
-  if (refreshEpoch !== authEpoch) return { kind: 'transient_error', error: new Error('Refresh superseded') }
+  if (refreshEpoch !== authEpoch) return { kind: 'out_of_sync', code: 'AUTH_SESSION_CHANGED' }
   const response = await requestRefresh(currentBundle?.session.sid)
-  if (refreshEpoch !== authEpoch) return { kind: 'transient_error', error: new Error('Refresh superseded') }
+  if (refreshEpoch !== authEpoch) return { kind: 'out_of_sync', code: 'AUTH_SESSION_CHANGED' }
   const { bundle, code } = unwrapRefreshResponse(response.data)
   if (bundle) {
     acceptAuthBundle(bundle, false)
