@@ -3596,6 +3596,74 @@
                 </div>
               </div>
 
+              <!-- 系统全局默认平台限额矩阵 -->
+              <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                <div class="mb-3">
+                  <label class="font-medium text-gray-900 dark:text-white">
+                    {{ t('admin.settings.defaults.defaultPlatformQuotas') }}
+                  </label>
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {{ t('admin.settings.defaults.defaultPlatformQuotasHint') }}
+                  </p>
+                  <p class="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+                    {{ t('admin.settings.defaults.platformQuotaNotice') }}
+                  </p>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="min-w-full text-sm">
+                    <thead>
+                      <tr class="text-left text-xs text-gray-500 dark:text-gray-400">
+                        <th class="pb-2 pr-4 font-medium">{{ t('admin.settings.platformQuota.platform') }}</th>
+                        <th class="pb-2 pr-4 font-medium">{{ t('admin.settings.platformQuota.daily') }}</th>
+                        <th class="pb-2 pr-4 font-medium">{{ t('admin.settings.platformQuota.weekly') }}</th>
+                        <th class="pb-2 font-medium">{{ t('admin.settings.platformQuota.monthly') }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="p in PLATFORM_QUOTA_KEYS"
+                        :key="p"
+                        class="align-top"
+                      >
+                        <td class="py-1 pr-4">
+                          <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ p }}</span>
+                        </td>
+                        <td class="py-1 pr-4">
+                          <input
+                            v-model.number="form.default_platform_quotas[p]!.daily"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="input h-8 w-28 text-sm"
+                            :placeholder="t('admin.settings.platformQuota.placeholder')"
+                          />
+                        </td>
+                        <td class="py-1 pr-4">
+                          <input
+                            v-model.number="form.default_platform_quotas[p]!.weekly"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="input h-8 w-28 text-sm"
+                            :placeholder="t('admin.settings.platformQuota.placeholder')"
+                          />
+                        </td>
+                        <td class="py-1">
+                          <input
+                            v-model.number="form.default_platform_quotas[p]!.monthly"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="input h-8 w-28 text-sm"
+                            :placeholder="t('admin.settings.platformQuota.placeholder')"
+                          />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
                 <div class="mb-4">
                   <label class="font-medium text-gray-900 dark:text-white">
@@ -5614,6 +5682,46 @@
                 <Toggle v-model="form.enable_cch_signing" />
               </div>
 
+              <!-- messages cache_control 改写 -->
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.gatewayForwarding.rewriteMessageCacheControl') }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.settings.gatewayForwarding.rewriteMessageCacheControlHint') }}
+                  </p>
+                </div>
+                <Toggle v-model="form.rewrite_message_cache_control" />
+              </div>
+
+              <!-- Claude OAuth System Prompt Injection -->
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.gatewayForwarding.claudeOAuthSystemPromptInjection') }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.settings.gatewayForwarding.claudeOAuthSystemPromptInjectionHint') }}
+                  </p>
+                </div>
+                <Toggle v-model="form.enable_claude_oauth_system_prompt_injection" />
+              </div>
+
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.gatewayForwarding.claudeOAuthSystemPromptBlocks') }}
+                </label>
+                <textarea
+                  v-model="claudeOAuthSystemPromptBlocksText"
+                  rows="6"
+                  class="input font-mono text-xs"
+                ></textarea>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.gatewayForwarding.claudeOAuthSystemPromptBlocksHint') }}
+                </p>
+              </div>
+
               <!-- Anthropic Cache TTL 1h Injection -->
               <div class="flex items-center justify-between">
                 <div>
@@ -7318,6 +7426,17 @@
             </div>
 
             <div v-if="form.affiliate_enabled" class="space-y-6">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.features.affiliate.adminRechargeRebate') }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.settings.features.affiliate.adminRechargeRebateHint') }}
+                  </p>
+                </div>
+                <Toggle v-model="form.affiliate_admin_recharge_enabled" />
+              </div>
               <div>
                 <label class="input-label">
                   {{ t('admin.settings.features.affiliate.durationDays') }}
@@ -8978,6 +9097,7 @@ import {
   buildAuthSourceDefaultsState,
   normalizeAccountSchedulingThresholdsMap,
   normalizePlatformQuotasMap,
+  sanitizePlatformQuotasMap,
   sanitizeAccountSchedulingThresholdsMap,
   SCHEDULING_THRESHOLD_PLATFORMS,
   defaultWeChatConnectScopesForMode,
@@ -9403,6 +9523,7 @@ const form = reactive<SettingsForm>({
   affiliate_rebate_freeze_hours: 0,
   affiliate_rebate_duration_days: 0,
   affiliate_rebate_per_invitee_cap: 0,
+  affiliate_admin_recharge_enabled: false,
   default_concurrency: 1,
   default_subscriptions: [],
   force_email_on_third_party_signup: false,
@@ -9613,6 +9734,10 @@ const form = reactive<SettingsForm>({
   enable_fingerprint_unification: true,
   enable_metadata_passthrough: false,
   enable_cch_signing: false,
+  rewrite_message_cache_control: false,
+  enable_claude_oauth_system_prompt_injection: true,
+  claude_oauth_system_prompt: "",
+  claude_oauth_system_prompt_blocks: "[]",
   enable_anthropic_cache_ttl_1h_injection: false,
   openai_images_responses_reasoning_effort: "medium",
   antigravity_user_agent_version: "",
@@ -10868,6 +10993,46 @@ const codexSyncedVersionLabel = computed(() => {
   });
 });
 
+const PLATFORM_QUOTA_KEYS = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok'] as const;
+
+const normalizeClaudeOAuthSystemPromptBlocksJSON = (raw: string): string => {
+  let parsed: unknown = [];
+  try {
+    parsed = JSON.parse(raw || "[]");
+  } catch {
+    parsed = [];
+  }
+  const list = Array.isArray(parsed) ? parsed : [];
+  const blocks = list.map((item) => {
+    const source = (item ?? {}) as Record<string, unknown>;
+    const block: Record<string, unknown> = {
+      enabled: source.enabled === undefined ? true : Boolean(source.enabled),
+      type:
+        typeof source.type === "string" && source.type ? source.type : "text",
+      text: typeof source.text === "string" ? source.text : "",
+    };
+    const cacheControl = source.cache_control;
+    if (cacheControl === true) {
+      block.cache_control = { type: "ephemeral", ttl: "5m" };
+    } else if (cacheControl && typeof cacheControl === "object") {
+      const ttl = (cacheControl as Record<string, unknown>).ttl;
+      block.cache_control = {
+        type: "ephemeral",
+        ttl: typeof ttl === "string" && ttl ? ttl : "5m",
+      };
+    }
+    return block;
+  });
+  return JSON.stringify(blocks, null, 2);
+};
+
+const claudeOAuthSystemPromptBlocksText = ref("");
+
+watch(claudeOAuthSystemPromptBlocksText, (value) => {
+  form.claude_oauth_system_prompt_blocks = value;
+});
+
+
 async function loadSettings() {
   loading.value = true;
   loadFailed.value = false;
@@ -10932,6 +11097,22 @@ async function loadSettings() {
         : defaultLoginAgreementDocuments();
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(settings));
     form.backend_mode_enabled = settings.backend_mode_enabled;
+    form.affiliate_admin_recharge_enabled = Boolean(
+      settings.affiliate_admin_recharge_enabled,
+    );
+    form.rewrite_message_cache_control = Boolean(
+      settings.rewrite_message_cache_control,
+    );
+    form.enable_claude_oauth_system_prompt_injection =
+      settings.enable_claude_oauth_system_prompt_injection !== false;
+    form.claude_oauth_system_prompt =
+      settings.claude_oauth_system_prompt || "";
+    form.claude_oauth_system_prompt_blocks =
+      normalizeClaudeOAuthSystemPromptBlocksJSON(
+        settings.claude_oauth_system_prompt_blocks || "[]",
+      );
+    claudeOAuthSystemPromptBlocksText.value =
+      form.claude_oauth_system_prompt_blocks;
     form.default_subscriptions = normalizeDefaultSubscriptionSettings(
       settings.default_subscriptions,
     );
@@ -11320,7 +11501,7 @@ async function saveSettings() {
       login_agreement_updated_at: form.login_agreement_updated_at,
       login_agreement_documents: form.login_agreement_documents,
       default_balance: form.default_balance,
-      default_platform_quotas: normalizePlatformQuotasMap(
+      default_platform_quotas: sanitizePlatformQuotasMap(
         form.default_platform_quotas,
       ),
       default_concurrency: form.default_concurrency,
@@ -11605,6 +11786,16 @@ async function saveSettings() {
       free_models_enabled: form.free_models_enabled,
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
+      affiliate_admin_recharge_enabled:
+        form.affiliate_admin_recharge_enabled,
+      rewrite_message_cache_control: form.rewrite_message_cache_control,
+      enable_claude_oauth_system_prompt_injection:
+        form.enable_claude_oauth_system_prompt_injection,
+      claude_oauth_system_prompt: form.claude_oauth_system_prompt,
+      claude_oauth_system_prompt_blocks:
+        normalizeClaudeOAuthSystemPromptBlocksJSON(
+          form.claude_oauth_system_prompt_blocks,
+        ),
       // Carpool Pools feature switch
       carpool_enabled: form.carpool_enabled,
       carpool_base_service_fee_usd: positiveNumberOrZero(
@@ -12563,7 +12754,14 @@ async function loadProviders() {
   providersLoading.value = true;
   try {
     const res = await adminAPI.payment.getProviders();
-    providers.value = res.data || [];
+    const list = res.data || [];
+    // 后端 Go nil slice 会序列化成 null；这里归一化为数组，避免 ProviderCard 崩掉
+    providers.value = list.map((provider) => ({
+      ...provider,
+      supported_types: Array.isArray(provider.supported_types)
+        ? provider.supported_types
+        : [],
+    }));
   } catch (err: unknown) {
     appStore.showError(extractI18nErrorMessage(err, t, "payment.errors", t("common.error")));
   } finally {

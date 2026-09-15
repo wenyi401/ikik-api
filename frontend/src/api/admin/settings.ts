@@ -459,6 +459,7 @@ export interface SystemSettings {
   affiliate_rebate_freeze_hours: number;
   affiliate_rebate_duration_days: number;
   affiliate_rebate_per_invitee_cap: number;
+  affiliate_admin_recharge_enabled: boolean;
   default_concurrency: number;
   default_user_rpm_limit: number;
   user_private_group_daily_limit_usd: number | null;
@@ -649,6 +650,10 @@ export interface SystemSettings {
   enable_fingerprint_unification: boolean;
   enable_metadata_passthrough: boolean;
   enable_cch_signing: boolean;
+  rewrite_message_cache_control: boolean;
+  enable_claude_oauth_system_prompt_injection: boolean;
+  claude_oauth_system_prompt: string;
+  claude_oauth_system_prompt_blocks: string;
   enable_anthropic_cache_ttl_1h_injection: boolean;
   openai_images_responses_reasoning_effort: OpenAIImagesResponsesReasoningEffort;
   antigravity_user_agent_version: string;
@@ -802,6 +807,7 @@ export interface UpdateSettingsRequest {
   affiliate_rebate_freeze_hours?: number;
   affiliate_rebate_duration_days?: number;
   affiliate_rebate_per_invitee_cap?: number;
+  affiliate_admin_recharge_enabled?: boolean;
   default_concurrency?: number;
   default_user_rpm_limit?: number;
   user_private_group_daily_limit_usd?: number | null;
@@ -969,6 +975,10 @@ export interface UpdateSettingsRequest {
   enable_fingerprint_unification?: boolean;
   enable_metadata_passthrough?: boolean;
   enable_cch_signing?: boolean;
+  rewrite_message_cache_control?: boolean;
+  enable_claude_oauth_system_prompt_injection?: boolean;
+  claude_oauth_system_prompt?: string;
+  claude_oauth_system_prompt_blocks?: string;
   enable_anthropic_cache_ttl_1h_injection?: boolean;
   openai_images_responses_reasoning_effort?: OpenAIImagesResponsesReasoningEffort;
   antigravity_user_agent_version?: string;

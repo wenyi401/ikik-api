@@ -29,25 +29,30 @@
 * `api/__tests__/admin.users.spec.ts`（3 条）
 * `stores/__tests__/app.spec.ts`（sidebarScrollTop 1 条；另有 3 条并发语义用例仍失败，未保留）
 * `components/layout/__tests__/AppSidebar.spec.ts`（9 条，含滚动位置持久化）
+* `views/admin/__tests__/SettingsView.spec.ts`（12 条，37/37 全绿）：补齐了充值返利开关
+  `affiliate_admin_recharge_enabled`、`rewrite_message_cache_control`、
+  Claude OAuth system prompt 注入（含 blocks JSON 归一化编辑器）、Users tab 默认平台配额矩阵
+  （提交前用 `sanitizePlatformQuotasMap` 把空输入清成 null）、支付服务商 `supported_types`
+  归一化；TTFT 模式 / Antigravity UA 版本 / Grok 跨客户端映射三处上游 UI 本来就已存在
+* `utils/__tests__/registrationEmailPolicy.spec.ts`（3 条，13/13 全绿）：注册邮箱后缀白名单
+  支持 `*.` 通配符匹配与 `formatRegistrationEmailSuffixWhitelistForMessage`
 
 仍未恢复（每条都对应一处上游功能/行为，需要实现后才能放回）：
 
 | 文件 | 未恢复用例数 | 需要的上游能力 |
 | --- | --- | --- |
-| `views/admin/__tests__/SettingsView.spec.ts` | 12 | 充值返利设置提交、message cache_control 重写、Claude OAuth 系统提示注入、Antigravity UA 版本、Grok 跨客户端映射、OpenAI TTFT 模式、默认平台配额矩阵、Ollama 去抖控件 |
 | `components/payment/__tests__/paymentFlow.spec.ts` | 10 | `forceQRCode` 分支、支付宝 JSAPI 细节 |
 | `api/__tests__/client.spec.ts` | 10 | Admin UI 标记、刷新期间换号的竞态处理 |
 | `api/__tests__/tokenRefresh.spec.ts` | 7 | Web Lock 跨标签页令牌接管 |
 | `stores/__tests__/auth.spec.ts` | 6 | localStorage 损坏清理等 |
-| `utils/__tests__/registrationEmailPolicy.spec.ts` | 8 | 通配符域名、`formatRegistrationEmailSuffixWhitelistForMessage` |
-| `PaymentResultView` / `PendingOAuthCreateAccountForm` / `UsersView` / `AccountUsageCell` / `OllamaCloudUsageCell` / `UsageProgressBar` / `AccountStatusIndicator` / `TokenUsageTrend` / `useModelWhitelist` / `AccountTestModal` / `data-import` / `title` / `tablePreferences` / `useOpenAIOAuth` 等 | 合计约 30 | 各自对应的上游行为（详见 diff 审计输出） |
+| `PaymentResultView` / `PendingOAuthCreateAccountForm` / `UsersView` / `AccountUsageCell` / `OllamaCloudUsageCell` / `UsageProgressBar` / `AccountStatusIndicator` / `TokenUsageTrend` / `useModelWhitelist` / `AccountTestModal` / `data-import` / `title` / `tablePreferences` / `useOpenAIOAuth` / Ollama 去抖控件 等 | 合计约 30 | 各自对应的上游行为（详见 diff 审计输出） |
 
 > 说明：这些用例原本在合并前的 fork 树上同样失败（合并丢失的是用例本身），
 > 因此**新增失败为 0**；但它们代表了尚未对齐的上游行为，建议按表逐项排期。
 
 ## 验证基线
 
-* 前端全量：`73 failed / 2017 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）
+* 前端全量：`73 failed / 2032 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）
 * `vue-tsc --noEmit`：0 错误；`pnpm run build`：成功
 * 后端：`go build ./...` 通过；`go test -p 1 ./internal/...` 41 个失败，
   抽样 4 个在合并前的 worktree 上同样失败（fork 既有差异）

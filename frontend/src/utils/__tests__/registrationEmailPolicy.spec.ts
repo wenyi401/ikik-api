@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatRegistrationEmailSuffixWhitelistForMessage,
   isRegistrationEmailSuffixAllowed,
   isRegistrationEmailSuffixDomainValid,
   normalizeRegistrationEmailSuffixDomain,
@@ -73,5 +74,37 @@ describe('registrationEmailPolicy utils', () => {
   it('isRegistrationEmailSuffixAllowed applies exact suffix matching', () => {
     expect(isRegistrationEmailSuffixAllowed('user@example.com', ['@example.com'])).toBe(true)
     expect(isRegistrationEmailSuffixAllowed('user@sub.example.com', ['@example.com'])).toBe(false)
+  })
+})
+
+
+describe('registration email policy utils (upstream additions)', () => {
+  it('isRegistrationEmailSuffixAllowed applies wildcard suffix matching', () => {
+    expect(isRegistrationEmailSuffixAllowed('student@cs.edu.cn', ['*.edu.cn'])).toBe(true)
+    expect(isRegistrationEmailSuffixAllowed('student@edu.cn', ['*.edu.cn'])).toBe(true)
+    expect(isRegistrationEmailSuffixAllowed('student@foo.cn', ['*.edu.cn'])).toBe(false)
+  })
+
+  it('isRegistrationEmailSuffixAllowed supports mixed exact and wildcard entries', () => {
+    const whitelist = ['@a.com', '*.b.cn']
+    expect(isRegistrationEmailSuffixAllowed('user@a.com', whitelist)).toBe(true)
+    expect(isRegistrationEmailSuffixAllowed('user@school.b.cn', whitelist)).toBe(true)
+    expect(isRegistrationEmailSuffixAllowed('user@b.cn', whitelist)).toBe(true)
+    expect(isRegistrationEmailSuffixAllowed('user@c.cn', whitelist)).toBe(false)
+  })
+
+  it('formatRegistrationEmailSuffixWhitelistForMessage lists up to five entries', () => {
+    expect(
+      formatRegistrationEmailSuffixWhitelistForMessage(
+        ['@a.com', '@b.com', '@c.com', '@d.com', '@e.com'],
+        { separator: ', ', more: (count) => `and ${count} more` }
+      )
+    ).toBe('@a.com, @b.com, @c.com, @d.com, @e.com')
+    expect(
+      formatRegistrationEmailSuffixWhitelistForMessage(
+        ['@a.com', '@b.com', '@c.com', '@d.com', '@e.com', '*.edu.cn', '@f.com'],
+        { separator: ', ', more: (count) => `and ${count} more` }
+      )
+    ).toBe('@a.com, @b.com, @c.com, @d.com, @e.com, and 2 more')
   })
 })

@@ -1517,4 +1517,352 @@ describe("admin SettingsView wechat connect controls", () => {
       }),
     );
   });
+
+  it("submits the admin recharge affiliate rebate setting", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      affiliate_enabled: true,
+      affiliate_admin_recharge_enabled: true,
+    });
+
+    const wrapper = mountView();
+
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        affiliate_admin_recharge_enabled: true,
+      }),
+    );
+  })
+
+
+  it("submits message cache_control rewrite gateway setting", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      rewrite_message_cache_control: true,
+    });
+
+    const wrapper = mountView();
+
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rewrite_message_cache_control: true,
+      }),
+    );
+  })
+
+
+  it("submits Claude OAuth system prompt injection gateway settings", async () => {
+    const blocks = `[{"type":"text","text":"custom block","cache_control":true}]`;
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      enable_claude_oauth_system_prompt_injection: false,
+      claude_oauth_system_prompt_blocks: blocks,
+    });
+
+    const wrapper = mountView();
+
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enable_claude_oauth_system_prompt_injection: false,
+      }),
+    );
+    const payload = updateSettings.mock.calls[0][0] as {
+      claude_oauth_system_prompt_blocks: string;
+    };
+    expect(JSON.parse(payload.claude_oauth_system_prompt_blocks)).toEqual([
+      {
+        enabled: true,
+        type: "text",
+        text: "custom block",
+        cache_control: {
+          type: "ephemeral",
+          ttl: "5m",
+        },
+      },
+    ]);
+  })
+
+
+  it("submits Antigravity user agent version gateway setting", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      antigravity_user_agent_version: "1.23.2",
+    });
+
+    const wrapper = mountView();
+
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        antigravity_user_agent_version: "1.23.2",
+      }),
+    );
+  })
+
+
+  it("loads and saves configurable Grok cross-client model mapping", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      grok_default_text_model: "grok-4.1-fast",
+      grok_cross_client_model_map_enabled: true,
+    });
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openGatewayTab(wrapper);
+
+    const modelInput = wrapper.get('[data-testid="grok-default-text-model"]');
+    const mappingToggle = wrapper.get(
+      '[data-testid="grok-cross-client-model-map-toggle"]',
+    );
+    expect((modelInput.element as HTMLInputElement).value).toBe("grok-4.1-fast");
+    expect((mappingToggle.element as HTMLInputElement).checked).toBe(true);
+
+    await modelInput.setValue("grok-custom-text");
+    await mappingToggle.setValue(false);
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    const payload = updateSettings.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(payload.grok_default_text_model).toBe("grok-custom-text");
+    expect(payload.grok_cross_client_model_map_enabled).toBe(false);
+  })
+
+
+  it("loads and saves the OpenAI Responses first-token metric mode", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      openai_ttft_mode: "visible",
+    });
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openGatewayTab(wrapper);
+
+    const modeSelect = wrapper.get('[data-testid="openai-ttft-mode"]');
+    expect((modeSelect.element as HTMLSelectElement).value).toBe("visible");
+
+    await modeSelect.setValue("semantic");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    const payload = updateSettings.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(payload.openai_ttft_mode).toBe("semantic");
+  })
+
+
+  it("normalizes null supported_types from API so provider card stays visible", async () => {
+    // Backend returns null for supported_types when the list is empty
+    // (Go nil slice → JSON null). Without normalization, ProviderCard's
+    // isSelected() throws TypeError on null.includes(), causing the card
+    // to vanish from the list.
+    const providerWithNullTypes = {
+      id: 42,
+      provider_key: "easypay",
+      name: "EasyPay",
+      config: {},
+      supported_types: null as unknown as string[],
+      enabled: true,
+      payment_mode: "",
+      refund_enabled: false,
+      allow_user_refund: false,
+      limits: "",
+      sort_order: 0,
+    };
+    getProviders.mockReset();
+    getProviders.mockResolvedValue({ data: [providerWithNullTypes] });
+
+    let receivedProviders: Array<Record<string, unknown>> = [];
+    const PaymentProviderListCapture = defineComponent({
+      props: {
+        providers: {
+          type: Array,
+          default: () => [],
+        },
+      },
+      setup(props) {
+        receivedProviders = props.providers as Array<Record<string, unknown>>;
+        return () => h("div", { class: "provider-list-capture" });
+      },
+    });
+
+    const wrapper = mount(SettingsView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          Select: SelectStub,
+          Toggle: ToggleStub,
+          Icon: true,
+          ConfirmDialog: true,
+          PaymentProviderList: PaymentProviderListCapture,
+          PaymentProviderDialog: true,
+          GroupBadge: true,
+          GroupOptionItem: true,
+          ProxySelector: true,
+          ImageUpload: ImageUploadStub,
+          BackupSettings: true,
+        },
+      },
+    });
+
+    await flushPromises();
+    await openPaymentTab(wrapper);
+
+    // The provider should still be in the list
+    expect(receivedProviders.length).toBe(1);
+    // supported_types should be normalized to an empty array, not null
+    expect(Array.isArray(receivedProviders[0].supported_types)).toBe(true);
+    expect(receivedProviders[0].supported_types).toEqual([]);
+  })
+
+
+  it("links GitHub OAuth Apps guide to GitHub developer settings", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      github_oauth_enabled: true,
+    });
+
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openSecurityTab(wrapper);
+
+    const link = wrapper.get('[data-testid="github-oauth-apps-guide-link"]');
+    expect(link.text()).toContain("OAuth Apps");
+    expect(link.attributes("href")).toBe("https://github.com/settings/developers");
+    expect(link.attributes("target")).toBe("_blank");
+    expect(link.attributes("rel")).toContain("noopener");
+  })
+
+
+  it("从 baseSettings 加载默认平台配额数据并在 Users tab 渲染 5 平台行", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    await openUsersTab(wrapper);
+
+    expect(getSettings).toHaveBeenCalled();
+
+    const html = wrapper.html();
+    // 表格行的平台字段：font-mono 渲染纯英文 platform key
+    expect(html).toContain("anthropic");
+    expect(html).toContain("openai");
+    expect(html).toContain("gemini");
+    expect(html).toContain("antigravity");
+  })
+
+
+  it("保存时 updateSettings payload 应包含嵌套 default_platform_quotas 对象（含全 5 平台）", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    await openUsersTab(wrapper);
+
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalled();
+    const lastCallArgs = updateSettings.mock.calls.at(-1);
+    expect(lastCallArgs).toBeDefined();
+    const payload = lastCallArgs![0] as Record<string, unknown>;
+
+    // 应携带嵌套对象，而非扁平字段
+    expect(payload).toHaveProperty("default_platform_quotas");
+    const quotas = payload["default_platform_quotas"] as Record<string, unknown>;
+    const platforms = ["anthropic", "openai", "gemini", "antigravity", "grok"];
+    for (const p of platforms) {
+      expect(quotas).toHaveProperty(p);
+      const pq = quotas[p] as Record<string, unknown>;
+      expect(pq).toHaveProperty("daily");
+      expect(pq).toHaveProperty("weekly");
+      expect(pq).toHaveProperty("monthly");
+    }
+
+    // 不应存在旧扁平字段
+    expect(payload).not.toHaveProperty("default_platform_quota_anthropic_daily");
+    expect(payload).not.toHaveProperty("default_platform_quota_openai_weekly");
+  })
+
+
+  it("加载后 form.default_platform_quotas 含全 5 平台，从嵌套 JSON 正确读取数值", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      default_platform_quotas: {
+        anthropic: { daily: 5, weekly: null, monthly: null },
+        openai:    { daily: null, weekly: 12.5, monthly: null },
+        // gemini / antigravity 缺失 → 应被归一化为全 null
+      },
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await openUsersTab(wrapper);
+
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    const payload = updateSettings.mock.calls.at(-1)![0] as Record<string, unknown>;
+    const quotas = payload["default_platform_quotas"] as Record<string, Record<string, unknown>>;
+
+    expect(quotas["anthropic"]?.["daily"]).toBe(5);
+    expect(quotas["openai"]?.["weekly"]).toBe(12.5);
+    // 缺失平台应补全为 null
+    expect(quotas["gemini"]).toEqual({ daily: null, weekly: null, monthly: null });
+    expect(quotas["antigravity"]).toEqual({ daily: null, weekly: null, monthly: null });
+  })
+
+
+  it("空输入（v-model.number 产出 \"\"）在提交时清洗为 null 而非空字符串", async () => {
+    // 模拟后端返回带有 anthropic daily 值的配额
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      default_platform_quotas: {
+        anthropic: { daily: 10, weekly: null, monthly: null },
+        openai:    { daily: null, weekly: null, monthly: null },
+        gemini:    { daily: null, weekly: null, monthly: null },
+        antigravity: { daily: null, weekly: null, monthly: null },
+      },
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await openUsersTab(wrapper);
+
+    // 找到 anthropic daily 输入框并清空（模拟用户删除值）
+    const inputs = wrapper.findAll('input[type="number"]');
+    const anthropicDailyInput = inputs.find((i) => {
+      const parent = i.element.closest("tr");
+      return parent?.textContent?.includes("anthropic");
+    });
+
+    if (anthropicDailyInput) {
+      // 设置为空字符串，模拟 v-model.number 在清空时产出 ""
+      await anthropicDailyInput.setValue("");
+    }
+
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    const payload = updateSettings.mock.calls.at(-1)![0] as Record<string, unknown>;
+    const quotas = payload["default_platform_quotas"] as Record<string, Record<string, unknown>>;
+    // 不管输入是什么，提交值应为 null（而非 "" 或 NaN）
+    expect(quotas["anthropic"]?.["daily"]).toBe(null);
+  })
 });
