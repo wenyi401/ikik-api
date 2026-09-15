@@ -215,7 +215,6 @@ const isAdminWorkspace = computed(() => authStore.isSimpleMode || route.path.sta
 const showNavigation = computed(() => isAdmin.value || !appStore.backendModeEnabled)
 const isDark = ref(document.documentElement.classList.contains('dark'))
 
-const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))
 
 // Per-group expand/collapse overrides. A group with no entry follows the
 // automatic behavior (expanded while the active route is one of its children);

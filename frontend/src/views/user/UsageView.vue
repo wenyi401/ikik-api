@@ -28,7 +28,7 @@
 
       <template #filters>
         <UiToolbar class="usage-toolbar">
-          <div class="usage-filter-controls">
+          <div v-if="activeTab === 'usage'" class="usage-filter-controls">
             <div class="usage-filter-field">
               <label>{{ t('usage.apiKeyFilter') }}</label>
               <Select
@@ -47,6 +47,30 @@
                 @change="onDateRangeChange"
               />
             </div>
+            <div class="usage-filter-field">
+              <label>{{ t('usage.model') }}</label>
+              <Select v-model="filters.model" :options="modelOptions" searchable @change="applyFilters" />
+            </div>
+            <div class="usage-filter-field">
+              <label>{{ t('admin.usage.group') }}</label>
+              <Select v-model="filters.group_id" :options="groupOptions" searchable @change="applyFilters" />
+            </div>
+            <div class="usage-filter-field">
+              <label>{{ t('usage.type') }}</label>
+              <Select v-model="filters.request_type" :options="requestTypeOptions" @change="applyFilters" />
+            </div>
+            <div class="usage-filter-field">
+              <label>{{ t('usage.compactionFilter') }}</label>
+              <Select v-model="filters.native_compaction_v2" :options="compactionOptions" @change="applyFilters" />
+            </div>
+            <div v-if="subscriptionFeatureEnabled" class="usage-filter-field">
+              <label>{{ t('admin.usage.billingType') }}</label>
+              <Select v-model="filters.billing_type" :options="billingTypeOptions" @change="applyFilters" />
+            </div>
+            <div class="usage-filter-field">
+              <label>{{ t('admin.usage.billingMode') }}</label>
+              <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="applyFilters" />
+            </div>
             <div class="ml-auto flex items-center gap-2">
               <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
               <div class="w-28">
@@ -54,107 +78,42 @@
               </div>
             </div>
           </div>
-        </div>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <ModelDistributionChart
-            v-model:metric="modelDistributionMetric"
-            :model-stats="requestedModelStats"
-            :loading="modelStatsLoading"
-            :show-source-toggle="false"
-            :show-metric-toggle="true"
-            :enable-breakdown="false"
-            :show-account-cost="false"
-            :start-date="startDate"
-            :end-date="endDate"
-          />
-          <GroupDistributionChart
-            v-model:metric="groupDistributionMetric"
-            :group-stats="groupStats"
-            :loading="chartsLoading"
-            :show-metric-toggle="true"
-            :enable-breakdown="false"
-            :show-account-cost="false"
-            :start-date="startDate"
-            :end-date="endDate"
-          />
-        </div>
+          <!-- 用量 / 错误请求 双 tab -->
+          <div class="usage-tab-row">
+            <button
+              class="tab"
+              :class="{ 'tab-active': activeTab === 'usage' }"
+              @click="activeTab = 'usage'"
+            >
+              {{ t('usage.tabs.usage') }}
+            </button>
+            <button
+              class="tab"
+              :class="{ 'tab-active': activeTab === 'errors' }"
+              @click="switchToErrors()"
+            >
+              {{ t('usage.tabs.errors') }}
+            </button>
+          </div>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <EndpointDistributionChart
-            v-model:source="endpointDistributionSource"
-            v-model:metric="endpointDistributionMetric"
-            :endpoint-stats="inboundEndpointStats"
-            :upstream-endpoint-stats="upstreamEndpointStats"
-            :endpoint-path-stats="endpointPathStats"
-            :loading="endpointStatsLoading"
-            :show-source-toggle="false"
-            :show-metric-toggle="true"
-            :enable-breakdown="false"
-            :title="t('usage.endpointDistribution')"
-            :start-date="startDate"
-            :end-date="endDate"
-          />
-          <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
-        </div>
-      </div>
-
-      <div class="card p-6">
-        <div class="flex flex-wrap items-end justify-between gap-4">
-          <div v-if="activeTab === 'errors'" class="flex flex-1 flex-wrap items-end gap-4">
-            <div class="w-full sm:w-auto sm:min-w-[220px]">
-              <label class="input-label">{{ t('usage.errors.keyName') }}</label>
+          <!-- 错误请求筛选（仅错误 tab） -->
+          <div v-if="activeTab === 'errors'" class="usage-filter-controls">
+            <div class="usage-filter-field">
+              <label>{{ t('usage.errors.keyName') }}</label>
               <Select v-model="errorFilter.api_key_id" :options="errorKeyOptions" @change="applyErrorFilters" />
             </div>
-            <div class="w-full sm:w-auto sm:min-w-[220px]">
-              <label class="input-label">{{ t('usage.errors.model') }}</label>
-              <Select
-                v-model="errorFilter.model"
-                :options="errorModelOptions"
-                searchable
-                creatable
-                clearable
-                :placeholder="t('usage.errors.modelPlaceholder')"
-                @change="applyErrorFilters"
-              />
+            <div class="usage-filter-field">
+              <label>{{ t('usage.errors.model') }}</label>
+              <Select v-model="errorFilter.model" :options="errorModelOptions" searchable creatable clearable :placeholder="t('usage.errors.modelPlaceholder')" @change="applyErrorFilters" />
             </div>
-            <div class="w-full sm:w-auto sm:min-w-[200px]">
-              <label class="input-label">{{ t('usage.errors.category') }}</label>
+            <div class="usage-filter-field">
+              <label>{{ t('usage.errors.category') }}</label>
               <Select v-model="errorFilter.category" :options="errorCategoryOptions" @change="applyErrorFilters" />
             </div>
-            <div class="w-full sm:w-auto sm:min-w-[180px]">
-              <label class="input-label">{{ t('usage.errors.status') }}</label>
+            <div class="usage-filter-field">
+              <label>{{ t('usage.errors.status') }}</label>
               <Select v-model="errorFilter.status_code" :options="errorStatusOptions" @change="applyErrorFilters" />
-            </div>
-          </div>
-          <div v-else class="flex flex-1 flex-wrap items-end gap-4">
-            <div class="w-full sm:w-auto sm:min-w-[220px]">
-              <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
-              <Select v-model="filters.api_key_id" :options="apiKeyOptions" @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[220px]">
-              <label class="input-label">{{ t('usage.model') }}</label>
-              <Select v-model="filters.model" :options="modelOptions" searchable @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[200px]">
-              <label class="input-label">{{ t('admin.usage.group') }}</label>
-              <Select v-model="filters.group_id" :options="groupOptions" searchable @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[180px]">
-              <label class="input-label">{{ t('usage.type') }}</label>
-              <Select v-model="filters.request_type" :options="requestTypeOptions" @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[180px]">
-              <label class="input-label">{{ t('usage.compactionFilter') }}</label>
-              <Select v-model="filters.native_compaction_v2" :options="compactionOptions" @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[200px]">
-              <label class="input-label">{{ t('admin.usage.billingType') }}</label>
-              <Select v-model="filters.billing_type" :options="billingTypeOptions" @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[200px]">
-              <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
-              <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="applyFilters" />
             </div>
           </div>
 
@@ -193,7 +152,6 @@
                 </button>
               </div>
             </div>
-            <button v-if="activeTab !== 'errors'" type="button" @click="exportToCSV" :disabled="exporting" class="btn btn-primary">
             <button @click="exportToCSV" :disabled="exporting" class="btn btn-primary">
               <Icon name="download" size="sm" :class="exporting ? 'animate-pulse' : ''" />
               {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
@@ -204,7 +162,7 @@
 
       <template #table>
         <div class="usage-content-stack">
-          <section data-testid="usage-analytics" class="usage-analytics">
+          <section v-if="activeTab === 'usage'" data-testid="usage-analytics" class="usage-analytics">
             <div class="usage-analytics-grid">
               <div class="usage-analytics-panel">
                 <ModelDistributionChart
@@ -249,13 +207,13 @@
 
           <div class="usage-table-shell">
           <DataTable
-          :columns="displayColumns"
-          :data="usageLogs"
-          :loading="loading"
+          :columns="activeColumns"
+          :data="activeRows"
+          :loading="activeLoading"
           :server-side-sort="true"
           default-sort-key="created_at"
           default-sort-order="desc"
-          @sort="handleSort"
+          @sort="onActiveSort"
         >
           <template #cell-api_key="{ row }">
             <span class="text-sm text-[var(--app-text)]">{{
@@ -459,12 +417,12 @@
 
       <template #pagination>
         <Pagination
-          v-if="pagination.total > 0"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
+          v-if="activeTotal > 0"
+          :page="activePage"
+          :total="activeTotal"
+          :page-size="activePageSize"
+          @update:page="onActivePageChange"
+          @update:pageSize="onActivePageSizeChange"
         />
       </template>
     </TablePageLayout>
@@ -646,7 +604,10 @@
 import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { usageAPI, keysAPI } from '@/api'
+import { usageAPI, keysAPI, userGroupsAPI } from '@/api'
+import type { SelectOption, Group, UserErrorRequest } from '@/types'
+import { COMMON_ERROR_STATUS_CODES } from '@/utils/errorBadges'
+import { requestTypeToLegacyStream } from '@/utils/usageRequestType'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -675,7 +636,7 @@ import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
-import { getBillingModeLabel, getBillingModeBadgeClass, BILLING_MODE_TOKEN, BILLING_MODE_IMAGE } from '@/utils/billingMode'
+import { getBillingModeLabel, getBillingModeBadgeClass, getDisplayBillingMode, BILLING_MODE_TOKEN, BILLING_MODE_IMAGE } from '@/utils/billingMode'
 import { hasImageOutputTokens, textOutputTokens, hasImageOutputCost } from '@/utils/imageUsage'
 
 const { t } = useI18n()
@@ -742,11 +703,24 @@ const compactColumnKeys = new Set([
   'first_token',
   'created_at'
 ])
-const displayColumns = computed(() => (
-  compactViewport.value
-    ? columns.value.filter((column) => compactColumnKeys.has(column.key))
-    : columns.value
-))
+
+// ===== [merge-recovery] column visibility (usage tab) =====
+const ALWAYS_VISIBLE_COLUMNS = ['created_at']
+const hiddenColumns = reactive<Set<string>>(new Set())
+const toggleableColumns = computed(() => columns.value.filter((col) => !ALWAYS_VISIBLE_COLUMNS.includes(col.key)))
+const isColumnVisible = (key: string) => !hiddenColumns.has(key)
+const toggleColumn = (key: string) => {
+  if (hiddenColumns.has(key)) hiddenColumns.delete(key)
+  else hiddenColumns.add(key)
+}
+// ===== [merge-recovery] end =====
+
+const displayColumns = computed(() => {
+  const visible = columns.value.filter((column) => isColumnVisible(column.key))
+  return compactViewport.value
+    ? visible.filter((column) => compactColumnKeys.has(column.key))
+    : visible
+})
 
 const usageLogs = ref<UsageLog[]>([])
 const apiKeys = ref<ApiKey[]>([])
@@ -759,15 +733,6 @@ const refreshing = computed(() =>
   loading.value || modelStatsLoading.value || groupStatsLoading.value || endpointStatsLoading.value
 )
 
-const apiKeyOptions = computed(() => {
-  return [
-    { value: null, label: t('usage.allApiKeys') },
-    ...apiKeys.value.map((key) => ({
-      value: key.id,
-      label: key.name
-    }))
-  ]
-})
 
 const epsilon = 1e-9
 
@@ -849,26 +814,12 @@ const filters = ref<UsageQueryParams>({
   billing_type: null,
   billing_mode: null,
   api_key_id: undefined,
-  start_date: undefined,
-  end_date: undefined
 })
 
 // Initialize filters with date range
 filters.value.start_date = startDate.value
 filters.value.end_date = endDate.value
 
-// Handle date range change from DateRangePicker
-const onDateRangeChange = (range: {
-  startDate: string
-  endDate: string
-  preset: string | null
-}) => {
-  startDate.value = range.startDate
-  endDate.value = range.endDate
-  filters.value.start_date = range.startDate
-  filters.value.end_date = range.endDate
-  applyFilters()
-}
 
 const pagination = reactive({
   page: 1,
@@ -909,7 +860,6 @@ const billingModeOptions = computed<SelectOption[]>(() => [
   { value: 'video', label: t('admin.usage.billingModeVideo') },
 ])
 
-const apiKeys = ref<ApiKey[]>([])
 const groups = ref<Group[]>([])
 const modelOptionValues = ref<string[]>([])
 
@@ -926,45 +876,8 @@ const modelOptions = computed<SelectOption[]>(() => [
   ...modelOptionValues.value.map((model) => ({ value: model, label: model })),
 ])
 
-const normalizedFilters = computed<UsageQueryParams>(() => {
-  const requestType = filters.value.request_type
-  const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
-  return {
-    ...filters.value,
-    start_date: startDate.value,
-    end_date: endDate.value,
-    stream: legacyStream === null ? undefined : legacyStream,
-  }
-})
 
-const buildUsageListParams = (page: number, pageSize: number): UsageQueryParams => ({
-  page,
-  page_size: pageSize,
-  ...normalizedFilters.value,
-  sort_by: sortState.sort_by,
-  sort_order: sortState.sort_order,
-})
 
-const loadLogs = async () => {
-  abortController?.abort()
-  const controller = new AbortController()
-  abortController = controller
-  loading.value = true
-  try {
-    const res = await usageAPI.query(buildUsageListParams(pagination.page, pagination.page_size), {
-      signal: controller.signal,
-    })
-    if (!controller.signal.aborted) {
-      usageLogs.value = res.items
-      pagination.total = res.total
-    }
-  } catch (error: any) {
-    if (error?.name !== 'AbortError' && error?.code !== 'ERR_CANCELED') {
-      appStore.showError(t('usage.failedToLoad'))
-    }
-  } finally {
-    if (abortController === controller) loading.value = false
-  }
 const formatDuration = (ms: number): string => {
   if (ms < 1000) return `${ms.toFixed(0)}ms`
   return `${(ms / 1000).toFixed(2)}s`
@@ -988,33 +901,6 @@ const getRequestTypeBadgeClass = (log: UsageLog): string => {
   if (requestType === 'stream') return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
   if (requestType === 'sync') return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
   return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
-}
-
-const refreshModelOptions = (models: ModelStat[]) => {
-  const current = filters.value.model
-  const set = new Set(modelOptionValues.value)
-  models.forEach((item) => {
-    if (item.model) set.add(item.model)
-  })
-  if (current) set.add(current)
-  modelOptionValues.value = Array.from(set).sort()
-}
-
-const applyFilters = () => {
-  pagination.page = 1
-  void loadLogs()
-  void loadStats()
-  void loadModelStats()
-  void loadChartData()
-  resetErrorRows()
-}
-
-const refreshData = () => {
-  void loadLogs()
-  void loadStats()
-  void loadModelStats()
-  void loadChartData()
-  if (activeTab.value === 'errors') void loadErrors()
 }
 
 const resetFilters = () => {
@@ -1044,28 +930,6 @@ const onDateRangeChange = (range: { startDate: string; endDate: string; preset: 
   filters.value.end_date = range.endDate
   granularity.value = getGranularityForRange(range.startDate, range.endDate)
   applyFilters()
-}
-
-const handlePageChange = (page: number) => {
-  pagination.page = page
-  void loadLogs()
-}
-
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.page_size = pageSize
-  pagination.page = 1
-  void loadLogs()
-}
-
-const handleSort = (key: string, order: 'asc' | 'desc') => {
-  sortState.sort_by = key
-  sortState.sort_order = order
-  pagination.page = 1
-  void loadLogs()
-}
-
-const handleIpGeoBatchFailed = () => {
-  appStore.showError(t('usage.ipGeo.batchFailed'))
 }
 
 const getRequestTypeExportText = (log: UsageLog): string => {
@@ -1102,13 +966,19 @@ type UsageTableQueryParams = UsageQueryParams & {
   sort_order?: 'asc' | 'desc'
 }
 
-const buildUsageQueryParams = (page: number, pageSize: number): UsageTableQueryParams => ({
-  page,
-  page_size: pageSize,
-  ...filters.value,
-  sort_by: sortState.sort_by,
-  sort_order: sortState.sort_order
-})
+const buildUsageQueryParams = (page: number, pageSize: number): UsageTableQueryParams => {
+  // request_type 是新维度；旧接口仍读 stream，这里按映射补上（与上游 normalizedFilters 同语义）。
+  const requestType = filters.value.request_type
+  const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
+  return {
+    page,
+    page_size: pageSize,
+    ...filters.value,
+    stream: legacyStream === null ? undefined : legacyStream,
+    sort_by: sortState.sort_by,
+    sort_order: sortState.sort_order
+  }
+}
 
 const loadUsageLogs = async () => {
   if (abortController) {
@@ -1145,15 +1015,6 @@ const loadUsageLogs = async () => {
   }
 }
 
-const loadApiKeys = async () => {
-  try {
-    const response = await keysAPI.list(1, 100)
-    apiKeys.value = response.items
-  } catch (error) {
-    console.error('Failed to load API keys:', error)
-  }
-}
-
 const selectedApiKeyId = (): number | undefined => {
   const value = Number(filters.value.api_key_id)
   return Number.isFinite(value) && value > 0 ? value : undefined
@@ -1163,11 +1024,13 @@ const loadUsageStats = async () => {
   const requestSequence = ++statsRequestSequence
   endpointStatsLoading.value = true
   try {
-    const stats = await usageAPI.getStatsByDateRange(
-      filters.value.start_date || startDate.value,
-      filters.value.end_date || endDate.value,
-      selectedApiKeyId()
-    )
+    // 统计卡片跟随筛选联动（含 native_compaction_v2），与上游一致。
+    const stats = await usageAPI.getStats({
+      ...filters.value,
+      start_date: filters.value.start_date || startDate.value,
+      end_date: filters.value.end_date || endDate.value,
+      api_key_id: selectedApiKeyId(),
+    })
     if (requestSequence !== statsRequestSequence) return
     usageStats.value = stats
     endpointStats.value = stats.endpoints || []
@@ -1187,6 +1050,7 @@ const loadModelStats = async () => {
   modelStatsLoading.value = true
   try {
     const response = await usageAPI.getDashboardModels({
+      ...filters.value,
       start_date: filters.value.start_date || startDate.value,
       end_date: filters.value.end_date || endDate.value,
       api_key_id: selectedApiKeyId(),
@@ -1210,6 +1074,7 @@ const loadGroupStats = async () => {
   groupStatsLoading.value = true
   try {
     const response = await usageAPI.getDashboardSnapshotV2({
+      ...filters.value,
       start_date: filters.value.start_date || startDate.value,
       end_date: filters.value.end_date || endDate.value,
       api_key_id: selectedApiKeyId(),
@@ -1231,27 +1096,6 @@ const loadGroupStats = async () => {
 }
 
 const applyFilters = () => {
-  pagination.page = 1
-  void loadUsageLogs()
-  void loadUsageStats()
-  void loadModelStats()
-  void loadGroupStats()
-}
-
-const resetFilters = () => {
-  filters.value = {
-    api_key_id: undefined,
-    start_date: undefined,
-    end_date: undefined
-  }
-  // Reset date range to default (last 7 days)
-  const now = new Date()
-  const weekAgo = new Date(now)
-  weekAgo.setDate(weekAgo.getDate() - 6)
-  startDate.value = formatLocalDate(weekAgo)
-  endDate.value = formatLocalDate(now)
-  filters.value.start_date = startDate.value
-  filters.value.end_date = endDate.value
   pagination.page = 1
   void loadUsageLogs()
   void loadUsageStats()
@@ -1330,6 +1174,7 @@ const exportToCSV = async () => {
       'Reasoning Effort',
       'Reasoning',
       'Inbound Endpoint',
+      'IP Address',
       'Type',
       'Billing Mode',
       'Payment Source',
@@ -1353,8 +1198,9 @@ const exportToCSV = async () => {
         formatReasoningEffort(log.reasoning_effort),
         formatReasoningTokens(log.reasoning_tokens),
         log.inbound_endpoint || '',
+        log.ip_address || '',
         getRequestTypeExportText(log),
-        getBillingModeLabel(log.billing_mode, t),
+        getBillingModeLabel(getDisplayBillingMode(log), t),
         paymentSourceLabel(log),
         formatPointsAmount(log.points_deducted),
         Number(log.balance_deducted || 0).toFixed(8),
@@ -1375,7 +1221,7 @@ const exportToCSV = async () => {
       ...rows.map((row) => row.join(','))
     ].join('\n')
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -1422,12 +1268,6 @@ const showTokenTooltip = (event: MouseEvent, row: UsageLog) => {
 
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
-const handleColumnClickOutside = (event: MouseEvent) => {
-  if (columnDropdownRef.value && !columnDropdownRef.value.contains(event.target as HTMLElement)) {
-    showColumnDropdown.value = false
-  }
-}
-
 const loadApiKeys = async () => {
   const firstPage = await keysAPI.list(1, 100)
   const keys = [...firstPage.items]
@@ -1449,16 +1289,6 @@ const loadFilterOptions = async () => {
     groups.value = availableGroups
   } catch (error) {
     console.error('Failed to load usage filter options:', error)
-  }
-}
-
-const resetErrorRows = () => {
-  errorPage.value = 1
-  if (activeTab.value === 'errors') {
-    void loadErrors()
-  } else {
-    errorRows.value = []
-    errorTotal.value = 0
   }
 }
 
@@ -1508,10 +1338,146 @@ const onErrorPageSize = (pageSize: number) => {
 const switchToErrors = () => {
   activeTab.value = 'errors'
   if (errorRows.value.length === 0) void loadErrors()
+}
+
 const hideTokenTooltip = () => {
   tokenTooltipVisible.value = false
   tokenTooltipData.value = null
 }
+
+
+// ===== [merge-recovery] errors tab state (ported from upstream opencode branch) =====
+const getLast24HoursRangeDates = () => {
+  const end = new Date()
+  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
+  return { start: formatLocalDate(start), end: formatLocalDate(end) }
+}
+const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
+  const startMs = new Date(start + 'T00:00:00').getTime()
+  const endMs = new Date(end + 'T00:00:00').getTime()
+  const days = Math.round((endMs - startMs) / (24 * 60 * 60 * 1000))
+  return days <= 2 ? 'hour' : 'day'
+}
+const granularity = ref<'day' | 'hour'>('day')
+const activeTab = ref<'usage' | 'errors'>('usage')
+
+const errorRows = ref<UserErrorRequest[]>([])
+const errorLoading = ref(false)
+const errorPage = ref(1)
+const errorPageSize = ref(20)
+const errorSortBy = ref('created_at')
+const errorSortOrder = ref<'asc' | 'desc'>('desc')
+const errorTotal = ref(0)
+const errorFilter = ref<{ model: string | null; category: string; api_key_id: number | null; status_code: number | null }>({
+  model: '',
+  category: '',
+  api_key_id: null,
+  status_code: null,
+})
+
+const errorKeyOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('usage.errors.allKeys') },
+  ...apiKeys.value.map((k) => ({ value: k.id, label: k.name })),
+])
+
+const errorModelOptions = computed<SelectOption[]>(() => {
+  const seen = new Set<string>()
+  const opts: SelectOption[] = []
+  for (const r of errorRows.value) {
+    if (r.model && !seen.has(r.model)) {
+      seen.add(r.model)
+      opts.push({ value: r.model, label: r.model })
+    }
+  }
+  return opts
+})
+
+const errorCategoryCodes = ['auth', 'rate_limit', 'quota', 'invalid_request', 'service_unavailable', 'upstream', 'internal', 'cyber']
+const errorCategoryOptions = computed<SelectOption[]>(() => [
+  { value: '', label: t('usage.errors.allCategories') },
+  ...errorCategoryCodes.map((c) => ({ value: c, label: t('usage.errors.categories.' + c) })),
+])
+const errorStatusOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('usage.errors.allStatuses') },
+  ...COMMON_ERROR_STATUS_CODES.map((c) => ({ value: c, label: String(c) })),
+])
+
+const applyErrorFilters = () => {
+  errorPage.value = 1
+  void loadErrors()
+}
+
+const subscriptionFeatureEnabled = computed(() => (appStore.cachedPublicSettings as Record<string, unknown> | undefined)?.subscription_enabled !== false)
+// ===== [merge-recovery] end =====
+
+
+// ===== [merge-recovery] errors tab table dispatch =====
+const ERR_ALWAYS_VISIBLE = ['status', 'created_at']
+const errAllColumns = computed<Column[]>(() => [
+  { key: 'key_name', label: t('usage.errors.keyName'), sortable: false },
+  { key: 'model', label: t('usage.errors.model'), sortable: false },
+  { key: 'endpoint', label: t('usage.errors.endpoint'), sortable: false },
+  { key: 'client_ip', label: 'IP', sortable: false },
+  { key: 'group', label: t('admin.usage.group'), sortable: false },
+  { key: 'type', label: t('usage.type'), sortable: false },
+  { key: 'platform', label: t('usage.errors.platform'), sortable: false },
+  { key: 'category', label: t('usage.errors.category'), sortable: false },
+  { key: 'status', label: t('usage.errors.status'), sortable: false },
+  { key: 'message', label: t('usage.errors.message'), sortable: false },
+  { key: 'created_at', label: t('usage.errors.time'), sortable: true },
+  { key: 'user_agent', label: t('usage.userAgent'), sortable: false },
+])
+const errVisibleColumns = computed<Column[]>(() =>
+  errAllColumns.value.filter((col) => ERR_ALWAYS_VISIBLE.includes(col.key) || !errHiddenColumns.has(col.key)),
+)
+const errHiddenColumns = reactive<Set<string>>(new Set())
+const activeColumns = computed<Column[]>(() =>
+  activeTab.value === 'errors'
+    ? errVisibleColumns.value.filter((col) => compactViewport.value ? ['key_name', 'model', 'status', 'created_at'].includes(col.key) : true)
+    : displayColumns.value,
+)
+const activeRows = computed(() => (activeTab.value === 'errors' ? (errorRows.value as unknown[]) : (usageLogs.value as unknown[])))
+const activeLoading = computed(() => (activeTab.value === 'errors' ? errorLoading.value : loading.value))
+const activeTotal = computed(() => (activeTab.value === 'errors' ? errorTotal.value : pagination.total))
+const activePage = computed(() => (activeTab.value === 'errors' ? errorPage.value : pagination.page))
+const activePageSize = computed(() => (activeTab.value === 'errors' ? errorPageSize.value : pagination.page_size))
+const onActiveSort = (key: string, order: 'asc' | 'desc') => {
+  if (activeTab.value === 'errors') onErrorSort(key, order)
+  else handleSort(key, order)
+}
+const onActivePageChange = (page: number) => {
+  if (activeTab.value === 'errors') onErrorPage(page)
+  else handlePageChange(page)
+}
+const onActivePageSizeChange = (size: number) => {
+  if (activeTab.value === 'errors') onErrorPageSize(size)
+  else handlePageSizeChange(size)
+}
+// ===== [merge-recovery] end =====
+
+
+// ===== [merge-recovery] chart reload + column toggle dispatch =====
+const loadChartData = () => {
+  void loadModelStats()
+  void loadGroupStats()
+}
+const errToggleableColumns = computed(() =>
+  errAllColumns.value.filter((col) => !ERR_ALWAYS_VISIBLE.includes(col.key)),
+)
+const currentToggleableColumns = computed(() =>
+  activeTab.value === 'errors' ? errToggleableColumns.value : toggleableColumns.value,
+)
+const isCurrentColumnVisible = (key: string) =>
+  activeTab.value === 'errors' ? !errHiddenColumns.has(key) : isColumnVisible(key)
+const toggleCurrentColumn = (key: string) => {
+  if (activeTab.value === 'errors') {
+    if (errHiddenColumns.has(key)) errHiddenColumns.delete(key)
+    else errHiddenColumns.add(key)
+    return
+  }
+  toggleColumn(key)
+}
+// ===== [merge-recovery] end =====
 
 onMounted(() => {
   if (typeof window.matchMedia === 'function') {
@@ -1522,7 +1488,7 @@ onMounted(() => {
     }
     usageViewportMediaQuery.addEventListener('change', usageViewportListener)
   }
-  void loadApiKeys()
+  void loadFilterOptions()
   void loadUsageLogs()
   void loadUsageStats()
   void loadModelStats()

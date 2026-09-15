@@ -1248,20 +1248,6 @@ export default {
         disabled: '已禁用',
         hint: '仅调整用量计费日志中的 token 类别。不会持久化每个请求的映射状态。'
       },
-      mcpXml: {
-        title: 'MCP XML 协议注入',
-        tooltip: '启用后，当请求包含 MCP 工具时，会在 system prompt 中注入 XML 格式调用协议提示词。关闭此选项可避免对某些客户端造成干扰。',
-        enabled: '已启用',
-        disabled: '已禁用'
-      },
-      claudeMaxSimulation: {
-        title: 'Claude Max 用量模拟',
-        tooltip:
-          '启用后，对于没有上游缓存写入用量的 Claude 模型，系统会确定性地将 token 映射为少量输入加 1h 缓存创建，同时保持总 token 不变。',
-        enabled: '已启用（模拟 1h 缓存）',
-        disabled: '已禁用',
-        hint: '仅调整用量计费日志中的 token 类别。不会持久化每个请求的映射状态。'
-      },
       supportedScopes: {
         title: '支持的模型系列',
         tooltip: '选择此分组支持的模型系列。未勾选的系列将不会被路由到此分组。',

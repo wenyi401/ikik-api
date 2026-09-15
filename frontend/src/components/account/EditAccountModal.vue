@@ -120,7 +120,7 @@
               <input v-model="editAdaptiveBaseUrls[item.value]" type="text" class="input" />
             </div>
           </div>
-          <p v-if="!cnSupportsNativeResponses(account.platform)" class="input-hint">
+          <p v-if="account.platform !== 'deepseek'" class="input-hint">
             {{ t('admin.accounts.cnProviders.apiProtocol.responsesFallbackDesc') }}
           </p>
         </div>
@@ -178,7 +178,6 @@
         </div>
         <!-- Account Mode Selection (CN providers) -->
         <div v-if="isCNApiKeyAccount && account.platform !== 'opencode_go'">
-        <div v-if="isCNApiKeyAccount">
           <label class="input-label">{{ t('admin.accounts.cnProviders.accountMode.title') }}</label>
           <div class="mt-2 flex flex-wrap gap-2">
             <button
@@ -642,57 +641,6 @@
             data-testid="grok-client-tool-cache-toggle"
             :aria-label="t('admin.accounts.grokClientToolCache.title')"
           />
-        </div>
-      </div>
-
-      <!-- Grok OAuth media generation eligibility override -->
-      <div
-        v-if="isGrokOAuthAccount"
-        class="border-t border-gray-200 pt-4 dark:border-dark-600"
-        data-testid="grok-media-eligibility-card"
-      >
-        <div class="space-y-3">
-          <div>
-            <label class="input-label mb-0">{{ t('admin.accounts.grokMediaEligibility.title') }}</label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.grokMediaEligibility.hint') }}
-            </p>
-          </div>
-          <select
-            v-model="grokMediaEligibilityMode"
-            class="input"
-            data-testid="grok-media-eligibility-mode"
-            :disabled="grokMediaEligibilityLoading"
-          >
-            <option value="auto">{{ t('admin.accounts.grokMediaEligibility.auto') }}</option>
-            <option value="enabled">{{ t('admin.accounts.grokMediaEligibility.enabled') }}</option>
-            <option value="disabled">{{ t('admin.accounts.grokMediaEligibility.disabled') }}</option>
-          </select>
-          <p v-if="grokMediaEligibilityLoading" class="text-xs text-gray-500 dark:text-gray-400">
-            {{ t('admin.accounts.grokMediaEligibility.loading') }}
-          </p>
-          <p v-else-if="grokMediaEligibilityError" class="text-xs text-red-600 dark:text-red-400">
-            {{ grokMediaEligibilityError }}
-          </p>
-          <div v-else-if="grokMediaEligibilityState" class="rounded-lg bg-gray-50 p-3 text-xs dark:bg-dark-700">
-            <span class="font-medium">{{ t('admin.accounts.grokMediaEligibility.current') }}</span>
-            <span class="ml-1" data-testid="grok-media-eligibility-status">
-              {{ grokMediaEligibilityState.eligible ? t('admin.accounts.grokMediaEligibility.eligible') : t('admin.accounts.grokMediaEligibility.ineligible') }}
-              · {{ t(`admin.accounts.grokMediaEligibility.reasons.${grokMediaEligibilityState.reason}`) }}
-            </span>
-          </div>
-          <div
-            v-if="grokMediaEligibilityMode === 'enabled'"
-            class="rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20"
-          >
-            <p class="text-xs text-amber-700 dark:text-amber-400">
-              <Icon name="exclamationTriangle" size="sm" class="mr-1 inline" :stroke-width="2" />
-              {{ t('admin.accounts.grokMediaEligibility.forceEnableWarning') }}
-            </p>
-          </div>
-          <p v-else-if="grokMediaEligibilityMode === 'auto'" class="text-xs text-gray-500 dark:text-gray-400">
-            {{ t('admin.accounts.grokMediaEligibility.autoHint') }}
-          </p>
         </div>
       </div>
 
@@ -1627,12 +1575,6 @@
         <ProxySelector v-model="form.proxy_id" :proxies="proxies" :scope="accountScope" />
       </div>
 
-      <UpstreamRequestIdHeaderField
-        v-model="upstreamRequestIdHeader"
-        :platform="account.platform"
-        :type="account.type"
-      />
-
       <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div>
           <label class="input-label">{{ t('admin.accounts.concurrency') }}</label>
@@ -1707,14 +1649,6 @@
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <label class="input-label">{{ t('admin.accounts.expiresAt') }}</label>
         <input v-model="expiresAtInput" type="datetime-local" class="input" />
-        <div class="mt-2 flex gap-2">
-          <button type="button" class="btn btn-secondary btn-sm" @click="form.expires_at = getAccountExpiryTimestamp(1)">
-            {{ t('payment.oneMonth') }}
-          </button>
-          <button type="button" class="btn btn-secondary btn-sm" @click="form.expires_at = getAccountExpiryTimestamp(12)">
-            {{ t('payment.oneYear') }}
-          </button>
-        </div>
         <p class="input-hint">
           {{ t('admin.accounts.expiresAtHint') }}
           {{ t('admin.accounts.expiresAtTimezoneHint', { timezone: browserTimeZone }) }}
@@ -1800,111 +1734,6 @@
             <Select v-model="openaiResponsesWebSocketV2Mode" :options="openAIWSModeOptions" />
           </div>
         </div>
-      </div>
-
-      <!-- OpenAI APIKey Responses API support mode -->
-      <div
-        v-if="account?.platform === 'openai' && account?.type === 'apikey'"
-        class="space-y-4 border-t border-gray-200 pt-4 dark:border-dark-600"
-      >
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <label class="input-label mb-0">{{ t('admin.accounts.openai.responsesMode') }}</label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.openai.responsesModeDesc') }}
-            </p>
-          </div>
-          <div class="w-56">
-            <Select
-              v-model="openAIResponsesMode"
-              :options="openAIResponsesModeOptions"
-              :disabled="!openAITextGenerationCapabilityEnabled"
-              data-testid="openai-responses-mode-select"
-            />
-          </div>
-        </div>
-        <div
-          v-if="openAITextGenerationCapabilityEnabled"
-          class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
-        >
-          <span class="font-medium">{{ t(openAIResponsesStatusKey) }}</span>
-        </div>
-        <div
-          v-else
-          class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
-          data-testid="openai-responses-mode-not-applicable"
-        >
-          {{ t('admin.accounts.openai.responsesModeTextDisabledHint') }}
-        </div>
-        <div>
-          <label class="input-label mb-2 block">{{ t('admin.accounts.openai.endpointCapabilities') }}</label>
-          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <label
-              v-for="option in openAIEndpointCapabilityOptions"
-              :key="option.value"
-              class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-dark-600"
-            >
-              <input
-                type="checkbox"
-                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500"
-                :data-testid="`openai-endpoint-capability-${option.value}`"
-                :checked="openAIEndpointCapabilities.includes(option.value)"
-                @change="toggleOpenAIEndpointCapability(option.value, $event)"
-              />
-              <span class="text-gray-700 dark:text-gray-200">{{ option.label }}</span>
-            </label>
-          </div>
-          <p class="input-hint">{{ t('admin.accounts.openai.endpointCapabilitiesDesc') }}</p>
-        </div>
-      </div>
-
-      <!-- OpenAI APIKey images: backfill b64_json from url -->
-      <div
-        v-if="account?.platform === 'openai' && account?.type === 'apikey'"
-        class="flex items-center justify-between gap-4 border-t border-gray-200 pt-4 dark:border-dark-600"
-      >
-        <div>
-          <label class="input-label mb-0">{{ t('admin.accounts.openai.imagesUrlToB64Json') }}</label>
-          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {{ t('admin.accounts.openai.imagesUrlToB64JsonDesc') }}
-          </p>
-        </div>
-        <button
-          type="button"
-          data-testid="openai-images-url-to-b64-json-toggle"
-          role="switch"
-          :aria-checked="openAIImagesUrlToB64JsonEnabled"
-          @click="openAIImagesUrlToB64JsonEnabled = !openAIImagesUrlToB64JsonEnabled"
-          :class="[
-            'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-            openAIImagesUrlToB64JsonEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-          ]"
-        >
-          <span
-            :class="[
-              'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-              openAIImagesUrlToB64JsonEnabled ? 'translate-x-5' : 'translate-x-0'
-            ]"
-          />
-        </button>
-      </div>
-
-      <div
-        v-if="account?.type === 'apikey'"
-        class="flex items-center justify-between gap-4 border-t border-gray-200 pt-4 dark:border-dark-600"
-      >
-        <div>
-          <label class="input-label mb-0">{{ t('admin.accounts.upstreamBilling.autoProbe') }}</label>
-          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {{ t('admin.accounts.upstreamBilling.autoProbeHint') }}
-          </p>
-        </div>
-        <Toggle
-          :model-value="upstreamBillingAutoProbeEnabled"
-          data-testid="upstream-billing-auto-probe"
-          :aria-label="t('admin.accounts.upstreamBilling.autoProbe')"
-          @update:model-value="handleUpstreamBillingAutoProbeChange"
-        />
       </div>
 
       <!-- Anthropic API Key 自动透传开关 -->
@@ -2266,7 +2095,7 @@
 
       <!-- 配额控制 (Anthropic OAuth/SetupToken: 亲和 + 窗口费用 + 会话 + RPM 等) -->
       <div
-        v-if="account?.platform === 'anthropic' && (account?.type === 'oauth' || account?.type === 'setup-token')"
+        v-if="(account as any)?.platform === 'anthropic' && ((account as any)?.type === 'oauth' || (account as any)?.type === 'setup-token')"
         class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4"
       >
         <div class="mb-3">
@@ -2651,7 +2480,7 @@
         </div>
 
         <!-- Mixed Scheduling (only for antigravity accounts, read-only in edit mode) -->
-        <div v-if="account?.platform === 'antigravity'" class="flex items-center gap-2">
+        <div v-if="(account as any)?.platform === 'antigravity'" class="flex items-center gap-2">
           <label class="flex cursor-not-allowed items-center gap-2 opacity-60">
             <input
               type="checkbox"
@@ -2680,7 +2509,7 @@
             </div>
           </div>
         </div>
-        <div v-if="account?.platform === 'antigravity'" class="mt-3 flex items-center gap-2">
+        <div v-if="(account as any)?.platform === 'antigravity'" class="mt-3 flex items-center gap-2">
           <label class="flex cursor-pointer items-center gap-2">
             <input
               type="checkbox"
@@ -2711,10 +2540,8 @@
 
       <!-- Group Selection - 仅标准模式显示 -->
       <GroupSelector
-        v-model="form.group_ids"
-        :groups="selectableGroups"
-        :platform="account?.platform"
         v-if="!authStore.isSimpleMode && !isUserScope"
+        v-model="form.group_ids"
         :groups="assignableGroups"
         :platform="groupSelectorPlatform"
         :mixed-scheduling="mixedScheduling"
@@ -2778,30 +2605,16 @@
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-
+import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import { accountsAPI } from '@/api/accounts'
 import { useQuotaNotifyState } from '@/composables/useQuotaNotifyState'
-import type {
-  Account,
-  Proxy,
-  AdminGroup,
-  Group,
-  CheckMixedChannelResponse,
-  OpenAICompactMode,
-  OpenAIResponsesMode,
-  OpenAIEndpointCapability,
-  OllamaCloudUsageState,
-  GrokMediaEligibilityMode,
-  GrokMediaEligibilityState
-} from '@/types'
 import type { Account, Proxy, AdminGroup, CheckMixedChannelResponse, OpenAICompactMode, AccountLevel, AccountShareMode, CustomAccountProtocol, GroupPlatform, UpdateAccountRequest, OllamaCloudUsageState } from '@/types'
 import type { AccountApiScope } from '@/composables/useAccountOAuth'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
-import UpstreamRequestIdHeaderField from '@/components/account/UpstreamRequestIdHeaderField.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
@@ -2814,7 +2627,7 @@ import OllamaCloudUsageSettings from '@/components/account/OllamaCloudUsageSetti
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import {
-  applyAntigravityProjectID,
+  isCNProviderPlatform,
   applyHeaderOverride,
   applyInterceptWarmup,
   applyOpenCodeGoProtocolRules,
@@ -2825,17 +2638,13 @@ import {
   parseOpenCodeGoProtocolRules,
   readPlanType,
   resolveOpenCodeAccountMode,
-  applyHeaderOverride,
-  applyInterceptWarmup,
   isCustomGrokBaseUrl,
   isHeaderOverrideCapable,
   isHeaderOverridePlatform,
   splitHeaderOverridesObject,
   validateHeaderOverrideRows,
-  cnSupportsNativeResponses,
   defaultCNAdaptiveBaseUrls,
   defaultCNBaseUrl,
-  isCNProviderPlatform,
   HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
   HEADER_OVERRIDES_CREDENTIAL_KEY,
   type CnAccountMode,
@@ -2847,14 +2656,6 @@ import {
   type OpenCodeGoProtocolRule
 } from '@/components/account/credentialsBuilder'
 import {
-  formatDateTime,
-  formatDateTimeLocalInput,
-  getBrowserTimeZone,
-  parseDateTimeLocalInput
-} from '@/utils/format'
-import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
-import { getAccountExpiryTimestamp } from '@/components/account/accountExpiry'
-import { allSelectedGroupsEnableLongContextPricing } from '@/components/account/longContextBilling'
   PERSONAL_ACCOUNT_DEFAULT_AUTO_PAUSE_ON_EXPIRED,
   PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY,
   PERSONAL_ACCOUNT_DEFAULT_OPENAI_COMPACT_MODE,
@@ -2864,6 +2665,7 @@ import { allSelectedGroupsEnableLongContextPricing } from '@/components/account/
   buildPersonalAccountModelMapping
 } from '@/components/account/personalAccountTemplate'
 import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput, getBrowserTimeZone } from '@/utils/format'
+import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import { VERTEX_LOCATION_OPTIONS } from '@/constants/account'
 import {
   OPENAI_WS_MODE_CTX_POOL,
@@ -2900,22 +2702,8 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const appStore = useAppStore()
-const browserTimeZone = getBrowserTimeZone()
-
-const selectableGroups = computed(() => {
-  const groups = new Map<number, Group>(props.groups.map(group => [group.id, group]))
-  const assignedIds = new Set(props.account?.group_ids ?? [])
-  for (const group of props.account?.groups ?? []) {
-    if (assignedIds.has(group.id) && !groups.has(group.id)) {
-      groups.set(group.id, group)
-    }
-  }
-  return Array.from(groups.values())
-})
-
-// Spark 影子账号(parent_account_id 非空):代理恒继承母账号,不可独立编辑(外审 B/P1),
-// 故隐藏代理选择器。
 const authStore = useAuthStore()
+const browserTimeZone = getBrowserTimeZone()
 const accountScope = computed(() => props.accountScope ?? 'admin')
 const isUserScope = computed(() => accountScope.value === 'user')
 const isSparkShadow = computed(() => props.account?.parent_account_id != null)
@@ -2998,13 +2786,10 @@ const isCNApiKeyAccount = computed(
     props.account?.type === 'apikey' &&
     (isCNProviderPlatform(props.account.platform) || props.account.platform === 'opencode_go')
 )
-// CnBaseUrlPresets 的 platform prop 是平台字面量联合类型，模板里不能写
-// `as` 断言（其中的 `|` 会被 eslint 误判为 Vue2 filter 语法），经此 computed 传递。
-const cnPresetPlatform = computed<CnProviderPlatform>(() => {
 const cnPresetPlatform = computed<'kimi' | 'zhipu' | 'deepseek'>(() => {
   const platform = props.account?.platform
-  if (isCNProviderPlatform(platform ?? '')) {
-    return platform as CnProviderPlatform
+  if (platform === 'kimi' || platform === 'zhipu' || platform === 'deepseek') {
+    return platform
   }
   return 'kimi'
 })
@@ -3042,8 +2827,6 @@ const cnProtocolOptions = computed<Array<{ value: CnApiProtocol; labelKey: strin
     { value: 'chat_completions', labelKey: 'chatCompletions' },
     { value: 'anthropic', labelKey: 'anthropic' }
   ]
-  if (cnSupportsNativeResponses(props.account?.platform ?? '')) {
-    opts.push({ value: 'responses', labelKey: 'responses' })
   if (props.account?.platform === 'deepseek') {
     options.push({ value: 'responses', labelKey: 'responses' })
   }
@@ -3054,8 +2837,6 @@ const editAdaptiveProtocolOptions = computed<Array<{ value: CnNativeApiProtocol;
     { value: 'chat_completions', labelKey: 'chatCompletions' },
     { value: 'anthropic', labelKey: 'anthropic' }
   ]
-  if (cnSupportsNativeResponses(props.account?.platform ?? '')) opts.push({ value: 'responses', labelKey: 'responses' })
-  return opts
   if (props.account?.platform === 'deepseek') {
     options.push({ value: 'responses', labelKey: 'responses' })
   }
@@ -3107,25 +2888,7 @@ watch(editAccountMode, (mode, previousMode) => {
   }
   editBaseUrl.value = defaultCNBaseUrl(props.account!.platform, mode, editApiProtocol.value)
 })
-watch(editOpenCodeAccountMode, (mode, previousMode) => {
-  if (!isCNApiKeyAccount.value || props.account?.platform !== 'opencode_go' || syncingForm.value) return
-  if (editApiProtocol.value === 'adaptive') {
-    const previousDefaults = defaultCNAdaptiveBaseUrls('opencode_go', previousMode)
-    const nextDefaults = defaultCNAdaptiveBaseUrls('opencode_go', mode)
-    for (const item of editAdaptiveProtocolOptions.value) {
-      if (!editAdaptiveBaseUrls.value[item.value] || editAdaptiveBaseUrls.value[item.value] === previousDefaults[item.value]) {
-        editAdaptiveBaseUrls.value[item.value] = nextDefaults[item.value]
-      }
-    }
-    editBaseUrl.value = editAdaptiveBaseUrls.value.chat_completions
-  } else {
-    editBaseUrl.value = defaultCNBaseUrl('opencode_go', mode, editApiProtocol.value)
-  }
-  const previousRules = JSON.stringify(defaultOpenCodeProtocolRules(previousMode))
-  if (JSON.stringify(editOpenCodeGoProtocolRules.value) === previousRules) {
-    editOpenCodeGoProtocolRules.value = cloneOpenCodeGoProtocolRules(defaultOpenCodeProtocolRules(mode))
-  }
-})
+
 const cnProtocolDescKey = computed(
   () => cnProtocolOptions.value.find((option) => option.value === editApiProtocol.value)?.labelKey ?? 'chatCompletions'
 )
@@ -3194,46 +2957,6 @@ const grokOAuthBaseUrl = ref('')
 // Grok Free OAuth accounts use client-tool prompt caching by default. Keep an
 // explicit false in the account extra as the opt-out signal.
 const grokClientToolCacheEnabled = ref(true)
-const isGrokOAuthAccount = computed(
-  () => props.account?.platform === 'grok' && props.account?.type === 'oauth'
-)
-const grokMediaEligibilityMode = ref<GrokMediaEligibilityMode>('auto')
-const grokMediaEligibilityInitialMode = ref<GrokMediaEligibilityMode>('auto')
-const grokMediaEligibilityState = ref<GrokMediaEligibilityState | null>(null)
-const grokMediaEligibilityLoading = ref(false)
-const grokMediaEligibilityError = ref('')
-let grokMediaEligibilityRequestVersion = 0
-
-const modeFromGrokMediaExtra = (extra: Record<string, unknown> | undefined): GrokMediaEligibilityMode => {
-  if (extra?.grok_media_eligible === true) return 'enabled'
-  if (extra?.grok_media_eligible === false) return 'disabled'
-  return 'auto'
-}
-
-const loadGrokMediaEligibility = async (accountID: number): Promise<GrokMediaEligibilityState | null> => {
-  if (!isGrokOAuthAccount.value || typeof adminAPI.accounts.getGrokMediaEligibility !== 'function') {
-    return null
-  }
-  const requestVersion = ++grokMediaEligibilityRequestVersion
-  grokMediaEligibilityLoading.value = true
-  grokMediaEligibilityError.value = ''
-  try {
-    const state = await adminAPI.accounts.getGrokMediaEligibility(accountID)
-    if (requestVersion !== grokMediaEligibilityRequestVersion) return null
-    grokMediaEligibilityState.value = state
-    grokMediaEligibilityMode.value = state.mode
-    grokMediaEligibilityInitialMode.value = state.mode
-    return state
-  } catch (error: any) {
-    if (requestVersion !== grokMediaEligibilityRequestVersion) return null
-    grokMediaEligibilityError.value = error?.message || t('admin.accounts.grokMediaEligibility.loadFailed')
-    return null
-  } finally {
-    if (requestVersion === grokMediaEligibilityRequestVersion) {
-      grokMediaEligibilityLoading.value = false
-    }
-  }
-}
 
 const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(false)
@@ -3243,12 +2966,6 @@ const autoResetCredit7dThreshold = ref(100)
 const upstreamBillingAutoProbeEnabled = ref(false)
 const upstreamBillingRateSyncEnabled = ref(false)
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
-// 上游ID：直接上游声明请求标识的响应头名，留空不记录。
-const upstreamRequestIdHeader = ref('')
-const readUpstreamRequestIdHeader = (extra: unknown): string => {
-  const value = (extra as Record<string, unknown> | undefined)?.upstream_request_id_header
-  return typeof value === 'string' ? value : ''
-}
 const allowOverages = ref(false) // For antigravity accounts: enable AI Credits overages
 const antigravityModelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const antigravityWhitelistModels = ref<string[]>([])
@@ -3307,12 +3024,7 @@ const customBaseUrl = ref('')
 
 // OpenAI 自动透传开关（OAuth/API Key）
 const openaiPassthroughEnabled = ref(false)
-const editPlanType = ref('')
 const openAICompactMode = ref<OpenAICompactMode>('auto')
-const openAIResponsesMode = ref<OpenAIResponsesMode>('auto')
-// Images 非流式响应缺 b64_json 时由网关下载 url 回填（仅 OpenAI API Key）。
-const openAIImagesUrlToB64JsonEnabled = ref(false)
-const openAIEndpointCapabilities = ref<OpenAIEndpointCapability[]>(['chat_completions', 'embeddings'])
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
@@ -3359,6 +3071,8 @@ const codexFingerprintModeOptions = computed(() => [
   { value: 'session' as CodexFingerprintMode, label: t('admin.accounts.openai.codexFingerprintSession') },
   { value: 'full' as CodexFingerprintMode, label: t('admin.accounts.openai.codexFingerprintFull') },
 ])
+// OpenAI 订阅档位手动覆盖值，'' 表示清空/自动识别
+const editPlanType = ref<string>('')
 const planTypeOptions = computed(() =>
   buildPlanTypeOptions(editPlanType.value, t('admin.accounts.openai.planTypeClear'))
 )
@@ -3496,6 +3210,8 @@ const tempUnschedPresets = computed(() => [
 const defaultBaseUrl = computed(() => {
   if (props.account?.platform === 'openai') return 'https://api.openai.com'
   if (props.account?.platform === 'gemini') return 'https://generativelanguage.googleapis.com'
+  if (props.account?.platform === 'kiro') return ''
+  if (props.account?.platform === 'custom') return ''
   if (props.account?.platform === 'grok') return 'https://api.x.ai/v1'
   // CN 供应商：按当前模式/协议回落到官方预设（清空输入框提交时使用），
   // 不能落到 anthropic 默认值（会被当 CC base 拼出错误端点）。
@@ -3506,10 +3222,6 @@ const defaultBaseUrl = computed(() => {
     props.account?.platform === 'opencode_go'
   ) {
     return defaultCNBaseUrl(props.account.platform, currentOpenCodeOrCNMode(), editApiProtocol.value)
-  if (props.account?.platform === 'kiro') return ''
-  if (props.account?.platform === 'custom') return ''
-  if (isCNApiKeyAccount.value) {
-    return defaultCNBaseUrl(props.account!.platform, editAccountMode.value, editApiProtocol.value)
   }
   return 'https://api.anthropic.com'
 })
@@ -3733,21 +3445,6 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   // Load mixed scheduling setting (only for antigravity accounts)
   mixedScheduling.value = false
   allowOverages.value = false
-	const extra = newAccount.extra as Record<string, unknown> | undefined
-	mixedScheduling.value = extra?.mixed_scheduling === true
-	allowOverages.value = extra?.allow_overages === true
-	upstreamRequestIdHeader.value = readUpstreamRequestIdHeader(extra)
-	openAIImagesUrlToB64JsonEnabled.value = extra?.images_url_to_b64_json === true
-	autoPause5hThreshold.value = typeof extra?.auto_pause_5h_threshold === 'number' ? extra.auto_pause_5h_threshold * 100 : null
-	autoPause7dThreshold.value = typeof extra?.auto_pause_7d_threshold === 'number' ? extra.auto_pause_7d_threshold * 100 : null
-	autoPause5hDisabled.value = extra?.auto_pause_5h_disabled === true
-	autoPause7dDisabled.value = extra?.auto_pause_7d_disabled === true
-	autoResetCreditEnabled.value = extra?.auto_reset_credit_enabled === true
-	autoResetCredit5hThreshold.value =
-		typeof extra?.auto_reset_credit_5h_threshold === 'number' ? extra.auto_reset_credit_5h_threshold * 100 : 100
-	autoResetCredit7dThreshold.value =
-		typeof extra?.auto_reset_credit_7d_threshold === 'number' ? extra.auto_reset_credit_7d_threshold * 100 : 100
-	upstreamBillingAutoProbeEnabled.value = extra?.upstream_billing_probe_enabled === true
   const extra = newAccount.extra as Record<string, unknown> | undefined
   mixedScheduling.value = extra?.mixed_scheduling === true
   allowOverages.value = extra?.allow_overages === true
@@ -3944,15 +3641,6 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     newAccount.platform === 'grok' &&
     newAccount.type === 'oauth' &&
     (grokClientToolCacheSetting === undefined || grokClientToolCacheSetting === true)
-  grokMediaEligibilityMode.value = modeFromGrokMediaExtra(extra)
-  grokMediaEligibilityInitialMode.value = grokMediaEligibilityMode.value
-  grokMediaEligibilityState.value = null
-  grokMediaEligibilityError.value = ''
-  if (newAccount.platform === 'grok' && newAccount.type === 'oauth') {
-    void loadGrokMediaEligibility(newAccount.id)
-  } else {
-    grokMediaEligibilityRequestVersion++
-  }
   if (newAccount.platform === 'grok' && newAccount.type === 'oauth' && newAccount.credentials) {
     const grokCreds = newAccount.credentials as Record<string, unknown>
     if (isCustomGrokBaseUrl(grokCreds.base_url)) {
@@ -3980,10 +3668,10 @@ const syncFormFromAccount = (newAccount: Account | null) => {
         storedProtocol === 'responses'
           ? storedProtocol
           : 'chat_completions'
-      if (!cnSupportsNativeResponses(newAccount.platform) && editApiProtocol.value === 'responses') {
+      if (newAccount.platform !== 'deepseek' && editApiProtocol.value === 'responses') {
         editApiProtocol.value = 'chat_completions'
       }
-      const adaptiveDefaults = defaultCNAdaptiveBaseUrls(newAccount.platform, currentOpenCodeOrCNMode())
+      const adaptiveDefaults = defaultCNAdaptiveBaseUrls(isCNProviderPlatform(newAccount.platform) ? newAccount.platform : 'opencode_go', currentOpenCodeOrCNMode())
       const storedBaseUrls = (credentials.api_base_urls as Record<string, unknown> | undefined) || {}
       const legacyBaseUrl = typeof credentials.base_url === 'string' ? credentials.base_url.trim() : ''
       const storedChatBaseUrl = typeof storedBaseUrls.chat_completions === 'string'
@@ -4032,20 +3720,17 @@ const syncFormFromAccount = (newAccount: Account | null) => {
           ? 'https://generativelanguage.googleapis.com'
           : newAccount.platform === 'grok'
             ? 'https://api.x.ai/v1'
-            : newAccount.platform === 'kimi' ||
-                newAccount.platform === 'zhipu' ||
-                newAccount.platform === 'deepseek' ||
-                newAccount.platform === 'opencode_go'
-              ? defaultCNBaseUrl(newAccount.platform, currentOpenCodeOrCNMode(), editApiProtocol.value)
-              : 'https://api.anthropic.com'
+            : newAccount.platform === 'kiro' || newAccount.platform === 'custom'
+              ? ''
+              : newAccount.platform === 'kimi' ||
+                  newAccount.platform === 'zhipu' ||
+                  newAccount.platform === 'deepseek' ||
+                  newAccount.platform === 'opencode_go'
+                ? defaultCNBaseUrl(newAccount.platform, currentOpenCodeOrCNMode(), editApiProtocol.value)
+                : 'https://api.anthropic.com'
     editBaseUrl.value = isCNApiKeyAccount.value && editApiProtocol.value === 'adaptive'
       ? editAdaptiveBaseUrls.value.chat_completions
       : (credentials.base_url as string) || platformDefaultUrl
-          : newAccount.platform === 'kiro'
-            ? ''
-          : newAccount.platform === 'custom'
-            ? ''
-    editBaseUrl.value = (credentials.base_url as string) || platformDefaultUrl
 
     // Load model mappings and detect mode
     const existingMappings = credentials.model_mapping as Record<string, string> | undefined
@@ -4318,54 +4003,6 @@ const addAntigravityPresetMapping = (from: string, to: string) => {
     return
   }
   antigravityModelMappings.value.push({ from, to })
-}
-
-const syncAntigravityUpstreamModels = async () => {
-  if (!props.account?.id || isSyncingAntigravityUpstream.value) return
-
-  isSyncingAntigravityUpstream.value = true
-  try {
-    const result = await adminAPI.accounts.syncUpstreamModels(props.account.id)
-    const upstreamModels = result.models.map((model) => model.trim()).filter(Boolean)
-    if (upstreamModels.length === 0) {
-      appStore.showInfo(t('admin.accounts.syncUpstreamModelsEmpty'))
-      return
-    }
-
-    let addedCount = 0
-    for (const model of upstreamModels) {
-      const exists = antigravityModelMappings.value.some((mapping) => mapping.from === model)
-      if (!exists) {
-        antigravityModelMappings.value.push({ from: model, to: model })
-        addedCount += 1
-      }
-    }
-
-    const warnings = result.warnings ?? []
-    const hasPartialMetadata = warnings.some(
-      (warning) => warning.code === 'upstream_model_metadata_partial'
-    )
-    const hasIncompleteMetadata = warnings.some(
-      (warning) => warning.code === 'upstream_model_metadata_incomplete'
-    )
-    if (hasIncompleteMetadata) {
-      appStore.showWarning(t('admin.accounts.syncUpstreamModelsMetadataIncomplete'))
-      return
-    }
-    if (addedCount > 0) {
-      appStore.showSuccess(t('admin.accounts.syncUpstreamModelsSuccess', { count: addedCount, total: upstreamModels.length }))
-    } else {
-      appStore.showInfo(t('admin.accounts.syncUpstreamModelsNoChanges', { count: upstreamModels.length }))
-    }
-    if (hasPartialMetadata) {
-      appStore.showWarning(t('admin.accounts.syncUpstreamModelsMetadataPartial'))
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : t('admin.accounts.syncUpstreamModelsFailed')
-    appStore.showError(t('admin.accounts.syncUpstreamModelsError', { message }))
-  } finally {
-    isSyncingAntigravityUpstream.value = false
-  }
 }
 
 // Error code toggle helper
@@ -4780,62 +4417,33 @@ const handleClose = () => {
   emit('close')
 }
 
-const persistGrokMediaEligibility = async (accountID: number, updatedAccount: Account): Promise<Account> => {
-  if (
-    !isGrokOAuthAccount.value ||
-    grokMediaEligibilityMode.value === grokMediaEligibilityInitialMode.value ||
-    typeof adminAPI.accounts.updateGrokMediaEligibility !== 'function'
-  ) {
-    return updatedAccount
-  }
-
-  try {
-    const state = await adminAPI.accounts.updateGrokMediaEligibility(accountID, grokMediaEligibilityMode.value)
-    grokMediaEligibilityState.value = state
-    grokMediaEligibilityInitialMode.value = state.mode
-    const nextExtra = { ...((updatedAccount.extra as Record<string, unknown> | undefined) || {}) }
-    if (state.mode === 'auto') {
-      delete nextExtra.grok_media_eligible
-    } else {
-      nextExtra.grok_media_eligible = state.mode === 'enabled'
-    }
-    updatedAccount.extra = nextExtra
-  } catch (error: any) {
-    appStore.showError(t('admin.accounts.grokMediaEligibility.partialSave'))
-    try {
-      const state = await loadGrokMediaEligibility(accountID)
-      if (state) {
-        const nextExtra = { ...((updatedAccount.extra as Record<string, unknown> | undefined) || {}) }
-        if (state.mode === 'auto') delete nextExtra.grok_media_eligible
-        else nextExtra.grok_media_eligible = state.mode === 'enabled'
-        updatedAccount.extra = nextExtra
-      }
-    } catch {
-      // The original save result remains useful even when the refresh fails.
-    }
-  }
-  return updatedAccount
 const sanitizeUpdatePayload = (payload: Record<string, unknown>) => {
   const next = { ...payload }
   if (isUserScope.value && next.status === 'inactive') {
     next.status = 'disabled'
+  }
   if (!canManageProxy.value) {
     delete next.proxy_id
+  }
   if (!canManageBillingRate.value) {
     delete next.rate_multiplier
+  }
   if (isUserScope.value) {
     next.share_mode = next.share_mode === 'public' && !userApiKeyForcesPrivate.value ? 'public' : 'private'
     delete next.group_ids
     delete next.status
     if (next.share_mode === 'public') {
       next.concurrency = PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY
+    } else {
       const concurrency = Number(next.concurrency)
       next.concurrency = Number.isFinite(concurrency) && concurrency > 0
         ? Math.floor(concurrency)
         : Math.max(1, props.account?.concurrency || PERSONAL_ACCOUNT_DEFAULT_CONCURRENCY)
+    }
     next.load_factor = 0
     if (typeof next.priority !== 'number' || Number(next.priority) <= 0) {
       next.priority = PERSONAL_ACCOUNT_DEFAULT_PRIORITY
+    }
     next.auto_pause_on_expired = PERSONAL_ACCOUNT_DEFAULT_AUTO_PAUSE_ON_EXPIRED
     const currentCredentials =
       (next.credentials as Record<string, unknown>) ||
@@ -4852,17 +4460,16 @@ const sanitizeUpdatePayload = (payload: Record<string, unknown>) => {
       typeof currentCredentials.model_mapping === 'object'
     ) {
       templated.credentials.model_mapping = currentCredentials.model_mapping
+    }
     next.credentials = templated.credentials
     next.extra = templated.extra
+  }
   return next
 }
 
 const submitUpdateAccount = async (accountID: number, updatePayload: Record<string, unknown>) => {
   submitting.value = true
   try {
-    let updatedAccount = await adminAPI.accounts.update(accountID, withAntigravityConfirmFlag(updatePayload))
-    updatedAccount = await persistGrokMediaEligibility(accountID, updatedAccount)
-    appStore.showSuccess(t('admin.accounts.accountUpdated'))
     const payload = sanitizeUpdatePayload(withAntigravityConfirmFlag(updatePayload))
     const updatedAccount = isUserScope.value
       ? await accountsAPI.update(accountID, payload as UpdateAccountRequest)
@@ -4975,6 +4582,7 @@ const handleSubmit = async () => {
         base_url: newBaseUrl
       }
 
+      // 空输入表示保留已存储的密钥；账号响应中的敏感凭证已脱敏。
       // 国产供应商：模式与协议写入凭据（决定额度/余额探测与转发端点/格式）。
       if (isCNApiKeyAccount.value) {
         newCredentials.account_mode = currentOpenCodeOrCNMode()
@@ -5013,10 +4621,7 @@ const handleSubmit = async () => {
       // 用户填入新值则覆盖；留空时优先看 credentials_status.has_api_key；
       // 若后端尚未升级（无 credentials_status），回退读旧结构 currentCredentials.api_key。
       // 两者都无才报错。
-      const hasExistingApiKey =
-        props.account.credentials_status?.has_api_key ?? Boolean(currentCredentials.api_key)
-      // 空输入表示保留已存储的密钥；账号响应中的敏感凭证已脱敏。
-      if (editApiKey.value.trim()) {
+          if (editApiKey.value.trim()) {
         newCredentials.api_key = editApiKey.value.trim()
       }
 
@@ -5280,6 +4885,15 @@ const handleSubmit = async () => {
       updatePayload.extra = newExtra
     }
 
+    // OpenAI: 手动覆盖订阅档位 plan_type（Plus / Pro 20x / Pro 5x / Business Standard / Business Premium / Free）。
+    // 仅 OAuth 非影子账号：
+    // 影子账号凭据由母账号管理(且后端会 sanitize),setup-token 无订阅调度语义。
+    if (props.account.platform === 'openai' && props.account.type === 'oauth' && !isSparkShadow.value) {
+      const currentCredentials = (updatePayload.credentials as Record<string, unknown>) ||
+        ((props.account.credentials as Record<string, unknown>) || {})
+      updatePayload.credentials = applyPlanType({ ...currentCredentials }, editPlanType.value)
+    }
+
     // Antigravity: persist model mapping to credentials (applies to all antigravity types)
     // Antigravity 只支持映射模式
     if (props.account.platform === 'antigravity') {
@@ -5475,45 +5089,6 @@ const handleSubmit = async () => {
       } else {
         newExtra.openai_compact_mode = openAICompactMode.value
       }
-		if (props.account.type === 'apikey') {
-        if (!openAITextGenerationCapabilityEnabled.value || openAIResponsesMode.value === 'auto') {
-          delete newExtra.openai_responses_mode
-        } else {
-          newExtra.openai_responses_mode = openAIResponsesMode.value
-        }
-        if (openAIImagesUrlToB64JsonEnabled.value) {
-          newExtra.images_url_to_b64_json = true
-        } else {
-          delete newExtra.images_url_to_b64_json
-        }
-		}
-		if (autoPause5hThreshold.value != null && autoPause5hThreshold.value > 0) {
-			newExtra.auto_pause_5h_threshold = autoPause5hThreshold.value / 100
-		} else {
-			delete newExtra.auto_pause_5h_threshold
-		}
-		if (autoPause7dThreshold.value != null && autoPause7dThreshold.value > 0) {
-			newExtra.auto_pause_7d_threshold = autoPause7dThreshold.value / 100
-		} else {
-			delete newExtra.auto_pause_7d_threshold
-		}
-		if (autoPause5hDisabled.value) {
-			newExtra.auto_pause_5h_disabled = true
-		} else {
-			delete newExtra.auto_pause_5h_disabled
-		}
-		if (autoPause7dDisabled.value) {
-			newExtra.auto_pause_7d_disabled = true
-		} else {
-			delete newExtra.auto_pause_7d_disabled
-		}
-		if (props.account.type === 'oauth' && !isSparkShadow.value) {
-			newExtra.auto_reset_credit_enabled = autoResetCreditEnabled.value
-			newExtra.auto_reset_credit_5h_threshold = autoResetCredit5hThreshold.value / 100
-			newExtra.auto_reset_credit_7d_threshold = autoResetCredit7dThreshold.value / 100
-		}
-		// 运行态只允许后端服务更新，账号编辑不得回写旧状态。
-		delete newExtra.codex_auto_reset_credit_state
 
       if (props.account.type === 'oauth') {
         if (codexCLIOnlyEnabled.value) {
@@ -5634,19 +5209,6 @@ const handleSubmit = async () => {
       }
       // Quota notify config
       writeQuotaNotifyToExtra(newExtra, 'update')
-      updatePayload.extra = newExtra
-    }
-
-    // 上游ID头名只在改动时写回 extra，避免用弹窗打开时的快照覆盖运行态键。
-    const nextUpstreamRequestIdHeader = upstreamRequestIdHeader.value.trim()
-    if (nextUpstreamRequestIdHeader !== readUpstreamRequestIdHeader(props.account.extra)) {
-      const currentExtra = (updatePayload.extra as Record<string, unknown>) || (props.account.extra as Record<string, unknown>) || {}
-      const newExtra: Record<string, unknown> = { ...currentExtra }
-      if (nextUpstreamRequestIdHeader) {
-        newExtra.upstream_request_id_header = nextUpstreamRequestIdHeader
-      } else {
-        delete newExtra.upstream_request_id_header
-      }
       updatePayload.extra = newExtra
     }
 

@@ -187,6 +187,7 @@ const props = withDefaults(defineProps<{
   platforms?: string[]
   syncCredentials?: SyncUpstreamPreviewParams
   accountScope?: 'admin' | 'user'
+  accountId?: number
 }>(), {
   accountScope: 'admin'
 })
@@ -226,7 +227,7 @@ const normalizedPlatforms = computed(() => {
 
 const primaryPlatform = computed(() => normalizedPlatforms.value[0] || 'openai')
 
-const upstreamSyncPlatforms = new Set([
+const upstreamSyncPlatforms = new Set<string>([
 ])
 const canSyncUpstream = computed(() => {
   if (props.accountId) {
@@ -351,7 +352,7 @@ const syncUpstreamModels = async () => {
 
     const newModels = [...props.modelValue]
     let addedCount = 0
-    for (const model of upstreamModels) {
+    for (const model of upstreamModels.value) {
       if (!newModels.includes(model)) {
         newModels.push(model)
         addedCount += 1
@@ -371,9 +372,9 @@ const syncUpstreamModels = async () => {
       return
     }
     if (addedCount > 0) {
-      appStore.showSuccess(t('admin.accounts.syncUpstreamModelsSuccess', { count: addedCount, total: upstreamModels.length }))
+      appStore.showSuccess(t('admin.accounts.syncUpstreamModelsSuccess', { count: addedCount, total: upstreamModels.value.length }))
     } else {
-      appStore.showInfo(t('admin.accounts.syncUpstreamModelsNoChanges', { count: upstreamModels.length }))
+      appStore.showInfo(t('admin.accounts.syncUpstreamModelsNoChanges', { count: upstreamModels.value.length }))
     }
     if (hasPartialMetadata) {
       appStore.showWarning(t('admin.accounts.syncUpstreamModelsMetadataPartial'))

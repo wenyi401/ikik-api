@@ -731,7 +731,6 @@ let abortController: AbortController | null = null
 
 // ── Platform config ──
 // Composite pricing/mapping may target every concrete schedulable provider.
-const compositePlatforms: GroupPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kimi', 'zhipu', 'deepseek', 'minimax', 'opencode_go']
 
 // ── Helpers ──
 function formatDate(value: string): string {
@@ -1613,6 +1612,8 @@ onUnmounted(() => {
   ruleAccountSearchRunner.clearAll()
   clearAllRuleAccountSearchState()
 })
+
+const platformOrder: GroupPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kimi', 'zhipu', 'deepseek', 'minimax', 'kiro', 'opencode_go']
 </script>
 
 <style scoped>

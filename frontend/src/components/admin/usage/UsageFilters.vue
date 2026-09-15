@@ -201,6 +201,8 @@ interface Props {
   endDate: string
   showActions?: boolean
   modelOptions?: string[]
+  /** 'usage' or 'errors' tab; error filters hide compaction/billing selects */
+  mode?: 'usage' | 'errors'
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -255,11 +257,6 @@ const requestTypeOptions = ref<SelectOption[]>([
   { value: 'live', label: t('usage.live') },
   { value: 'stream', label: t('usage.stream') },
   { value: 'sync', label: t('usage.sync') }
-])
-
-const compactionOptions = ref<SelectOption[]>([
-  { value: null, label: t('usage.allCompactionTypes') },
-  { value: true, label: t('usage.compactionOnly') }
 ])
 
 const compactionOptions = ref<SelectOption[]>([

@@ -161,12 +161,12 @@ export function validateHeaderOverrideRows(
 }
 
 export function buildHeaderOverridesObject(rows: HeaderOverrideRow[]): Record<string, string> {
+  // 名称小写化、值裁剪；仅丢弃空名称行（空值保留，与上游语义一致）。
   const result: Record<string, string> = {}
   for (const row of rows) {
     const name = row.name.trim().toLowerCase()
-    const value = row.value.trim()
-    if (!name || !value) continue
-    result[name] = value
+    if (!name) continue
+    result[name] = row.value.trim()
   }
   return result
 }

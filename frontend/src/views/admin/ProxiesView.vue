@@ -1120,6 +1120,7 @@ const batchParseResult = reactive({
 
 const createForm = reactive({
   name: '',
+  expires_at: '' as string | null,
   protocol: 'http' as ProxyProtocol,
   host: '',
   port: 8080,
@@ -1133,6 +1134,7 @@ const createForm = reactive({
 
 const editForm = reactive({
   name: '',
+  expires_at: '' as string | null,
   protocol: 'http' as ProxyProtocol,
   host: '',
   port: 8080,
@@ -1144,6 +1146,8 @@ const editForm = reactive({
   backup_proxy_id: '',
   expiry_warn_days: 7
 })
+const createExpiresDays = ref<number | null>(null)
+const editExpiresDays = ref<number | null>(null)
 
 let abortController: AbortController | null = null
 

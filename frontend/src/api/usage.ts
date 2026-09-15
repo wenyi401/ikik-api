@@ -13,7 +13,9 @@ import type {
   ModelStat,
   GroupStat,
   UsageRequestType,
-  UserErrorRequestDetail
+  UserErrorRequest,
+  UserErrorRequestDetail,
+  UserErrorListParams
 } from '@/types'
 
 // ==================== Dashboard Types ====================
@@ -229,10 +231,12 @@ export async function query(
  * @returns Usage statistics
  */
 export async function getStats(
-  period: string = 'today',
+  paramsOrPeriod: (UsageQueryParams & { period?: string; timezone?: string }) | string = 'today',
   apiKeyId?: number
 ): Promise<UsageStatsResponse> {
-  const params: Record<string, unknown> = { period }
+  const params: Record<string, unknown> = typeof paramsOrPeriod === 'string'
+    ? { period: paramsOrPeriod }
+    : { ...paramsOrPeriod }
 
   if (apiKeyId !== undefined) {
     params.api_key_id = apiKeyId
@@ -377,6 +381,15 @@ export async function getDashboardAccountSharing(params?: AccountSharingDashboar
   return data
 }
 
+export async function listMyErrorRequests(
+  params: UserErrorListParams
+): Promise<PaginatedResponse<UserErrorRequest>> {
+  const { data } = await apiClient.get<PaginatedResponse<UserErrorRequest>>('/usage/errors', {
+    params
+  })
+  return data
+}
+
 export async function getMyErrorDetail(id: number): Promise<UserErrorRequestDetail> {
   const { data } = await apiClient.get<UserErrorRequestDetail>(`/usage/errors/${id}`)
   return data
@@ -431,6 +444,7 @@ export const usageAPI = {
   getDashboardSnapshotV2,
   getDashboardAccountSharing,
   getDashboardApiKeysUsage,
+  listMyErrorRequests,
   getMyErrorDetail
 }
 

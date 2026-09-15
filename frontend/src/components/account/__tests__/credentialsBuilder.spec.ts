@@ -1,4 +1,32 @@
 import { describe, it, expect } from 'vitest'
+import {
+  ANTIGRAVITY_PROJECT_ID_CREDENTIAL_KEY,
+  HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
+  HEADER_OVERRIDES_CREDENTIAL_KEY,
+  OPENCODE_GO_PROTOCOL_RULES_KEY,
+  applyAntigravityProjectID,
+  applyHeaderOverride,
+  applyInterceptWarmup,
+  applyOpenCodeGoProtocolRules,
+  applyPlanType,
+  buildHeaderOverridesObject,
+  buildPlanTypeOptions,
+  cloneOpenCodeGoProtocolRules,
+  cnQuotaCellVisible,
+  defaultCNBaseUrl,
+  defaultOpenCodeProtocolRules,
+  isCustomGrokBaseUrl,
+  resolveOpenCodeAccountMode,
+  isHeaderOverrideCapable,
+  GROK_BASE_URL_PRESETS,
+  parseHeaderOverridesJson,
+  parseOpenCodeGoProtocolRules,
+  planTypeDisplayLabel,
+  readPlanType,
+  serializeHeaderOverrideRows,
+  splitHeaderOverridesObject,
+  validateHeaderOverrideRows
+} from '../credentialsBuilder'
 
 describe('applyInterceptWarmup', () => {
   it('create + enabled=true: should set intercept_warmup_requests to true', () => {

@@ -41,10 +41,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import GroupBadge from './GroupBadge.vue'
-import Icon from '@/components/icons/Icon.vue'
 import type { Group, GroupPlatform } from '@/types'
 import { useAuthStore } from '@/stores'
 
@@ -85,7 +84,7 @@ const filteredGroups = computed(() => {
       (g) => g.platform === 'antigravity' || g.platform === 'anthropic' || g.platform === 'gemini' || g.platform === 'composite'
     )
   }
-  const supportsComposite = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok'].includes(props.platform)
+  const supportsComposite = !!props.platform && (['anthropic', 'openai', 'gemini', 'antigravity', 'grok'] as string[]).includes(props.platform)
   return props.groups.filter(
     (g) => g.platform === props.platform || (supportsComposite && g.platform === 'composite')
   )

@@ -143,7 +143,7 @@ const labelClass = computed(() => {
   if (props.platform === 'gemini') {
     return `${base} bg-blue-200/60 text-blue-800 dark:bg-blue-800/40 dark:text-blue-300`
   }
-  if (props.platform === 'composite') {
+  if (String(props.platform) === 'composite') {
     return `${base} bg-cyan-200/70 text-cyan-900 dark:bg-cyan-900/50 dark:text-cyan-300`
   }
   if (props.platform === 'kimi') {
@@ -158,7 +158,7 @@ const labelClass = computed(() => {
   if (props.platform === 'minimax') {
     return `${base} bg-rose-200/60 text-rose-800 dark:bg-rose-800/40 dark:text-rose-300`
   }
-  if (props.platform === 'composite') {
+  if (String(props.platform) === 'composite') {
     return `${base} bg-cyan-200/70 text-cyan-900 dark:bg-cyan-900/50 dark:text-cyan-300`
   }
   return `${base} bg-violet-200/60 text-violet-800 dark:bg-violet-800/40 dark:text-violet-300`
@@ -189,7 +189,7 @@ const badgeClass = computed(() => {
       ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
       : 'bg-sky-50 text-sky-700 dark:bg-sky-900/20 dark:text-sky-400'
   }
-  if (props.platform === 'composite') {
+  if (String(props.platform) === 'composite') {
     return isSubscription.value
       ? 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300'
       : 'bg-cyan-50 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300'
@@ -214,7 +214,7 @@ const badgeClass = computed(() => {
       ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
       : 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400'
   }
-  if (props.platform === 'composite') {
+  if (String(props.platform) === 'composite') {
     return isSubscription.value
       ? 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300'
       : 'bg-cyan-50 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300'

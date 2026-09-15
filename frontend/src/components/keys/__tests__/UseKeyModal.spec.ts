@@ -15,7 +15,7 @@ vi.mock('vue-i18n', () => ({
 
 vi.mock('@/composables/useClipboard', () => ({
   useClipboard: () => ({
-    copyToClipboard: vi.fn().mockResolvedValue(true)
+    copyToClipboard: copyToClipboardMock
   })
 }))
 
@@ -31,6 +31,9 @@ function readBlobAsText(blob: Blob): Promise<string> {
     reader.addEventListener('load', () => resolve(String(reader.result || '')))
     reader.addEventListener('error', () => reject(reader.error))
     reader.readAsText(blob)
+  })
+}
+
 function mountUseKeyModal() {
   return mount(UseKeyModal, {
     props: {
@@ -122,17 +125,77 @@ describe('UseKeyModal', () => {
         }
       }
     })
-  it('renders current Codex CLI OpenAI config without local access provider alias', () => {
-    const wrapper = mountUseKeyModal()
 
-    const codeBlock = wrapper.find('pre code')
-    expect(codeBlock.exists()).toBe(true)
-    expect(codeBlock.text()).toContain('model = "gpt-5.5"')
-    expect(codeBlock.text()).toContain('review_model = "gpt-5.5"')
-    expect(codeBlock.text()).toContain('[model_providers.OpenAI]')
-    expect(codeBlock.text()).not.toContain('[model_providers.codex_local_access]')
-    expect(codeBlock.text()).toContain('base_url = "https://example.com/v1"')
-    expect(codeBlock.text()).toContain('wire_api = "responses"')
+    const grokTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.grokCli')
+    )
+    expect(grokTab).toBeDefined()
+
+    const allCode = wrapper.findAll('pre code').map((code) => code.text()).join('\n')
+    expect(allCode).toContain('GROK_MODELS_BASE_URL')
+    expect(allCode).toContain('XAI_API_KEY')
+    expect(allCode).toContain('[model."grok-4.5"]')
+    expect(allCode).toContain('[model."grok-build-0.1"]')
+    expect(allCode).toContain('[model."grok-4.20-multi-agent-0309"]')
+    expect(allCode).toContain('[model."grok-4.3"]')
+    expect(allCode).toContain('default = "grok-4.5"')
+    expect(allCode).toContain('models_base_url = "https://example.com/v1"')
+    expect(allCode).toContain('models_list_url = "https://example.com/v1/models"')
+    expect(allCode).toContain('xai_api_base_url = "https://example.com/v1"')
+    expect(allCode).toContain('cli_chat_proxy_base_url = "https://example.com/v1"')
+    expect(allCode).toContain('preferred_method = "api_key"')
+    expect(allCode).toContain('image_description = "grok-4.5"')
+    expect(allCode).toContain('auto_compact_threshold_percent = 80')
+    expect(allCode).toContain('image_gen = true')
+    expect(allCode).toContain('video_gen = true')
+    expect(allCode).toContain('image_gen_model_override = "grok-imagine-image-quality"')
+    expect(allCode).toContain('image_edit_model_override = "grok-imagine-edit"')
+    expect(allCode).toContain('env_key = "XAI_API_KEY"')
+    expect(allCode).toContain('Keep api_backend = "responses" on every model entry.')
+    expect(allCode).toContain('grok-imagine-image')
+    expect(allCode).toContain('grok-imagine-edit')
+    expect(allCode).toMatch(/\[model\."grok-4\.5"\][\s\S]*?context_window = 500000/)
+    expect(allCode).toMatch(/\[model\."grok-build-0\.1"\][\s\S]*?context_window = 256000/)
+    // Prefer env_key; hardcode api_key only as commented alternative
+    expect(allCode).not.toMatch(/^api_key = "sk-grok-test"$/m)
+
+    const modelBlocks = allCode
+      .split(/(?=^\[model\.)/m)
+      .filter((block) => block.startsWith('[model."'))
+    expect(modelBlocks.length).toBeGreaterThanOrEqual(4)
+    for (const block of modelBlocks) {
+      if (block.includes('# [model.')) continue
+      expect(block).toContain('api_backend = "responses"')
+    }
+
+    const windowsTab = wrapper.findAll('button').find(
+      (button) => button.text().trim() === 'Windows'
+    )
+    expect(windowsTab).toBeDefined()
+    await windowsTab!.trigger('click')
+    await nextTick()
+    expect(wrapper.text().toLowerCase()).toContain('%userprofile%\\.grok\\config.toml')
+
+    const opencodeTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.opencode')
+    )
+    expect(opencodeTab).toBeDefined()
+    await opencodeTab!.trigger('click')
+    await nextTick()
+
+    const parsed = JSON.parse(wrapper.find('pre code').text())
+    expect(parsed.provider.grok.npm).toBe('@ai-sdk/openai-compatible')
+    expect(parsed.provider.grok.name).toBe('Grok via Sub2API')
+    expect(parsed.provider.grok.options).toEqual({
+      baseURL: 'https://example.com/v1',
+      apiKey: 'sk-grok-test'
+    })
+    expect(parsed.provider.grok.models['grok-4.5']).toBeDefined()
+    expect(parsed.provider.grok.models['grok-4.5'].limit.context).toBe(500000)
+    expect(parsed.provider.grok.models['grok-build-0.1']).toBeDefined()
+    expect(parsed.provider.grok.models['grok-4.20-multi-agent-0309']).toBeDefined()
+    expect(parsed.provider.grok.models['grok-composer-2.5-fast']).toBeDefined()
+    expect(parsed.provider.grok.models['gpt-5.6']).toBeUndefined()
   })
 
   it('renders copyable Claude Code setup through the Grok Messages gateway', async () => {
@@ -412,8 +475,6 @@ describe('UseKeyModal', () => {
         }
       }
     })
-  it('renders WebSocket Codex CLI config without local access provider alias', async () => {
-    const wrapper = mountUseKeyModal()
 
     const wsTab = wrapper.findAll('button').find((button) =>
       button.text().includes('keys.useKeyModal.cliTabs.codexCliWs')
@@ -524,17 +585,27 @@ describe('UseKeyModal', () => {
 
     expect(wrapper.get('[data-testid="codex-auth-mode-legacy"]').attributes('aria-checked')).toBe('true')
     expect(wrapper.findAll('pre code').map((code) => code.text()).join('\n')).not.toContain('x-openai-actor-authorization')
-    const codeBlock = wrapper.find('pre code')
-    expect(codeBlock.exists()).toBe(true)
-    expect(codeBlock.text()).toContain('[model_providers.OpenAI]')
-    expect(codeBlock.text()).not.toContain('[model_providers.codex_local_access]')
-    expect(codeBlock.text()).toContain('supports_websockets = true')
-    expect(codeBlock.text()).toContain('[features]')
-    expect(codeBlock.text()).toContain('responses_websockets_v2 = true')
   })
 
   it('renders GPT-5.4 mini entry in OpenCode config', async () => {
-    const wrapper = mountUseKeyModal()
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
 
     const opencodeTab = wrapper.findAll('button').find((button) =>
       button.text().includes('keys.useKeyModal.cliTabs.opencode')
@@ -875,4 +946,47 @@ describe('UseKeyModal', () => {
     expect(configToml).toContain('model = "glm-5.3"')
     expect(configToml).not.toContain('model_reasoning_effort')
   })
+
+    it('renders WebSocket Codex CLI config without local access provider alias', async () => {
+      const wrapper = mountUseKeyModal()
+  
+      const wsTab = wrapper.findAll('button').find((button) =>
+        button.text().includes('keys.useKeyModal.cliTabs.codexCliWs')
+      )
+  
+      expect(wsTab).toBeDefined()
+      await wsTab!.trigger('click')
+      await nextTick()
+  
+      const codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
+      const configToml = codeBlocks.find((content) => content.includes('supports_websockets = true'))
+  
+      expect(configToml).toBeDefined()
+      expect(configToml).toContain('model = "gpt-5.5"')
+      expect(configToml).toContain('review_model = "gpt-5.5"')
+      expect(configToml).not.toContain('model = "gpt-5.4"')
+      expect(configToml).not.toContain('model_context_window')
+      expect(configToml).not.toContain('model_auto_compact_token_limit')
+      expect(configToml).toContain('requires_openai_auth = true')
+      expect(configToml).not.toContain('experimental_bearer_token')
+      expect(configToml).not.toContain('x-openai-actor-authorization')
+      expect(configToml).not.toContain('env_key')
+      expect(configToml).not.toContain('image_generation')
+      expect(configToml).toContain('supports_websockets = true')
+      expect(configToml).toContain('[features]\nresponses_websockets_v2 = true\ngoals = true')
+      expect(codeBlocks).toContain('{\n  "OPENAI_API_KEY": "sk-test"\n}')
+      expect(wrapper.text()).toContain('auth.json')
+    })
+    it('renders current Codex CLI OpenAI config without local access provider alias', () => {
+      const wrapper = mountUseKeyModal()
+  
+      const codeBlock = wrapper.find('pre code')
+      expect(codeBlock.exists()).toBe(true)
+      expect(codeBlock.text()).toContain('model = "gpt-5.5"')
+      expect(codeBlock.text()).toContain('review_model = "gpt-5.5"')
+      expect(codeBlock.text()).toContain('[model_providers.OpenAI]')
+      expect(codeBlock.text()).not.toContain('[model_providers.codex_local_access]')
+      expect(codeBlock.text()).toContain('base_url = "https://example.com/v1"')
+      expect(codeBlock.text()).toContain('wire_api = "responses"')
+    })
 })

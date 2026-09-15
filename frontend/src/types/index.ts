@@ -4,6 +4,9 @@
 
 // ==================== Common Types ====================
 
+export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'minimax' | 'kiro' | 'custom' | 'opencode_go' | 'composite'
+export type CompositeTargetPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek' | 'minimax' | 'kiro' | 'custom' | 'opencode_go'
+
 export interface SelectOption {
   value: string | number | boolean | null
   label: string
@@ -662,20 +665,7 @@ export interface ModelsListConfig {
   models: string[]
 }
 
-export type VideoModelPrices = Record<string, Record<string, number>>
 
-export type CompositeRouteMatchType = 'exact' | 'prefix'
-export type CompositeRouteEndpoint =
-  | 'any'
-  | 'messages'
-  | 'count_tokens'
-  | 'responses'
-  | 'chat_completions'
-  | 'embeddings'
-  | 'images'
-  | 'gemini'
-export type CompositeTargetPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok' | 'kimi' | 'zhipu' | 'deepseek'
-export type CompositeRouteSource = 'route' | 'detector' | string
 
 export interface CompositeModelRoute {
   id: number
@@ -2573,6 +2563,7 @@ export interface UsageQueryParams {
   stream?: boolean
   native_compaction_v2?: boolean | null
   billing_type?: number | null
+  billing_mode?: number | string | null
   start_date?: string
   end_date?: string
   sort_by?: string

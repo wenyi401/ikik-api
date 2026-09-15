@@ -80,6 +80,7 @@ const props = withDefaults(
     remainingCapacity?: boolean
     /** fixed: 定宽居中徽章（账号页纵向对齐）；auto: 限宽截断左对齐（监控页组合标签） */
     labelWidth?: 'fixed' | 'auto'
+    showLabel?: boolean
   }>(),
   { labelWidth: 'fixed' }
 )
@@ -87,6 +88,7 @@ const props = withDefaults(
 const { t } = useI18n()
 
 const showLabel = computed(() => props.showLabel !== false)
+defineExpose({ showLabel })
 
 // Reactive clock for countdown — only runs when a reset time is shown,
 // to avoid creating many idle timers across large account lists.

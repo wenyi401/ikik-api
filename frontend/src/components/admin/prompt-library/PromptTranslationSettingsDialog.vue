@@ -66,6 +66,7 @@ import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import { groupsAPI } from '@/api/admin/groups'
+import type { GroupPlatform } from '@/types'
 import {
   getPromptLibraryTranslationConfig,
   updatePromptLibraryTranslationConfig,
@@ -132,7 +133,7 @@ async function loadModels(keepCurrent: boolean) {
   modelsLoading.value = true
   const current = form.model
   try {
-    const candidates = await groupsAPI.getModelsListCandidates(group.id, group.platform)
+    const candidates = await groupsAPI.getModelAllowlistCandidates(group.id, group.platform as GroupPlatform)
     models.value = Array.from(new Set([
       ...(keepCurrent && current ? [current] : []),
       ...candidates.map(model => model.trim()).filter(Boolean),

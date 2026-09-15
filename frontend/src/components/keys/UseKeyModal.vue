@@ -60,8 +60,8 @@
         </div>
 
         <!-- Client Tabs -->
-        <div v-if="clientTabs.length" class="border-b border-[var(--app-border)]">
-          <nav class="-mb-px flex space-x-6" aria-label="Client">
+        <div v-if="clientTabs.length" class="overflow-x-auto border-b border-[var(--app-border)]">
+          <nav class="-mb-px flex min-w-max gap-4 sm:gap-6" aria-label="Client">
             <button
               v-for="tab in clientTabs"
               :key="tab.id"
@@ -327,22 +327,18 @@ const codexModelManifestContent = ref('')
 const codexModelManifestModelCount = ref(0)
 let codexModelManifestController: AbortController | null = null
 let codexModelManifestRequestID = 0
-
 const showCodexModelCatalog = computed(() =>
-  props.show &&
-  (activeClientTab.value === 'codex' ||
+  props.show && (activeClientTab.value === 'codex' ||
     (props.platform === 'openai' && activeClientTab.value === 'codex-ws'))
 )
-
 const codexModelCatalogPath = computed(() => {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
   return joinConfigPath(configDir, 'codex-models.json', isWindows)
 })
-const codexManifestContext = computed(() => {
-  if (!showCodexModelCatalog.value) return ''
-  return `${props.platform}|${props.baseUrl}|${props.apiKey}`
-})
+const codexManifestContext = computed(() =>
+  showCodexModelCatalog.value ? `${props.platform}|${props.baseUrl}|${props.apiKey}` : ''
+)
 const selectedBaseUrl = ref<string>('')
 
 // Reset tabs when platform changes
@@ -368,16 +364,26 @@ watch(() => props.platform, () => {
 }, { immediate: true })
 
 watch(() => props.show, (show) => {
-  if (show) {
-    codexAuthMode.value = 'legacy'
-  } else {
-    resetCodexModelManifest()
-  }
+  if (show) codexAuthMode.value = 'legacy'
+  else resetCodexModelManifest()
 })
 
 watch(codexManifestContext, (context, previousContext) => {
-  if (context !== previousContext) {
-    resetCodexModelManifest()
+  if (context !== previousContext) resetCodexModelManifest()
+})
+
+const fallbackBaseUrl = computed(() => props.baseUrl || (typeof window !== 'undefined' ? window.location.origin : ''))
+
+const endpointOptions = computed<EndpointOption[]>(() => {
+  const items: EndpointOption[] = []
+  const seen = new Set<string>()
+  const push = (item: EndpointOption) => {
+    const endpoint = normalizeEndpointUrl(item.endpoint)
+    if (!endpoint) return
+    const key = endpointKey(endpoint)
+    if (seen.has(key)) return
+    seen.add(key)
+    items.push({ ...item, endpoint })
   }
 
   push({
@@ -520,7 +526,6 @@ const clientTabs = computed((): TabConfig[] => {
         { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
       ]
     case 'deepseek':
-    case 'minimax':
     case 'composite':
       return [
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
@@ -568,7 +573,6 @@ const platformDescription = computed(() => {
     props.platform !== 'openai' &&
     props.platform !== 'grok' &&
     props.platform !== 'deepseek' &&
-    props.platform !== 'minimax' &&
     props.platform !== 'composite') {
     return t('keys.useKeyModal.routedCodex.description')
   }
@@ -590,10 +594,6 @@ const platformDescription = computed(() => {
       return activeClientTab.value === 'codex'
         ? t('keys.useKeyModal.deepseek.codexDescription')
         : t('keys.useKeyModal.deepseek.description')
-    case 'minimax':
-      return activeClientTab.value === 'codex'
-        ? t('keys.useKeyModal.minimax.codexDescription')
-        : t('keys.useKeyModal.minimax.description')
     case 'composite':
       return activeClientTab.value === 'codex'
         ? t('keys.useKeyModal.composite.codexDescription')
@@ -608,7 +608,6 @@ const platformNote = computed(() => {
     props.platform !== 'openai' &&
     props.platform !== 'grok' &&
     props.platform !== 'deepseek' &&
-    props.platform !== 'minimax' &&
     props.platform !== 'composite') {
     return t('keys.useKeyModal.routedCodex.note')
   }
@@ -637,10 +636,6 @@ const platformNote = computed(() => {
     case 'deepseek':
       return activeClientTab.value === 'codex'
         ? t('keys.useKeyModal.deepseek.codexNote')
-        : t('keys.useKeyModal.note')
-    case 'minimax':
-      return activeClientTab.value === 'codex'
-        ? t('keys.useKeyModal.minimax.codexNote')
         : t('keys.useKeyModal.note')
     case 'composite':
       return activeClientTab.value === 'codex'
@@ -763,6 +758,8 @@ const currentFiles = computed((): FileConfig[] => {
           generateOpenCodeConfig('antigravity-claude', antigravityBase, apiKey, 'opencode.json (Claude)'),
           generateOpenCodeConfig('antigravity-gemini', antigravityGeminiBase, apiKey, 'opencode.json (Gemini)')
         ]
+      case 'grok':
+        return [generateOpenCodeConfig('grok', apiBase, apiKey)]
       default:
         return [generateOpenCodeConfig('openai', apiBase, apiKey)]
     }
@@ -792,7 +789,7 @@ const currentFiles = computed((): FileConfig[] => {
       return generateAnthropicFiles(`${baseUrl}/antigravity`, apiKey)
     case 'grok':
       if (activeClientTab.value === 'claude') {
-        return generateGrokClaudeFiles(apiBase, apiKey)
+        return generateGrokClaudeFiles(baseRoot, apiKey)
       }
       if (activeClientTab.value === 'codex') {
         return generateGrokCodexFiles(apiBase, apiKey)
@@ -854,6 +851,7 @@ $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
     : '%userprofile%\\.claude\\settings.json'
 
   const vscodeContent = `{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
     "ANTHROPIC_BASE_URL": "${baseUrl}",
     "ANTHROPIC_AUTH_TOKEN": "${apiKey}",
@@ -1312,7 +1310,7 @@ supports_websockets = false`
       path: joinConfigPath(configDir, 'config.toml', isWindows),
       content: configContent,
       hint: t(
-        platform === 'deepseek' || platform === 'minimax' || platform === 'composite'
+        platform === 'deepseek' || platform === 'composite'
           ? `keys.useKeyModal.${platform}.codexConfigTomlHint`
           : 'keys.useKeyModal.routedCodex.configTomlHint'
       )
@@ -1409,22 +1407,6 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         xhigh: {}
       }
     },
-    'gpt-5.5': {
-      name: 'GPT-5.5',
-      limit: {
-        context: 1050000,
-        output: 128000
-      },
-      options: {
-        store: false
-      },
-      variants: {
-        low: {},
-        medium: {},
-        high: {},
-        xhigh: {}
-      }
-    },
     'gpt-5.6': {
       name: 'GPT-5.6 (Sol)',
       limit: {
@@ -1493,6 +1475,22 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         max: {}
       }
     },
+    'gpt-5.5': {
+      name: 'GPT-5.5',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {}
+      }
+    },
     'gpt-5.4': {
       name: 'GPT-5.4',
       limit: {
@@ -1530,22 +1528,6 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
       limit: {
         context: 128000,
         output: 32000
-      },
-      options: {
-        store: false
-      },
-      variants: {
-        low: {},
-        medium: {},
-        high: {},
-        xhigh: {}
-      }
-    },
-    'gpt-5.3-codex': {
-      name: 'GPT-5.3 Codex',
-      limit: {
-        context: 400000,
-        output: 128000
       },
       options: {
         store: false
@@ -1611,6 +1593,17 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
           budgetTokens: 24576,
           type: 'enabled'
         }
+      }
+    },
+    'gemini-3.5-flash': {
+      name: 'Gemini 3.5 Flash',
+      limit: {
+        context: 1048576,
+        output: 65536
+      },
+      modalities: {
+        input: ['text', 'image', 'pdf'],
+        output: ['text']
       }
     },
     'gemini-3-flash-preview': {
@@ -1763,6 +1756,40 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         }
       }
     },
+    'gemini-2.5-flash-image': {
+      name: 'Gemini 2.5 Flash Image',
+      limit: {
+        context: 1048576,
+        output: 65536
+      },
+      modalities: {
+        input: ['text', 'image'],
+        output: ['image']
+      },
+      options: {
+        thinking: {
+          budgetTokens: 24576,
+          type: 'enabled'
+        }
+      }
+    },
+    'gemini-3.1-flash-image': {
+      name: 'Gemini 3.1 Flash Image',
+      limit: {
+        context: 1048576,
+        output: 65536
+      },
+      modalities: {
+        input: ['text', 'image'],
+        output: ['image']
+      },
+      options: {
+        thinking: {
+          budgetTokens: 24576,
+          type: 'enabled'
+        }
+      }
+    }
   }
   const claudeModels = {
     'claude-fable-5-1': {
@@ -1832,6 +1859,30 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
       }
     }
   }
+  // Align context_window with Grok Build official sample (docs.x.ai/build/settings) where known.
+  // Image/video: grok-imagine-image / grok-imagine-video on media endpoints — not this list.
+  const grokModels = {
+    'grok-4.5': {
+      name: 'Grok 4.5',
+      limit: { context: 500000, output: 64000 }
+    },
+    'grok-build-0.1': {
+      name: 'Grok Build 0.1',
+      limit: { context: 256000, output: 64000 }
+    },
+    'grok-4.20-multi-agent-0309': {
+      name: 'Grok 4.20 Multi Agent (text / web_search)',
+      limit: { context: 1000000, output: 64000 }
+    },
+    'grok-4.3': {
+      name: 'Grok 4.3',
+      limit: { context: 1000000, output: 64000 }
+    },
+    'grok-composer-2.5-fast': {
+      name: 'Grok Composer 2.5 Fast',
+      limit: { context: 500000, output: 64000 }
+    }
+  }
 
   if (platform === 'gemini') {
     provider[platform].npm = '@ai-sdk/google'
@@ -1848,6 +1899,11 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     provider[platform].models = antigravityGeminiModels
   } else if (platform === 'openai') {
     provider[platform].models = openaiModels
+  } else if (platform === 'grok') {
+    // Custom provider pointing at Sub2API OpenAI-compatible Responses/Chat endpoints.
+    provider[platform].npm = '@ai-sdk/openai-compatible'
+    provider[platform].name = 'Grok via Sub2API'
+    provider[platform].models = grokModels
   }
 
   const agent =

@@ -1629,10 +1629,6 @@ const quotaTotalBar = computed((): QuotaBarInfo | null => {
   return makeQuotaBar(props.account.quota_used ?? 0, limit)
 })
 
-const handleQuotaResetAccountUpdated = (account: Account) => {
-  emit('account-updated', account)
-}
-
 const handleOllamaCloudUsageUpdated = (state: NonNullable<Account['ollama_cloud_usage']>) => {
   emit('account-updated', { ...props.account, ollama_cloud_usage: state })
 }
@@ -1785,4 +1781,9 @@ onUnmounted(() => {
   desktopViewportListener = null
   desktopViewportMediaQuery = null
 })
+
+// [merge-recovery] declarations restored from prior revisions
+const suppressOpenAIUsageRefreshUntil = ref(0)
+
+const SUPPRESS_USAGE_REFRESH_WINDOW_MS = 5 * 1000
 </script>

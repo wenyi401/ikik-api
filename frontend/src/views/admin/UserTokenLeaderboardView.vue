@@ -136,7 +136,7 @@ const loadRanking = async () => {
       request_type: requestType,
       stream: legacyStream === null ? undefined : legacyStream,
       billing_type: filters.value.billing_type,
-      billing_mode: filters.value.billing_mode,
+      billing_mode: filters.value.billing_mode == null ? undefined : String(filters.value.billing_mode),
       sort_by: 'tokens',
       limit: limit.value
     })
@@ -179,7 +179,7 @@ const goToUserUsage = (userId: number) => {
   if (filters.value.model) query.model = filters.value.model
   if (filters.value.request_type) query.request_type = filters.value.request_type
   if (filters.value.billing_type != null) query.billing_type = String(filters.value.billing_type)
-  if (filters.value.billing_mode) query.billing_mode = filters.value.billing_mode
+  if (filters.value.billing_mode != null) query.billing_mode = String(filters.value.billing_mode)
   router.push({ path: '/admin/usage', query })
 }
 
