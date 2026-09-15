@@ -141,6 +141,7 @@
           :account="account"
           :account-scope="accountScope"
           @reset="handleOpenAIQuotaReset"
+          @account-updated="handleQuotaResetAccountUpdated"
         >
           <template #pre-actions>
             <button
@@ -585,6 +586,7 @@
       <OllamaCloudUsageCell
         v-if="account.ollama_cloud_usage?.eligible"
         :account="account"
+        @updated="handleOllamaCloudUsageUpdated"
       />
       <!-- Today stats row (requests, tokens, cost, user_cost) -->
       <div
@@ -709,6 +711,10 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const handleQuotaResetAccountUpdated = (account: Account) => {
+  emit('account-updated', account)
+}
 
 const handleOpenAIQuotaReset = (accountId: number) => {
   suppressOpenAIUsageRefreshUntil.value = Date.now() + SUPPRESS_USAGE_REFRESH_WINDOW_MS

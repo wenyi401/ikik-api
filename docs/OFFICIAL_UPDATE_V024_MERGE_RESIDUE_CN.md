@@ -20,7 +20,7 @@
   `getQuotaUsageClass` 用量配色、`accountsCount`、`admin.groups.accountFilters.*` 文案
   （约 22 个 i18n key + 30 个 helper）未移植；移植会覆盖 fork 现有的价格编辑 UI。
 
-## 上游 spec 中有、合并时丢失的用例（恢复进度 112/~180）
+## 上游 spec 中有、合并时丢失的用例（恢复进度 119/~180）
 
 已恢复并全绿：
 
@@ -45,6 +45,8 @@
 * `views/user/__tests__/PaymentResultView.spec.ts`（3 条，15/15 全绿）：订单校验改为「已登录走鉴权接口、失败再退回公开校验」，金额按订单返回的币种用 `formatPaymentAmount` 渲染（此前固定按 ¥ 显示）
 * `components/auth/__tests__/PendingOAuthCreateAccountForm.spec.ts`（1 条恢复 + 3 条原本失败，11/11 全绿）：**修掉两个真实缺陷** —— 验证码控件此前只在启用 Cloudflare Turnstile 时才渲染，导致启用腾讯/阿里云 人机验证时挂载不到 widget、`verifyAction()` 取不到凭据，发验证码与提交会被静默中止；提交 payload 也补上了父组件要转发的 `turnstileToken` / 腾讯 ticket 字段
 * `components/account/__tests__/AccountStatusIndicator.spec.ts`（2 条，12/12 全绿）、`components/charts/__tests__/TokenUsageTrend.spec.ts`（2 条，4/4 全绿，缓存命中率数据集按 fork 的 i18n 标签断言）
+* `components/account/__tests__/AccountUsageCell.spec.ts`（3 条，54/54 全绿）：补回 Anthropic OAuth 的 `7d F`(Fable) 进度条渲染/无数据隐藏断言；**修掉两个真实缺陷** —— OpenAI API Key 分支的 OllamaCloudUsageCell 漏了 `@updated`，子组件的用量更新传不上去；`OpenAIQuotaResetCell` 的重置结果此前只走 fork 自己的 `reset` 事件，现在同时按上游契约 `account-updated` 把刷新后的账号行回传（重置后账号行会立即重新拉取 usage）
+* `components/account/__tests__/OllamaCloudUsageCell.spec.ts`（4 条，与 settings spec 合计 11/11 全绿）：上游把行内查询按钮放在列表单元格里，fork 的设计是放在编辑页的 `OllamaCloudUsageSettings`（该 spec 已覆盖 `refreshOllamaCloudUsage` 调用），故按 fork 契约改写为"单元格内不出现查询按钮"的断言并保留上游新增的窗口渲染/类名断言
 
 仍未恢复（每条都对应一处上游功能/行为，需要实现后才能放回）：
 
@@ -62,7 +64,7 @@
 
 ## 验证基线
 
-* 前端全量：`67 failed / 2073 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）
+* 前端全量：`66 failed / 2080 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）
 * `vue-tsc --noEmit`：0 错误；`pnpm run build`：成功
 * 后端：`go build ./...` 通过；`go test -p 1 ./internal/...` 41 个失败，
   抽样 4 个在合并前的 worktree 上同样失败（fork 既有差异）

@@ -101,4 +101,59 @@ describe('OllamaCloudUsageCell', () => {
     expect(wrapper.findAllComponents(UsageProgressBar)[0].props('utilization')).toBe(43)
     expect(wrapper.findAll('button')).toHaveLength(0)
   })
+
+  it('renders native 5h and 7d windows without an in-cell query action', () => {
+    const wrapper = mount(OllamaCloudUsageCell, { props: { account: account() } })
+    const cell = wrapper.get('[data-testid="ollama-cloud-usage-cell"]')
+    expect(cell.classes()).toEqual(expect.arrayContaining(['min-w-0', 'max-w-full']))
+    expect(cell.classes()).not.toContain('min-w-[12rem]')
+
+    const bars = wrapper.findAllComponents(UsageProgressBar)
+    expect(bars).toHaveLength(2)
+    expect(bars[0].props()).toMatchObject({
+      label: '5h',
+      utilization: 5.6,
+      resetsAt: '2026-07-23T03:00:00Z'
+    })
+    expect(bars[1].props()).toMatchObject({
+      label: '7d',
+      utilization: 14.2,
+      resetsAt: '2026-07-29T00:00:00Z'
+    })
+
+    expect(wrapper.find('[data-testid="ollama-cloud-usage-details"]').exists()).toBe(false)
+    // fork 设计：列表单元格不放行内查询按钮，查询在编辑页设置里
+    expect(wrapper.find('[data-testid="ollama-cloud-usage-query"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('max')
+    expect(wrapper.text()).not.toContain('$0')
+    expect(wrapper.text()).not.toContain('gpt-oss:120b-cloud')
+  })
+
+
+  it('reacts to an account snapshot update', async () => {
+    const wrapper = mount(OllamaCloudUsageCell, { props: { account: account() } })
+    const next = usageState()
+    next.snapshot!.data!.five_hour!.used_percent = 43
+
+    await wrapper.setProps({ account: account(next) })
+
+    expect(wrapper.findAllComponents(UsageProgressBar)[0].props('utilization')).toBe(43)
+  })
+
+
+  // 查询动作在编辑页的 OllamaCloudUsageSettings 里（其 spec 覆盖 refreshOllamaCloudUsage 调用），
+  // 列表单元格按 fork 设计不再提供行内查询按钮
+
+
+
+  it('keeps the cell query-free regardless of the browser session state', () => {
+    const state = usageState()
+    state.configured = false
+
+    const wrapper = mount(OllamaCloudUsageCell, { props: { account: account(state) } })
+
+    expect(wrapper.find('[data-testid="ollama-cloud-usage-query"]').exists()).toBe(false)
+  })
+
 })
+
