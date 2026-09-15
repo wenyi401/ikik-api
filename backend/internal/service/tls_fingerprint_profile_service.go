@@ -190,6 +190,11 @@ func (s *TLSFingerprintProfileService) ResolveTLSProfile(account *Account) *tlsf
 			return p
 		}
 	}
+	// TLS 启用但无绑定 profile：opencode 平台默认使用官方 CLI (Bun/BoringSSL)
+	// 指纹（PixelAPI 实测 JA3 精确匹配 Bun 1.3.10），其余平台回退 Node.js 24.x。
+	if account.IsOpenCodeGo() {
+		return tlsfingerprint.NewOpencodeProfile()
+	}
 	// TLS 启用但无绑定 profile → 空 Profile → dialer 使用内置默认值
 	return &tlsfingerprint.Profile{Name: "Built-in Default (Node.js 24.x)"}
 }

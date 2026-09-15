@@ -326,6 +326,39 @@ var defaultExtensionOrder = []uint16{
 	43,    // supported_versions
 }
 
+// opencodeDefaultExtensionOrder is the OpenCode CLI (Bun 1.3.x) extension
+// order, captured from Bun 1.3.10 via tls.peet.ws. It is identical to the
+// Node.js 24.x order above except for a trailing padding(21) extension.
+// JA3: 50027c67d7d68e24c00d233bca146d88
+// JA4:  t13d1715h1_5b57614c22b0_7baf387fc6ff
+// (shuzhi source: PixelAPI field measurement; opencode upstream runs Bun/BoringSSL.)
+var opencodeDefaultExtensionOrder = []uint16{
+	0,     // server_name
+	65037, // encrypted_client_hello
+	23,    // extended_master_secret
+	65281, // renegotiation_info
+	10,    // supported_groups
+	11,    // ec_point_formats
+	35,    // session_ticket
+	16,    // alpn
+	5,     // status_request
+	13,    // signature_algorithms
+	18,    // signed_certificate_timestamp
+	51,    // key_share
+	45,    // psk_key_exchange_modes
+	43,    // supported_versions
+	21,    // padding (BoringSSL-style, Bun trailing extension)
+}
+
+// NewOpencodeProfile returns the official OpenCode CLI (Bun 1.3.x /
+// BoringSSL) TLS fingerprint for opencode.ai upstream requests.
+func NewOpencodeProfile() *Profile {
+	return &Profile{
+		Name:       "OpenCode CLI (Bun 1.3.x)",
+		Extensions: opencodeDefaultExtensionOrder,
+	}
+}
+
 // isGREASEValue checks if a uint16 value matches the TLS GREASE pattern (0x?a?a).
 func isGREASEValue(v uint16) bool {
 	return v&0x0f0f == 0x0a0a && v>>8 == v&0xff
@@ -416,6 +449,10 @@ func buildClientHelloSpecFromProfile(profile *Profile) *utls.ClientHelloSpec {
 			extensions = append(extensions, &utls.ALPNExtension{AlpnProtocols: alpnProtocols})
 		case 18: // signed_certificate_timestamp
 			extensions = append(extensions, &utls.SCTExtension{})
+		case 21: // padding (RFC 7685)
+			// BoringPaddingStyle pads the ClientHello to the next 0x200-byte
+			// boundary, matching Bun/opencode CLI (BoringSSL) behavior.
+			extensions = append(extensions, &utls.UtlsPaddingExtension{GetPaddingLen: utls.BoringPaddingStyle})
 		case 23: // extended_master_secret
 			extensions = append(extensions, &utls.ExtendedMasterSecretExtension{})
 		case 35: // session_ticket
