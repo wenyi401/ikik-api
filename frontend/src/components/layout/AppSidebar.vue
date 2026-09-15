@@ -48,7 +48,7 @@
     </div>
 
     <!-- Navigation -->
-    <nav class="sidebar-nav scrollbar-hide">
+    <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide">
       <template v-if="showNavigation">
         <div class="sidebar-section">
           <template v-for="item in visibleNavItems" :key="item.path">
@@ -150,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, h, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
@@ -210,6 +210,7 @@ const adminSettingsStore = useAdminSettingsStore()
 
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
+const sidebarNavRef = ref<HTMLElement | null>(null)
 const isAdmin = computed(() => authStore.isAdmin)
 const isAdminWorkspace = computed(() => authStore.isSimpleMode || route.path.startsWith('/admin'))
 const showNavigation = computed(() => isAdmin.value || !appStore.backendModeEnabled)
@@ -1159,6 +1160,20 @@ onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
   if (isAdmin.value) {
     adminSettingsStore.fetch()
+  }
+  // 路由切换会重新挂载侧边栏：恢复用户上次的滚动位置
+  if (appStore.sidebarScrollTop > 0 && sidebarNavRef.value) {
+    void nextTick(() => {
+      if (sidebarNavRef.value) {
+        sidebarNavRef.value.scrollTop = appStore.sidebarScrollTop
+      }
+    })
+  }
+})
+
+onBeforeUnmount(() => {
+  if (sidebarNavRef.value) {
+    appStore.sidebarScrollTop = sidebarNavRef.value.scrollTop
   }
 })
 

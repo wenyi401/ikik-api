@@ -18,6 +18,7 @@ export const useAppStore = defineStore('app', () => {
   // ==================== State ====================
 
   const sidebarCollapsed = ref<boolean>(false)
+  const sidebarScrollTop = ref<number>(0)
   const mobileOpen = ref<boolean>(false)
   const loading = ref<boolean>(false)
   const toasts = ref<Toast[]>([])
@@ -306,19 +307,25 @@ export const useAppStore = defineStore('app', () => {
    * Fetch public settings (uses cache unless force=true)
    * @param force - Force refresh from API
    */
-  async function fetchPublicSettings(force = false): Promise<PublicSettings | null> {
+  function fetchPublicSettings(force = false): Promise<PublicSettings | null> {
+    // 进行中的请求优先于缓存/force 语义：所有调用者看到同一次刷新结果，
+    // 且旧请求不会覆盖新请求。
+    if (publicSettingsRequest) {
+      return publicSettingsRequest
+    }
+
     // Check for injected config from server (eliminates flash)
     if (!publicSettingsLoaded.value && !force && window.__APP_CONFIG__) {
       applySettings(window.__APP_CONFIG__)
-      return window.__APP_CONFIG__
+      return Promise.resolve(window.__APP_CONFIG__)
     }
 
     // Return cached data if available and not forcing refresh
     if (publicSettingsLoaded.value && !force) {
       if (cachedPublicSettings.value) {
-        return { ...cachedPublicSettings.value }
+        return Promise.resolve({ ...cachedPublicSettings.value })
       }
-      return {
+      return Promise.resolve({
         registration_enabled: false,
         email_verify_enabled: false,
         force_email_on_third_party_signup: false,
@@ -373,30 +380,37 @@ export const useAppStore = defineStore('app', () => {
         carpool_system_proxy_fee_usd: 10,
         carpool_risk_control_fee_usd: 15,
         affiliate_enabled: false,
-      }
-    }
-
-    // Prevent duplicate requests
-    if (publicSettingsLoading.value) {
-      return publicSettingsRequest
+      })
     }
 
     publicSettingsLoading.value = true
-    publicSettingsRequest = (async () => {
-      const data = await fetchPublicSettingsAPI()
-      applySettings(data)
-      return data
-    })()
-
+    let apiRequest: Promise<PublicSettings>
     try {
-      return await publicSettingsRequest
+      apiRequest = fetchPublicSettingsAPI()
     } catch (error) {
       console.error('Failed to fetch public settings:', error)
-      return null
-    } finally {
       publicSettingsLoading.value = false
-      publicSettingsRequest = null
+      return Promise.resolve(null)
     }
+
+    const request = apiRequest
+      .then((data) => {
+        applySettings(data)
+        return data
+      })
+      .catch((error) => {
+        console.error('Failed to fetch public settings:', error)
+        return null
+      })
+      .finally(() => {
+        if (publicSettingsRequest === request) {
+          publicSettingsRequest = null
+          publicSettingsLoading.value = false
+        }
+      })
+
+    publicSettingsRequest = request as Promise<PublicSettings | null>
+    return request
   }
 
   /**
@@ -425,6 +439,7 @@ export const useAppStore = defineStore('app', () => {
   return {
     // State
     sidebarCollapsed,
+    sidebarScrollTop,
     mobileOpen,
     loading,
     toasts,
