@@ -518,7 +518,6 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
-import type { AccountBatchTask } from '@/api/admin/accounts'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -560,7 +559,7 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 import { sanitizeUrl } from '@/utils/url'
 import { getFloatingPanelPosition } from '@/utils/floatingPanel'
 import { formatMultiplier } from '@/utils/formatters'
-import type { Account, AccountListItem, AccountPlatform, AccountType, AccountSchedulerGroupScore, AccountUsageInfo, Proxy as AccountProxy, AdminGroup, WindowStats, ClashSubscriptions } from '@/types'
+import type { Account, AccountListItem, AccountPlatform, AccountType, AccountSchedulerGroupScore, AccountUsageInfo, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel, UpstreamBillingProbeSnapshot } from '@/types'
 import type { ImportCredentialContentsResponse } from '@/api/accounts'
 
 const { t } = useI18n()
@@ -736,9 +735,6 @@ const todayStatsError = ref<string | null>(null)
 const todayStatsReqSeq = ref(0)
 const pendingTodayStatsRefresh = ref(false)
 const usageManualRefreshToken = ref(0)
-const activeBatchTaskPolls = new Set<number>()
-let isUnmounted = false
-const ACCOUNT_BATCH_TASK_POLL_TIMEOUT_MS = 30 * 60 * 1000
 
 const desktopViewportQuery = '(min-width: 768px)'
 const isDesktopViewport = ref(
@@ -1192,7 +1188,6 @@ const resetAutoRefreshCache = () => {
   upstreamBillingRateETag.value = null
 }
 
-const isFirstLoad = ref(true)
 
 type AccountLoadOptions = {
   refreshTodayStats?: boolean
@@ -2050,37 +2045,6 @@ const handleBulkProbeUpstreamBilling = async () => {
 }
 
 
-const waitForAdminAccountBatchTask = async (taskId: number): Promise<AccountBatchTask> => {
-  const deadline = Date.now() + ACCOUNT_BATCH_TASK_POLL_TIMEOUT_MS
-  while (!isUnmounted && Date.now() < deadline) {
-    const task = await adminAPI.accounts.getBatchTask(taskId)
-    if (task.status === 'succeeded' || task.status === 'failed' || task.status === 'canceled') {
-      return task
-    }
-    await new Promise(resolve => setTimeout(resolve, 1500))
-  }
-  throw new Error(t('admin.accounts.bulkActions.asyncTimeout'))
-}
-
-const pollAdminAccountBatchTask = async (
-  taskId: number,
-  onCompleted: (task: AccountBatchTask) => void
-) => {
-  if (activeBatchTaskPolls.has(taskId)) return
-  activeBatchTaskPolls.add(taskId)
-  try {
-    const completed = await waitForAdminAccountBatchTask(taskId)
-    if (isUnmounted) return
-    onCompleted(completed)
-    reload()
-  } catch (error: any) {
-    if (isUnmounted) return
-    console.error('Failed to poll admin account batch task:', error)
-    appStore.showError(error?.response?.data?.message || error?.message || String(error))
-  } finally {
-    activeBatchTaskPolls.delete(taskId)
-  }
-}
 const updateSchedulableInList = (accountIds: number[], schedulable: boolean) => {
   if (accountIds.length === 0) return
   const idSet = new Set(accountIds)
@@ -2737,7 +2701,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  isUnmounted = true
   upstreamBillingRateAbortController?.abort()
   if (usageBatchFlushTimer !== null) {
     clearTimeout(usageBatchFlushTimer)
