@@ -20,7 +20,7 @@
   `getQuotaUsageClass` 用量配色、`accountsCount`、`admin.groups.accountFilters.*` 文案
   （约 22 个 i18n key + 30 个 helper）未移植；移植会覆盖 fork 现有的价格编辑 UI。
 
-## 上游 spec 中有、合并时丢失的用例（恢复进度 88/~180）
+## 上游 spec 中有、合并时丢失的用例（恢复进度 101/~180）
 
 已恢复并全绿：
 
@@ -38,14 +38,19 @@
   支持 `*.` 通配符匹配与 `formatRegistrationEmailSuffixWhitelistForMessage`
 * `api/__tests__/client.spec.ts`（10 条，25/25 全绿）：API base 相对路径归一化、请求拦截器补回 `X-Admin-UI-Request` / `X-User-UI-Request` 标记、刷新被新会话取代时返回 `AUTH_SESSION_CHANGED`；三条刷新用例按 fork 的 cookie/内存会话模型改写
 * `api/authSession.spec.ts`（新增 3 条，9/9 全绿）：并发刷新单飞、刷新途中退出后不恢复会话、服务端 `AUTH_SESSION_MISMATCH` 不采纳新 bundle —— 覆盖 legacy tokenRefresh 用例的等价保证
+* `components/payment/__tests__/paymentFlow.spec.ts`（10 条，27/27 全绿）：补回 `forceQRCode` / `mobilePrecreateDeepLink` / Airwallex 路由与恢复快照断言；顺带修掉真实缺陷 —— `getVisibleMethods` 现在保留没有别名的自定义 EasyPay 方法（ldc、usdt_trc20 等），此前这些付款方式在收银台会被整体隐藏
+* `components/payment/__tests__/PaymentStatusPanel.spec.ts`（3 条，8/8 全绿）：主动核销（pending 时调用 `verifyOrder` 并按服务端结果结算）用例此前因 spec 缺少 `verifyOrder` mock 整组失败，组件本身已是上游版本
+* `api/authSession.spec.ts`（再 +1 条，10/10 全绿）：冷启动清掉损坏的 legacy `auth_token`/`refresh_token`/`auth_user` 而不影响会话 —— 对应上游 auth store 的 localStorage 容错用例
 
 仍未恢复（每条都对应一处上游功能/行为，需要实现后才能放回）：
 
+已被会话模型取代、不再逐条移植（等价保证已在 authSession 用例中覆盖）：
+
+* `api/__tests__/tokenRefresh.spec.ts`：上游 7 条针对 legacy localStorage 令牌模型，已被 fork 的 cookie/内存会话模型取代；等价保证见上一条 authSession 新增用例
+* `stores/__tests__/auth.spec.ts`：上游 6 条针对 legacy localStorage 会话持久化（含损坏清理），已被 cookie/内存会话模型取代；冷启动清理的等价保证见上一条 authSession 新增用例
+
 | 文件 | 未恢复用例数 | 需要的上游能力 |
 | --- | --- | --- |
-| `components/payment/__tests__/paymentFlow.spec.ts` | 10 | `forceQRCode` 分支、支付宝 JSAPI 细节 |
-* `api/__tests__/tokenRefresh.spec.ts`：上游 7 条针对 legacy localStorage 令牌模型，已被 fork 的 cookie/内存会话模型取代；等价保证见上一条 authSession 新增用例
-| `stores/__tests__/auth.spec.ts` | 6 | localStorage 损坏清理等 |
 | `PaymentResultView` / `PendingOAuthCreateAccountForm` / `UsersView` / `AccountUsageCell` / `OllamaCloudUsageCell` / `UsageProgressBar` / `AccountStatusIndicator` / `TokenUsageTrend` / `useModelWhitelist` / `AccountTestModal` / `data-import` / `title` / `tablePreferences` / `useOpenAIOAuth` / Ollama 去抖控件 等 | 合计约 30 | 各自对应的上游行为（详见 diff 审计输出） |
 
 > 说明：这些用例原本在合并前的 fork 树上同样失败（合并丢失的是用例本身），
@@ -53,7 +58,7 @@
 
 ## 验证基线
 
-* 前端全量：`73 failed / 2045 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）
+* 前端全量：`70 failed / 2059 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）
 * `vue-tsc --noEmit`：0 错误；`pnpm run build`：成功
 * 后端：`go build ./...` 通过；`go test -p 1 ./internal/...` 41 个失败，
   抽样 4 个在合并前的 worktree 上同样失败（fork 既有差异）

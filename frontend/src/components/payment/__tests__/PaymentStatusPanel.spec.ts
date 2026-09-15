@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 const pollOrderStatus = vi.hoisted(() => vi.fn())
 const cancelOrder = vi.hoisted(() => vi.fn())
+const verifyOrder = vi.hoisted(() => vi.fn())
 const showError = vi.hoisted(() => vi.fn())
 const toCanvas = vi.hoisted(() => vi.fn())
 
@@ -31,6 +32,7 @@ vi.mock('@/stores', () => ({
 vi.mock('@/api/payment', () => ({
   paymentAPI: {
     cancelOrder,
+    verifyOrder,
   },
 }))
 

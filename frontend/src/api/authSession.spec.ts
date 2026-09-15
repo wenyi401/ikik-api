@@ -58,6 +58,29 @@ describe('authSession', () => {
     expect(localStorage.getItem('auth_user')).toBeNull()
   })
 
+  it('clears corrupted legacy auth storage without breaking the session', async () => {
+    localStorage.setItem('auth_token', 'legacy-token')
+    localStorage.setItem('refresh_token', 'legacy-refresh')
+    localStorage.setItem('token_expires_at', 'not-a-number')
+    localStorage.setItem('auth_user', '{broken json')
+
+    // 冷启动：模块加载时就应清掉 legacy Web Storage 令牌（页面刷新即此路径）
+    vi.resetModules()
+    const auth = await import('./authSession')
+
+    expect(localStorage.getItem('auth_token')).toBeNull()
+    expect(localStorage.getItem('refresh_token')).toBeNull()
+    expect(localStorage.getItem('token_expires_at')).toBeNull()
+    expect(localStorage.getItem('auth_user')).toBeNull()
+
+    auth.acceptAuthBundle(bundle(), false)
+    expect(auth.getAccessToken()).toContain('access-')
+    expect(localStorage.getItem('auth_token')).toBeNull()
+    expect(localStorage.getItem('refresh_token')).toBeNull()
+    expect(localStorage.getItem('token_expires_at')).toBeNull()
+    expect(localStorage.getItem('auth_user')).toBeNull()
+  })
+
   it('keeps cookie-backed authentication usable when Web Storage is unavailable', async () => {
     const auth = await import('./authSession')
     auth.acceptAuthBundle(bundle(), false)

@@ -110,7 +110,8 @@ export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<
   const visible: Record<string, MethodLimit> = {}
 
   Object.entries(methods).forEach(([type, limit]) => {
-    const normalized = normalizeVisibleMethod(type)
+    // 自定义 EasyPay 方法（如 ldc / usdt_trc20）没有别名，保持原样展示
+    const normalized = normalizeVisibleMethod(type) || type.trim()
     if (!normalized) return
 
     const isCanonical = type === normalized
