@@ -20,7 +20,7 @@
   `getQuotaUsageClass` 用量配色、`accountsCount`、`admin.groups.accountFilters.*` 文案
   （约 22 个 i18n key + 30 个 helper）未移植；移植会覆盖 fork 现有的价格编辑 UI。
 
-## 上游 spec 中有、合并时丢失的用例（恢复进度 50/~180）
+## 上游 spec 中有、合并时丢失的用例（恢复进度 75/~180）
 
 已恢复并全绿：
 
