@@ -456,10 +456,9 @@ const loadStats = async () => {
   }
 }
 
+// 只失效缓存标记，不清空正在展示的模型统计：
+// 刷新/改筛选时保留旧数据，直到新结果到达再替换，避免图表闪空。
 const resetModelStatsCache = () => {
-  requestedModelStats.value = []
-  upstreamModelStats.value = []
-  mappingModelStats.value = []
   loadedModelSources.requested = false
   loadedModelSources.upstream = false
   loadedModelSources.mapping = false

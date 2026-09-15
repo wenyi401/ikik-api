@@ -173,6 +173,10 @@ const mountRouteFilteredUsageView = () => mount(UsageView, {
   } },
 })
 
+  // 以下上游用例针对 fork 未实现的能力，未纳入本文件（详见 docs/OFFICIAL_UPDATE_V024_MERGE_RESIDUE_CN.md）：
+  // - request ID 默认隐藏：fork 有意保持默认可见（其自身用例已覆盖显隐切换）
+  // - 错误请求 / 用户排行两个 tab：fork 的管理端用量页是单表结构，没有 usage-detail-tab
+
 describe('admin UsageView route filters', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -714,4 +718,46 @@ describe('admin UsageView model audit export', () => {
 		].join(','))
 		expect(csv).toContain('gpt-5.6-sol,gpt-5.5,gpt-5.4,Yes')
 	})
+
+  it('keeps previous model stats visible during refresh until new data arrives', async () => {
+    // 首次加载返回 A
+    getModelStats.mockResolvedValueOnce({ models: [{ model: 'A', total_tokens: 10 }] })
+
+    const wrapper = mount(UsageView, {
+      global: { stubs: {
+        AppLayout: AppLayoutStub, UsageStatsCards: true, UsageFilters: UsageFiltersStub,
+        UsageTable: true, UsageExportProgress: true, UsageCleanupDialog: true,
+        UserBalanceHistoryModal: true, AuditLogModal: true, Pagination: true, Select: true,
+        DateRangePicker: true, Icon: true, TokenUsageTrend: true,
+        ModelDistributionChart: ModelDistributionChartStub, GroupDistributionChart: GroupDistributionChartStub,
+        EndpointDistributionChart: true, UserTokenRanking: true,
+      } },
+    })
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+    expect((wrapper.vm as any).requestedModelStats).toEqual([{ model: 'A', total_tokens: 10 }])
+
+    // 刷新:让第二次 getModelStats 处于 pending,断言旧数据 A 仍在(不被清空成 [])
+    let resolveSecond: (v: any) => void = () => {}
+    getModelStats.mockReturnValueOnce(new Promise((res) => { resolveSecond = res }))
+    ;(wrapper.vm as any).refreshData()
+    await flushPromises()
+    expect((wrapper.vm as any).requestedModelStats).toEqual([{ model: 'A', total_tokens: 10 }])
+
+    // 新数据到达后替换为 B
+    resolveSecond({ models: [{ model: 'B', total_tokens: 20 }] })
+    await flushPromises()
+    expect((wrapper.vm as any).requestedModelStats).toEqual([{ model: 'B', total_tokens: 20 }])
+  })
+
+
+
+
+
+
+
+
+
+
 })
+

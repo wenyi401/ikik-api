@@ -12,6 +12,7 @@
 | `components/user/dashboard/UserDashboardStats.vue` | 396 行，含 `PLATFORM_LABELS`、按平台拆分卡片 | 72 行，改用 `UiMetricStrip`；平台名统一走 `@/utils/platformColors`（已覆盖 antigravity/zhipu/deepseek/minimax） |
 | `views/admin/ChannelsView.vue` | `platformOrder`/`compositePlatforms` 常量 | `platformOrder` 是上游超集（多 kiro、opencode_go）；composite 分组按 `g.platform === 'composite'` 处理，语义等价 |
 | `views/admin/UsageView.vue` | `resetFilters` 少重置 `upstream_model_mismatch` | fork 的超集 |
+| `views/admin/SettingsView.vue` 的 Ollama 全局刷新控件 | 上游是 `debounce_minutes`（`ollama-cloud-usage-global-debounce`） | fork 是刷新间隔 `interval`（`ollama-cloud-usage-global-interval`），语义等价、字段不同，配 `docs` 与用例均自洽 |
 | `utils/*`、`api/*` 的类型/注释行 | — | 仅排版差异（审计脚本按整行匹配产生的假阳性） |
 
 ## 需要产品决策：上游新版界面（会替换 fork 自己的编辑器）
@@ -20,7 +21,7 @@
   `getQuotaUsageClass` 用量配色、`accountsCount`、`admin.groups.accountFilters.*` 文案
   （约 22 个 i18n key + 30 个 helper）未移植；移植会覆盖 fork 现有的价格编辑 UI。
 
-## 上游 spec 中有、合并时丢失的用例（恢复进度 133/~180）
+## 上游 spec 中有、合并时丢失的用例（恢复进度 139/~180）
 
 已恢复并全绿：
 
@@ -50,6 +51,8 @@
 * `components/account/__tests__/UsageProgressBar.spec.ts`（5 条，全绿）：剩余容量模式在低量/耗尽时缩短变红的渲染断言；`composables/__tests__/useModelWhitelist.spec.ts`（3 条，17/17 全绿，并顺手修好一处被并坏的用例——两条断言被粘到隔壁 it 里导致 `models is not defined`）
 * `__tests__/integration/data-import.spec.ts`（5 条按 fork 语义改写后全绿）：fork 的导入弹窗是 981 行超集（含 ZIP/TXT/URL 导入与用户作用域），用例改为断言「逐文件调用导入接口并在本地合并结果」，并给组件补上**选择阶段的逐文件校验**（无效 JSON 报 `dataImportParseFailedFile`、非导出 JSON 报 `dataImportInvalidFile`，报错时保留上一次的有效选择），与上游契约一致；`ImportDataModal.user-scope.spec` 4 条同步补 `await flushPromises()`（读文件是异步的）
 * `views/admin/__tests__/UsersView.spec.ts`（1 条，2/2 全绿）：恢复「切到 last_used_at 排序时清空用量页内排序」，给用量排序控件补上 `usage-sort-trigger-<col>` / `usage-sort-<col>-<metric>` 测试钩子，断言按 fork 的持久化字段`metric`（上游多一个 `key`）
+* `components/account/__tests__/BulkEditAccountModal.spec.ts`（5 条，59/59 全绿）：OpenAI OAuth 批量编辑的 namespace 摊平、专属 WS mode（含 `http_bridge`）、`codex_cli_only_allow_app_server` 字段用例，组件侧此前已补齐，用例直接放回即通过
+* `views/admin/__tests__/UsageView.spec.ts`（1 条恢复 + 1 处组件修复，13/13 全绿）：刷新/改筛选时不再清空正在展示的模型统计（只失效缓存标记，新数据到达再替换，避免图表闪空）；另 3 条按未实现能力处理（见下表）
 
 仍未恢复（每条都对应一处上游功能/行为，需要实现后才能放回）：
 
@@ -60,15 +63,17 @@
 
 | 文件 | 未恢复用例数 | 需要的上游能力 |
 | --- | --- | --- |
-| `UsersView` 跨页勾选 + 批量编辑（1 条） | 1 | **上游能力缺失**：fork 的 `views/admin/UsersView.vue` 没有任何多选/批量操作（模板无 `data-test`、无 `bulk|batch` API 调用），上游的「跨页保留勾选、批量改限额、成功后清空选择」需要先实现该功能，属产品决策，未擅自补齐 |
-| `AccountTestModal` / Ollama 去抖控件等零散项 | 约 5 | 各自对应的上游行为 |
+| `UsersView` 跨页勾选 + 批量编辑（1 条） | 1 | **上游能力缺失**：fork 的 `views/admin/UsersView.vue` 没有任何多选/批量操作（模板无 `data-test`、无 `bulk|batch` API 调用） |
+| `AccountTestModal.spec.ts`（4 条：OpenAI Compact 探测模式、gemini 图片提示词+预览、grok 默认模型、SSE 图片预览） | 4 | **上游能力缺失**：fork 的 `AccountTestModal.vue` 560 行 vs 上游 1065 行，没有 `testMode='compact'`、图片提示词输入/上传与生成图预览、图片模型过滤 |
+| `OpenAIQuotaResetCell.spark_shadow.spec.ts`（6 条：共享快照/缓存刷新失败/状态恢复失败等） | 6 | **上游能力缺失**：fork 的 `OpenAIQuotaResetCell.vue` 427 行 vs 上游 486 行，缺少上游的共享快照水合与失败兜底语义 |
+| `views/admin/UsageView.spec.ts`（错误请求 tab、用户排行 tab） | 2 | **上游能力缺失**：fork 管理端用量页是单表结构，没有 `usage-detail-tab`/`OpsErrorLogTable`/`UserTokenRanking`；另一条 request ID 默认隐藏属 fork 有意差异（默认可见） |
 
 > 说明：这些用例原本在合并前的 fork 树上同样失败（合并丢失的是用例本身），
 > 因此**新增失败为 0**；但它们代表了尚未对齐的上游行为，建议按表逐项排期。
 
 ## 验证基线
 
-* 前端全量：`65 failed / 2095 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）
+* 前端全量：`65 failed / 2101 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）
 * `vue-tsc --noEmit`：0 错误；`pnpm run build`：成功
 * 后端：`go build ./...` 通过；`go test -p 1 ./internal/...` 41 个失败，
   抽样 4 个在合并前的 worktree 上同样失败（fork 既有差异）
