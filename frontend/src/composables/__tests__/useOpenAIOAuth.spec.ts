@@ -131,4 +131,20 @@ describe('useOpenAIOAuth.exchangeAuthCode', () => {
       '未设置代理，当前服务器无法直连 OpenAI，导致 OpenAI OAuth 请求失败。请先选择可访问 OpenAI 的代理后重试；如果授权码已失效，请重新生成授权链接。'
     )
   })
+
+  it('should keep ChatGPT subscription expiration from token response', () => {
+    const oauth = useOpenAIOAuth()
+    const creds = oauth.buildCredentials({
+      access_token: 'at',
+      refresh_token: 'rt',
+      expires_at: 1700000000,
+      plan_type: 'team',
+      subscription_expires_at: '2026-07-20T19:22:48+00:00'
+    })
+
+    expect(creds.plan_type).toBe('team')
+    expect(creds.subscription_expires_at).toBe('2026-07-20T19:22:48+00:00')
+  })
+
 })
+

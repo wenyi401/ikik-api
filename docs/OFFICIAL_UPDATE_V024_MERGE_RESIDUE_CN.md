@@ -20,7 +20,7 @@
   `getQuotaUsageClass` 用量配色、`accountsCount`、`admin.groups.accountFilters.*` 文案
   （约 22 个 i18n key + 30 个 helper）未移植；移植会覆盖 fork 现有的价格编辑 UI。
 
-## 上游 spec 中有、合并时丢失的用例（恢复进度 101/~180）
+## 上游 spec 中有、合并时丢失的用例（恢复进度 104/~180）
 
 已恢复并全绿：
 
@@ -41,6 +41,7 @@
 * `components/payment/__tests__/paymentFlow.spec.ts`（10 条，27/27 全绿）：补回 `forceQRCode` / `mobilePrecreateDeepLink` / Airwallex 路由与恢复快照断言；顺带修掉真实缺陷 —— `getVisibleMethods` 现在保留没有别名的自定义 EasyPay 方法（ldc、usdt_trc20 等），此前这些付款方式在收银台会被整体隐藏
 * `components/payment/__tests__/PaymentStatusPanel.spec.ts`（3 条，8/8 全绿）：主动核销（pending 时调用 `verifyOrder` 并按服务端结果结算）用例此前因 spec 缺少 `verifyOrder` mock 整组失败，组件本身已是上游版本
 * `api/authSession.spec.ts`（再 +1 条，10/10 全绿）：冷启动清掉损坏的 legacy `auth_token`/`refresh_token`/`auth_user` 而不影响会话 —— 对应上游 auth store 的 localStorage 容错用例
+* `router/__tests__/title.spec.ts` + `utils/__tests__/tablePreferences.spec.ts` + `composables/__tests__/useOpenAIOAuth.spec.ts`（共 3 条，5/5、7/7、6/6 全绿）：补回上游的 `resolveRouteDocumentTitle`（自定义页面用后台配置的菜单名作页签标题，App.vue 增加 title watcher、语言切换时同样走该解析），页签标题随站点名/自定义菜单变化即时更新；表格每页条数默认值按 fork 的 `[10,20,50,100,1000]` 断言（比上游多一档 1000，属 fork 有意差异）
 
 仍未恢复（每条都对应一处上游功能/行为，需要实现后才能放回）：
 
@@ -58,7 +59,7 @@
 
 ## 验证基线
 
-* 前端全量：`70 failed / 2059 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）
+* 前端全量：`70 failed / 2062 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）
 * `vue-tsc --noEmit`：0 错误；`pnpm run build`：成功
 * 后端：`go build ./...` 通过；`go test -p 1 ./internal/...` 41 个失败，
   抽样 4 个在合并前的 worktree 上同样失败（fork 既有差异）

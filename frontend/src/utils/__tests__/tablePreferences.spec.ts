@@ -71,4 +71,15 @@ describe('tablePreferences', () => {
 
     expect(getConfiguredTablePageSizeOptions()).toEqual([10, 20, 50, 100, 1000])
   })
+
+  it('keeps built-in selectable defaults at 10, 20, 50, 100, 1000', () => {
+    window.__APP_CONFIG__ = {
+      table_default_page_size: 1000
+    } as any
+
+    // fork 的默认可选值比上游多一档 1000
+    expect(getConfiguredTablePageSizeOptions()).toEqual([10, 20, 50, 100, 1000])
+  })
+
 })
+
