@@ -435,8 +435,16 @@ API Key 类型账号，又被「apikey 只能私有」的规则二次挡下。�
   `./internal/handler/admin/` 全绿；新增 `opencode_shared_pool_platforms_test.go` 锁定白名单与
   apikey 放开范围（OpenCode 放开、其他平台保持私有）。
 
-### 6.5 部署
+### 6.5 部署（已完成）
 
-- 镜像 `pixel-api/pixel:ikik-20260917-v104-opencode-shared-pool-<commit>`（同 1.0.4 版本号，仅功能放开）。
-- 切换沿用 5.4 的流程；回滚资产同 5.4（`docker-compose.rollback-20260917-oc-restore.yml` +
-  对应 rollback 容器），必要时回退 compose 镜像标签再 `up -d` 即可。
+- 镜像：`pixel-api/pixel:ikik-20260917-v104-opencode-shared-pool-8b8750ad8`
+  （源码 `/opt/ikik/releases/20260917-v104-opencode-shared-pool-8b8750ad8/source`，
+  从 GitHub master 克隆 `8b8750ad8` 构建；二进制自报 `ikik-api 1.0.4 (commit 8b8750ad8)`）。
+- 候选验证：隔离 project `ikik-cand` 起新镜像（`docker compose -p ikik-cand -f docker-compose.candidate-20260917-opencode-shared-pool.yml`）
+  → healthy、1.0.4、内嵌前端含 `opencode_go`/`sharedPool`；验证完停止，不碰生产容器。
+- 切换：备份 compose → 改镜像标签 → 停旧容器并改名留档 `pixel-sub2api-rollback-20260917-opencode-shared-pool`
+  → `docker compose -f /opt/ikik/docker-compose.yml up -d`（project `ikik`）。
+- 结果：容器 healthy、restarts=0，`/health` 正常，公网 `https://ikik.net/` 200；
+  切换后 10 分钟 27 个请求中 1 个 502（`/v1/chat/completions`，OpenAI 账号上游超时 26.7s，与本次改动无关），无 panic。
+- 回滚：`/opt/ikik/docker-compose.rollback-20260917-opencode-shared-pool.yml` + 上述 rollback 容器
+  （镜像 `...oc-restore-c8b372d47`，已停止），回退 compose 镜像标签再 `up -d` 即可。
