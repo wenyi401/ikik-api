@@ -242,7 +242,7 @@ func (s *CNProviderQuotaService) queryUsageForAccount(ctx context.Context, accou
 		tiers = parseKimiUsageTiers(bodyBytes)
 	case PlatformOpenCodeGo:
 		tiers = parseOpenCodeGoUsageTiers(bodyBytes)
-		result.PlanLevel = "OpenCode Go"
+		result.PlanLevel = "OpenCode"
 	case PlatformZhipu:
 		tiers = parseZhipuTokenTiers(gjson.GetBytes(bodyBytes, "data"))
 		result.PlanLevel = strings.TrimSpace(gjson.GetBytes(bodyBytes, "data.level").String())

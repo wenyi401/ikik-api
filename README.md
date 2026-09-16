@@ -40,6 +40,14 @@ Please read the following carefully before deploying or operating this project:
 - Frontend console built with Vue 3, TypeScript, Pinia, Vue Router, Tailwind CSS, and Vite.
 - Backend service built with Go, Gin, Ent, PostgreSQL, Redis, and modular service boundaries.
 
+## Version 1.0.4 Updates
+
+- Merged upstream sub2api v0.2.4 (519 commits / 876 files) and unified the frontend and backend versions at 1.0.4.
+- Added OpenCode platform support: account modes, model grouping and usage-window integration, using the official CLI TLS fingerprint by default.
+- Repaired upstream capabilities that the merge had dropped: custom EasyPay methods were hidden from the cashier, Tencent/Aliyun captcha users could not send verification codes or submit, Ollama usage and quota-reset results never reached the account row, model statistics were blanked during a refresh, and invalid JSON imports did not name the failing file.
+- Restored admin settings such as the compact home toggle, default platform quota matrix, admin recharge rebate switch and Claude OAuth system prompt injection.
+- The full frontend suite shows zero new failures against the pre-merge baseline; the Go backend build matches its existing test baseline.
+
 ## Version 1.0.3 Updates
 
 - Upgraded the backend toolchain to Go 1.26.5 and refreshed vulnerable AWS SDK dependencies used by storage integrations.

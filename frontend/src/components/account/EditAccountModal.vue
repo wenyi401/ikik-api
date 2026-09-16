@@ -125,7 +125,7 @@
           </p>
         </div>
 
-        <!-- OpenCode Zen vs GO -->
+        <!-- OpenCode account mode (pay-as-you-go vs subscription) -->
         <div v-if="isCNApiKeyAccount && account.platform === 'opencode_go'">
           <label class="input-label">{{ t('admin.accounts.cnProviders.accountMode.title') }}</label>
           <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">

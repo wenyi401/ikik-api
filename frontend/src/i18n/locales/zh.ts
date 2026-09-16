@@ -1905,7 +1905,7 @@ export default {
       siliconflowGlobal: 'SiliconFlow 国际',
       nvidiaNim: 'NVIDIA NIM',
       ollama: 'Ollama Cloud',
-      opencode: 'OpenCode Zen'
+      opencode: 'OpenCode'
     },
     providerNotes: {
       groq: '低延迟推理供应商，适合 Llama、GPT-OSS 和 Qwen 等轻量到中型模型。',
@@ -1924,7 +1924,7 @@ export default {
       siliconflowGlobal: 'SiliconFlow 国际接口，模型和额度以控制台为准。',
       nvidiaNim: 'NVIDIA NIM 国际接口，额度以 Build 账号为准。',
       ollama: 'Ollama Cloud，免费额度更偏会话/GPU 时间限制。',
-      opencode: 'OpenCode Zen 网关，免费模型可能存在活动周期和速率限制。'
+      opencode: 'OpenCode 网关，免费模型可能存在活动周期和速率限制。'
     }
   },
 

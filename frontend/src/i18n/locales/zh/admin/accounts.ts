@@ -362,9 +362,9 @@ export default {
       },
       opencodeGo: {
         accountMode: {
-          zen: 'Zen',
+          zen: '按量付费',
           zenDesc: '按量付费网关，消耗账户余额，按 Token 计费。',
-          go: 'GO',
+          go: '订阅制',
           goDesc: '订阅制网关，按 5 小时 / 周 / 月滚动用量窗口限流。',
         },
         protocolRules: {

@@ -159,9 +159,9 @@ export default {
       },
       opencodeGo: {
         accountMode: {
-          zen: 'Zen',
+          zen: 'Pay as you go',
           zenDesc: 'Pay-as-you-go gateway. Consumes account credits, billed per token.',
-          go: 'GO',
+          go: 'Subscription',
           goDesc: 'Subscription gateway, rate-limited by 5-hour / weekly / monthly usage windows.',
         },
         protocolRules: {

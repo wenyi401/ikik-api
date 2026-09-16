@@ -559,5 +559,3 @@ func cloneTimePtr(src *time.Time) *time.Time {
 	value := *src
 	return &value
 }
-
-// cnProviderThresholdCandidates 读取国产供应商 Coding Plan 账号的 5h / weekly 滚动窗口

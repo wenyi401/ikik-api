@@ -70,6 +70,39 @@
 > 说明：这些用例原本在合并前的 fork 树上同样失败（合并丢失的是用例本身），
 > 因此**新增失败为 0**；但它们代表了尚未对齐的上游行为，建议按表逐项排期。
 
+## 5bba5cf45（OpenCode 移植提交）内容审核
+
+对 `5bba5cf45`（上游 PR #6747 的移植提交，其父提交 `582287d51` 即本项目 v0.2.4 合并）做了逐行审计，
+判定标准：**该提交新增/删除的每一行，必须要么属于 PR #6747 自身的改动，要么是 v0.2.4 已有的内容**；
+两者之外即「v0.2.4 之后、与 OpenCode 无关的上游内容」，须剔除。
+
+审计口径（可复现）：用 `git diff -U0` 分别导出 `582287d51..5bba5cf45`（移植）与
+`cdb5cfaf6^1..cdb5cfaf6`（PR 本体），再把每一条增删行与 `v0.2.4` tag、PR base、PR head
+三棵工作树逐行比对。
+
+结论：**该提交不包含任何 v0.2.4 之后与 OpenCode 无关的上游改动**。审计逐条核对了 20 个
+「在 v0.2.4→PR base 之间上游有改动、且本项目移植时也改过」的文件，其增行全部命中
+PR 本体改动或 v0.2.4 内容；本提交比 PR 多出来的行，绝大多数是在**修复此前 v0.2.4 合并的丢内容**
+（如 `platformColors.ts` 里 grok/kimi/zhipu/deepseek/minimax 的配色、
+`upstream_billing_probe_multiplatform_test.go` 里国产供应商官方域用例、
+`EditAccountModal.vue` 的 `defaultCNBaseUrl` 分支）。
+
+审计中发现并已修复的 3 处问题（均属「移植时的误伤」，不是上游内容渗入）：
+
+| 问题 | 文件 | 处理 |
+| --- | --- | --- |
+| 平台白名单被整段清空（丢 fork 内容） | `frontend/src/components/account/ModelWhitelistSelector.vue` | 恢复 10 个平台并补上 PR 本意的 `opencode_go`（PR 只改了这一个集合项） |
+| 契约用例里 fork 的拼车字段被删（丢 fork 内容，`TestAPIContracts` 的 admin/settings 用例因此报错） | `backend/internal/server/api_contract_test.go` | 恢复 6 个 `user_private_group_*` 期望键（PR 未触碰这些行） |
+| 文件尾残留孤立注释（旧函数体删除不彻底） | `backend/internal/service/account_scheduling_threshold_eval.go` | 删除残留注释；`monthly` 窗口逻辑与 PR 一致（第 61、355-381 行） |
+
+另外两处「与 PR 有出入」经核对**不需要处理**：
+
+* `backend/internal/service/account.go`、`frontend/src/types/index.ts`、`openai_gateway_scheduling.go`、
+  `group_handler.go` 等出现「PR 改动 + fork 的 kiro/custom」合并行，属正常叠加。
+* `frontend/src/components/user/monitor/MonitorCard.vue` 是 PR 唯一改过而本项目未移植的文件：
+  fork 的监控卡片已重写（无 `PROVIDER_TINT`），OpenCode 图标由 fork 自己的
+  `ProviderIcon.vue`（已含 `opencode_go`）承担，无需补。
+
 ## 验证基线
 
 * 前端全量：`65 failed / 2101 passed`（合并前基线 `142 failed / ~1583 passed`，新增失败 0）

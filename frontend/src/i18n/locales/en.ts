@@ -1905,7 +1905,7 @@ export default {
       siliconflowGlobal: 'SiliconFlow Global',
       nvidiaNim: 'NVIDIA NIM',
       ollama: 'Ollama Cloud',
-      opencode: 'OpenCode Zen'
+      opencode: 'OpenCode'
     },
     providerNotes: {
       groq: 'Low-latency inference for Llama, GPT-OSS, Qwen, and other small to medium models.',
@@ -1924,7 +1924,7 @@ export default {
       siliconflowGlobal: 'SiliconFlow global endpoint. Models and quotas depend on your console account.',
       nvidiaNim: 'NVIDIA NIM global endpoint. Quota depends on your Build account.',
       ollama: 'Ollama Cloud. Free usage is closer to session/GPU-time limits.',
-      opencode: 'OpenCode Zen gateway. Free models may have campaign windows and rate limits.'
+      opencode: 'OpenCode gateway. Free models may have campaign windows and rate limits.'
     }
   },
 
