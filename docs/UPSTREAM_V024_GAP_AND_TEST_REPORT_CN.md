@@ -501,3 +501,28 @@ Kimi/Zhipu/DeepSeek/MiniMax**（国产平台分组一直无法从界面创建）
 **待办**：本机到 github.com 的连接被重置，`74a7eb5a3` 尚未推到 master（origin/master 仍在
 `bd3599062`）。网络恢复后 `git push origin HEAD:master` 即可；服务器上的 release 源码是
 master + 该补丁，推送后下次构建仍能拿到完整提交。
+
+### 6.8 用户反馈修正：不展示 base URL、Key 提示按平台（2026-09-17）
+
+用户指出两处「瞎搞」：OpenCode 账号表单还给用户看 base URL；API Key 下面的提示写成
+「您的 Claude Console API Key」。根因：`apiKeyHint` / `baseUrlHint` 只对
+openai/gemini/grok/kiro/custom 分支，OpenCode 与国产平台全部落到 Anthropic 的默认兜底文案。
+
+改动（提交 `3a68053b4`）：
+
+- 删除 6.7 加的只读 base URL 区块：用户侧**完全不展示**连接地址（不给填也不给看）
+- `apiKeyHint` 增加 opencode_go 与国产平台分支；`baseUrlHint` 同理（原来 OpenCode/国产平台
+  会看到「留空使用官方 Anthropic API」）
+- i18n 新增 `opencodeGo.apiKeyHint` / `opencodeGo.baseUrlHint` / `cnProviders.apiKeyHint` /
+  `cnProviders.baseUrlHint`（中英），移除不再使用的 `fixedConnectionHint`
+- 守护用例更新为：用户侧不出现 `admin.accounts.baseUrl` 与 GO 地址、Key 提示必须是
+  `opencodeGo.apiKeyHint`、且不出现 Anthropic 默认 key 提示
+
+验证：`vue-tsc` 通过；两个弹窗 spec 108 passed；前端全量 291 passed / 57 failed（基线，无新增）；
+`vite build` 成功。线上：二进制内 `opencodeGo.apiKeyHint` 命中、`fixedConnectionHint` 已消失。
+
+部署：镜像 `pixel-api/pixel:ikik-20260917-v104-opencode-gohint-3a68053b4`（commit `3a68053b4`，
+从 GitHub master 克隆构建）。切换过程中 compose 镜像标签的 sed 未匹配（文件里已是上一版标签），
+导致 `docker compose up -d` 只把改名后的旧容器重新拉起、新容器未创建——生产全程由旧容器服务未中断；
+随后显式改写标签并 `up -d --force-recreate` 完成切换。回滚：把 compose 镜像标签改回
+`pixel-api/pixel:ikik-20260917-v104-opencode-go-only-74a7eb5a3` 再 `up -d --force-recreate`。
