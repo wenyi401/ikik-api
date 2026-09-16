@@ -326,3 +326,60 @@ docker run -d --name ikik-mig-verify -e POSTGRES_PASSWORD=postgres -e POSTGRES_D
 | 3 | `backend/internal/repository/group_repo.go` |
 | 3 | `backend/internal/handler/admin/setting_handler.go` |
 | 3 | `backend/internal/handler/admin/redeem_handler.go` |
+
+## 5. OpenCode 平台 UI 恢复与线上部署（2026-09-17）
+
+### 5.1 现象与根因
+
+用户在「新建账号」弹窗找不到 OpenCode 入口。排查确认
+`frontend/src/components/account/CreateAccountModal.vue` 中 `opencode` 出现次数为 0：
+PR #6747 引入的 OpenCode 支持，被随后的三次「真三方合并重建」
+（`83d0d2022`、`de028abec`、`4c913d965`）逐步丢掉了——这些提交在修别的合并冲突时，
+把 OpenCode 相关代码当成「冲突残留」删了（`de028abec` 一次就删掉 84 行），
+而 `credentialsBuilder.ts` / `OpenCodeGoProtocolRulesEditor.vue` 等底层实现仍在，
+所以后端能力与前端组件都在，只是新建/编辑弹窗不再引用它们。
+
+### 5.2 恢复内容（提交 `c8b372d47`，已推送到 GitHub master）
+
+| 文件 | 恢复内容 |
+| --- | --- |
+| `frontend/src/components/account/CreateAccountModal.vue` | OpenCode 平台按钮（MiniMax 之后）、Zen/GO 账号类型块、多协议守卫 `isMultiProtocolPlatform`（账号类型/协议/端点/预置端点四处）、`OpenCodeGoProtocolRulesEditor`、`opencode_go` 的 base_url/密钥占位符、`openCodeAccountMode`/`openCodeGoProtocolRules` 状态、`selectOpenCodeGoPlatform()`、Zen/GO 切换 watcher、协议切换 watcher、平台切换分支（opencode_go 归入 apikey 类型）、弹窗重置、凭据组装（`account_mode`、`api_base_urls`、`protocol_rules`） |
+| `frontend/src/components/account/EditAccountModal.vue` | `editOpenCodeAccountMode` 监听：编辑时切换 Zen/GO 会同步默认端点与协议规则 |
+| `frontend/src/composables/useModelWhitelist.ts` | `opencode_go` 的可选模型目录（grok/gpt/glm/kimi/deepseek/minimax/qwen 等 27 个） |
+| 三个 spec + `useGrokOAuth.spec.ts` | 补回 7 个 OpenCode 用例；`useGrokOAuth.spec` 的 vue-i18n mock 补 `createI18n`（依赖链会经 `@/i18n` 顶层调用，属既有失败） |
+
+### 5.3 验证
+
+- `npx vue-tsc --noEmit` 通过；`npx vite build` 成功。
+- `npx vitest run`：**2108 passed / 65 failed**，与合并基线（2101/65）一致，
+  失败集合完全相同，无新增失败；新增的 7 个用例为本次补回的 OpenCode 用例。
+- 线上产物核对：生产容器实际服务出去的
+  `/assets/ImportDataModal.vue_vue_type_script_setup_true_lang-Dlb4u2BT.js`
+  含 `opencode_go`(3)、`opencodeGo.accountMode`(1)、`create-account-form`(1)。
+
+### 5.4 线上部署
+
+- 镜像：`pixel-api/pixel:ikik-20260916-v104-oc-restore-c8b372d47`
+  （源码 `/opt/ikik/releases/20260916-v104-oc-restore-c8b372d47/source`，
+  在 1.0.4 构建源上 `git apply` 上述补丁后重建；二进制自报 `ikik-api 1.0.4 (commit c8b372d47)`）。
+- 切换：`docker stop pixel-sub2api` → 改名留档 `pixel-sub2api-rollback-20260917-oc-restore`
+  → `docker compose -f /opt/ikik/docker-compose.yml up -d`（镜像标签已改为新版本）。
+- 结果：容器 healthy，`/health` 正常，公网 `https://ikik.net/` 200，切换后 15 分钟 0 个 5xx。
+- 回滚资产：compose 备份 `/opt/ikik/docker-compose.rollback-20260917-oc-restore.yml`
+  + 旧容器 `pixel-sub2api-rollback-20260917-oc-restore`（镜像 `...v104-v024-e87d16328`，已停止）。
+
+### 5.5 事故记录：约 4 分钟生产中断（须记住）
+
+在正式切换前，为验证新镜像执行了
+`docker compose -f docker-compose.candidate-*.yml up -d`，**没有指定 `-p` 项目名**。
+compose 默认以目录名（`/opt/ikik` → `ikik`）作为 project，于是它把候选文件里的服务并入了
+生产 project，判定生产容器需要 recreate：先删掉了正在运行的 `pixel-sub2api`，
+随后又因容器名 `ikik-cand-api` 冲突而失败——生产因此中断约 4 分钟
+（00:31–00:35），公网 502。
+
+处置：立刻用 `/opt/ikik/docker-compose.yml`（当时仍指向旧镜像）`up -d` 拉起，
+healthy 且公网恢复 200；数据卷 `./data`、`./postgres_data` 未被触碰，无数据影响；
+随后才执行正式切换。
+
+教训：**候选环境一律 `docker compose -p <独立项目名>`（或改用 `docker run`），
+绝不在 `/opt/ikik` 目录下用默认项目名起候选 compose。**
