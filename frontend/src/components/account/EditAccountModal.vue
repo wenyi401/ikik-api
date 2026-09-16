@@ -3376,6 +3376,25 @@ watch(editAccountMode, (mode, previousMode) => {
   }
   editBaseUrl.value = defaultCNBaseUrl(props.account!.platform, mode, editApiProtocol.value)
 })
+watch(editOpenCodeAccountMode, (mode, previousMode) => {
+  if (!isCNApiKeyAccount.value || props.account?.platform !== 'opencode_go' || syncingForm.value) return
+  if (editApiProtocol.value === 'adaptive') {
+    const previousDefaults = defaultCNAdaptiveBaseUrls('opencode_go', previousMode)
+    const nextDefaults = defaultCNAdaptiveBaseUrls('opencode_go', mode)
+    for (const item of editAdaptiveProtocolOptions.value) {
+      if (!editAdaptiveBaseUrls.value[item.value] || editAdaptiveBaseUrls.value[item.value] === previousDefaults[item.value]) {
+        editAdaptiveBaseUrls.value[item.value] = nextDefaults[item.value]
+      }
+    }
+    editBaseUrl.value = editAdaptiveBaseUrls.value.chat_completions
+  } else {
+    editBaseUrl.value = defaultCNBaseUrl('opencode_go', mode, editApiProtocol.value)
+  }
+  const previousRules = JSON.stringify(defaultOpenCodeProtocolRules(previousMode))
+  if (JSON.stringify(editOpenCodeGoProtocolRules.value) === previousRules) {
+    editOpenCodeGoProtocolRules.value = cloneOpenCodeGoProtocolRules(defaultOpenCodeProtocolRules(mode))
+  }
+})
 
 const cnProtocolDescKey = computed(
   () => cnProtocolOptions.value.find((option) => option.value === editApiProtocol.value)?.labelKey ?? 'chatCompletions'

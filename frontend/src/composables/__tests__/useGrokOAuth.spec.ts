@@ -7,6 +7,15 @@ vi.mock('@/stores/app', () => ({
 }))
 
 vi.mock('vue-i18n', () => ({
+  // 依赖链会经 @/api/client → @/i18n 在模块顶层调用 createI18n，
+  // 整体 mock 掉 vue-i18n 时必须一并提供。
+  createI18n: () => ({
+    global: {
+      locale: { value: 'zh' },
+      setLocaleMessage: vi.fn(),
+      t: (key: string) => key
+    }
+  }),
   useI18n: () => ({
     t: (key: string) => {
       const messages: Record<string, string> = {
