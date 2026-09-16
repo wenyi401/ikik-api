@@ -88,7 +88,11 @@ func TestMigration204BackfillsOnlyOpenAIAndGrokUserPrivateGroups(t *testing.T) {
 			"SELECT COUNT(*) FROM auth_cache_invalidation_outbox WHERE cache_key = $1", fixtures[i].cacheKey).Scan(&invalidations)
 		require.NoError(t, err)
 		if testCase.wantInvalidation {
-			require.Equal(t, 1, invalidations, testCase.name)
+			// 至少一条：迁移自身显式入队；另有可能来自 groups 上的
+			// trg_groups_auth_cache_invalidation（239 恢复细粒度条件后，
+			// allow_image_generation 变更同样会触发入队）。重复入队对消费端
+			// 是幂等的（同一 cache_key 再失效一次），因此只要求非零。
+			require.NotZero(t, invalidations, testCase.name)
 		} else {
 			require.Zero(t, invalidations, testCase.name)
 		}

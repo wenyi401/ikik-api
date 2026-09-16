@@ -968,6 +968,11 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		PeakStart:                       g.PeakStart,
 		PeakEnd:                         g.PeakEnd,
 		PeakRateMultiplier:              g.PeakRateMultiplier,
+		// 分组利润控制：认证快照是调度门 enable 判定的直接来源，映射漏字段
+		// 会让门静默失效（投影已选列，这里必须同步回填）。
+		ProfitControlEnabled:            g.ProfitControlEnabled,
+		ProfitMinMargin:                 g.ProfitMinMargin,
+		ProfitSafetyBuffer:              g.ProfitSafetyBuffer,
 		KiroCacheEmulationEnabled:       g.KiroCacheEmulationEnabled,
 		KiroAutoStickyEnabled:           g.KiroAutoStickyEnabled,
 		KiroStickySessionTTLSeconds:     g.KiroStickySessionTTLSeconds,

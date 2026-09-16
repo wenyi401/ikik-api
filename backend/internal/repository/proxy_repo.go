@@ -240,30 +240,27 @@ func lockProxyProbeIdentity(ctx context.Context, client *dbent.Client, proxyID i
 // probe data and returns every bound account so scheduler metadata is refreshed
 // even when an account had no probe snapshot.
 func invalidateProxyProbeSnapshotsAndListBoundAccountIDs(ctx context.Context, exec sqlExecutor, proxyID int64) ([]int64, error) {
+	// 只返回「确实被清掉快照」的账号：返回全部绑定账号会让代理改动的缓存失效
+	// 事件被无谓放大（没有快照变化时不应产生 PR2 失效事件）。
+	// 探测快照分支已放宽到全部 API-key 平台（与 upstream_billing_probe 的
+	// IsUpstreamBillingProbeIdentity 同源），不再限定 openai。
 	rows, err := exec.QueryContext(ctx, `
-		WITH bound_accounts AS MATERIALIZED (
-			SELECT id
-			FROM accounts
-			WHERE proxy_id = $1 AND deleted_at IS NULL
-		), invalidated AS (
-			UPDATE accounts
-			SET extra = COALESCE(extra, '{}'::jsonb)
-					- 'upstream_billing_probe'
-					- 'ollama_cloud_usage_snapshot',
-				updated_at = NOW()
-			WHERE id IN (SELECT id FROM bound_accounts)
-				AND type = 'apikey'
-				AND (
-					(platform = 'openai'
-						AND extra ? 'upstream_billing_probe'
-						AND extra -> 'upstream_billing_probe' <> 'null'::jsonb)
-					OR (platform IN (`+ollamaCloudUsagePlatformsSQL+`)
-						AND extra ? 'ollama_cloud_usage_snapshot'
-						AND extra -> 'ollama_cloud_usage_snapshot' <> 'null'::jsonb)
-				)
-			RETURNING id
-		)
-		SELECT id FROM bound_accounts ORDER BY id
+		UPDATE accounts
+		SET extra = COALESCE(extra, '{}'::jsonb)
+				- 'upstream_billing_probe'
+				- 'ollama_cloud_usage_snapshot',
+			updated_at = NOW()
+		WHERE proxy_id = $1
+			AND type = 'apikey'
+			AND (
+				(extra ? 'upstream_billing_probe'
+					AND extra -> 'upstream_billing_probe' <> 'null'::jsonb)
+				OR (platform IN (`+ollamaCloudUsagePlatformsSQL+`)
+					AND extra ? 'ollama_cloud_usage_snapshot'
+					AND extra -> 'ollama_cloud_usage_snapshot' <> 'null'::jsonb)
+			)
+			AND deleted_at IS NULL
+		RETURNING id
 	`, proxyID)
 	if err != nil {
 		return nil, err
@@ -704,6 +701,29 @@ func (r *proxyRepository) SweepExpiredProxies(ctx context.Context, now time.Time
 	return totalChanged, nil
 }
 
+// listProxyBoundAccountIDs 返回绑定到该代理的全部账号（仅 id，按 id 排序）。
+// 用于代理到期等「全部绑定账号都需要重建调度快照」的场景。
+func listProxyBoundAccountIDs(ctx context.Context, exec sqlExecutor, proxyID int64) ([]int64, error) {
+	rows, err := exec.QueryContext(ctx,
+		`SELECT id FROM accounts WHERE proxy_id = $1 AND deleted_at IS NULL ORDER BY id`, proxyID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	accountIDs := make([]int64, 0)
+	for rows.Next() {
+		var accountID int64
+		if err := rows.Scan(&accountID); err != nil {
+			return nil, err
+		}
+		accountIDs = append(accountIDs, accountID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return accountIDs, nil
+}
+
 func sortedUniqueAccountIDs(accountIDs []int64) []int64 {
 	if len(accountIDs) < 2 {
 		return accountIDs
@@ -755,7 +775,13 @@ func (r *proxyRepository) sweepOneExpiredProxyOnExec(ctx context.Context, exec s
 		return nil, err
 	}
 	if !change {
-		accountIDs, err := invalidateProxyProbeSnapshotsAndListBoundAccountIDs(ctx, exec, proxyID)
+		// 清快照只作用于「确有快照」的账号（无快照的账号行不被改写）；
+		// 但代理到期后其**全部**绑定账号的调度快照都需要重建（可调度性依赖该代理），
+		// 因此入队列表取全部绑定账号。代理编辑路径则相反：只有快照真被清掉才入队。
+		if _, err := invalidateProxyProbeSnapshotsAndListBoundAccountIDs(ctx, exec, proxyID); err != nil {
+			return nil, err
+		}
+		accountIDs, err := listProxyBoundAccountIDs(ctx, exec, proxyID)
 		if err != nil {
 			return nil, err
 		}

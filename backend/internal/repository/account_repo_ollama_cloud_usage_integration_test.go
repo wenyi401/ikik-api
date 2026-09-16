@@ -112,7 +112,7 @@ func TestLockAndMergeAccountProbeExtraCoalescesNullableOllamaGroupIdentity(t *te
 	loaded, err := newAccountRepositoryWithSQL(tx.Client(), tx, nil).GetByID(ctx, account.ID)
 	require.NoError(t, err)
 
-	merged, err := lockAndMergeAccountProbeExtra(ctx, tx.Client(), loaded, nil)
+	merged, err := lockAndMergeAccountProbeExtra(ctx, tx.Client(), loaded, nil, nil)
 
 	require.NoError(t, err, "a NULL Ollama eligibility expression must scan as false")
 	require.NotContains(t, merged, service.OllamaCloudUsageSessionExtraKey)
@@ -320,7 +320,8 @@ func TestOllamaCloudUsageEligibilityExtendsToCNOpenAICompatPlatforms(t *testing.
 		LastAttemptAt: staleFetched,
 	}))
 
-	due, err := repo.ListDueOllamaCloudUsageAccounts(ctx, now, time.Minute, time.Hour, 10)
+	// ikik 的 due 判定把 debounce/等待上限内化在实现里，这里只传 now 与 limit。
+	due, err := repo.ListDueOllamaCloudUsageAccounts(ctx, now, 10)
 
 	require.NoError(t, err)
 	require.Len(t, due, 1, "同 key 跨 CN 平台组按组去重后只应有一行 due")

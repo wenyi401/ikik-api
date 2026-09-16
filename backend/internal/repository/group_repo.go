@@ -485,6 +485,12 @@ func (r *groupRepository) ListWithFilters(ctx context.Context, params pagination
 
 func (r *groupRepository) listWithFiltersByScope(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool, scope string) ([]service.Group, *pagination.PaginationResult, error) {
 	q := r.client.Group.Query()
+	// scope 是管理端分组列表的作用域筛选（公开 / 用户私有 / 拼车）：
+	// 传空表示不过滤，传值时按精确作用域收敛，避免把用户私有/拼车分组
+	// 混进公开列表。
+	if trimmed := strings.TrimSpace(scope); trimmed != "" {
+		q = q.Where(group.ScopeEQ(trimmed))
+	}
 	return r.listWithFiltersQuery(ctx, q, params, platform, status, search, isExclusive)
 }
 
