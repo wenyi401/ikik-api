@@ -15,8 +15,8 @@ const groups = [
   { id: 2, name: 'Composite', platform: 'composite', status: 'active' }
 ] as any
 
-const mountSelector = (modelValue: number[] = []) => mount(GroupSelector, {
-  props: { modelValue, groups },
+const mountSelector = (modelValue: number[] = [], platform?: string) => mount(GroupSelector, {
+  props: { modelValue, groups, ...(platform ? { platform } : {}) },
   global: { stubs: { GroupBadge: { props: ['name'], template: '<span>{{ name }}</span>' }, Icon: true } }
 })
 
@@ -39,5 +39,20 @@ describe('GroupSelector simple-mode binding policy', () => {
     authState.isSimpleMode = true
     const wrapper = mountSelector([1, 2])
     expect(wrapper.emitted('update:modelValue')).toEqual([[[1]]])
+  })
+
+  it('offers composite groups to OpenCode accounts (composite route target)', () => {
+    const wrapper = mountSelector([], 'opencode_go')
+    expect(wrapper.text()).toContain('Composite')
+  })
+
+  it('offers composite groups to CN platform accounts (composite route target)', () => {
+    const wrapper = mountSelector([], 'kimi')
+    expect(wrapper.text()).toContain('Composite')
+  })
+
+  it('keeps composite groups hidden for platforms that cannot be route targets', () => {
+    const wrapper = mountSelector([], 'kiro')
+    expect(wrapper.text()).not.toContain('Composite')
   })
 })

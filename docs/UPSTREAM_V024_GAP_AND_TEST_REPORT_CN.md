@@ -383,3 +383,60 @@ healthy 且公网恢复 200；数据卷 `./data`、`./postgres_data` 未被触�
 
 教训：**候选环境一律 `docker compose -p <独立项目名>`（或改用 `docker run`），
 绝不在 `/opt/ikik` 目录下用默认项目名起候选 compose。**
+
+## 6. OpenCode 共享号池支持（2026-09-17）
+
+用户提问「OpenCode 能不能共享号池」。排查结论：IKIK 的共享能力（拼车池 / 分组共享号池 /
+自有账号公开共享）都是**平台白名单**驱动的，OpenCode 全部不在名单里；而且 OpenCode 只有
+API Key 类型账号，又被「apikey 只能私有」的规则二次挡下。这些都是 fork 自有功能
+（上游 v0.2.4 没有 `is_shared_pool` / `required_account_level` / 拼车），因此可直接放开。
+
+### 6.1 后端改动
+
+| 位置 | 改动 |
+| --- | --- |
+| `service/carpool.go` `IsSupportedCarpoolPlatform` | 新增 `PlatformOpenCodeGo`（拼车池可建 OpenCode 车） |
+| `service/group_ikik_extensions.go` `SupportedUserCarpoolGroupPlatforms` | 新增 `PlatformOpenCodeGo`（用户拼车专属分组） |
+| `service/group_ikik_extensions.go` `SupportedUserPrivateGroupPlatforms` | 新增 `PlatformOpenCodeGo`（用户私有分组，公开共享的前置） |
+| `service/account_service_ikik_owned.go` `supportsOwnedPublicSharePoolPlatform` | 新增 `PlatformOpenCodeGo`（分组「共享号池」开关） |
+| `service/account_service_ikik_owned.go` 新增 `ownedAccountForcesPrivateShareForPlatform` | **按平台**放开 OpenCode 的 apikey 强制私有；四个调用点（建号 / 改共享模式 / 审批 / 私有化回退）全部走新函数，其他平台的 apikey 仍然只能私有 |
+
+### 6.2 前端改动
+
+- `GroupsView.vue`：`sharedPoolPlatforms` 增加 `opencode_go` → OpenCode 分组出现「共享号池」开关；
+  `isCompositeSourcePlatform` 改为目录驱动（复合分组可汇总国产平台与 OpenCode 的账号）。
+- `views/user/CarpoolPoolsView.vue`、`views/admin/CarpoolPoolsView.vue`：拼车平台选项增加 OpenCode。
+- `components/admin/group/CompositeRouteForm.vue`：目标平台下拉从写死的 5 个改为
+  `COMPOSITE_ROUTE_TARGET_OPTIONS`（主平台 + Kimi/Zhipu/DeepSeek/MiniMax/OpenCode，
+  与后端 `isConcreteRequestPlatform` 对齐；kiro/custom 除外），标签也改为取平台目录。
+- `components/common/GroupSelector.vue`：OpenCode 与国产平台账号现在可以选择 composite 分组；
+  同时修掉这段 computed 的重复合并残骸（简单模式过滤 composite 的分支原本被后面的 return 覆盖成死代码）。
+- `CreateAccountModal.vue` / `EditAccountModal.vue`：`userCredentialForcesPrivate` /
+  `userApiKeyForcesPrivate` 对 `opencode_go` 放开 → 用户自有 OpenCode 账号可以选「公共」共享。
+
+### 6.3 顺带修掉的既有回归（同一次重建造成）
+
+- `views/admin/ChannelsView.vue`：`compositePlatforms` 常量在 `83d0d2022` 被删，导致渠道表单里
+  composite 分组对国产平台/OpenCode 不再生效（当时被替换成「无条件允许 composite」）。
+  现按原语义恢复（主平台 + 国产平台 + OpenCode），`channelPlatformOptions.spec.ts` 由红转绿。
+- `components/admin/account/AccountTableFilters.vue`、`components/admin/ErrorPassthroughRulesModal.vue`、
+  `views/admin/SubscriptionsView.vue`（用 `GROUP_PLATFORM_OPTIONS`）、
+  `views/admin/ops/components/OpsDashboardHeader.vue`：四处写死的平台下拉改为平台目录驱动，
+  否则 OpenCode / 国产平台在这些过滤器和规则里根本不出现；`platformFilterCatalogUsage.spec.ts` 由红转绿。
+- `CreateAccountModal.vue`：API Key 占位符改回官方命名 `apiKeyValuePlaceholder` 并用 switch 写法，
+  与上游 v0.2.4 一致；`CreateAccountModal.grok.spec.ts` 由红转绿。
+
+### 6.4 验证
+
+- 前端全量 vitest：**2130 passed / 57 failed**（改动前 2108 / 65）。用 `git stash` 跑了改动前后
+  两次全量对比：**新增失败 0 条**，修好 8 条（含 GroupSelector 两条、两处平台目录、渠道 composite 等）。
+- `npx vue-tsc --noEmit` 通过；`npx vite build` 成功。
+- 后端：`go test -tags unit ./internal/service/`（172s）、`./internal/handler/`、
+  `./internal/handler/admin/` 全绿；新增 `opencode_shared_pool_platforms_test.go` 锁定白名单与
+  apikey 放开范围（OpenCode 放开、其他平台保持私有）。
+
+### 6.5 部署
+
+- 镜像 `pixel-api/pixel:ikik-20260917-v104-opencode-shared-pool-<commit>`（同 1.0.4 版本号，仅功能放开）。
+- 切换沿用 5.4 的流程；回滚资产同 5.4（`docker-compose.rollback-20260917-oc-restore.yml` +
+  对应 rollback 容器），必要时回退 compose 镜像标签再 `up -d` 即可。

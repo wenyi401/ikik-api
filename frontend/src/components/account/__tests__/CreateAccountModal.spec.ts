@@ -740,6 +740,32 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(flow.props('showCodexPatOption')).toBe(false)
   })
 
+  it('lets a user-owned OpenCode API key account opt into the public pool', async () => {
+    const wrapper = mountModal([], 'user')
+    await selectButtonByText(wrapper, 'OpenCode')
+
+    const publicButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'userAccounts.publicMode')
+
+    expect(publicButton).toBeDefined()
+    expect(publicButton?.attributes('disabled')).toBeUndefined()
+    await publicButton?.trigger('click')
+    expect(publicButton?.classes()).toContain('border-sky-600')
+  })
+
+  it('keeps other platforms API key accounts private when creating user-owned accounts', async () => {
+    const wrapper = mountModal([], 'user')
+    await selectButtonByText(wrapper, 'Kimi')
+
+    const publicButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'userAccounts.publicMode')
+
+    expect(publicButton).toBeDefined()
+    expect(publicButton?.attributes('disabled')).toBeDefined()
+  })
+
   it('exposes Claude OAuth, Setup Token, and session-key auth to user-owned accounts', async () => {
     const wrapper = mountModal([], 'user')
     await wrapper.get('form#create-account-form input[type="text"]').setValue('Claude account')

@@ -72,6 +72,7 @@
 import { computed, reactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import { COMPOSITE_ROUTE_TARGET_OPTIONS, CONCRETE_PLATFORM_OPTIONS } from '@/constants/platforms'
 import type {
   CompositeModelRoute,
   CompositeModelRouteInput,
@@ -90,7 +91,9 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const targetPlatforms: CompositeTargetPlatform[] = ['openai', 'anthropic', 'gemini', 'antigravity', 'grok']
+// 与后端 isConcreteRequestPlatform 对齐：复合分组可路由到所有具体平台
+// （kiro / custom 除外），新增供应商会随平台目录自动出现。
+const targetPlatforms = COMPOSITE_ROUTE_TARGET_OPTIONS.map((option) => option.value as CompositeTargetPlatform)
 const endpointValues: CompositeRouteEndpoint[] = [
   'any',
   'messages',
@@ -144,7 +147,8 @@ watch(
 )
 
 const platformLabel = (platform: string) =>
-  platform === 'openai' ? 'OpenAI' : platform === 'grok' ? 'Grok' : platform.charAt(0).toUpperCase() + platform.slice(1)
+  CONCRETE_PLATFORM_OPTIONS.find((option) => option.value === platform)?.label ??
+  platform.charAt(0).toUpperCase() + platform.slice(1)
 
 const submit = () => {
   emit('save', {

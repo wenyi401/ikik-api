@@ -394,6 +394,7 @@ const platformOptions = computed<SelectOption[]>(() => [
   { value: 'gemini', label: 'Gemini' },
   { value: 'antigravity', label: 'Antigravity' },
   { value: 'grok', label: 'Grok' },
+  { value: 'opencode_go', label: 'OpenCode' },
 ])
 
 const statusOptions = computed<SelectOption[]>(() => [

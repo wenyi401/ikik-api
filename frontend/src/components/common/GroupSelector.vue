@@ -45,6 +45,7 @@ import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import GroupBadge from './GroupBadge.vue'
 import type { Group, GroupPlatform } from '@/types'
+import { COMPOSITE_ROUTE_TARGET_OPTIONS } from '@/constants/platforms'
 import { useAuthStore } from '@/stores'
 
 const { t } = useI18n()
@@ -64,28 +65,24 @@ const emit = defineEmits<{
 
 // Filter groups by platform if specified
 const filteredGroups = computed(() => {
-  let result = authStore.isSimpleMode
+  const base = authStore.isSimpleMode
     ? props.groups.filter((g) => g.platform !== 'composite')
     : props.groups
-  if (props.platform) {
-    // antigravity 账户启用混合调度后，可选择 anthropic/gemini 分组
-    if (props.platform === 'antigravity' && props.mixedScheduling) {
-      result = result.filter(
-        (g) => g.platform === 'antigravity' || g.platform === 'anthropic' || g.platform === 'gemini' || g.platform === 'composite'
-      )
-    } else {
-      // 默认：只能选择同 platform 的分组；composite 分组可接收任意具体平台账号
-      result = result.filter((g) => g.platform === props.platform || g.platform === 'composite')
-    }
+  if (!props.platform) {
+    return base
   }
   // antigravity 账户启用混合调度后，可选择 anthropic/gemini 分组
   if (props.platform === 'antigravity' && props.mixedScheduling) {
-    return props.groups.filter(
+    return base.filter(
       (g) => g.platform === 'antigravity' || g.platform === 'anthropic' || g.platform === 'gemini' || g.platform === 'composite'
     )
   }
-  const supportsComposite = !!props.platform && (['anthropic', 'openai', 'gemini', 'antigravity', 'grok'] as string[]).includes(props.platform)
-  return props.groups.filter(
+  // 默认：只能选择同 platform 的分组；能作为复合路由目标的平台（含国产平台与
+  // OpenCode）额外可以选择 composite 分组，composite 分组按模型路由挑账号。
+  const supportsComposite = COMPOSITE_ROUTE_TARGET_OPTIONS.some(
+    (option) => option.value === props.platform
+  )
+  return base.filter(
     (g) => g.platform === props.platform || (supportsComposite && g.platform === 'composite')
   )
 })

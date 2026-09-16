@@ -30,3 +30,12 @@ export const GROUP_PLATFORM_OPTIONS = [
   ...CONCRETE_PLATFORM_OPTIONS,
   { value: 'composite', label: 'Composite' }
 ] as const satisfies readonly PlatformOption<GroupPlatform>[]
+
+/**
+ * Platforms a composite group can route a model to. Mirrors the backend
+ * `isConcreteRequestPlatform` allow-list: `kiro` and `custom` cannot be
+ * composite route targets.
+ */
+export const COMPOSITE_ROUTE_TARGET_OPTIONS = CONCRETE_PLATFORM_OPTIONS.filter(
+  (option) => option.value !== 'kiro' && option.value !== 'custom'
+)

@@ -1516,6 +1516,7 @@ const platformOptions: Array<{ value: AccountPlatform; label: string }> = [
   { value: 'anthropic', label: 'Claude' },
   { value: 'gemini', label: 'Gemini' },
   { value: 'antigravity', label: 'Antigravity' },
+  { value: 'opencode_go', label: 'OpenCode' },
 ]
 
 const seatOptions = [2, 3, 4, 5, 6]

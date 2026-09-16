@@ -265,7 +265,7 @@
             data-1p-ignore
             data-lpignore="true"
             data-bwignore="true"
-            :placeholder="apiKeySecretPlaceholder"
+            :placeholder="apiKeyValuePlaceholder"
           />
           <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
         </div>
@@ -3201,7 +3201,14 @@ const handleOllamaCloudUsageUpdated = (state: OllamaCloudUsageState) => {
   if (props.account) emit('updated', { ...props.account, ollama_cloud_usage: state })
 }
 const assignableGroups = computed(() => accountAssignableGroups(props.groups))
-const userApiKeyForcesPrivate = computed(() => isUserScope.value && props.account?.type === 'apikey')
+// OpenCode 账号只有 API Key 类型，但它的订阅（Zen/GO）允许公开共享进号池，
+// 因此这里按平台放开；其他平台的 API Key 账号仍然只能私有。
+const userApiKeyForcesPrivate = computed(
+  () =>
+    isUserScope.value &&
+    props.account?.type === 'apikey' &&
+    props.account?.platform !== 'opencode_go'
+)
 const showHeaderOverrideEditor = computed(() =>
   !isUserScope.value &&
   props.account?.type === 'apikey' &&
@@ -3953,7 +3960,7 @@ const apiKeyBaseUrlPlaceholder = computed(() => {
   return 'https://api.anthropic.com'
 })
 
-const apiKeySecretPlaceholder = computed(() => {
+const apiKeyValuePlaceholder = computed(() => {
   if (props.account?.platform === 'gemini') return 'AIza...'
   if (props.account?.platform === 'openai') return 'sk-proj-...'
   if (props.account?.platform === 'custom') return 'sk-...'

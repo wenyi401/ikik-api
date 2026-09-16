@@ -4422,6 +4422,7 @@ import type {
   SubscriptionType,
 } from "@/types";
 import {
+  COMPOSITE_ROUTE_TARGET_OPTIONS,
   CONCRETE_PLATFORM_OPTIONS,
   GROUP_PLATFORM_OPTIONS,
 } from "@/constants/platforms";
@@ -4891,8 +4892,9 @@ const invalidRequestFallbackOptionsForEdit = computed(() => {
 });
 
 // 复制账号的源分组选项（创建时）- 仅包含相同平台且有账号的分组
+// composite 目标可汇总任何「能作为复合路由目标」的平台账号（含国产平台与 OpenCode）。
 const isCompositeSourcePlatform = (platform: GroupPlatform) =>
-  ["anthropic", "openai", "gemini", "antigravity", "grok"].includes(platform);
+  COMPOSITE_ROUTE_TARGET_OPTIONS.some((option) => option.value === platform);
 
 const isCompatibleCopySource = (source: GroupPlatform, target: GroupPlatform) =>
   target === "composite" ? isCompositeSourcePlatform(source) : source === target;
@@ -5100,6 +5102,7 @@ const sharedPoolPlatforms = new Set<GroupPlatform>([
   "antigravity",
   "grok",
   "kiro",
+  "opencode_go",
 ]);
 
 const createForm = reactive({

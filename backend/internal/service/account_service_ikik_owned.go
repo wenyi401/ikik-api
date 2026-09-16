@@ -28,7 +28,7 @@ func (s *AccountService) ApproveOwnedPublicShareWithOptions(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	if ownedAccountForcesPrivateShare(account.Type) {
+	if ownedAccountForcesPrivateShareForPlatform(account.Platform, account.Type) {
 		return nil, ErrOwnedAccountAPIKeyPublicShareNotAllowed
 	}
 	if err := validateOwnedAccountSourceForPlatform(account.Platform, account.Type, account.Credentials, account.Extra); err != nil {
@@ -474,10 +474,10 @@ func (s *AccountService) UpdateOwned(ctx context.Context, ownerUserID, accountID
 	}
 	shouldBindGroups := false
 	var groupIDs []int64
-	if ownedAccountForcesPrivateShare(account.Type) && req.ShareMode != nil && NormalizeAccountShareMode(*req.ShareMode) == AccountShareModePublic {
+	if ownedAccountForcesPrivateShareForPlatform(account.Platform, account.Type) && req.ShareMode != nil && NormalizeAccountShareMode(*req.ShareMode) == AccountShareModePublic {
 		return nil, ErrOwnedAccountAPIKeyPublicShareNotAllowed
 	}
-	if ownedAccountForcesPrivateShare(account.Type) && NormalizeAccountShareMode(account.ShareMode) == AccountShareModePublic {
+	if ownedAccountForcesPrivateShareForPlatform(account.Platform, account.Type) && NormalizeAccountShareMode(account.ShareMode) == AccountShareModePublic {
 		managedGroupIDs, err := s.managedOwnedAccountGroupIDsForShareMode(ctx, ownerUserID, account, AccountShareModePrivate)
 		if err != nil {
 			return nil, err
@@ -763,7 +763,7 @@ func (s *AccountService) createOwnedWithOptions(
 	}
 	req.ProxyID = proxyID
 	shareMode := NormalizeAccountShareMode(req.ShareMode)
-	if ownedAccountForcesPrivateShare(req.Type) {
+	if ownedAccountForcesPrivateShareForPlatform(req.Platform, req.Type) {
 		shareMode = AccountShareModePrivate
 	}
 	if shareMode == AccountShareModePublic {
@@ -1014,7 +1014,7 @@ func isOwnedPublicSharePoolGroup(group *Group, platform string) bool {
 
 func supportsOwnedPublicSharePoolPlatform(platform string) bool {
 	switch strings.ToLower(strings.TrimSpace(platform)) {
-	case PlatformOpenAI, PlatformAnthropic, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformKiro:
+	case PlatformOpenAI, PlatformAnthropic, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformKiro, PlatformOpenCodeGo:
 		return true
 	default:
 		return false
@@ -1083,6 +1083,16 @@ func ownedAccountForcesPrivateShare(accountType string) bool {
 	default:
 		return false
 	}
+}
+
+// OpenCode 账号只存在 API Key 类型（Zen / GO 都是订阅制 API Key），但它需要能像
+// OAuth 账号一样进入公共号池被成员共用，因此按平台放开 apikey 的强制私有；
+// 其他平台的 API Key 账号仍然只能私有。
+func ownedAccountForcesPrivateShareForPlatform(platform, accountType string) bool {
+	if strings.EqualFold(strings.TrimSpace(platform), PlatformOpenCodeGo) {
+		return false
+	}
+	return ownedAccountForcesPrivateShare(accountType)
 }
 
 const ownedPersonalDefaultConcurrency = 10

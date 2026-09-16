@@ -1729,6 +1729,60 @@ describe('EditAccountModal OpenAI 自动使用重置卡', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('api_key')
   })
 
+  it('allows a user OpenCode API key account to enter the public pool', async () => {
+    const account = buildAccount()
+    account.platform = 'opencode_go'
+    account.type = 'apikey'
+    account.credentials = {
+      api_key: 'sk-opencode',
+      account_mode: 'zen',
+      api_protocol: 'adaptive',
+      base_url: 'https://opencode.ai/zen/v1'
+    }
+    account.share_mode = 'private'
+    account.share_status = 'approved'
+    updateUserAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateUserAccountMock.mockResolvedValue({ ...account, share_mode: 'public' })
+
+    const wrapper = mountModal(account)
+    await wrapper.setProps({ accountScope: 'user' })
+    const publicButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('userAccounts.publicMode'))
+
+    expect(publicButton).toBeDefined()
+    expect(publicButton?.attributes('disabled')).toBeUndefined()
+    await publicButton?.trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateUserAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateUserAccountMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        share_mode: 'public',
+        concurrency: 10
+      })
+    )
+  })
+
+  it('keeps other platforms API key accounts private for user-owned accounts', async () => {
+    const account = buildAccount()
+    account.platform = 'anthropic'
+    account.type = 'apikey'
+    account.share_mode = 'private'
+    account.share_status = 'approved'
+
+    const wrapper = mountModal(account)
+    await wrapper.setProps({ accountScope: 'user' })
+    const publicButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('userAccounts.publicMode'))
+
+    expect(publicButton).toBeDefined()
+    expect(publicButton?.attributes('disabled')).toBeDefined()
+  })
+
   it('allows a user OAuth account with a proxy to enter the public pool', async () => {
     const account = buildAccount()
     account.type = 'oauth'

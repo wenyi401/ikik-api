@@ -112,10 +112,10 @@ func PrivateGroupName(userID int64, platform string) string {
 }
 
 func SupportedUserCarpoolGroupPlatforms() []string {
-	return []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity}
+	return []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformOpenCodeGo}
 }
 func SupportedUserPrivateGroupPlatforms() []string {
-	return []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformKiro, PlatformCustom}
+	return []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformKiro, PlatformCustom, PlatformOpenCodeGo}
 }
 
 const defaultKiroStickySessionTTLSeconds = 3600

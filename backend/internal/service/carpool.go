@@ -372,7 +372,7 @@ func NormalizeCarpoolPlatform(platform string) string {
 
 func IsSupportedCarpoolPlatform(platform string) bool {
 	switch NormalizeCarpoolPlatform(platform) {
-	case PlatformOpenAI, PlatformAnthropic, PlatformGemini, PlatformAntigravity:
+	case PlatformOpenAI, PlatformAnthropic, PlatformGemini, PlatformAntigravity, PlatformOpenCodeGo:
 		return true
 	default:
 		return false

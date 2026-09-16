@@ -1684,7 +1684,7 @@
             type="password"
             required
             class="input font-mono"
-            :placeholder="apiKeySecretPlaceholder"
+            :placeholder="apiKeyValuePlaceholder"
           />
           <p class="input-hint">{{ apiKeyHint }}</p>
         </div>
@@ -4260,14 +4260,26 @@ const apiKeyBaseUrlPlaceholder = computed(() => {
   return 'https://api.anthropic.com'
 })
 
-const apiKeySecretPlaceholder = computed(() => {
-  if (form.platform === 'gemini') return 'AIza...'
-  if (form.platform === 'zhipu') return '<api-key>.<secret>'
-  if (form.platform === 'kimi' || form.platform === 'deepseek' || form.platform === 'minimax' || form.platform === 'opencode_go') return 'sk-...'
-  if (form.platform === 'custom') return 'sk-...'
-  if (form.platform === 'kiro') return 'sk-...'
-  if (form.platform === 'openai') return 'sk-proj-...'
-  return form.platform === 'grok' ? 'xai-...' : 'sk-ant-...'
+const apiKeyValuePlaceholder = computed(() => {
+  switch (form.platform) {
+    case 'openai':
+      return 'sk-proj-...'
+    case 'gemini':
+      return 'AIza...'
+    case 'grok':
+      return 'xai-...'
+    case 'zhipu':
+      return '<api-key>.<secret>'
+    case 'kimi':
+    case 'deepseek':
+    case 'minimax':
+    case 'opencode_go':
+    case 'kiro':
+    case 'custom':
+      return 'sk-...'
+    default:
+      return 'sk-ant-...'
+  }
 })
 
 interface Props {
@@ -4295,8 +4307,14 @@ const isUserScope = computed(() => accountScope.value === 'user')
 const canManageProxy = computed(() => props.allowProxy !== false)
 const canManageBillingRate = computed(() => !isUserScope.value && props.allowBillingRate !== false)
 const assignableGroups = computed(() => accountAssignableGroups(props.groups))
-const userCredentialForcesPrivate = computed(() =>
-  isUserScope.value && form.type !== 'oauth' && form.type !== 'setup-token'
+// OpenCode 账号只有 API Key 类型，但它的订阅（Zen/GO）允许公开共享进号池，
+// 因此这里按平台放开；其他平台的 API Key 账号仍然只能私有。
+const userCredentialForcesPrivate = computed(
+  () =>
+    isUserScope.value &&
+    form.type !== 'oauth' &&
+    form.type !== 'setup-token' &&
+    form.platform !== 'opencode_go'
 )
 const showHeaderOverrideEditor = computed(() =>
   !isUserScope.value &&
