@@ -471,3 +471,33 @@ Kimi/Zhipu/DeepSeek/MiniMax**（国产平台分组一直无法从界面创建）
 （commit `0cf688ed2`），切换后 healthy、公网 200、近 3 分钟 0 个 5xx；
 回滚资产 `docker-compose.rollback-20260917-opencode-group-platform-fix.yml`
 + 容器 `pixel-sub2api-rollback-20260917-opencode-group-platform-fix`。
+
+### 6.7 OpenCode 只保留 GO 订阅，用户侧连接项锁定（2026-09-17）
+
+产品口径调整：系统只卖 **OpenCode GO 订阅（$10/月）**，不再提供按量付费（Zen）；
+用户自有 OpenCode 账号只填 API Key，连接层不给改，其余可改项照旧。
+
+改动（提交 `74a7eb5a3`）：
+
+- 新建/编辑账号移除「按量付费 / 订阅制」选择：账号模式固定 `go`，默认 base URL 变为
+  `https://opencode.ai/zen/go/v1`，默认协议分流规则用 GO 版（grok-*/gpt-*/muse-spark-*→responses，
+  minimax-*/qwen*→anthropic）。已存在的 Zen 账号在编辑弹窗保持原存储值，不提供切换、也不会被改写。
+- 用户自有 OpenCode 账号（`isUserOwnedOpenCode`）锁定并可读展示连接项：
+  base URL（只读显示官方 GO 网关）、账号模式、API 协议、协议端点、模型协议分流、上游倍率探测；
+  **保持可改**：名称、备注、API Key、共享模式、代理、分组、并发、优先级、模型白名单/映射。
+- i18n 新增 `admin.accounts.opencodeGo.fixedConnectionHint`（中/英）。
+
+验证：`vue-tsc` 通过；`CreateAccountModal.spec` 41 passed、`EditAccountModal.spec` 67 passed
+（新增「用户侧锁定连接项」两条守卫用例，原 Zen 用例改为 GO 口径）；前端全量
+291 passed / 57 failed，与基线一致（新增失败 0）；`vite build` 成功。
+线上产物核对：新建账号 chunk 已不含 `opencodeGo.accountMode.zen/go`，含 `fixedConnectionHint` 与 GO 网关地址。
+
+部署：镜像 `pixel-api/pixel:ikik-20260917-v104-opencode-go-only-74a7eb5a3`
+（服务器以 GitHub master `bd3599062` 克隆后 `git apply` 该提交补丁构建，二进制自报 1.0.4 / commit 74a7eb5a3），
+切换后 healthy、restarts=0、公网 200、近 3 分钟 0 个 5xx。
+回滚资产：`/opt/ikik/docker-compose.rollback-20260917-opencode-go-only.yml` +
+容器 `pixel-sub2api-rollback-20260917-opencode-go-only`。
+
+**待办**：本机到 github.com 的连接被重置，`74a7eb5a3` 尚未推到 master（origin/master 仍在
+`bd3599062`）。网络恢复后 `git push origin HEAD:master` 即可；服务器上的 release 源码是
+master + 该补丁，推送后下次构建仍能拿到完整提交。
