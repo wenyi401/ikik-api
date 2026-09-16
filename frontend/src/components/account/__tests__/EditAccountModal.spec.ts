@@ -1729,6 +1729,34 @@ describe('EditAccountModal OpenAI 自动使用重置卡', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('api_key')
   })
 
+  it('locks OpenCode connection settings for user-owned accounts', async () => {
+    const account = buildAccount()
+    account.platform = 'opencode_go'
+    account.type = 'apikey'
+    account.credentials = {
+      api_key: 'sk-opencode',
+      account_mode: 'go',
+      api_protocol: 'adaptive',
+      base_url: 'https://opencode.ai/zen/go/v1'
+    }
+
+    const wrapper = mountModal(account)
+    await wrapper.setProps({ accountScope: 'user' })
+
+    // 连接项对用户隐藏：账号模式、协议、模型协议分流、上游倍率探测
+    expect(wrapper.text()).not.toContain('admin.accounts.opencodeGo.accountMode.zen')
+    expect(wrapper.text()).not.toContain('admin.accounts.cnProviders.apiProtocol.title')
+    expect(wrapper.text()).not.toContain('admin.accounts.opencodeGo.protocolRules.title')
+    expect(wrapper.text()).not.toContain('admin.accounts.upstreamBilling.autoProbe')
+    // base URL 固定为 GO 网关，只读展示
+    const disabledUrls = wrapper
+      .findAll('input[disabled]')
+      .filter((input) => (input.element as HTMLInputElement).value === 'https://opencode.ai/zen/go/v1')
+    expect(disabledUrls.length).toBeGreaterThan(0)
+    // 用户仍可改：API Key 输入在
+    expect(wrapper.find('input[type="password"]').exists()).toBe(true)
+  })
+
   it('allows a user OpenCode API key account to enter the public pool', async () => {
     const account = buildAccount()
     account.platform = 'opencode_go'

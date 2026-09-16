@@ -367,6 +367,8 @@ export default {
           go: '订阅制',
           goDesc: '订阅制网关，按 5 小时 / 周 / 月滚动用量窗口限流。',
         },
+        fixedConnectionHint:
+          '使用 OpenCode 订阅（GO）官方网关，地址与协议分流由系统固定，无需填写。',
         protocolRules: {
           title: '模型协议分流',
           hint: '自适应模式下按模型匹配上游协议。支持精确 ID 或末尾 * 通配（如 grok-*、qwen*）；自上而下第一条命中生效；未命中走 Chat Completions。',

@@ -164,6 +164,8 @@ export default {
           go: 'Subscription',
           goDesc: 'Subscription gateway, rate-limited by 5-hour / weekly / monthly usage windows.',
         },
+        fixedConnectionHint:
+          'Uses the OpenCode GO subscription gateway; the base URL and protocol routing are fixed.',
         protocolRules: {
           title: 'Model protocol routing',
           hint: 'In adaptive mode, each model is sent to a native upstream protocol. Use an exact ID or a trailing * glob (e.g. grok-*, qwen*). The first matching rule wins; unmatched models use Chat Completions.',

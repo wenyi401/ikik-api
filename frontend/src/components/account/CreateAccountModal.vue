@@ -491,58 +491,7 @@
         </p>
       </div>
 
-      <!-- OpenCode Zen vs Go -->
-      <div v-if="isOpenCodeGoPlatform">
-        <label class="input-label">{{ t('admin.accounts.cnProviders.accountMode.title') }}</label>
-        <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            @click="openCodeAccountMode = 'zen'"
-            :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
-              openCodeAccountMode === 'zen'
-                ? cnAccentActiveClass
-                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-gray-600'
-            ]"
-          >
-            <div
-              :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                openCodeAccountMode === 'zen' ? cnAccentIconClass : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
-              ]"
-            >
-              <Icon name="creditCard" size="sm" />
-            </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.accounts.opencodeGo.accountMode.zen') }}</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.opencodeGo.accountMode.zenDesc') }}</span>
-            </div>
-          </button>
-          <button
-            type="button"
-            @click="openCodeAccountMode = 'go'"
-            :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
-              openCodeAccountMode === 'go'
-                ? cnAccentActiveClass
-                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-gray-600'
-            ]"
-          >
-            <div
-              :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                openCodeAccountMode === 'go' ? cnAccentIconClass : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
-              ]"
-            >
-              <Icon name="bolt" size="sm" />
-            </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.accounts.opencodeGo.accountMode.go') }}</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.opencodeGo.accountMode.goDesc') }}</span>
-            </div>
-          </button>
-        </div>
-      </div>
+      <!-- OpenCode：固定走 GO 订阅网关（不提供按量付费/账号模式选择） -->
 
       <!-- Account Mode Selection (Kimi / Zhipu / DeepSeek) -->
       <div v-if="isCNPlatform && !isOpenCodeGoPlatform">
@@ -605,7 +554,7 @@
       </div>
 
       <!-- API Protocol Selection (Kimi / Zhipu / DeepSeek / OpenCode) -->
-      <div v-if="isMultiProtocolPlatform" class="mt-4">
+      <div v-if="isMultiProtocolPlatform && !isUserOwnedOpenCode" class="mt-4">
         <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.title') }}</label>
         <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <button
@@ -1629,7 +1578,9 @@
           </select>
           <p class="input-hint">{{ t('admin.accounts.custom.protocolHint') }}</p>
         </div>
-        <div v-if="!isMultiProtocolPlatform || apiProtocol !== 'adaptive'">
+        <div
+          v-if="(!isMultiProtocolPlatform || apiProtocol !== 'adaptive') && !isUserOwnedOpenCode"
+        >
           <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
           <input
             v-model="apiKeyBaseUrl"
@@ -1653,7 +1604,7 @@
             @select="onCnPresetSelect"
           />
         </div>
-        <div v-else>
+        <div v-else-if="!isUserOwnedOpenCode">
           <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.endpoints') }}</label>
           <div class="mt-2 space-y-3">
             <div v-for="item in cnAdaptiveProtocolOptions" :key="item.value">
@@ -1672,8 +1623,14 @@
             {{ t('admin.accounts.cnProviders.apiProtocol.responsesFallbackDesc') }}
           </p>
         </div>
+        <!-- 用户自有 OpenCode：连接信息固定，只读展示 -->
+        <div v-if="isUserOwnedOpenCode">
+          <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
+          <input :value="openCodeGoBaseUrl" type="text" class="input" disabled />
+          <p class="input-hint">{{ t('admin.accounts.opencodeGo.fixedConnectionHint') }}</p>
+        </div>
         <OpenCodeGoProtocolRulesEditor
-          v-if="isOpenCodeGoPlatform && apiProtocol === 'adaptive'"
+          v-if="isOpenCodeGoPlatform && apiProtocol === 'adaptive' && !isUserOwnedOpenCode"
           v-model:rows="openCodeGoProtocolRules"
           :plan="openCodeAccountMode"
         />
@@ -1691,6 +1648,7 @@
 
         <!-- 上游倍率自动探测：全部 API-key 平台可用（所在区块已限定 apikey 类型） -->
         <div
+          v-if="!isUserOwnedOpenCode"
           class="flex items-center justify-between gap-4 border-t border-gray-200 pt-4 dark:border-dark-600"
         >
           <div>
@@ -4156,6 +4114,7 @@ import {
   cnSupportsNativeResponses,
   defaultCNAdaptiveBaseUrls,
   defaultCNBaseUrl,
+  OPENCODE_GO_BASE_URL,
   defaultOpenCodeProtocolRules,
   isCNProviderPlatform,
   isHeaderOverridePlatform,
@@ -4415,12 +4374,12 @@ const customProtocol = ref<CustomAccountProtocol>('openai_chat_completions')
 const upstreamBillingAutoProbeEnabled = ref(true)
 
 const accountMode = ref<CnAccountMode>('payg')
-const openCodeAccountMode = ref<OpenCodeAccountMode>('zen')
+const openCodeAccountMode = ref<OpenCodeAccountMode>('go')
 // API 协议决定转发端点与格式：cc=现有转换链，anthropic=原生直通（Claude Code），
 // responses=deepseek / kimi 原生 Responses 端点（Codex）。与账号类型正交。
 const apiProtocol = ref<CnApiProtocol>('adaptive')
 const openCodeGoProtocolRules = ref<OpenCodeGoProtocolRule[]>(
-  cloneOpenCodeGoProtocolRules(defaultOpenCodeProtocolRules('zen'))
+  cloneOpenCodeGoProtocolRules(defaultOpenCodeProtocolRules('go'))
 )
 // 智谱团队版 Coding Plan：组织/项目 ID，写入 credentials 供额度探测切换团队端点
 const zhipuOrganization = ref('')
@@ -4432,6 +4391,10 @@ const adaptiveBaseUrls = ref<Record<CnNativeApiProtocol, string>>({
 })
 const isCNPlatform = computed(() => isCNProviderPlatform(form.platform))
 const isOpenCodeGoPlatform = computed(() => form.platform === 'opencode_go')
+// 用户自有 OpenCode 账号：账号模式固定 GO 订阅，base URL / 协议 / 端点 / 模型分流 /
+// 上游倍率探测属于连接层，用户不可改；名称、Key、共享、代理、分组等照旧可改。
+const isUserOwnedOpenCode = computed(() => isUserScope.value && isOpenCodeGoPlatform.value)
+const openCodeGoBaseUrl = OPENCODE_GO_BASE_URL
 const isMultiProtocolPlatform = computed(() => isCNPlatform.value || isOpenCodeGoPlatform.value)
 function currentOpenCodeOrCNMode(): CnAccountMode | OpenCodeAccountMode {
   return isOpenCodeGoPlatform.value ? openCodeAccountMode.value : accountMode.value
@@ -4527,7 +4490,7 @@ function selectOpenCodeGoPlatform() {
   form.type = 'apikey'
   accountCategory.value = 'apikey'
   apiProtocol.value = 'adaptive'
-  openCodeAccountMode.value = 'zen'
+  openCodeAccountMode.value = 'go'
   apiKeyBaseUrl.value = defaultCNBaseUrl('opencode_go', openCodeAccountMode.value, 'adaptive')
   resetAdaptiveBaseUrls('opencode_go', openCodeAccountMode.value)
   openCodeGoProtocolRules.value = cloneOpenCodeGoProtocolRules(defaultOpenCodeProtocolRules(openCodeAccountMode.value))
@@ -5795,9 +5758,9 @@ const resetForm = () => {
   upstreamRequestIdHeader.value = ''
   upstreamBillingAutoProbeEnabled.value = true
   accountMode.value = 'payg'
-  openCodeAccountMode.value = 'zen'
+  openCodeAccountMode.value = 'go'
   apiProtocol.value = 'adaptive'
-  openCodeGoProtocolRules.value = cloneOpenCodeGoProtocolRules(defaultOpenCodeProtocolRules('zen'))
+  openCodeGoProtocolRules.value = cloneOpenCodeGoProtocolRules(defaultOpenCodeProtocolRules('go'))
   adaptiveBaseUrls.value = {
     chat_completions: '',
     anthropic: '',

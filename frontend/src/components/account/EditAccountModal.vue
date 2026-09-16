@@ -86,7 +86,9 @@
           </select>
           <p class="input-hint">{{ t('admin.accounts.custom.protocolHint') }}</p>
         </div>
-        <div v-if="!isCNApiKeyAccount || editApiProtocol !== 'adaptive'">
+        <div
+          v-if="(!isCNApiKeyAccount || editApiProtocol !== 'adaptive') && !isUserOwnedOpenCode"
+        >
           <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
           <input
             v-model="editBaseUrl"
@@ -110,7 +112,7 @@
             @select="onCnPresetSelect"
           />
         </div>
-        <div v-else>
+        <div v-else-if="!isUserOwnedOpenCode">
           <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.endpoints') }}</label>
           <div class="mt-2 space-y-3">
             <div v-for="item in editAdaptiveProtocolOptions" :key="item.value">
@@ -125,59 +127,7 @@
           </p>
         </div>
 
-        <!-- OpenCode account mode (pay-as-you-go vs subscription) -->
-        <div v-if="isCNApiKeyAccount && account.platform === 'opencode_go'">
-          <label class="input-label">{{ t('admin.accounts.cnProviders.accountMode.title') }}</label>
-          <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              @click="editOpenCodeAccountMode = 'zen'"
-              :class="[
-                'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
-                editOpenCodeAccountMode === 'zen'
-                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
-                  : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-gray-600'
-              ]"
-            >
-              <div
-                :class="[
-                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                  editOpenCodeAccountMode === 'zen' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
-                ]"
-              >
-                <Icon name="creditCard" size="sm" />
-              </div>
-              <div>
-                <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.accounts.opencodeGo.accountMode.zen') }}</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.opencodeGo.accountMode.zenDesc') }}</span>
-              </div>
-            </button>
-            <button
-              type="button"
-              @click="editOpenCodeAccountMode = 'go'"
-              :class="[
-                'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
-                editOpenCodeAccountMode === 'go'
-                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
-                  : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-gray-600'
-              ]"
-            >
-              <div
-                :class="[
-                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                  editOpenCodeAccountMode === 'go' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
-                ]"
-              >
-                <Icon name="bolt" size="sm" />
-              </div>
-              <div>
-                <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.accounts.opencodeGo.accountMode.go') }}</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.opencodeGo.accountMode.goDesc') }}</span>
-              </div>
-            </button>
-          </div>
-        </div>
-
+        <!-- OpenCode：固定 GO 订阅网关；已存在的按量付费账号保持原样，不提供切换 -->
         <!-- Account Mode Selection (CN providers) -->
         <div v-if="isCNApiKeyAccount && account.platform !== 'opencode_go'">
           <label class="input-label">{{ t('admin.accounts.cnProviders.accountMode.title') }}</label>
@@ -200,8 +150,14 @@
           <p class="input-hint">{{ t(`admin.accounts.cnProviders.accountMode.${editAccountMode}Desc`) }}</p>
         </div>
 
+        <!-- 用户自有 OpenCode：连接信息固定，只读展示 -->
+        <div v-if="isUserOwnedOpenCode">
+          <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
+          <input :value="openCodeGoBaseUrl" type="text" class="input" disabled />
+          <p class="input-hint">{{ t('admin.accounts.opencodeGo.fixedConnectionHint') }}</p>
+        </div>
         <!-- API Protocol Selection (CN providers / OpenCode) -->
-        <div v-if="isCNApiKeyAccount">
+        <div v-if="isCNApiKeyAccount && !isUserOwnedOpenCode">
           <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.title') }}</label>
           <div class="mt-2 flex flex-wrap gap-2">
             <button
@@ -222,7 +178,7 @@
           <p class="input-hint">{{ t(`admin.accounts.cnProviders.apiProtocol.${cnProtocolDescKey}Desc`) }}</p>
         </div>
         <OpenCodeGoProtocolRulesEditor
-          v-if="account.platform === 'opencode_go' && editApiProtocol === 'adaptive'"
+          v-if="account.platform === 'opencode_go' && editApiProtocol === 'adaptive' && !isUserOwnedOpenCode"
           v-model:rows="editOpenCodeGoProtocolRules"
           :plan="editOpenCodeAccountMode"
         />
@@ -1984,7 +1940,7 @@
       </div>
 
       <div
-        v-if="account?.type === 'apikey'"
+        v-if="account?.type === 'apikey' && !isUserOwnedOpenCode"
         class="flex items-center justify-between gap-4 border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <div>
@@ -3101,6 +3057,7 @@ import {
   cnSupportsNativeResponses,
   defaultCNAdaptiveBaseUrls,
   defaultCNBaseUrl,
+  OPENCODE_GO_BASE_URL,
   isCNProviderPlatform,
   HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
   HEADER_OVERRIDES_CREDENTIAL_KEY,
@@ -3276,6 +3233,11 @@ const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
 const customProtocol = ref<CustomAccountProtocol>('openai_chat_completions')
 
+// 用户自有 OpenCode 账号：连接项（base URL / 协议 / 端点 / 模型分流 / 上游倍率探测）不可改。
+const isUserOwnedOpenCode = computed(
+  () => isUserScope.value && props.account?.platform === 'opencode_go'
+)
+const openCodeGoBaseUrl = OPENCODE_GO_BASE_URL
 const isCNApiKeyAccount = computed(
   () =>
     props.account?.type === 'apikey' &&

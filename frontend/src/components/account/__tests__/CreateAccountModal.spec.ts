@@ -465,39 +465,9 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(probeUpstreamBillingMock).not.toHaveBeenCalled()
   })
 
-  it('submits OpenCode Zen default protocol rules with adaptive endpoints', async () => {
+  it('submits OpenCode GO protocol rules and endpoints with the adaptive protocol', async () => {
     const wrapper = mountModal()
     await selectButtonByText(wrapper, 'OpenCode')
-    await wrapper.get('form#create-account-form input[type="text"]').setValue('oc')
-    await wrapper.get('form#create-account-form input[type="password"]').setValue('sk-opencode-zen')
-
-    await wrapper.get('form#create-account-form').trigger('submit.prevent')
-    await flushPromises()
-
-    expect(createAccountMock).toHaveBeenCalledTimes(1)
-    expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
-      account_mode: 'zen',
-      api_protocol: 'adaptive',
-      base_url: 'https://opencode.ai/zen/v1',
-      api_base_urls: {
-        chat_completions: 'https://opencode.ai/zen/v1',
-        anthropic: 'https://opencode.ai/zen',
-        responses: 'https://opencode.ai/zen/v1'
-      },
-      protocol_rules: [
-        { pattern: 'grok-*', protocol: 'responses' },
-        { pattern: 'gpt-*', protocol: 'responses' },
-        { pattern: 'muse-spark-*', protocol: 'responses' },
-        { pattern: 'claude-*', protocol: 'anthropic' },
-        { pattern: 'qwen*', protocol: 'anthropic' }
-      ]
-    })
-  })
-
-  it('submits OpenCode GO endpoints after switching account type', async () => {
-    const wrapper = mountModal()
-    await selectButtonByText(wrapper, 'OpenCode')
-    await selectButtonByText(wrapper, 'admin.accounts.opencodeGo.accountMode.go')
     await wrapper.get('form#create-account-form input[type="text"]').setValue('oc-go')
     await wrapper.get('form#create-account-form input[type="password"]').setValue('sk-opencode-go')
 
@@ -522,6 +492,23 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
         { pattern: 'qwen*', protocol: 'anthropic' }
       ]
     })
+  })
+
+  it('locks OpenCode connection settings for user-owned accounts', async () => {
+    const wrapper = mountModal([], 'user')
+    await selectButtonByText(wrapper, 'OpenCode')
+
+    // 账号模式（按量付费/订阅制）、协议、端点、模型协议分流、上游倍率探测对用户隐藏
+    expect(wrapper.text()).not.toContain('admin.accounts.opencodeGo.accountMode.zen')
+    expect(wrapper.text()).not.toContain('admin.accounts.cnProviders.apiProtocol.title')
+    expect(wrapper.text()).not.toContain('admin.accounts.opencodeGo.protocolRules.title')
+    expect(wrapper.text()).not.toContain('admin.accounts.upstreamBilling.autoProbe')
+    // 连接地址固定为 GO 网关，只读展示
+    const baseUrlInput = wrapper.get('form#create-account-form input[disabled]')
+    expect((baseUrlInput.element as HTMLInputElement).value).toBe('https://opencode.ai/zen/go/v1')
+    // 用户仍可改的项：Key 与共享模式
+    expect(wrapper.get('form#create-account-form input[type="password"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('userAccounts.shareMode')
   })
 
   it('submits adaptive Kimi protocol endpoints', async () => {
