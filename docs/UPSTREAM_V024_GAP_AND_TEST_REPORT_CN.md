@@ -448,3 +448,26 @@ API Key 类型账号，又被「apikey 只能私有」的规则二次挡下。�
   切换后 10 分钟 27 个请求中 1 个 502（`/v1/chat/completions`，OpenAI 账号上游超时 26.7s，与本次改动无关），无 panic。
 - 回滚：`/opt/ikik/docker-compose.rollback-20260917-opencode-shared-pool.yml` + 上述 rollback 容器
   （镜像 `...oc-restore-c8b372d47`，已停止），回退 compose 镜像标签再 `up -d` 即可。
+
+### 6.6 补漏：分组管理表单的平台下拉（2026-09-17，用户反馈）
+
+用户反馈「管理员的分组管理里没有 OpenCode」。根因同属重建丢内容：
+`GroupsView.vue` 在合并后**出现两份 `platformOptions` 声明**（一份目录驱动
+`GROUP_PLATFORM_OPTIONS.filter(...)`、一份写死 8 个平台），`83d0d2022` 重建时删掉了
+目录驱动的那份、保留了写死的清单，于是**分组表单里既没有 OpenCode，也没有
+Kimi/Zhipu/DeepSeek/MiniMax**（国产平台分组一直无法从界面创建）。注意我在此之前的
+「四处平台过滤器」修复只覆盖了列表筛选（`platformFilterOptions`），没覆盖表单本身。
+
+修复：`platformOptions` 恢复为 `GROUP_PLATFORM_OPTIONS.filter(o => !isSimpleMode || o.value !== 'composite')`；
+顺带把分组页内嵌的复合路由目标下拉从 `CONCRETE_PLATFORM_OPTIONS` 换成
+`COMPOSITE_ROUTE_TARGET_OPTIONS`（后端不接受 kiro/custom 作为路由目标）。
+守卫：`opencodeSharingSurfaces.spec.ts` 新增断言（分组表单平台下拉必须来自目录），
+`platformFilterCatalogUsage.spec.ts` 的分组页断言同步为复合目标目录。
+
+验证：`vue-tsc` 通过；前端全量 291 passed / 57 failed（与基线一致，新增失败 0）；
+线上校验：新的 `GroupsView-ClkEMQtL.js` 里旧写死清单已消失、平台下拉绑定改为目录计算属性。
+
+部署：镜像 `pixel-api/pixel:ikik-20260917-v104-opencode-shared-pool-fix2-0cf688ed2`
+（commit `0cf688ed2`），切换后 healthy、公网 200、近 3 分钟 0 个 5xx；
+回滚资产 `docker-compose.rollback-20260917-opencode-group-platform-fix.yml`
++ 容器 `pixel-sub2api-rollback-20260917-opencode-group-platform-fix`。
