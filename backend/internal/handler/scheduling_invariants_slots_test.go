@@ -179,7 +179,8 @@ func TestSchedulingInvariant_SlotBalance_InterceptEarlyReturnPath(t *testing.T) 
 	h.Messages(c)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Contains(t, rec.Body.String(), "msg_mock_warmup", "预热请求应被拦截返回 mock 响应")
+	require.Contains(t, rec.Body.String(), "New Conversation",
+		"预热请求应被拦截：返回仿真 id + 占位正文 \"New Conversation\" 的 mock 响应")
 	require.Empty(t, upstream.attemptedAccounts(), "early-return 路径不应触达上游")
 	require.Equal(t, 1, cc.accountAcquired, "选号阶段获取过账号槽")
 	schedInvRequireBalanced(t, cc)

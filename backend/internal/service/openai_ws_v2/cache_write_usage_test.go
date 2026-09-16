@@ -22,7 +22,9 @@ func TestParseUsageAndAccumulateIncludesCacheWrite(t *testing.T) {
 	require.Equal(t, 20, usage.OutputTokens)
 	require.Equal(t, 30, usage.CacheReadInputTokens)
 	require.Equal(t, 25, usage.CacheCreationInputTokens)
-	require.Equal(t, usage, state.usage)
+	// parseUsageAndAccumulate 只负责解析并累加「本轮」用量；
+	// 整会话的 state.usage 由 finalizeRelayTurnUsage 在轮结束时汇总。
+	require.Equal(t, usage, state.turnUsage)
 }
 
 func TestParseUsageNestedZeroOverridesTopLevelCacheWrite(t *testing.T) {

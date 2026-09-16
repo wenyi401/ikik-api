@@ -114,7 +114,7 @@ func TestGetIntervalPricing_NoMatch_FallsBackToBase(t *testing.T) {
 	require.Equal(t, basePricing, result)
 }
 
-func TestApplyFirstTokenTierDoesNotPromoteLongContextOnlyInterval(t *testing.T) {
+func TestApplyTokenOverridesDoesNotPromoteLongContextOnlyInterval(t *testing.T) {
 	r := NewModelPricingResolver(nil, &BillingService{})
 	basePricing := &ModelPricing{
 		InputPricePerToken:     5e-6,
@@ -131,11 +131,14 @@ func TestApplyFirstTokenTierDoesNotPromoteLongContextOnlyInterval(t *testing.T) 
 		}},
 	}
 
-	r.applyFirstTokenTier(resolved, &ChannelModelPricing{})
+	// 渠道未配置任何区间定价：生效区间只认渠道声明的区间，残留的长上下文
+	// 区间不得被提升为生效价格，基础价保持原值（且不共享 fallback 指针）。
+	r.applyTokenOverrides(&ChannelModelPricing{}, resolved)
 
-	require.Same(t, basePricing, resolved.BasePricing)
+	require.NotSame(t, basePricing, resolved.BasePricing)
 	require.Empty(t, resolved.Intervals)
 	require.InDelta(t, 5e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, 30e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
 	require.InDelta(t, 0.5e-6, resolved.BasePricing.CacheReadPricePerToken, 1e-12)
 }
 

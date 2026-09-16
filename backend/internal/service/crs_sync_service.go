@@ -1162,6 +1162,7 @@ func reconcileCRSUpstreamBillingProbeExtra(
 ) {
 	for _, key := range []string{
 		UpstreamBillingProbeEnabledExtraKey,
+		UpstreamBillingRateSyncEnabledExtraKey,
 		UpstreamBillingProbeExtraKey,
 		OllamaCloudUsageSessionExtraKey,
 		OllamaCloudUsageAutoRefreshExtraKey,
@@ -1173,9 +1174,15 @@ func reconcileCRSUpstreamBillingProbeExtra(
 		return
 	}
 	target := &Account{Platform: targetPlatform, Type: targetType, Credentials: targetCredentials}
-	if targetPlatform == PlatformOpenAI && targetType == AccountTypeAPIKey {
+	// 探测资格已放宽到全部 API-key 平台（与 upstream_billing_probe.go 的
+	// IsUpstreamBillingProbeIdentity 同源）：平台/类型仍属探测身份的一部分，
+	// 因此开关沿用本地值，快照只在身份完全一致时保留。
+	if IsUpstreamBillingProbeIdentity(targetPlatform, targetType) {
 		if enabled, ok := existing.Extra[UpstreamBillingProbeEnabledExtraKey]; ok {
 			extra[UpstreamBillingProbeEnabledExtraKey] = enabled
+		}
+		if enabled, ok := existing.Extra[UpstreamBillingRateSyncEnabledExtraKey]; ok {
+			extra[UpstreamBillingRateSyncEnabledExtraKey] = enabled
 		}
 		if reflect.DeepEqual(upstreamBillingProbeIdentity(existing), upstreamBillingProbeIdentity(target)) {
 			if snapshot, ok := existing.Extra[UpstreamBillingProbeExtraKey]; ok {

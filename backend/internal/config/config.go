@@ -2376,6 +2376,10 @@ func setDefaults() {
 	viper.SetDefault("gateway.max_account_switches_gemini", 3)
 	viper.SetDefault("gateway.force_codex_cli", false)
 	viper.SetDefault("gateway.disable_codex_originator_normalization", false)
+	// 身份强制统一出口的开关（旧键 disable_codex_originator_normalization 为 true 时在
+	// 装载阶段取反覆盖）。注册默认值，保证环境变量 GATEWAY_DISABLE_CODEX_IDENTITY_ENFORCEMENT
+	// 在无 config.yaml 的部署里同样生效。
+	viper.SetDefault("gateway.disable_codex_identity_enforcement", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)
 	viper.SetDefault("gateway.codex_block_connector_tools", false)
 	viper.SetDefault("gateway.openai_passthrough_allow_timeout_headers", false)

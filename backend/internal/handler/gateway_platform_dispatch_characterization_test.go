@@ -190,6 +190,25 @@ func (c *p3CharStickyCache) DeleteSessionString(_ context.Context, _ int64, _ st
 	return nil
 }
 
+func (c *p3CharStickyCache) SetGrokVideoPendingBilling(_ context.Context, _ string, _ []byte, _ time.Duration) error {
+	return nil
+}
+func (c *p3CharStickyCache) GetGrokVideoPendingBilling(_ context.Context, _ string) ([]byte, error) {
+	return nil, nil
+}
+func (c *p3CharStickyCache) ClaimGrokVideoBilled(_ context.Context, _ string, _ time.Duration) (bool, error) {
+	return true, nil
+}
+func (c *p3CharStickyCache) ReleaseGrokVideoBilled(_ context.Context, _ string) error {
+	return nil
+}
+func (c *p3CharStickyCache) SetReasoningContent(_ context.Context, _ string, _ string, _ time.Duration) error {
+	return nil
+}
+func (c *p3CharStickyCache) GetReasoningContent(_ context.Context, _ string) (string, error) {
+	return "", service.ErrReasoningContentNotFound
+}
+
 func (c *p3CharStickyCache) recordedDeleteCalls() []p3CharSessionCall {
 	c.mu.Lock()
 	defer c.mu.Unlock()

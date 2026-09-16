@@ -416,7 +416,7 @@ func TestPoolModeSkippedFailoverError(t *testing.T) {
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 			body := []byte(`{"error":{"code":"bad_response_status_code","message":"openai_error"}}`)
-			failoverErr := svc.poolModeSkippedFailoverError(c, tt.account, tt.statusCode, body, "req-1")
+			failoverErr := svc.skippedErrorPolicyFailoverError(c, tt.account, tt.statusCode, body, "req-1")
 
 			if !tt.expectFailover {
 				require.Nil(t, failoverErr)

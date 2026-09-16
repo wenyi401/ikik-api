@@ -240,12 +240,19 @@ func passCharModerationService(t *testing.T, moderationBaseURL string) *service.
 }
 
 // passCharRequireWarmupMock 断言响应为预热拦截 mock（请求被放行并完成）。
+// 拦截响应刻意伪装成真实上游响应：id 为 msg_01... 形态（generateRealisticMsgID），
+// 正文为预热占位文本 "New Conversation"，因此这里断言形态而非固定字符串。
 func passCharRequireWarmupMock(t *testing.T, rec *httptest.ResponseRecorder) {
 	t.Helper()
 	require.Equal(t, http.StatusOK, rec.Code)
 	var resp map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	require.Equal(t, "msg_mock_warmup", resp["id"])
+	require.Regexp(t, `^msg_01[0-9A-Za-z]+$`, resp["id"], "预热拦截必须返回仿真 msg id")
+	content, ok := resp["content"].([]any)
+	require.True(t, ok && len(content) > 0, "预热拦截响应必须带 content")
+	first, ok := content[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "New Conversation", first["text"], "预热拦截返回占位正文")
 }
 
 // TestGatewayCharacterization_ContentModerationBlock 固化 I-7.1 拦截侧：

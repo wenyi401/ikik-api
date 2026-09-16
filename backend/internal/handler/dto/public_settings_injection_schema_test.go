@@ -31,6 +31,11 @@ func TestPublicSettingsInjectionPayload_SchemaDoesNotDrift(t *testing.T) {
 	dtoOnlyFields := map[string]string{
 		// force_email_on_third_party_signup lives on the DTO but is not injected via SSR.
 		"force_email_on_third_party_signup": "auth-source default, not a feature flag",
+		// sora_client_enabled 是 fork 早期预留的公开开关：只有 DTO 声明，
+		// 服务层没有对应配置项与写入方（恒为 false），前端也未消费，
+		// 因此 SSR 注入不需要它。将来接入真实配置时，应改为写入
+		// service.PublicSettingsInjectionPayload。
+		"sora_client_enabled": "reserved flag without producer or consumer; nothing to inject",
 	}
 
 	var missing []string

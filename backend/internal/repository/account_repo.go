@@ -846,6 +846,7 @@ func (r *accountRepository) UpdateCredentials(ctx context.Context, id int64, cre
 						)
 					)
 				THEN COALESCE(extra, '{}'::jsonb)
+					- 'upstream_billing_probe'
 					- 'ollama_cloud_usage_session'
 					- 'ollama_cloud_usage_auto_refresh'
 					- 'ollama_cloud_usage_snapshot'

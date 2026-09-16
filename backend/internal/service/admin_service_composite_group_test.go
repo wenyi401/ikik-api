@@ -51,9 +51,6 @@ func TestAdminService_CreateCompositeGroupCopiesAccountsFromConcreteGroups(t *te
 		ReasoningEffortMappings: []ReasoningEffortMapping{
 			{From: "max", To: "xhigh"},
 		},
-		Name:                     "Composite",
-		Platform:                 PlatformComposite,
-		RateMultiplier:           1,
 		CopyAccountsFromGroupIDs: []int64{10, 20, 10},
 	})
 
@@ -103,7 +100,6 @@ func TestAdminService_UpdateCompositeGroupCopiesAccountsFromConcreteGroups(t *te
 		MaxReasoningEffort:          &maxReasoningEffort,
 		MaxReasoningEffortOverLimit: &maxReasoningEffortOverLimit,
 		ReasoningEffortMappings:     &reasoningEffortMappings,
-		CopyAccountsFromGroupIDs:    []int64{10, 20},
 		CopyAccountsFromGroupIDs:    []int64{10, 20},
 	})
 
@@ -185,6 +181,13 @@ func TestAdminService_CompositeModelsListCandidatesIncludeConcreteAccountMapping
 					"model_mapping": map[string]any{"gemini-custom": "gemini-2.5-flash"},
 				},
 			},
+			{
+				ID:       3,
+				Platform: PlatformKimi,
+				Credentials: map[string]any{
+					"model_mapping": map[string]any{"kimi-custom": "kimi-k2"},
+				},
+			},
 		},
 	}
 	groupRepo := &groupRepoStubForAdmin{
@@ -199,6 +202,7 @@ func TestAdminService_CompositeModelsListCandidatesIncludeConcreteAccountMapping
 	require.NoError(t, err)
 	require.Contains(t, candidates, "gpt-custom")
 	require.Contains(t, candidates, "gemini-custom")
+	require.Contains(t, candidates, "kimi-custom")
 	require.Contains(t, candidates, "gpt-5.5")
 	require.Contains(t, candidates, "gemini-2.5-flash")
 }

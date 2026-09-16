@@ -109,5 +109,9 @@ PR 本体改动或 v0.2.4 内容；本提交比 PR 多出来的行，绝大多�
 * `vue-tsc --noEmit`：0 错误；`pnpm run build`：成功
 * 后端：`go build ./...` 通过；`go test -p 1 ./internal/...` 41 个失败，
   抽样 4 个在合并前的 worktree 上同样失败（fork 既有差异）
-* 运行期迁移验证：本机无 Docker，建议在预发执行一次 `--migrate-only`
-  （重点：235/236 号迁移只新增 `model_allowlist` 列，不重命名 fork 的 `models_list_config`）
+* 运行期迁移验证（Docker 可用后已实测）：真实 Postgres 18.1 上 378 个迁移全部应用成功，
+  `groups.model_allowlist` 为 NOT NULL DEFAULT `{}`、fork 的 `groups.models_list_config` 仍存在，
+  重放迁移后两列数据不变（详见 `docs/UPSTREAM_V024_GAP_AND_TEST_REPORT_CN.md`）
+* 后端 unit 标签测试（`-tags unit`）此前从未运行：修好 12 处编译阻塞后，`internal/service`
+  仍有 59 个用例失败（约 53 个在 upstream v0.2.4 上通过），`internal/repository` 已修复到 0；
+  根因与清单见 `docs/UPSTREAM_V024_GAP_AND_TEST_REPORT_CN.md`

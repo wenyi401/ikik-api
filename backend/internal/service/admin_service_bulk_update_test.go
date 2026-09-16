@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	infraerrors "ikik-api/internal/pkg/errors"
 	"ikik-api/internal/pkg/pagination"
 )
 
@@ -17,6 +18,8 @@ type accountRepoStubForBulkUpdate struct {
 	accountRepoStub
 	bulkUpdateErr       error
 	bulkUpdateIDs       []int64
+	bulkUpdateCalls     int
+	lastBulkUpdate      AccountBulkUpdate
 	bindGroupErrByID    map[int64]error
 	bindGroupsCalls     []int64
 	bindGroupsByAccount map[int64][]int64
@@ -57,6 +60,13 @@ func (s *accountRepoStubForBulkUpdate) BulkUpdate(_ context.Context, ids []int64
 		return 0, s.bulkUpdateErr
 	}
 	return int64(len(ids)), nil
+}
+
+func requireApplicationErrorReason(t *testing.T, err error, reason string) {
+	t.Helper()
+	var appErr *infraerrors.ApplicationError
+	require.ErrorAs(t, err, &appErr)
+	require.Equal(t, reason, appErr.Reason)
 }
 
 func (s *accountRepoStubForBulkUpdate) Create(_ context.Context, account *Account) error {

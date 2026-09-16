@@ -48,6 +48,13 @@ func TestAPIContracts(t *testing.T) {
 				"code": 0,
 				"message": "success",
 				"data": {
+					"blocked_groups": null,
+					"developer_api_enabled": false,
+					"onboarding_mode": "",
+					"openai_experimental_prompt_unlocked": false,
+					"risk_group_blocks": [],
+					"share_card_text": "",
+					"share_card_text_color": "",
 					"id": 1,
 					"email": "alice@example.com",
 					"email_bound": true,
@@ -232,6 +239,7 @@ func TestAPIContracts(t *testing.T) {
 				"code": 0,
 				"message": "success",
 				"data": {
+					"openai_experimental_prompt_enabled": false,
 					"id": 100,
 					"user_id": 1,
 					"key": "sk_custom_1234567890",
@@ -283,6 +291,7 @@ func TestAPIContracts(t *testing.T) {
 				"data": {
 					"items": [
 						{
+							"openai_experimental_prompt_enabled": false,
 							"id": 100,
 							"user_id": 1,
 							"key": "sk_custom_1234567890",
@@ -354,6 +363,8 @@ func TestAPIContracts(t *testing.T) {
 				"message": "success",
 				"data": [
 					{
+						"is_shared_pool": false,
+						"openai_experimental_prompt_enabled": false,
 						"id": 10,
 						"name": "Group One",
 						"description": "desc",
@@ -722,6 +733,10 @@ func TestAPIContracts(t *testing.T) {
 				"code": 0,
 				"message": "success",
 				"data": {
+					"model_plaza_description": "",
+					"model_plaza_enabled": false,
+					"model_plaza_require_auth": false,
+					"plugin_management_enabled": false,
 					"registration_enabled": true,
 					"email_verify_enabled": false,
 					"registration_email_suffix_whitelist": [],
@@ -1085,6 +1100,10 @@ func TestAPIContracts(t *testing.T) {
 				"code": 0,
 				"message": "success",
 				"data": {
+					"model_plaza_description": "",
+					"model_plaza_enabled": false,
+					"model_plaza_require_auth": false,
+					"plugin_management_enabled": false,
 					"registration_enabled": true,
 					"email_verify_enabled": false,
 					"registration_email_suffix_whitelist": [],

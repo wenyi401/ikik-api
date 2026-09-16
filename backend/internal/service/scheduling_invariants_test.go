@@ -131,6 +131,25 @@ func (c *schedInvGatewayCache) binding(groupID int64, hash string) int64 {
 	return c.bindings[schedInvCacheKey(groupID, hash)]
 }
 
+func (c *schedInvGatewayCache) SetGrokVideoPendingBilling(_ context.Context, _ string, _ []byte, _ time.Duration) error {
+	return nil
+}
+func (c *schedInvGatewayCache) GetGrokVideoPendingBilling(_ context.Context, _ string) ([]byte, error) {
+	return nil, nil
+}
+func (c *schedInvGatewayCache) ClaimGrokVideoBilled(_ context.Context, _ string, _ time.Duration) (bool, error) {
+	return true, nil
+}
+func (c *schedInvGatewayCache) ReleaseGrokVideoBilled(_ context.Context, _ string) error {
+	return nil
+}
+func (c *schedInvGatewayCache) SetReasoningContent(_ context.Context, _ string, _ string, _ time.Duration) error {
+	return nil
+}
+func (c *schedInvGatewayCache) GetReasoningContent(_ context.Context, _ string) (string, error) {
+	return "", ErrReasoningContentNotFound
+}
+
 // schedInvRedisGatewayCache 是 miniredis 后端的 GatewayCache，
 // 与 repository/gateway_cache.go 的键语义一致，用于验证 TTL 过期行为。
 type schedInvRedisGatewayCache struct {
@@ -169,6 +188,29 @@ func (c *schedInvRedisGatewayCache) SetSessionString(ctx context.Context, groupI
 
 func (c *schedInvRedisGatewayCache) DeleteSessionString(ctx context.Context, groupID int64, sessionHash string) error {
 	return c.rdb.Del(ctx, c.key(groupID, sessionHash)).Err()
+}
+
+func (c *schedInvRedisGatewayCache) SetGrokVideoPendingBilling(ctx context.Context, key string, payload []byte, ttl time.Duration) error {
+	return c.rdb.Set(ctx, key, payload, ttl).Err()
+}
+func (c *schedInvRedisGatewayCache) GetGrokVideoPendingBilling(ctx context.Context, key string) ([]byte, error) {
+	return c.rdb.Get(ctx, key).Bytes()
+}
+func (c *schedInvRedisGatewayCache) ClaimGrokVideoBilled(ctx context.Context, key string, ttl time.Duration) (bool, error) {
+	return c.rdb.SetNX(ctx, key, 1, ttl).Result()
+}
+func (c *schedInvRedisGatewayCache) ReleaseGrokVideoBilled(ctx context.Context, key string) error {
+	return c.rdb.Del(ctx, key).Err()
+}
+func (c *schedInvRedisGatewayCache) SetReasoningContent(ctx context.Context, itemID string, content string, ttl time.Duration) error {
+	return c.rdb.Set(ctx, itemID, content, ttl).Err()
+}
+func (c *schedInvRedisGatewayCache) GetReasoningContent(ctx context.Context, itemID string) (string, error) {
+	content, err := c.rdb.Get(ctx, itemID).Result()
+	if errors.Is(err, redis.Nil) {
+		return "", ErrReasoningContentNotFound
+	}
+	return content, err
 }
 
 // schedInvAccountRepo 构造账号 repo mock（复用 mockAccountRepoForPlatform）。
