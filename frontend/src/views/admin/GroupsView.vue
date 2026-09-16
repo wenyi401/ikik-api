@@ -4423,7 +4423,6 @@ import type {
 } from "@/types";
 import {
   COMPOSITE_ROUTE_TARGET_OPTIONS,
-  CONCRETE_PLATFORM_OPTIONS,
   GROUP_PLATFORM_OPTIONS,
 } from "@/constants/platforms";
 import type { Column } from "@/components/common/types";
@@ -4736,16 +4735,10 @@ const scopeOptions = computed(() => [
   { value: "user_carpool", label: t("carpool.title") },
 ]);
 
-const platformOptions = computed(() => [
-  { value: "anthropic", label: "Anthropic" },
-  { value: "openai", label: "OpenAI" },
-  { value: "gemini", label: "Gemini" },
-  { value: "antigravity", label: "Antigravity" },
-  { value: "grok", label: "Grok" },
-  { value: "kiro", label: "Kiro" },
-  { value: "custom", label: "Custom" },
-  { value: "composite", label: "Composite" },
-  ].filter((option) => !authStore.isSimpleMode || option.value !== "composite"),
+const platformOptions = computed(() =>
+  GROUP_PLATFORM_OPTIONS.filter(
+    (option) => !authStore.isSimpleMode || option.value !== "composite",
+  ),
 );
 
 const platformFilterOptions = computed(() => [
@@ -4754,7 +4747,7 @@ const platformFilterOptions = computed(() => [
 ]);
 
 const compositeRoutePlatformOptions = computed(() => [
-  ...CONCRETE_PLATFORM_OPTIONS,
+  ...COMPOSITE_ROUTE_TARGET_OPTIONS,
 ]);
 
 const compositeRouteEndpointOptions = computed(() => [

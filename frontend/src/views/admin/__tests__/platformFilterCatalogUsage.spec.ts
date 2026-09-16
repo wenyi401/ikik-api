@@ -16,7 +16,8 @@ describe('admin platform filters', () => {
   it('uses the shared catalogs on the groups page', () => {
     const source = readSource('src/views/admin/GroupsView.vue')
     expect(source).toContain('...GROUP_PLATFORM_OPTIONS')
-    expect(source).toContain('...CONCRETE_PLATFORM_OPTIONS')
+    // 复合路由目标必须是「可作为复合路由目标」的目录（kiro / custom 后端不接受）
+    expect(source).toContain('...COMPOSITE_ROUTE_TARGET_OPTIONS')
   })
 
   it('uses the concrete platform catalog wherever concrete platforms are selected', () => {
