@@ -503,9 +503,12 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(wrapper.text()).not.toContain('admin.accounts.cnProviders.apiProtocol.title')
     expect(wrapper.text()).not.toContain('admin.accounts.opencodeGo.protocolRules.title')
     expect(wrapper.text()).not.toContain('admin.accounts.upstreamBilling.autoProbe')
-    // 连接地址固定为 GO 网关，只读展示
-    const baseUrlInput = wrapper.get('form#create-account-form input[disabled]')
-    expect((baseUrlInput.element as HTMLInputElement).value).toBe('https://opencode.ai/zen/go/v1')
+    // 连接地址对用户完全不展示（不给填也不给看）
+    expect(wrapper.text()).not.toContain('admin.accounts.baseUrl')
+    expect(wrapper.text()).not.toContain('https://opencode.ai/zen/go/v1')
+    // Key 提示是 OpenCode 自己的，而不是 Anthropic 那套默认文案
+    expect(wrapper.text()).toContain('admin.accounts.opencodeGo.apiKeyHint')
+    expect(wrapper.text()).not.toContain('admin.accounts.apiKeyHint')
     // 用户仍可改的项：Key 与共享模式
     expect(wrapper.get('form#create-account-form input[type="password"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('userAccounts.shareMode')

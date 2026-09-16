@@ -314,6 +314,8 @@ export default {
         opencode_go: 'OpenCode',
       },
       cnProviders: {
+        apiKeyHint: '对应供应商控制台的 API Key（Kimi / 智谱 / DeepSeek / MiniMax）。',
+        baseUrlHint: '留空使用该供应商的官方端点，可按需覆盖。',
         accountMode: {
           title: '账号类型',
           payg: '按量付费',
@@ -367,8 +369,10 @@ export default {
           go: '订阅制',
           goDesc: '订阅制网关，按 5 小时 / 周 / 月滚动用量窗口限流。',
         },
-        fixedConnectionHint:
-          '使用 OpenCode 订阅（GO）官方网关，地址与协议分流由系统固定，无需填写。',
+        apiKeyHint:
+          'OpenCode 订阅（GO）的 API Key，在 opencode.ai 控制台创建，通常以 sk- 开头。',
+        baseUrlHint:
+          '使用 OpenCode 订阅（GO）官方网关，默认已填好，一般无需修改。',
         protocolRules: {
           title: '模型协议分流',
           hint: '自适应模式下按模型匹配上游协议。支持精确 ID 或末尾 * 通配（如 grok-*、qwen*）；自上而下第一条命中生效；未命中走 Chat Completions。',

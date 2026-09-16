@@ -150,12 +150,6 @@
           <p class="input-hint">{{ t(`admin.accounts.cnProviders.accountMode.${editAccountMode}Desc`) }}</p>
         </div>
 
-        <!-- 用户自有 OpenCode：连接信息固定，只读展示 -->
-        <div v-if="isUserOwnedOpenCode">
-          <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
-          <input :value="openCodeGoBaseUrl" type="text" class="input" disabled />
-          <p class="input-hint">{{ t('admin.accounts.opencodeGo.fixedConnectionHint') }}</p>
-        </div>
         <!-- API Protocol Selection (CN providers / OpenCode) -->
         <div v-if="isCNApiKeyAccount && !isUserOwnedOpenCode">
           <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.title') }}</label>
@@ -3057,7 +3051,6 @@ import {
   cnSupportsNativeResponses,
   defaultCNAdaptiveBaseUrls,
   defaultCNBaseUrl,
-  OPENCODE_GO_BASE_URL,
   isCNProviderPlatform,
   HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
   HEADER_OVERRIDES_CREDENTIAL_KEY,
@@ -3237,7 +3230,6 @@ const customProtocol = ref<CustomAccountProtocol>('openai_chat_completions')
 const isUserOwnedOpenCode = computed(
   () => isUserScope.value && props.account?.platform === 'opencode_go'
 )
-const openCodeGoBaseUrl = OPENCODE_GO_BASE_URL
 const isCNApiKeyAccount = computed(
   () =>
     props.account?.type === 'apikey' &&

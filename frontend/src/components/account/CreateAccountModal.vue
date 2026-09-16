@@ -1623,12 +1623,6 @@
             {{ t('admin.accounts.cnProviders.apiProtocol.responsesFallbackDesc') }}
           </p>
         </div>
-        <!-- 用户自有 OpenCode：连接信息固定，只读展示 -->
-        <div v-if="isUserOwnedOpenCode">
-          <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
-          <input :value="openCodeGoBaseUrl" type="text" class="input" disabled />
-          <p class="input-hint">{{ t('admin.accounts.opencodeGo.fixedConnectionHint') }}</p>
-        </div>
         <OpenCodeGoProtocolRulesEditor
           v-if="isOpenCodeGoPlatform && apiProtocol === 'adaptive' && !isUserOwnedOpenCode"
           v-model:rows="openCodeGoProtocolRules"
@@ -4114,7 +4108,6 @@ import {
   cnSupportsNativeResponses,
   defaultCNAdaptiveBaseUrls,
   defaultCNBaseUrl,
-  OPENCODE_GO_BASE_URL,
   defaultOpenCodeProtocolRules,
   isCNProviderPlatform,
   isHeaderOverridePlatform,
@@ -4194,6 +4187,8 @@ const baseUrlHint = computed(() => {
   if (form.platform === 'grok') return t('admin.accounts.grok.baseUrlHint')
   if (form.platform === 'kiro') return t('admin.accounts.kiro.baseUrlHint')
   if (form.platform === 'custom') return t('admin.accounts.custom.baseUrlHint')
+  if (form.platform === 'opencode_go') return t('admin.accounts.opencodeGo.baseUrlHint')
+  if (isCNProviderPlatform(form.platform)) return t('admin.accounts.cnProviders.baseUrlHint')
   return t('admin.accounts.baseUrlHint')
 })
 
@@ -4203,6 +4198,8 @@ const apiKeyHint = computed(() => {
   if (form.platform === 'grok') return t('admin.accounts.grok.apiKeyHint')
   if (form.platform === 'kiro') return t('admin.accounts.kiro.apiKeyHint')
   if (form.platform === 'custom') return t('admin.accounts.custom.apiKeyHint')
+  if (form.platform === 'opencode_go') return t('admin.accounts.opencodeGo.apiKeyHint')
+  if (isCNProviderPlatform(form.platform)) return t('admin.accounts.cnProviders.apiKeyHint')
   return t('admin.accounts.apiKeyHint')
 })
 
@@ -4394,7 +4391,6 @@ const isOpenCodeGoPlatform = computed(() => form.platform === 'opencode_go')
 // 用户自有 OpenCode 账号：账号模式固定 GO 订阅，base URL / 协议 / 端点 / 模型分流 /
 // 上游倍率探测属于连接层，用户不可改；名称、Key、共享、代理、分组等照旧可改。
 const isUserOwnedOpenCode = computed(() => isUserScope.value && isOpenCodeGoPlatform.value)
-const openCodeGoBaseUrl = OPENCODE_GO_BASE_URL
 const isMultiProtocolPlatform = computed(() => isCNPlatform.value || isOpenCodeGoPlatform.value)
 function currentOpenCodeOrCNMode(): CnAccountMode | OpenCodeAccountMode {
   return isOpenCodeGoPlatform.value ? openCodeAccountMode.value : accountMode.value

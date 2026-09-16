@@ -1748,11 +1748,9 @@ describe('EditAccountModal OpenAI 自动使用重置卡', () => {
     expect(wrapper.text()).not.toContain('admin.accounts.cnProviders.apiProtocol.title')
     expect(wrapper.text()).not.toContain('admin.accounts.opencodeGo.protocolRules.title')
     expect(wrapper.text()).not.toContain('admin.accounts.upstreamBilling.autoProbe')
-    // base URL 固定为 GO 网关，只读展示
-    const disabledUrls = wrapper
-      .findAll('input[disabled]')
-      .filter((input) => (input.element as HTMLInputElement).value === 'https://opencode.ai/zen/go/v1')
-    expect(disabledUrls.length).toBeGreaterThan(0)
+    // 连接地址对用户完全不展示
+    expect(wrapper.text()).not.toContain('admin.accounts.baseUrl')
+    expect(wrapper.text()).not.toContain('https://opencode.ai/zen/go/v1')
     // 用户仍可改：API Key 输入在
     expect(wrapper.find('input[type="password"]').exists()).toBe(true)
   })

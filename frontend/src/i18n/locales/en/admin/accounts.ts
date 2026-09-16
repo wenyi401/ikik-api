@@ -111,6 +111,8 @@ export default {
         opencode_go: 'OpenCode',
       },
       cnProviders: {
+        apiKeyHint: 'API key from the provider console (Kimi / Zhipu / DeepSeek / MiniMax).',
+        baseUrlHint: 'Leave empty to use the provider’s official endpoint.',
         accountMode: {
           title: 'Account Type',
           payg: 'Pay-as-you-go',
@@ -164,8 +166,10 @@ export default {
           go: 'Subscription',
           goDesc: 'Subscription gateway, rate-limited by 5-hour / weekly / monthly usage windows.',
         },
-        fixedConnectionHint:
-          'Uses the OpenCode GO subscription gateway; the base URL and protocol routing are fixed.',
+        apiKeyHint:
+          'API key of your OpenCode GO subscription, created at opencode.ai; usually starts with sk-.',
+        baseUrlHint:
+          'Uses the OpenCode GO subscription gateway; pre-filled and normally left as is.',
         protocolRules: {
           title: 'Model protocol routing',
           hint: 'In adaptive mode, each model is sent to a native upstream protocol. Use an exact ID or a trailing * glob (e.g. grok-*, qwen*). The first matching rule wins; unmatched models use Chat Completions.',
