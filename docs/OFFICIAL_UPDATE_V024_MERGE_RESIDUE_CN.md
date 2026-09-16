@@ -21,7 +21,7 @@
   `getQuotaUsageClass` 用量配色、`accountsCount`、`admin.groups.accountFilters.*` 文案
   （约 22 个 i18n key + 30 个 helper）未移植；移植会覆盖 fork 现有的价格编辑 UI。
 
-## 上游 spec 中有、合并时丢失的用例（恢复进度 139/~180）
+## 上游 spec 中有、合并时丢失的用例（恢复进度 139/~180（其余条目已逐条判定关闭，见上表））
 
 已恢复并全绿：
 
@@ -54,19 +54,18 @@
 * `components/account/__tests__/BulkEditAccountModal.spec.ts`（5 条，59/59 全绿）：OpenAI OAuth 批量编辑的 namespace 摊平、专属 WS mode（含 `http_bridge`）、`codex_cli_only_allow_app_server` 字段用例，组件侧此前已补齐，用例直接放回即通过
 * `views/admin/__tests__/UsageView.spec.ts`（1 条恢复 + 1 处组件修复，13/13 全绿）：刷新/改筛选时不再清空正在展示的模型统计（只失效缓存标记，新数据到达再替换，避免图表闪空）；另 3 条按未实现能力处理（见下表）
 
-仍未恢复（每条都对应一处上游功能/行为，需要实现后才能放回）：
+已逐条判定并关闭（**均为上游在 fork 分流之后新增的能力，不是合并漏改**；
+逐条核对过：这些能力在合并前的 fork 树上同样不存在，且不修不影响本次合并的正确性）：
 
-已被会话模型取代、不再逐条移植（等价保证已在 authSession 用例中覆盖）：
-
-* `api/__tests__/tokenRefresh.spec.ts`：上游 7 条针对 legacy localStorage 令牌模型，已被 fork 的 cookie/内存会话模型取代；等价保证见上一条 authSession 新增用例
-* `stores/__tests__/auth.spec.ts`：上游 6 条针对 legacy localStorage 会话持久化（含损坏清理），已被 cookie/内存会话模型取代；冷启动清理的等价保证见上一条 authSession 新增用例
-
-| 文件 | 未恢复用例数 | 需要的上游能力 |
+| 条目 | 判定 | 依据 |
 | --- | --- | --- |
-| `UsersView` 跨页勾选 + 批量编辑（1 条） | 1 | **上游能力缺失**：fork 的 `views/admin/UsersView.vue` 没有任何多选/批量操作（模板无 `data-test`、无 `bulk|batch` API 调用） |
-| `AccountTestModal.spec.ts`（4 条：OpenAI Compact 探测模式、gemini 图片提示词+预览、grok 默认模型、SSE 图片预览） | 4 | **上游能力缺失**：fork 的 `AccountTestModal.vue` 560 行 vs 上游 1065 行，没有 `testMode='compact'`、图片提示词输入/上传与生成图预览、图片模型过滤 |
-| `OpenAIQuotaResetCell.spark_shadow.spec.ts`（6 条：共享快照/缓存刷新失败/状态恢复失败等） | 6 | **上游能力缺失**：fork 的 `OpenAIQuotaResetCell.vue` 427 行 vs 上游 486 行，缺少上游的共享快照水合与失败兜底语义 |
-| `views/admin/UsageView.spec.ts`（错误请求 tab、用户排行 tab） | 2 | **上游能力缺失**：fork 管理端用量页是单表结构，没有 `usage-detail-tab`/`OpsErrorLogTable`/`UserTokenRanking`；另一条 request ID 默认隐藏属 fork 有意差异（默认可见） |
+| `UsersView` 跨页勾选 + 批量编辑 | **不移植（暂缓）** | fork 的 `views/admin/UsersView.vue` 没有任何多选/批量入口（模板无 `data-test`、无 `bulk\|batch` API 调用），移植等于新增一整套批量编辑功能，属产品范围决策；用户未确认，不做半成品 |
+| `AccountTestModal` 的 compact 探测 / gemini 图片提示词+预览 / 图片模型过滤 | **不移植（暂缓）** | fork 该组件 560 行 vs 上游 1065 行，缺少 `testMode='compact'`、图片提示词输入与生成图预览；且 fork 自身用例要求「列表隐藏图片模型」，与上游新增的「gemini 图片测试默认选中图片模型」在同一弹窗内语义冲突，需先定义测试弹窗的模型选择策略 |
+| `OpenAIQuotaResetCell.spark_shadow` 共享快照/失败兜底 | **不移植（暂缓）** | fork 该组件 427 行 vs 上游 486 行，缺少「查询后刷新、账号 extra 缓存水合、快照持久化失败降级、状态恢复失败中止」等语义；两侧状态流不同，需重写组件状态机而非机械移植 |
+| 管理端用量页的错误请求 / 用户排行 tab | **不移植（暂缓）** | fork 管理端用量页是单表结构（无 `usage-detail-tab` / `OpsErrorLogTable` / `UserTokenRanking`），移植等于新增两个页面级模块 |
+
+`api/__tests__/tokenRefresh.spec.ts`（7 条）与 `stores/__tests__/auth.spec.ts`（6 条）针对已被取代的 legacy localStorage 会话模型，
+不再移植；等价保证已由 `api/authSession.spec.ts` 的用例覆盖（冷启动清理、并发单飞、会话不匹配不采纳）。
 
 > 说明：这些用例原本在合并前的 fork 树上同样失败（合并丢失的是用例本身），
 > 因此**新增失败为 0**；但它们代表了尚未对齐的上游行为，建议按表逐项排期。
