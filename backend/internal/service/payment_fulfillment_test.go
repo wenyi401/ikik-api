@@ -14,7 +14,6 @@ import (
 	"ikik-api/ent/paymentauditlog"
 	"ikik-api/internal/payment"
 	infraerrors "ikik-api/internal/pkg/errors"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -121,14 +120,6 @@ func (r *paymentFulfillmentAffiliateRepoStub) GetAffiliateByCode(context.Context
 
 func (r *paymentFulfillmentAffiliateRepoStub) BindInviter(context.Context, int64, int64) (bool, error) {
 	panic("unexpected BindInviter call")
-}
-
-func (r *paymentFulfillmentAffiliateRepoStub) AdminBindInviter(context.Context, int64, int64, bool) (*AffiliateSummary, error) {
-	panic("unexpected AdminBindInviter call")
-}
-
-func (r *paymentFulfillmentAffiliateRepoStub) AdminExtendInviteRewards(context.Context, AffiliateInviteRewardExtensionRequest) (*AffiliateInviteRewardExtensionResult, error) {
-	panic("unexpected AdminExtendInviteRewards call")
 }
 
 func (r *paymentFulfillmentAffiliateRepoStub) AccrueQuota(_ context.Context, inviterID, inviteeUserID int64, amount float64, freezeHours int, sourceOrderID *int64) (bool, error) {
@@ -1193,14 +1184,20 @@ func TestExecuteSubscriptionFulfillmentAppliesAffiliateRebate(t *testing.T) {
 	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
 	require.NoError(t, err)
 	require.Equal(t, OrderStatusCompleted, reloaded.Status)
-	require.Empty(t, affiliateRepo.accrueCalls)
+	require.Len(t, affiliateRepo.accrueCalls, 1)
+	require.Equal(t, inviterID, affiliateRepo.accrueCalls[0].inviterID)
+	require.Equal(t, user.ID, affiliateRepo.accrueCalls[0].inviteeUserID)
+	require.InDelta(t, 1.4985, affiliateRepo.accrueCalls[0].amount, 0.00000001)
+	require.NotNil(t, affiliateRepo.accrueCalls[0].sourceOrderID)
+	require.Equal(t, order.ID, *affiliateRepo.accrueCalls[0].sourceOrderID)
 	require.Equal(t, 1, subRepo.createCalls)
 
-	appliedCount, err := client.PaymentAuditLog.Query().
+	applied, err := client.PaymentAuditLog.Query().
 		Where(paymentauditlog.OrderIDEQ(strconv.FormatInt(order.ID, 10)), paymentauditlog.ActionEQ("AFFILIATE_REBATE_APPLIED")).
-		Count(ctx)
+		Only(ctx)
 	require.NoError(t, err)
-	require.Zero(t, appliedCount)
+	require.Contains(t, applied.Detail, `"baseAmount":9.99`)
+	require.Contains(t, applied.Detail, `"rebateAmount":1.4985`)
 }
 
 func TestExecuteSubscriptionFulfillmentDoesNotDuplicateWorkAfterLegacySuccessAudit(t *testing.T) {
@@ -1292,3 +1289,11 @@ func TestExecuteSubscriptionFulfillmentDoesNotDuplicateWorkAfterLegacySuccessAud
 
 var _ AffiliateRepository = (*paymentFulfillmentAffiliateRepoStub)(nil)
 var _ SettingRepository = (*paymentFulfillmentSettingRepoStub)(nil)
+
+func (r *paymentFulfillmentAffiliateRepoStub) AdminBindInviter(context.Context, int64, int64, bool) (*AffiliateSummary, error) {
+	panic("unexpected AdminBindInviter call")
+}
+
+func (r *paymentFulfillmentAffiliateRepoStub) AdminExtendInviteRewards(context.Context, AffiliateInviteRewardExtensionRequest) (*AffiliateInviteRewardExtensionResult, error) {
+	panic("unexpected AdminExtendInviteRewards call")
+}

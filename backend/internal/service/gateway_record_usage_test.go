@@ -11,7 +11,6 @@ import (
 
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/ctxkey"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -176,12 +175,11 @@ func TestGatewayServiceRecordUsage_PreservesRequestedAndUpstreamModels(t *testin
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
 		Result: &ForwardResult{
-			RequestID:             "gateway_models_split",
-			Usage:                 ClaudeUsage{InputTokens: 10, OutputTokens: 6},
-			Model:                 "claude-sonnet-4",
-			UpstreamModel:         mappedModel,
-			UpstreamResponseModel: mappedModel,
-			Duration:              time.Second,
+			RequestID:     "gateway_models_split",
+			Usage:         ClaudeUsage{InputTokens: 10, OutputTokens: 6},
+			Model:         "claude-sonnet-4",
+			UpstreamModel: mappedModel,
+			Duration:      time.Second,
 		},
 		APIKey:  &APIKey{ID: 501, Quota: 100},
 		User:    &User{ID: 601},
@@ -194,34 +192,6 @@ func TestGatewayServiceRecordUsage_PreservesRequestedAndUpstreamModels(t *testin
 	require.Equal(t, "claude-sonnet-4", usageRepo.lastLog.RequestedModel)
 	require.NotNil(t, usageRepo.lastLog.UpstreamModel)
 	require.Equal(t, mappedModel, *usageRepo.lastLog.UpstreamModel)
-	require.NotNil(t, usageRepo.lastLog.UpstreamResponseModel)
-	require.Equal(t, mappedModel, *usageRepo.lastLog.UpstreamResponseModel)
-	require.NotNil(t, usageRepo.lastLog.UpstreamModelMismatch)
-	require.False(t, *usageRepo.lastLog.UpstreamModelMismatch)
-}
-
-func TestGatewayServiceRecordUsage_RecordsUpstreamModelMismatch(t *testing.T) {
-	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-	svc := newGatewayRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
-
-	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
-			RequestID:             "gateway_model_mismatch",
-			Usage:                 ClaudeUsage{InputTokens: 10, OutputTokens: 6},
-			Model:                 "claude-sonnet-4",
-			UpstreamModel:         "claude-sonnet-4-20250514",
-			UpstreamResponseModel: "claude-opus-4",
-			Duration:              time.Second,
-		},
-		APIKey:  &APIKey{ID: 501, Quota: 100},
-		User:    &User{ID: 601},
-		Account: &Account{ID: 701},
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, usageRepo.lastLog)
-	require.NotNil(t, usageRepo.lastLog.UpstreamModelMismatch)
-	require.True(t, *usageRepo.lastLog.UpstreamModelMismatch)
 }
 
 func TestGatewayServiceRecordUsage_GeminiFlashThinkingTierUsesCatalogPrice(t *testing.T) {
@@ -722,12 +692,14 @@ func TestGatewayServiceRecordUsage_BillingErrorWritesUnsettledUsageLog(t *testin
 		Account: &Account{ID: 705},
 	})
 
-	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, billingErr)
 	require.Equal(t, 1, billingRepo.calls)
 	require.Equal(t, 1, usageRepo.calls)
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, 10, usageRepo.lastLog.InputTokens)
 	require.Equal(t, 6, usageRepo.lastLog.OutputTokens)
+	require.Greater(t, usageRepo.lastLog.InputCost, 0.0)
+	require.Greater(t, usageRepo.lastLog.OutputCost, 0.0)
 	require.Greater(t, usageRepo.lastLog.TotalCost, 0.0)
 	require.Zero(t, usageRepo.lastLog.ActualCost)
 }

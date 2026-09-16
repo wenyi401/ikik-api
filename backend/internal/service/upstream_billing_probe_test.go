@@ -15,7 +15,6 @@ import (
 
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/tlsfingerprint"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -111,7 +110,12 @@ func (r *upstreamBillingProbeAccountRepo) UpdateExtra(_ context.Context, id int6
 	return nil
 }
 
-func (r *upstreamBillingProbeAccountRepo) UpdateUpstreamBillingProbeSnapshot(_ context.Context, expected *Account, snapshot *UpstreamBillingProbeSnapshot, rateMultiplier *float64) error {
+func (r *upstreamBillingProbeAccountRepo) UpdateUpstreamBillingProbeSnapshot(
+	_ context.Context,
+	expected *Account,
+	snapshot *UpstreamBillingProbeSnapshot,
+	rateMultiplier *float64,
+) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	account := r.accounts[expected.ID]
@@ -122,7 +126,9 @@ func (r *upstreamBillingProbeAccountRepo) UpdateUpstreamBillingProbeSnapshot(_ c
 		account.Extra = make(map[string]any)
 	}
 	account.Extra[UpstreamBillingProbeExtraKey] = snapshot
-	if snapshot.Status == UpstreamBillingProbeStatusOK && rateMultiplier != nil && upstreamBillingRateSyncEnabled(account) {
+	if snapshot.Status == UpstreamBillingProbeStatusOK &&
+		rateMultiplier != nil &&
+		upstreamBillingRateSyncEnabled(account) {
 		value := *rateMultiplier
 		account.RateMultiplier = &value
 	}
@@ -883,6 +889,7 @@ func TestUpstreamBillingProbeUnsupportedAndAccountToggle(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, UpstreamBillingProbeStatusUnsupported, snapshot.Status)
 	require.Equal(t, "unsupported", snapshot.LastError)
+	// unsupported 走加长退避：默认 30 分钟 interval ⇒ (24~36) * 8 分钟。
 	require.False(t, snapshot.NextProbeAt.Before(fixedNow.Add(192*time.Minute)))
 	require.False(t, snapshot.NextProbeAt.After(fixedNow.Add(288*time.Minute)))
 

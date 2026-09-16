@@ -30,6 +30,8 @@ const (
 	AntigravityCredentialRejectedReason GatewayFailureReason = "antigravity_oauth_credential_rejected"
 )
 
+const antigravityCompatMaxTokens = 64000
+
 type antigravityCompatRequest struct {
 	protocol        antigravityCompatProtocol
 	originalBody    []byte
@@ -159,7 +161,7 @@ func preserveChatCompletionTokenLimit(request *apicompat.ChatCompletionsRequest,
 		limit = request.MaxCompletionTokens
 	}
 	if limit != nil && *limit > 0 {
-		claudeRequest.MaxTokens = *limit
+		claudeRequest.MaxTokens = min(*limit, antigravityCompatMaxTokens)
 	}
 }
 
@@ -262,6 +264,10 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 ) ([]byte, error) {
 	if strings.HasPrefix(strings.ToLower(mappedModel), "gemini-") {
 		body, err := convertClaudeMessagesToGeminiGenerateContent(claudeBody)
+		if err != nil {
+			return nil, err
+		}
+		body, err = enableMixedGeminiToolInvocations(body)
 		if err != nil {
 			return nil, err
 		}
@@ -532,4 +538,36 @@ func (s *AntigravityGatewayService) mapAntigravityCompatCollectionError(c *gin.C
 		return s.writeAntigravityCompatError(c, http.StatusBadGateway, "response_too_large", "Upstream response line too long")
 	}
 	return s.writeAntigravityCompatError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
+}
+
+func enableMixedGeminiToolInvocations(body []byte) ([]byte, error) {
+	var request map[string]any
+	if err := json.Unmarshal(body, &request); err != nil {
+		return nil, err
+	}
+
+	var hasGoogleSearch, hasFunctionDeclarations bool
+	if tools, ok := request["tools"].([]any); ok {
+		for _, rawTool := range tools {
+			tool, ok := rawTool.(map[string]any)
+			if !ok {
+				continue
+			}
+			_, hasSearch := tool["googleSearch"]
+			declarations, hasFunctions := tool["functionDeclarations"].([]any)
+			hasGoogleSearch = hasGoogleSearch || hasSearch
+			hasFunctionDeclarations = hasFunctionDeclarations || hasFunctions && len(declarations) > 0
+		}
+	}
+	if !hasGoogleSearch || !hasFunctionDeclarations {
+		return body, nil
+	}
+
+	toolConfig, _ := request["toolConfig"].(map[string]any)
+	if toolConfig == nil {
+		toolConfig = make(map[string]any)
+		request["toolConfig"] = toolConfig
+	}
+	toolConfig["includeServerSideToolInvocations"] = true
+	return json.Marshal(request)
 }

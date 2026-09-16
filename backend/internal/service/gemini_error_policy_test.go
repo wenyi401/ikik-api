@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"ikik-api/internal/config"
-
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -370,12 +369,12 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestPoolModeSkippedFailoverError — pool-mode accounts hitting
-// ErrorPolicySkipped must failover (align with other platform forwards)
-// instead of passing the upstream error through to the client.
+// TestSkippedErrorPolicyFailoverError — ErrorPolicySkipped（池模式、或自定义
+// 错误码未命中）不豁免换号：可 failover 的状态码返回 UpstreamFailoverError，
+// 仅池模式账号可携带同账号重试标记。
 // ---------------------------------------------------------------------------
 
-func TestPoolModeSkippedFailoverError(t *testing.T) {
+func TestSkippedErrorPolicyFailoverError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := &GeminiMessagesCompatService{}
 
@@ -385,6 +384,13 @@ func TestPoolModeSkippedFailoverError(t *testing.T) {
 			creds[k] = v
 		}
 		return &Account{ID: 300, Type: AccountTypeAPIKey, Platform: PlatformGemini, Credentials: creds}
+	}
+	customCodesAccount := &Account{
+		ID: 301, Type: AccountTypeAPIKey, Platform: PlatformGemini,
+		Credentials: map[string]any{
+			"custom_error_codes_enabled": true,
+			"custom_error_codes":         []any{float64(429)},
+		},
 	}
 
 	tests := []struct {
@@ -400,13 +406,8 @@ func TestPoolModeSkippedFailoverError(t *testing.T) {
 			"pool_mode_retry_status_codes": []any{float64(500)},
 		}), 500, true, true},
 		{"pool_400_not_failover_worthy", poolAccount(nil), 400, false, false},
-		{"non_pool_account_keeps_passthrough", &Account{
-			ID: 301, Type: AccountTypeAPIKey, Platform: PlatformGemini,
-			Credentials: map[string]any{
-				"custom_error_codes_enabled": true,
-				"custom_error_codes":         []any{float64(429)},
-			},
-		}, 500, false, false},
+		{"custom_codes_miss_500_failover_no_same_account_retry", customCodesAccount, 500, true, false},
+		{"custom_codes_miss_400_not_failover_worthy", customCodesAccount, 400, false, false},
 	}
 
 	for _, tt := range tests {

@@ -195,6 +195,7 @@ func TestAdminService_UpdateUserBalance_AdminRechargeAffiliateRebate(t *testing.
 		enabled   bool
 		operation string
 		amount    float64
+		wantCalls []adminRechargeAffiliateAccrual
 	}{
 		{
 			name:      "disabled by default",
@@ -206,6 +207,7 @@ func TestAdminService_UpdateUserBalance_AdminRechargeAffiliateRebate(t *testing.
 			enabled:   true,
 			operation: "add",
 			amount:    0.1,
+			wantCalls: []adminRechargeAffiliateAccrual{{userID: 7, amount: 0.1}},
 		},
 		{
 			name:      "enabled set increase",
@@ -236,7 +238,7 @@ func TestAdminService_UpdateUserBalance_AdminRechargeAffiliateRebate(t *testing.
 
 			_, err := svc.UpdateUserBalance(context.Background(), 7, tt.amount, tt.operation, "")
 			require.NoError(t, err)
-			require.Empty(t, affiliate.calls)
+			require.Equal(t, tt.wantCalls, affiliate.calls)
 		})
 	}
 }

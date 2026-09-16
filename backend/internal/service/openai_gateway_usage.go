@@ -594,6 +594,7 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 			return s.calculateOpenAIImageCost(ctx, billingModel, apiKey, result, imageMultiplier), nil
 		}
 	}
+
 	// Token path (optional search surcharge is additive — never replaces token cost).
 	var tokenCost *CostBreakdown
 	var lastErr error
@@ -636,11 +637,12 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 		}
 		searchCost = s.billingService.CalculateSearchCost(result.SearchCount, price, webSearchMultiplier)
 	}
+
 	tokenBillingAttempted := len(billingModels) > 0 && billingModel != ""
 	if tokenCost == nil {
 		if tokenBillingAttempted {
 			if lastErr == nil {
-				lastErr = errors.New("no non-empty billing model candidates")
+				lastErr = fmt.Errorf("%w: no non-empty billing model candidates", ErrModelPricingUnavailable)
 			}
 			return nil, fmt.Errorf("calculate OpenAI usage cost failed for billing models %s: %w", strings.Join(billingModels, ","), lastErr)
 		}
@@ -648,8 +650,11 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 		if searchCost != nil {
 			return searchCost, nil
 		}
+		// 空候选按「无价可循」处理并携带 ErrModelPricingUnavailable：上层据此走
+		// 零成本+告警落账，而不是丢弃整条 usage 记录。CN 账号的 claude-* 候选被
+		// filterCNProviderBillingModelCandidates 全数过滤后即落到这里。
 		if lastErr == nil {
-			lastErr = errors.New("openai usage billing model is empty")
+			lastErr = fmt.Errorf("%w: openai usage billing model is empty", ErrModelPricingUnavailable)
 		}
 		return nil, fmt.Errorf("calculate OpenAI usage cost failed for billing models %s: %w", strings.Join(billingModels, ","), lastErr)
 	}

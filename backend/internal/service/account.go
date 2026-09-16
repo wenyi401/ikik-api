@@ -230,9 +230,8 @@ func (a *Account) IsSchedulableAt(now time.Time) bool {
 	if !a.IsActive() || !a.Schedulable {
 		return false
 	}
-	if !a.IsProxyUsableAt(now) {
-		return false
-	}
+	// 与官方一致：调度可调度性不依赖代理是否已加载（代理状态由后续代理闸门与
+	// 转发阶段判定；未加载代理不视为不可用）。ProxyStateAt 语义保持不变。
 	if a.AutoPauseOnExpired && a.ExpiresAt != nil && !now.Before(*a.ExpiresAt) {
 		return false
 	}

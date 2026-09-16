@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"ikik-api/internal/config"
-
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -388,10 +387,7 @@ func TestOpenAIResponseFlush_FailedAndErrorEventsFlushAtBoundaries(t *testing.T)
 		require.Contains(t, flushes[1], "response.failed")
 	})
 
-	t.Run("retryable error event buffered until terminal", func(t *testing.T) {
-		// 可重试类 error 帧不算客户端输出：保持在 attempt 缓冲中不单独 flush，
-		// 为随后可能到达的 response.failed 保留 pre-output failover 能力，
-		// 与终止帧一起出站。
+	t.Run("bare error synthesizes failed before done", func(t *testing.T) {
 		body := "data: {\"type\":\"error\",\"error\":{\"message\":\"failed\"}}\n\n" +
 			"data: [DONE]\n\n"
 		recorder := newOpenAIResponseFlushRecorder()
@@ -401,22 +397,11 @@ func TestOpenAIResponseFlush_FailedAndErrorEventsFlushAtBoundaries(t *testing.T)
 		require.Error(t, err)
 		require.NotNil(t, result)
 		gotBody, flushes := recorder.snapshot()
-		require.Equal(t, body, gotBody)
+		require.NotContains(t, gotBody, `"type":"error"`)
+		require.Equal(t, 1, strings.Count(gotBody, `"type":"response.failed"`))
+		require.Contains(t, gotBody, `"status":"failed"`)
+		require.NotContains(t, gotBody, "[DONE]")
 		require.Len(t, flushes, 1)
-	})
-
-	t.Run("non-retryable error event flushes at boundary", func(t *testing.T) {
-		body := "data: {\"type\":\"error\",\"error\":{\"code\":\"invalid_request\",\"message\":\"bad request\"}}\n\n" +
-			"data: [DONE]\n\n"
-		recorder := newOpenAIResponseFlushRecorder()
-
-		result, err := runOpenAIResponseFlushTest(recorder, io.NopCloser(strings.NewReader(body)), config.GatewayConfig{})
-
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		gotBody, flushes := recorder.snapshot()
-		require.Equal(t, body, gotBody)
-		require.Len(t, flushes, 2)
 	})
 
 	t.Run("bare error forwards following failed and drains terminal usage", func(t *testing.T) {

@@ -1215,37 +1215,10 @@ func normalizedEmailUniquenessLockKey(email string) string {
 const emailAliasCandidateLimit = 50
 
 func existsByEmailAliasWithClient(ctx context.Context, client *dbent.Client, email string) (bool, error) {
-	client = clientFromContext(ctx, client)
-	if client == nil {
-		return false, nil
-	}
-	probes := service.EmailAliasDedupProbes(email)
-	if len(probes) == 0 {
-		return false, nil
-	}
-	predicates := make([]predicate.User, 0, 2*len(probes))
-	for _, probe := range probes {
-		predicates = append(predicates,
-			dotStrippedEmailEQ(probe.Local+"@"+probe.Domain),
-			dotStrippedEmailLike(escapeLikeWildcards(probe.Local)+"+%@"+escapeLikeWildcards(probe.Domain)),
-		)
-	}
-	candidates, err := client.User.Query().
-		Where(dbuser.Or(predicates...)).
-		Limit(emailAliasCandidateLimit).
-		Select(dbuser.FieldEmail).
-		Strings(ctx)
-	if err != nil {
-		return false, err
-	}
-	identity := service.NormalizeEmailForAliasDedup(email)
-	for _, candidate := range candidates {
-		if service.NormalizeEmailForAliasDedup(candidate) == identity {
-			return true, nil
-		}
-	}
-	return false, nil
+	_, exists, err := emailAliasOwnerIDWithClient(ctx, client, email, 0)
+	return exists, err
 }
+
 
 func dotStrippedEmailExpr(builder *entsql.Builder, selector *entsql.Selector) *entsql.Builder {
 	return builder.WriteString("REPLACE(LOWER(TRIM(").
@@ -1643,4 +1616,137 @@ func (r *userRepository) DisableTotp(ctx context.Context, userID int64) error {
 		return translatePersistenceError(err, service.ErrUserNotFound, nil)
 	}
 	return nil
+}
+
+func emailAliasOwnerIDWithClient(ctx context.Context, client *dbent.Client, email string, currentUserID int64) (int64, bool, error) {
+	if client == nil {
+		return 0, false, nil
+	}
+	probes := service.EmailAliasDedupProbes(email)
+	if len(probes) == 0 {
+		return 0, false, nil
+	}
+
+	preds := make([]predicate.User, 0, 2*len(probes))
+	for _, probe := range probes {
+		preds = append(preds,
+			dotStrippedEmailEQ(probe.Local+"@"+probe.Domain),
+			// "+后缀"的内容未知，只能按前缀匹配。
+			dotStrippedEmailLike(escapeLikeWildcards(probe.Local)+"+%@"+escapeLikeWildcards(probe.Domain)),
+		)
+	}
+	candidates, err := client.User.Query().
+		Where(dbuser.Or(preds...)).
+		Limit(emailAliasCandidateLimit).
+		Select(dbuser.FieldID, dbuser.FieldEmail).
+		All(ctx)
+	if err != nil {
+		return 0, false, err
+	}
+
+	// 探针会有过度匹配（点号只在 Gmail 家族无意义），最终判定必须回到完整归一化规则。
+	// 返回“其他用户”优先于当前用户，避免历史重复数据让调用方误判为仅当前用户占用。
+	identity := service.NormalizeEmailForAliasDedup(email)
+	var selfID int64
+	selfExists := false
+	for _, candidate := range candidates {
+		if service.NormalizeEmailForAliasDedup(candidate.Email) != identity {
+			continue
+		}
+		if candidate.ID != 0 && candidate.ID != currentUserID {
+			return candidate.ID, true, nil
+		}
+		if candidate.ID == currentUserID {
+			selfID = candidate.ID
+			selfExists = true
+		}
+	}
+	return selfID, selfExists, nil
+}
+
+func (r *userRepository) UpdateEmailWithAliasGuard(
+	ctx context.Context,
+	userID int64,
+	email string,
+	passwordHash string,
+) error {
+	if userID <= 0 {
+		return service.ErrUserNotFound
+	}
+	if strings.TrimSpace(email) == "" || passwordHash == "" {
+		return fmt.Errorf("email identity update requires email and password hash")
+	}
+	tx := dbent.TxFromContext(ctx)
+	if tx == nil {
+		return fmt.Errorf("email identity update requires a transaction")
+	}
+	client := tx.Client()
+
+	releaseEmailLock, err := lockRepositoryScopedKeys(
+		ctx,
+		client,
+		txAwareSQLExecutor(ctx, r.sql, r.client),
+		normalizedEmailUniquenessLockKey(email),
+		emailAliasUniquenessLockKey(email),
+	)
+	if err != nil {
+		return err
+	}
+	defer releaseEmailLock()
+
+	ownerID, exists, err := emailAliasOwnerIDWithClient(ctx, client, email, userID)
+	if err != nil {
+		return err
+	}
+	if exists && ownerID != userID {
+		return service.ErrEmailExists
+	}
+
+	if _, err := client.User.UpdateOneID(userID).
+		SetEmail(email).
+		SetPasswordHash(passwordHash).
+		Save(ctx); err != nil {
+		return translatePersistenceError(err, service.ErrUserNotFound, service.ErrEmailExists)
+	}
+	return nil
+}
+
+func (r *userRepository) DeductAvailableBalance(ctx context.Context, id int64, amount float64) (deducted float64, err error) {
+	if amount < 0 {
+		return 0, fmt.Errorf("deduction amount must be nonnegative")
+	}
+	const updateSQL = `
+		WITH target AS (
+			SELECT id, balance
+			FROM users
+			WHERE id = $2 AND deleted_at IS NULL
+			FOR UPDATE
+		), updated AS (
+			UPDATE users AS u
+			SET balance = target.balance - LEAST($1, GREATEST(target.balance, 0)), updated_at = NOW()
+			FROM target
+			WHERE u.id = target.id AND u.deleted_at IS NULL
+			RETURNING target.balance - u.balance AS deducted
+		)
+		SELECT deducted FROM updated
+	`
+	rows, err := clientFromContext(ctx, r.client).QueryContext(ctx, updateSQL, amount, id)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+	if !rows.Next() {
+		if rowsErr := rows.Err(); rowsErr != nil {
+			return 0, rowsErr
+		}
+		return 0, service.ErrUserNotFound
+	}
+	if err := rows.Scan(&deducted); err != nil {
+		return 0, err
+	}
+	return deducted, rows.Err()
 }

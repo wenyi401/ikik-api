@@ -1052,13 +1052,20 @@ func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([
 		subscribedGroupIDList = append(subscribedGroupIDList, sub.GroupID)
 	}
 
-	visibleGroupRepo, ok := s.groupRepo.(groupCapacityVisibleGroupRepository)
-	if !ok {
-		return nil, ErrServiceUnavailable
-	}
-	allGroups, err := visibleGroupRepo.ListActiveVisibleToUser(ctx, userID, subscribedGroupIDList)
-	if err != nil {
-		return nil, fmt.Errorf("list active groups visible to user: %w", err)
+	// 容量可见分组仓储是增强能力：支持时按其可见性收窄候选，不支持时回退到
+	// 全部活跃分组（与官方一致），由 canUserBindGroupInternal 逐组判定权限，
+	// 避免因仓储缺少该能力而整体 503。
+	var allGroups []Group
+	if visibleGroupRepo, ok := s.groupRepo.(groupCapacityVisibleGroupRepository); ok {
+		allGroups, err = visibleGroupRepo.ListActiveVisibleToUser(ctx, userID, subscribedGroupIDList)
+		if err != nil {
+			return nil, fmt.Errorf("list active groups visible to user: %w", err)
+		}
+	} else {
+		allGroups, err = s.groupRepo.ListActive(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list active groups: %w", err)
+		}
 	}
 
 	// 过滤出用户有权限的分组

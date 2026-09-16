@@ -9,17 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"ikik-api/internal/config"
-	"ikik-api/internal/pkg/ctxkey"
+	"github.com/stretchr/testify/require"
 )
-
-type carpoolRateLimitRepoStub struct {
-	CarpoolRepository
-	pool     *CarpoolPool
-	accounts []CarpoolPoolAccount
-}
 
 type oauth429RateLimitRepo struct {
 	mockAccountRepoForGemini
@@ -43,12 +35,6 @@ func (r *oauth429RateLimitRepo) SetModelRateLimit(_ context.Context, _ int64, sc
 	return nil
 }
 
-func (r *carpoolRateLimitRepoStub) GetPoolByGroupID(context.Context, int64) (*CarpoolPool, error) {
-	return r.pool, nil
-}
-func (r *carpoolRateLimitRepoStub) ListPoolAccounts(context.Context, int64) ([]CarpoolPoolAccount, error) {
-	return r.accounts, nil
-}
 func TestOpenAI429FastPath_KeepsOAuthAccountSchedulableDuringRetryWindow(t *testing.T) {
 	repo := &oauth429RateLimitRepo{}
 	rateLimits := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
@@ -731,55 +717,6 @@ func TestOpenAIOAuth429_NonmatchingModelTempRuleKeepsAccountRuntimeBlock(t *test
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
 	require.True(t, svc.shouldRetryOpenAIOAuth429OnSameAccount(account, http.StatusTooManyRequests, false))
 	require.Empty(t, repo.modelRateLimitCalls)
-}
-
-func TestOpenAICarpool429_MatchingModelTempRuleStillSkipsPersistentRateLimit(t *testing.T) {
-	const (
-		accountID = int64(248)
-		groupID   = int64(249)
-		ownerID   = int64(250)
-		poolID    = int64(251)
-	)
-	repo := &modelNotFoundAccountRepoStub{}
-	groupRef := groupID
-	svc := &OpenAIGatewayService{
-		rateLimitService: &RateLimitService{accountRepo: repo},
-		carpoolRepo: &carpoolRateLimitRepoStub{
-			pool: &CarpoolPool{
-				ID:          poolID,
-				OwnerUserID: ownerID,
-				GroupID:     &groupRef,
-				Status:      CarpoolPoolStatusFull,
-			},
-			accounts: []CarpoolPoolAccount{{PoolID: poolID, AccountID: accountID}},
-		},
-	}
-	account := openAIModelNotFoundTempAccount()
-	account.ID = accountID
-	account.Type = AccountTypeOAuth
-	account.Credentials["temp_unschedulable_rules"] = []any{
-		map[string]any{
-			"error_code":       float64(http.StatusTooManyRequests),
-			"keywords":         []any{"model quota"},
-			"duration_minutes": float64(10),
-		},
-	}
-	ctx := context.WithValue(context.Background(), ctxkey.AuthenticatedUserID, ownerID)
-	ctx = context.WithValue(ctx, ctxkey.Group, &Group{ID: groupID})
-
-	shouldDisable := svc.handleOpenAIAccountUpstreamError(
-		ctx,
-		account,
-		http.StatusTooManyRequests,
-		http.Header{},
-		[]byte(`{"error":{"message":"model quota exhausted"}}`),
-		"gpt-5.4",
-	)
-
-	require.False(t, shouldDisable)
-	require.Empty(t, repo.modelRateLimitCalls)
-	require.Zero(t, repo.tempCalls)
-	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
 }
 
 func TestOpenAITempUnschedulable_UnknownModelKeepsAccountRuntimeBlock(t *testing.T) {

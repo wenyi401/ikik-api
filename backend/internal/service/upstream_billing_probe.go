@@ -599,20 +599,26 @@ func (s *UpstreamBillingProbeService) probeLoadedAccount(ctx context.Context, ac
 	if s.accountTestService == nil || s.accountTestService.httpUpstream == nil {
 		return s.persistProbeFailure(ctx, account, intervalMinutes, now, 0, "transport_unavailable", 0)
 	}
+	// 平台放宽后取数直读 credentials：所有 API-key 平台的密钥与自定义上游
+	// 统一存放在 credentials.api_key / credentials.base_url。
 	apiKey := account.GetCredential("api_key")
 	if apiKey == "" {
 		return s.persistProbeFailure(ctx, account, intervalMinutes, now, 0, "missing_api_key", 0)
 	}
 	baseURL := account.GetCredential("base_url")
+	if account.IsCNProvider() && account.IsAdaptiveAPIProtocol() {
+		baseURL = account.GetCNProtocolBaseURL(APIProtocolChatCompletions)
+	}
 	if account.Platform == PlatformOpenAI {
 		if baseURL == "" {
-			// Preserve the OpenAI behavior: its official endpoint answers the
-			// probe convention when a compatible deployment implements it.
+			// 保持官方语义：OpenAI 账号无自定义 base 时探官方域（404 → unsupported）。
 			baseURL = "https://api.openai.com"
 		}
 	} else if upstreamBillingProbeTargetIsOfficialAPI(baseURL) {
-		// Other platforms' official APIs do not expose this Sub2API endpoint.
-		// Do not periodically send account keys to a guaranteed-missing path.
+		// 其他平台 base_url 为空或指向官方 API 根域（前端创建时会把空值
+		// 填成官方默认域，且提供 us-east-1.api.x.ai 等官方区域预设）⇒
+		// 必无 /v1/sub2api/billing；不发请求，直接记 unsupported，避免
+		// 拿账号 Key 周期性请求官方域的不存在路径。
 		return s.persistProbeFailure(ctx, account, intervalMinutes, now, 0, "unsupported", 0)
 	}
 	normalizedBaseURL, err := s.accountTestService.validateUpstreamBaseURL(baseURL)
@@ -636,6 +642,7 @@ func (s *UpstreamBillingProbeService) probeLoadedAccount(ctx context.Context, ac
 	if err != nil {
 		return s.persistProbeFailure(ctx, account, intervalMinutes, now, 0, "request_build_failed", 0)
 	}
+	// OpenAI 账号保持官方 openai 传输画像；其他平台探测走默认画像。
 	profile := HTTPUpstreamProfileDefault
 	if account.Platform == PlatformOpenAI {
 		profile = HTTPUpstreamProfileOpenAI
@@ -683,6 +690,9 @@ func (s *UpstreamBillingProbeService) probeLoadedAccount(ctx context.Context, ac
 		NextProbeAt:   now.Add(nextProbeDelay(intervalMinutes, 0)),
 		HTTPStatus:    resp.StatusCode,
 	}
+	// 账号级值域与精度只在真要写回时才有影响：只观察上游声明、未开启同步的
+	// 账号不因声明值不适配 accounts.rate_multiplier 而被记成探测失败并进入
+	// 指数退避——探测本身成功了，原始声明照常存进快照供展示。
 	var syncRate *float64
 	previousRate := account.BillingRateMultiplier()
 	if upstreamBillingRateSyncEnabled(account) {
@@ -704,6 +714,8 @@ func (s *UpstreamBillingProbeService) probeLoadedAccount(ctx context.Context, ac
 		return nil, err
 	}
 	if syncRate != nil {
+		// 写回是后台任务的裸 SQL，不经过管理端路由，因此不会产生 audit_logs 行。
+		// old_rate_multiplier 是本次探测开始时读到的值（写回的 CAS 不比对该列）。
 		slog.Info("upstream_billing_rate_sync_applied",
 			"source", "upstream_billing_probe",
 			"account_id", account.ID,

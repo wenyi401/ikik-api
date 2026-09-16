@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"ikik-api/internal/config"
-
 	"github.com/stretchr/testify/require"
 )
 

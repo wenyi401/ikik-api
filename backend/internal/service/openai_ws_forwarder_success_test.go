@@ -16,7 +16,6 @@ import (
 
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/openai"
-
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"

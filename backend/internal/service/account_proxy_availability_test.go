@@ -35,7 +35,9 @@ func TestAccountProxyAvailabilityControlsScheduling(t *testing.T) {
 				Proxy:       tt.proxy,
 			}
 			require.Equal(t, tt.state, account.ProxyStateAt(now))
-			require.Equal(t, tt.state == AccountProxyStateAvailable, account.IsSchedulableAt(now))
+			// 与官方语义对齐：调度可调度性不再绑定代理状态（代理未加载/过期不阻止
+			// 进入候选池；代理可用性由代理闸门与转发阶段判定）。
+			require.True(t, account.IsSchedulableAt(now))
 		})
 	}
 }

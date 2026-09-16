@@ -101,6 +101,15 @@ func geminiPartIsInlineImage(part gjson.Result) bool {
 	return strings.TrimSpace(inline.Get("data").String()) != ""
 }
 
+// isGeminiInlineImageMIMEType 仅接受官方支持的四种内联图片 MIME。
+// 与官方一致：任意的 image/*（如 image/svg+xml）以及带参数的 MIME
+// （image/png; charset=utf-8）都不算合法内联图片，避免把不可渲染的数据
+// 拼进客户端内容。
 func isGeminiInlineImageMIMEType(mimeType string) bool {
-	return strings.HasPrefix(mimeType, "image/")
+	switch strings.ToLower(strings.TrimSpace(mimeType)) {
+	case "image/gif", "image/jpeg", "image/png", "image/webp":
+		return true
+	default:
+		return false
+	}
 }

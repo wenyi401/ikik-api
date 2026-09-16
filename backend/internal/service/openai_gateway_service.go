@@ -38,9 +38,8 @@ const (
 	// {originator}/{version} ({OS} {OS_version}; {arch}) {terminal}
 	codexCLIUserAgentSuffix = " (Ubuntu 22.4.0; x86_64) xterm-256color"
 	// UA 与 version 头必须共享同一个版本来源，避免更新后出现身份版本漂移。
-	// ikik 有意固定为官方 Codex CLI 身份（codex_cli_rs）：codex-tui 属于上游的降载名单
-	// （见 pkg/openai.IsCodexLoadShedOriginator），共享账号场景必须避免被优先降载。
-	codexCLIUserAgent = openai.CodexCLIOriginator + "/" + codexCLIVersion + codexCLIUserAgentSuffix
+	// 默认出站身份与官方保持一致（codex-tui）。
+	codexCLIUserAgent = openai.CodexDefaultOriginator + "/" + codexCLIVersion + codexCLIUserAgentSuffix
 	// codex_cli_only 拒绝时单个请求头日志长度上限（字符）
 	codexCLIOnlyHeaderValueMaxBytes = 256
 

@@ -7,10 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"ikik-api/internal/config"
 	"ikik-api/internal/pkg/ctxkey"
+	"github.com/stretchr/testify/require"
 )
 
 type openAIRecordUsageLogRepoStub struct {
@@ -1111,6 +1110,8 @@ func TestOpenAIGatewayServiceRecordUsage_BillingErrorWritesUnsettledUsageLog(t *
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, 8, usageRepo.lastLog.InputTokens)
 	require.Equal(t, 4, usageRepo.lastLog.OutputTokens)
+	require.Greater(t, usageRepo.lastLog.InputCost, 0.0)
+	require.Greater(t, usageRepo.lastLog.OutputCost, 0.0)
 	require.Greater(t, usageRepo.lastLog.TotalCost, 0.0)
 	require.Zero(t, usageRepo.lastLog.ActualCost)
 }
@@ -1232,7 +1233,7 @@ func TestOpenAIGatewayServiceRecordUsage_Gpt54LongContextBillingDisabledWhenGrou
 			Model:    "gpt-5.4-2026-03-05",
 			Duration: time.Second,
 		},
-		APIKey:  openAIRecordUsageAPIKeyWithGroup(svc, 1014, true),
+		APIKey:  openAIRecordUsageAPIKeyWithGroup(svc, 1014, false),
 		User:    &User{ID: 2014},
 		Account: &Account{ID: 3014, Platform: PlatformOpenAI},
 	})
@@ -1297,7 +1298,7 @@ func TestOpenAIGatewayServiceRecordUsage_Gpt54LongContextBillingEnabledPerAccoun
 	require.True(t, usageRepo.lastLog.LongContextBillingApplied)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_GroupAndAccountLongContextMustBothAllow(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_GroupOrAccountLongContextAllows(t *testing.T) {
 	tokens := OpenAIUsage{InputTokens: 300000, OutputTokens: 2000}
 	baseInput := 300000 * 2.5e-6
 	baseOutput := 2000 * 15e-6
@@ -1313,9 +1314,9 @@ func TestOpenAIGatewayServiceRecordUsage_GroupAndAccountLongContextMustBothAllow
 			Account: &Account{ID: 3020, Platform: PlatformOpenAI},
 		})
 		require.NoError(t, err)
-		require.False(t, usageRepo.lastLog.LongContextBillingApplied)
-		require.InDelta(t, baseInput, usageRepo.lastLog.InputCost, 1e-10)
-		require.InDelta(t, baseOutput, usageRepo.lastLog.OutputCost, 1e-10)
+		require.True(t, usageRepo.lastLog.LongContextBillingApplied)
+		require.InDelta(t, baseInput*2, usageRepo.lastLog.InputCost, 1e-10)
+		require.InDelta(t, baseOutput*1.5, usageRepo.lastLog.OutputCost, 1e-10)
 	})
 
 	t.Run("group off account on", func(t *testing.T) {
@@ -1332,8 +1333,9 @@ func TestOpenAIGatewayServiceRecordUsage_GroupAndAccountLongContextMustBothAllow
 			},
 		})
 		require.NoError(t, err)
-		require.False(t, usageRepo.lastLog.LongContextBillingApplied)
-		require.InDelta(t, baseInput, usageRepo.lastLog.InputCost, 1e-10)
+		require.True(t, usageRepo.lastLog.LongContextBillingApplied)
+		require.InDelta(t, baseInput*2, usageRepo.lastLog.InputCost, 1e-10)
+		require.InDelta(t, baseOutput*1.5, usageRepo.lastLog.OutputCost, 1e-10)
 	})
 
 	t.Run("group on account on", func(t *testing.T) {
@@ -1443,7 +1445,7 @@ func TestOpenAIGatewayServiceRecordUsage_SparkShadowUsesCurrentParentBillingSett
 					Model:     "gpt-5.4-2026-03-05",
 					Duration:  time.Second,
 				},
-				APIKey: openAIRecordUsageAPIKeyWithGroup(svc, 1016, true),
+				APIKey: openAIRecordUsageAPIKeyWithGroup(svc, 1016, false),
 				User:   &User{ID: 2016},
 				Account: &Account{
 					ID:              3016,
@@ -1579,13 +1581,12 @@ func TestOpenAIGatewayServiceRecordUsage_UsesRequestedModelAndUpstreamModelMetad
 
 	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
 		Result: &OpenAIForwardResult{
-			RequestID:             "resp_billing_model_override",
-			BillingModel:          "gpt-5.1-codex",
-			Model:                 "gpt-5.1",
-			UpstreamModel:         "gpt-5.1-codex",
-			UpstreamResponseModel: "gpt-5.1-codex",
-			ServiceTier:           &serviceTier,
-			ReasoningEffort:       &reasoning,
+			RequestID:       "resp_billing_model_override",
+			BillingModel:    "gpt-5.1-codex",
+			Model:           "gpt-5.1",
+			UpstreamModel:   "gpt-5.1-codex",
+			ServiceTier:     &serviceTier,
+			ReasoningEffort: &reasoning,
 			Usage: OpenAIUsage{
 				InputTokens:  20,
 				OutputTokens: 10,
@@ -1606,10 +1607,6 @@ func TestOpenAIGatewayServiceRecordUsage_UsesRequestedModelAndUpstreamModelMetad
 	require.Equal(t, "gpt-5.1", usageRepo.lastLog.RequestedModel)
 	require.NotNil(t, usageRepo.lastLog.UpstreamModel)
 	require.Equal(t, "gpt-5.1-codex", *usageRepo.lastLog.UpstreamModel)
-	require.NotNil(t, usageRepo.lastLog.UpstreamResponseModel)
-	require.Equal(t, "gpt-5.1-codex", *usageRepo.lastLog.UpstreamResponseModel)
-	require.NotNil(t, usageRepo.lastLog.UpstreamModelMismatch)
-	require.False(t, *usageRepo.lastLog.UpstreamModelMismatch)
 	require.NotNil(t, usageRepo.lastLog.ServiceTier)
 	require.Equal(t, serviceTier, *usageRepo.lastLog.ServiceTier)
 	require.NotNil(t, usageRepo.lastLog.ReasoningEffort)
@@ -1666,11 +1663,9 @@ func TestOpenAIGatewayServiceRecordUsage_PreservesChannelMappedUpstreamModel(t *
 
 	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
 		Result: &OpenAIForwardResult{
-			RequestID:             "resp_model_mismatch",
-			BillingModel:          "gpt-5.1-codex",
-			Model:                 "gpt-5.1",
-			UpstreamModel:         "gpt-5.1-codex",
-			UpstreamResponseModel: "gpt-5.4",
+			RequestID:     "openai_channel_mapping_models",
+			Model:         "gpt-5.6-terra",
+			UpstreamModel: "gpt-5.6-terra",
 			Usage: OpenAIUsage{
 				InputTokens:  20,
 				OutputTokens: 10,
@@ -1680,12 +1675,49 @@ func TestOpenAIGatewayServiceRecordUsage_PreservesChannelMappedUpstreamModel(t *
 		APIKey:  &APIKey{ID: 10},
 		User:    &User{ID: 20},
 		Account: &Account{ID: 30},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "gpt-5.6-sol",
+			ChannelMappedModel: "gpt-5.6-terra",
+		},
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, usageRepo.lastLog)
-	require.NotNil(t, usageRepo.lastLog.UpstreamModelMismatch)
-	require.True(t, *usageRepo.lastLog.UpstreamModelMismatch)
+	require.Equal(t, "gpt-5.6-sol", usageRepo.lastLog.RequestedModel)
+	require.Equal(t, "gpt-5.6-terra", usageRepo.lastLog.Model)
+	require.NotNil(t, usageRepo.lastLog.UpstreamModel)
+	require.Equal(t, "gpt-5.6-terra", *usageRepo.lastLog.UpstreamModel)
+}
+
+func TestOpenAIGatewayServiceRecordUsage_PreservesLoopedChannelAndAccountUpstreamModel(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:     "openai_looped_mapping_models",
+			Model:         "gpt-5.6-terra",
+			UpstreamModel: "gpt-5.6-sol",
+			Usage:         OpenAIUsage{InputTokens: 20, OutputTokens: 10},
+			Duration:      time.Second,
+		},
+		APIKey:  &APIKey{ID: 10},
+		User:    &User{ID: 20},
+		Account: &Account{ID: 30},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "gpt-5.6-sol",
+			ChannelMappedModel: "gpt-5.6-terra",
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, "gpt-5.6-sol", usageRepo.lastLog.RequestedModel)
+	require.Equal(t, "gpt-5.6-terra", usageRepo.lastLog.Model)
+	require.NotNil(t, usageRepo.lastLog.UpstreamModel)
+	require.Equal(t, "gpt-5.6-sol", *usageRepo.lastLog.UpstreamModel)
 }
 
 func TestOpenAIGatewayServiceRecordUsage_BillsMappedRequestsUsingRequestedModel(t *testing.T) {

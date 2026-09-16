@@ -16,7 +16,6 @@ import (
 	"ikik-api/internal/config"
 	"ikik-api/internal/model"
 	"ikik-api/internal/pkg/openai"
-
 	"github.com/cespare/xxhash/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -70,17 +69,26 @@ func (r stubOpenAIAccountRepo) GetByID(ctx context.Context, id int64) (*Account,
 }
 
 func (r stubOpenAIAccountRepo) GetByIDs(ctx context.Context, ids []int64) ([]*Account, error) {
-	accounts := make([]*Account, 0, len(ids))
+	if len(ids) == 0 {
+		return []*Account{}, nil
+	}
+	index := make(map[int64]*Account, len(r.accounts))
+	for i := range r.accounts {
+		account := &r.accounts[i]
+		index[account.ID] = account
+	}
+	out := make([]*Account, 0, len(ids))
+	seen := make(map[int64]struct{}, len(ids))
 	for _, id := range ids {
-		for i := range r.accounts {
-			if r.accounts[i].ID == id {
-				account := r.accounts[i]
-				accounts = append(accounts, &account)
-				break
-			}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		if account, ok := index[id]; ok {
+			out = append(out, account)
 		}
 	}
-	return accounts, nil
+	return out, nil
 }
 
 func (r stubOpenAIAccountRepo) ListSchedulableByGroupIDAndPlatform(ctx context.Context, groupID int64, platform string) ([]Account, error) {
@@ -733,27 +741,24 @@ func (c *stubGatewayCache) DeleteSessionAccountID(ctx context.Context, groupID i
 	return nil
 }
 
-func (c *stubGatewayCache) SetGrokVideoPendingBilling(context.Context, string, []byte, time.Duration) error {
+func (c *stubGatewayCache) SetGrokVideoPendingBilling(_ context.Context, _ string, _ []byte, _ time.Duration) error {
 	return nil
 }
-
-func (c *stubGatewayCache) GetGrokVideoPendingBilling(context.Context, string) ([]byte, error) {
+func (c *stubGatewayCache) GetGrokVideoPendingBilling(_ context.Context, _ string) ([]byte, error) {
 	return nil, nil
 }
-
-func (c *stubGatewayCache) ClaimGrokVideoBilled(context.Context, string, time.Duration) (bool, error) {
+func (c *stubGatewayCache) ClaimGrokVideoBilled(_ context.Context, _ string, _ time.Duration) (bool, error) {
 	return true, nil
 }
 
-func (c *stubGatewayCache) ReleaseGrokVideoBilled(context.Context, string) error {
+func (c *stubGatewayCache) ReleaseGrokVideoBilled(_ context.Context, _ string) error {
 	return nil
 }
 
-func (c *stubGatewayCache) SetReasoningContent(context.Context, string, string, time.Duration) error {
+func (c *stubGatewayCache) SetReasoningContent(_ context.Context, _ string, _ string, _ time.Duration) error {
 	return nil
 }
-
-func (c *stubGatewayCache) GetReasoningContent(context.Context, string) (string, error) {
+func (c *stubGatewayCache) GetReasoningContent(_ context.Context, _ string) (string, error) {
 	return "", ErrReasoningContentNotFound
 }
 
@@ -1921,8 +1926,8 @@ func TestOpenAIStreamingResponseFailedBeforeOutputRateLimitUsesPoolRetryPolicy(t
 	require.Equal(t, http.StatusTooManyRequests, opsEvents[len(opsEvents)-1].UpstreamStatusCode)
 }
 
-// 流内 rate limit 只产生 failover 错误，不写账号级限流/封禁状态：
-// HTTP 200 流的 x-codex-* 头是正常配额快照，不能按 429 头驱动账号冷却。
+// 流内 rate limit 进入 OAuth 同账号重试窗口，但不立即写账号级限流/封禁状态：
+// HTTP 200 流的 x-codex-* 头不能让窗口内的账号提前失去调度资格。
 func TestOpenAIStreamingResponseFailedRateLimitDoesNotBlockAccountScheduling(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
@@ -1966,7 +1971,8 @@ func TestOpenAIStreamingResponseFailedRateLimitDoesNotBlockAccountScheduling(t *
 	var failoverErr *UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, http.StatusTooManyRequests, failoverErr.StatusCode)
-	require.False(t, failoverErr.RetryableOnSameAccount)
+	require.True(t, failoverErr.RetryableOnSameAccount)
+	require.False(t, failoverErr.SameAccountRetryDeadline.IsZero())
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
 }
 

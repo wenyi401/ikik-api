@@ -262,9 +262,6 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 	if normalizeCodexTools(reqBody) {
 		result.Modified = true
 	}
-	if opts.BlockConnectorTools && len(stripCodexConnectorTools(reqBody)) > 0 {
-		result.Modified = true
-	}
 	// Collect aliases only after prompt/functions/function_call compatibility
 	// has produced the final Responses protocol nodes. Otherwise references
 	// introduced by those migrations can retain the reserved name.
@@ -296,6 +293,14 @@ func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuth
 	// omit text-only messages after promoting them losslessly.
 	if extractSystemMessagesFromInput(reqBody, opts.OmitPromotedSystemMessagesFromInput) {
 		result.Modified = true
+	}
+
+	// 连接器工具（codex_apps.* 等）按账号开关剥离：上游对这类工具声明会直接 400，
+	// 剥离后由工具名反向映射在回程还原（ikik 扩展，官方无此选项）。
+	if opts.BlockConnectorTools {
+		if removed := stripCodexConnectorTools(reqBody); len(removed) > 0 {
+			result.Modified = true
+		}
 	}
 
 	// instructions 处理逻辑：根据是否是 Codex CLI 分别调用不同方法

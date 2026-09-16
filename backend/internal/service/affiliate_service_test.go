@@ -171,3 +171,11 @@ func TestIsValidAffiliateCodeFormat(t *testing.T) {
 		})
 	}
 }
+
+func (r *affiliateDetailRepoStub) AdminBindInviter(context.Context, int64, int64, bool) (*AffiliateSummary, error) {
+	panic("unexpected AdminBindInviter call")
+}
+
+func (r *affiliateDetailRepoStub) AdminExtendInviteRewards(context.Context, AffiliateInviteRewardExtensionRequest) (*AffiliateInviteRewardExtensionResult, error) {
+	panic("unexpected AdminExtendInviteRewards call")
+}

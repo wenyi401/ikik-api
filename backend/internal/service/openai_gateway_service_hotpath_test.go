@@ -185,13 +185,14 @@ func TestOpenAIGatewayService_Forward_CompactKeepsCodexFingerprintHeaders(t *tes
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastReq)
 
+	// 与官方一致：compact 形态整段跳过指纹收敛——出站头不得出现收敛后的指纹 ID，
+	// body 的 client_metadata 也保持客户端原值。
 	seed, ok := codexFingerprintSeed(account.Extra)
 	require.True(t, ok)
-	wantSession := resolveConvergedSessionID(seed)
-	require.Equal(t, wantSession, upstream.lastReq.Header.Get("session-id"))
-	require.Equal(t, wantSession, upstream.lastReq.Header.Get("thread-id"))
-	require.Equal(t, resolveConvergedInstallationID(account, seed), upstream.lastReq.Header.Get("x-codex-installation-id"))
-	// compact 的 body 契约保持原样，只有出站头进行指纹收敛。
+	require.NotEqual(t, resolveConvergedSessionID(seed), upstream.lastReq.Header.Get("session-id"))
+	require.Empty(t, upstream.lastReq.Header.Get("thread-id"))
+	require.NotEqual(t, resolveConvergedInstallationID(account, seed), upstream.lastReq.Header.Get("x-codex-installation-id"))
+	require.Empty(t, upstream.lastReq.Header.Get("x-codex-window-id"))
 	require.Equal(t, "client-session", gjson.GetBytes(upstream.lastBody, "client_metadata.session_id").String())
 }
 

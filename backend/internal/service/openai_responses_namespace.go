@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"ikik-api/internal/pkg/apicompat"
-
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -16,12 +15,34 @@ import (
 const openAIResponsesNamespaceNamesContextKey = "openai_responses_namespace_names"
 
 // shouldFlattenOpenAIResponsesNamespaces 判定原生 Responses 转发前是否摊平
-// Codex namespace 工具。WSv2 上游原生支持 namespace，且 WS 出口
-// （openai_ws_forwarder_v2）原样转发上游事件、不经 HTTP 回程还原，摊平后的
-// 平名无法还原会破坏客户端工具匹配，因此实际走 WSv2 分支的请求保持 namespace
-// 原样。透传账号先于 WSv2 分支经 HTTP 转发返回，仍需摊平。
-func shouldFlattenOpenAIResponsesNamespaces(account *Account, transport OpenAIUpstreamTransport, passthroughEnabled bool, compactPath bool) bool {
-	if account == nil || !account.IsOpenAIOAuth() {
+// Codex namespace 工具。
+//
+// 默认不摊平：OAuth 账号的 HTTP 出口恒为 chatgpt.com/backend-api/codex/responses
+// （buildUpstreamRequest 只在 API Key 分支读 base_url），也就是 namespace 扩展的
+// 定义方本身；Codex 客户端对 WS 与 HTTP 两条传输发送同一份 tools（codex-rs
+// client.rs build_responses_request 无传输分支，WS 失败后会 session 级回落 HTTP
+// 继续发同样的声明）。摊平只改写工具名，改不掉客户端在 tools 描述与 developer
+// 消息里写死的 `to=functions.<namespace>.<tool>` 寻址约定，模型据此寻址必然落空
+// （issue #4978）；命名空间名还可由 features.multi_agent_v2.tool_namespace 自定义、
+// 或由 MCP/connector 动态生成（mcp__codex_apps__gmail），保留名单枚举不完。
+//
+// compact 端点例外：已知它的 schema 比 /responses 窄（连 input[].namespace 都会报
+// Unknown parameter，见 issue #4761），而是否接受 namespace 工具声明没有任何实测
+// 证据；compact 只做历史摘要、不需要模型寻址工具，回程也没有工具调用可还原，因此
+// 保持 0.1.166 起就在跑的摊平行为，不随本次默认值翻转扩大风险面。
+//
+// 账号开关 openai_responses_flatten_namespaces 为不认识 namespace 的兼容上游保留
+// 退路，打开后恢复旧行为：WSv2 上游原生支持 namespace，且 WS 出口
+// （openai_ws_forwarder_v2）原样转发上游事件、不经 HTTP 回程还原，摊平后的平名
+// 无法还原会破坏客户端工具匹配，因此实际走 WSv2 分支的请求仍保持 namespace 原样；
+// 透传账号先于 WSv2 分支经 HTTP 转发返回，仍需摊平。
+func shouldFlattenOpenAIResponsesNamespaces(
+	account *Account,
+	transport OpenAIUpstreamTransport,
+	passthroughEnabled bool,
+	compactPath bool,
+) bool {
+	if account == nil || !account.IsOpenAIOAuthLike() {
 		return false
 	}
 	if !compactPath && !account.IsOpenAIResponsesFlattenNamespacesEnabled() {
@@ -33,11 +54,17 @@ func shouldFlattenOpenAIResponsesNamespaces(account *Account, transport OpenAIUp
 	return true
 }
 
+// shouldStripOpenAIResponsesInputNamespaces removes residual input item
+// namespaces for OpenAI OAuth and API Key HTTP forwarding. Native WSv2 keeps
+// namespaces because that protocol supports them and does not restore payloads.
 func shouldStripOpenAIResponsesInputNamespaces(account *Account, transport OpenAIUpstreamTransport, passthroughEnabled bool) bool {
-	if account == nil || (!account.IsOpenAIOAuth() && !account.IsOpenAIApiKey()) {
+	if account == nil || (!account.IsOpenAIOAuthLike() && !account.IsOpenAIApiKey()) {
 		return false
 	}
-	return transport != OpenAIUpstreamTransportResponsesWebsocketV2 || passthroughEnabled
+	if transport == OpenAIUpstreamTransportResponsesWebsocketV2 && !passthroughEnabled {
+		return false
+	}
+	return true
 }
 
 // shouldKeepOpenAIResponsesToolCallNamespaces 判定清理 input 残留 namespace 时是否
@@ -130,8 +157,14 @@ func flattenOpenAIResponsesNamespaces(c *gin.Context, body []byte) ([]byte, erro
 	return rebuilt, nil
 }
 
-// stripOpenAIResponsesInputNamespaces only changes direct input array items.
-// It preserves arbitrary precision JSON values by reusing raw item payloads.
+// stripOpenAIResponsesInputNamespaces removes namespace only from direct input
+// array items. Namespace declarations and nested namespace fields are left
+// untouched. Rebuilding the input array once keeps this linear for long
+// histories and avoids decoding JSON numbers through float64.
+//
+// keepToolCallNamespaces 保留工具调用项（function_call / custom_tool_call 等）上的
+// namespace，让 Codex 调用能按上游要求原样回传；判定见
+// shouldKeepOpenAIResponsesToolCallNamespaces。
 func stripOpenAIResponsesInputNamespaces(body []byte, keepToolCallNamespaces bool) ([]byte, error) {
 	if !bytes.Contains(body, []byte(`"namespace"`)) {
 		return body, nil
@@ -153,6 +186,8 @@ func stripOpenAIResponsesInputNamespaces(body []byte, keepToolCallNamespaces boo
 		}
 		first = false
 		itemBody := []byte(item.Raw)
+		// 先判存在再判类型：长历史里绝大多数是 message/reasoning 等不带 namespace
+		// 的项，这样它们无需再扫一次 type。
 		if item.IsObject() && item.Get("namespace").Exists() &&
 			(!keepToolCallNamespaces || !isOpenAIResponsesToolCallItemType(item.Get("type").String())) {
 			itemBody, stripErr = sjson.DeleteBytes(itemBody, "namespace")
@@ -184,6 +219,9 @@ func setOpenAIResponsesNamespaceNames(c *gin.Context, names map[string]apicompat
 	}
 }
 
+// clearOpenAIResponsesNamespaceNames 清除上一次尝试登记的摊平名映射。handler 的
+// failover 会在同一个 *gin.Context 上重试下一个账号，映射不清会让保留 namespace 的
+// 账号拿着上一个账号的摊平名做回程还原。
 func clearOpenAIResponsesNamespaceNames(c *gin.Context) {
 	if c == nil {
 		return

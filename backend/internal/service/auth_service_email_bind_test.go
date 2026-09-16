@@ -19,7 +19,6 @@ import (
 	"ikik-api/internal/pkg/pagination"
 	"ikik-api/internal/repository"
 	"ikik-api/internal/service"
-
 	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"

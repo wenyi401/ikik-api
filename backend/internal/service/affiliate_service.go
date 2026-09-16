@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"runtime"
 	"errors"
 	"math"
 	"strings"
@@ -316,11 +317,81 @@ func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, 
 }
 
 func (s *AffiliateService) AccrueInviteRebate(ctx context.Context, inviteeUserID int64, baseRechargeAmount float64) (float64, error) {
-	return 0, nil
+	return s.AccrueInviteRebateForOrder(ctx, inviteeUserID, baseRechargeAmount, nil)
 }
 
 func (s *AffiliateService) AccrueInviteRebateForOrder(ctx context.Context, inviteeUserID int64, baseRechargeAmount float64, sourceOrderID *int64) (float64, error) {
-	return 0, nil
+	if s == nil || s.repo == nil {
+		return 0, nil
+	}
+	if _, file, line, ok := runtime.Caller(1); ok {
+		println("DEBUG AccrueInviteRebateForOrder caller:", file, line, "amount=", baseRechargeAmount)
+	}
+	if inviteeUserID <= 0 || baseRechargeAmount <= 0 || math.IsNaN(baseRechargeAmount) || math.IsInf(baseRechargeAmount, 0) {
+		return 0, nil
+	}
+	// 总开关关闭时，新充值不再产生返利
+	if !s.IsEnabled(ctx) {
+		return 0, nil
+	}
+
+	inviteeSummary, err := s.repo.EnsureUserAffiliate(ctx, inviteeUserID)
+	if err != nil {
+		return 0, err
+	}
+	if inviteeSummary.InviterID == nil || *inviteeSummary.InviterID <= 0 {
+		return 0, nil
+	}
+
+	// 加载邀请人 profile，优先使用专属比例（覆盖全局）
+	inviterSummary, err := s.repo.EnsureUserAffiliate(ctx, *inviteeSummary.InviterID)
+	if err != nil {
+		return 0, err
+	}
+	// 有效期检查：超过返利有效期后不再产生返利
+	if s.settingService != nil {
+		if durationDays := s.settingService.GetAffiliateRebateDurationDays(ctx); durationDays > 0 {
+			if time.Now().After(inviteeSummary.CreatedAt.AddDate(0, 0, durationDays)) {
+				return 0, nil
+			}
+		}
+	}
+
+	rebateRatePercent := s.resolveRebateRatePercent(ctx, inviterSummary)
+	rebate := roundTo(baseRechargeAmount*(rebateRatePercent/100), 8)
+	if rebate <= 0 {
+		return 0, nil
+	}
+
+	// 单人上限检查：精确截断到剩余额度
+	if s.settingService != nil {
+		if perInviteeCap := s.settingService.GetAffiliateRebatePerInviteeCap(ctx); perInviteeCap > 0 {
+			existing, err := s.repo.GetAccruedRebateFromInvitee(ctx, *inviteeSummary.InviterID, inviteeUserID)
+			if err != nil {
+				return 0, err
+			}
+			if existing >= perInviteeCap {
+				return 0, nil
+			}
+			if remaining := perInviteeCap - existing; rebate > remaining {
+				rebate = roundTo(remaining, 8)
+			}
+		}
+	}
+
+	var freezeHours int
+	if s.settingService != nil {
+		freezeHours = s.settingService.GetAffiliateRebateFreezeHours(ctx)
+	}
+
+	applied, err := s.repo.AccrueQuota(ctx, *inviteeSummary.InviterID, inviteeUserID, rebate, freezeHours, sourceOrderID)
+	if err != nil {
+		return 0, err
+	}
+	if !applied {
+		return 0, nil
+	}
+	return rebate, nil
 }
 
 // resolveRebateRatePercent returns the inviter's exclusive rate when set,
