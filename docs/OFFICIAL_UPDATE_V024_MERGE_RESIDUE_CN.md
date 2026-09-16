@@ -112,6 +112,6 @@ PR 本体改动或 v0.2.4 内容；本提交比 PR 多出来的行，绝大多�
 * 运行期迁移验证（Docker 可用后已实测）：真实 Postgres 18.1 上 378 个迁移全部应用成功，
   `groups.model_allowlist` 为 NOT NULL DEFAULT `{}`、fork 的 `groups.models_list_config` 仍存在，
   重放迁移后两列数据不变（详见 `docs/UPSTREAM_V024_GAP_AND_TEST_REPORT_CN.md`）
-* 后端 unit 标签测试（`-tags unit`）此前从未运行：修好 12 处编译阻塞后，`internal/service`
-  仍有 59 个用例失败（约 53 个在 upstream v0.2.4 上通过），`internal/repository` 已修复到 0；
-  根因与清单见 `docs/UPSTREAM_V024_GAP_AND_TEST_REPORT_CN.md`
+* 后端 unit 标签测试（`-tags unit`）此前从未运行；修好编译阻塞并按官方 v0.2.4 实现对齐后：
+  `go test -tags unit -p 1 ./...` → 66 个包 ok，仅 `internal/config` 3 例失败
+  （SSLMode / Timezone / Bootstrap-JWT，官方 v0.2.4 原始树上同样失败，属官方自带问题）
