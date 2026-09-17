@@ -299,15 +299,28 @@ func wrapUsageRecordTaskContext(parent context.Context, task service.UsageRecord
 
 func openAICompatibleRequestPlatform(ctx context.Context, apiKey *service.APIKey) string {
 	if platform, ok := service.ResolvedTargetPlatformFromContext(ctx); ok {
-		if platform == service.PlatformGrok {
-			return service.PlatformGrok
-		}
-		return service.PlatformOpenAI
+		return openAICompatiblePlatformOrOpenAI(platform)
 	}
-	if apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == service.PlatformGrok {
-		return service.PlatformGrok
+	if apiKey != nil && apiKey.Group != nil {
+		return openAICompatiblePlatformOrOpenAI(apiKey.Group.Platform)
 	}
 	return service.PlatformOpenAI
+}
+
+// openAICompatiblePlatformOrOpenAI 保留 OpenAI 网关链可调度的平台原值，
+// 其余（anthropic/gemini/antigravity/composite 等）归一为 openai。
+//
+// 必须与调度器的 service.NormalizeOpenAICompatiblePlatform 保持一致：调度按该
+// 平台查分组的可调度账号，若把 opencode_go / kimi 等当成 openai，分组里会查出
+// 0 个账号（pool=0）→ 请求全部 503。
+func openAICompatiblePlatformOrOpenAI(platform string) string {
+	switch platform {
+	case service.PlatformGrok, service.PlatformKiro, service.PlatformKimi, service.PlatformZhipu,
+		service.PlatformDeepseek, service.PlatformMiniMax, service.PlatformOpenCodeGo:
+		return platform
+	default:
+		return service.PlatformOpenAI
+	}
 }
 
 func openAICompatibleTextTargetAllowed(c *gin.Context, apiKey *service.APIKey, model string) bool {
