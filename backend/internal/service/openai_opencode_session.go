@@ -199,7 +199,7 @@ func openCodeMessageItemText(item gjson.Result) string {
 		if content.IsArray() {
 			var builder strings.Builder
 			for _, part := range content.Array() {
-				if part.Get("type").String() == "text" || !part.Get("type").Exists() {
+				if partType := part.Get("type").String(); partType == "" || partType == "text" || partType == "input_text" {
 					if text := strings.TrimSpace(part.Get("text").String()); text != "" {
 						builder.WriteString(text)
 					}
