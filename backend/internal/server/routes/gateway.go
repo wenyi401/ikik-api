@@ -57,12 +57,7 @@ func RegisterGatewayRoutes(
 		}
 	}
 	isOpenAIChatCompatibleGatewayPlatform := func(c *gin.Context) bool {
-		switch getGroupPlatform(c) {
-		case service.PlatformOpenAI, service.PlatformGrok, service.PlatformKiro:
-			return true
-		default:
-			return false
-		}
+		return isOpenAIChatCompatiblePlatform(getGroupPlatform(c))
 	}
 	isOpenAIOnlyEndpointGatewayPlatform := func(c *gin.Context) bool {
 		return getGroupPlatform(c) == service.PlatformOpenAI
@@ -663,5 +658,22 @@ func compositeRouteEndpointForPath(path string) string {
 		return service.CompositeRouteEndpointGemini
 	default:
 		return service.CompositeRouteEndpointAny
+	}
+}
+
+// isOpenAIChatCompatiblePlatform 判定该分组平台的 /v1/chat/completions 入站
+// 是否经 OpenAI 网关转发（该链路实现按模型原生协议分流、OpenCode 会话头注入，
+// 以及版本感知的 base URL 拼接）。
+//
+// OpenCode Go 必须在内：它的 Chat base 带 /v1 后缀，若落到通用链路会被拼成
+// <base>/v1/messages?beta=true → /v1/v1/messages，上游直接 404。
+// 国产供应商（Kimi/Zhipu/DeepSeek/MiniMax）保持走通用链路：它们的 base 是
+// Anthropic 风格（不带 /v1），既有路径正确，不在此列。
+func isOpenAIChatCompatiblePlatform(platform string) bool {
+	switch platform {
+	case service.PlatformOpenAI, service.PlatformGrok, service.PlatformKiro, service.PlatformOpenCodeGo:
+		return true
+	default:
+		return false
 	}
 }
