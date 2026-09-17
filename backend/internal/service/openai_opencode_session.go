@@ -1,6 +1,8 @@
 package service
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -118,9 +120,99 @@ func resolveOpenCodeSessionID(c *gin.Context, headers http.Header, generate bool
 		return sessionID
 	}
 	if generate {
+		// 客户端未提供任何会话标识时，优先按「API Key + 对话首条用户消息」派生
+		// 稳定会话 ID：编码类 agent 的历史逐轮增长但首条消息不变，同一对话因此
+		// 粘住同一会话，上游的会话亲和缓存才能命中；不同对话/不同 Key 天然隔离。
+		// 派生失败（空 body、无法定位首条用户消息）才回落到一次性 UUID。
+		if derived := openCodeDerivedStableSessionID(c, bodies...); derived != "" {
+			return derived
+		}
 		return uuid.NewString()
 	}
 	return ""
+}
+
+// openCodeDerivedStableSessionID 从请求体提取首条用户消息文本，并与调用方的
+// API Key ID 一起哈希成稳定会话 ID。返回空表示无法派生（调用方应回落 UUID）。
+func openCodeDerivedStableSessionID(c *gin.Context, bodies ...[]byte) string {
+	var apiKeySalt string
+	if c != nil {
+		if value, exists := c.Get("api_key"); exists {
+			if apiKey, ok := value.(*APIKey); ok && apiKey != nil {
+				apiKeySalt = strconv.FormatInt(apiKey.ID, 10)
+			}
+		}
+	}
+	for _, body := range bodies {
+		first := openCodeFirstUserMessageText(body)
+		if first == "" {
+			continue
+		}
+		sum := sha256.Sum256([]byte(apiKeySalt + "\x00" + first))
+		hex := fmt.Sprintf("%x", sum)
+		// 整形成 UUID 形态，与官方会话 ID 的外观一致；熵取前 128 位足够。
+		return hex[0:8] + "-" + hex[8:12] + "-4" + hex[13:16] + "-8" + hex[17:20] + "-" + hex[20:32]
+	}
+	return ""
+}
+
+// openCodeFirstUserMessageText 返回请求体里第一条用户消息的文本（Chat
+// Completions 的 messages[role=user] 与 Responses 的 input 两种形状都认）。
+// 编码 agent 多轮对话的首条消息保持不变，是理想的会话指纹。
+func openCodeFirstUserMessageText(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	view := gjson.Get(string(body), "messages")
+	if view.IsArray() {
+		for _, item := range view.Array() {
+			if item.Get("role").String() != "user" {
+				continue
+			}
+			if text := openCodeMessageItemText(item); text != "" {
+				return text
+			}
+			return ""
+		}
+		return ""
+	}
+	input := gjson.Get(string(body), "input")
+	if input.IsArray() {
+		for _, item := range input.Array() {
+			if item.Get("type").String() != "" && item.Get("type").String() != "message" {
+				continue
+			}
+			if item.Get("role").String() != "user" {
+				continue
+			}
+			if text := openCodeMessageItemText(item); text != "" {
+				return text
+			}
+			return ""
+		}
+	}
+	return ""
+}
+
+func openCodeMessageItemText(item gjson.Result) string {
+	if content := item.Get("content"); content.Exists() {
+		if content.IsArray() {
+			var builder strings.Builder
+			for _, part := range content.Array() {
+				if part.Get("type").String() == "text" || !part.Get("type").Exists() {
+					if text := strings.TrimSpace(part.Get("text").String()); text != "" {
+						builder.WriteString(text)
+					}
+				}
+			}
+			if builder.Len() > 0 {
+				return builder.String()
+			}
+			return ""
+		}
+		return strings.TrimSpace(content.String())
+	}
+	return strings.TrimSpace(item.Get("text").String())
 }
 
 // openCodeSessionIDFromPayload reads the stable conversation id from documented

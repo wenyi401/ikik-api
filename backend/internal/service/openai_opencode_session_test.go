@@ -351,3 +351,77 @@ func TestOpenCodeSessionIsNotForwardedToOtherUpstreams(t *testing.T) {
 		})
 	}
 }
+
+func openCodeSessionContextWithAPIKey(t *testing.T, keyID int64) *gin.Context {
+	t.Helper()
+	c := newOpenCodeSessionTestContext(t, "")
+	c.Set("api_key", &APIKey{ID: keyID})
+	return c
+}
+
+// 无任何客户端标识时，兜底不再是每次一个新 UUID：同一 API Key + 同一首条用户
+// 消息必须派生出同一会话 ID，上游的会话亲和缓存才能命中（哑客户端零缓存问题）。
+func TestOpenCodeDerivedStableSessionID_SameConversationSameKeyIsStable(t *testing.T) {
+	body := []byte(`{"model":"deepseek-v4.1-flash","messages":[{"role":"system","content":"You are a coder."},{"role":"user","content":"Fix the login bug in auth.py"}],"max_tokens":8}`)
+
+	a := openCodeDerivedStableSessionID(openCodeSessionContextWithAPIKey(t, 1642), body)
+	b := openCodeDerivedStableSessionID(openCodeSessionContextWithAPIKey(t, 1642), body)
+	require.NotEmpty(t, a)
+	require.Equal(t, a, b)
+
+	// 历史增长（追加 assistant/user 轮次）不改首条用户消息 → 会话不变。
+	grown := []byte(`{"model":"deepseek-v4.1-flash","messages":[{"role":"system","content":"You are a coder."},{"role":"user","content":"Fix the login bug in auth.py"},{"role":"assistant","content":"done"},{"role":"user","content":"next"}]}`)
+	c2 := openCodeDerivedStableSessionID(openCodeSessionContextWithAPIKey(t, 1642), grown)
+	require.Equal(t, a, c2)
+}
+
+func TestOpenCodeDerivedStableSessionID_DifferentConversationOrKeyDiffers(t *testing.T) {
+	bodyA := []byte(`{"messages":[{"role":"user","content":"conversation A"}]}`)
+	bodyB := []byte(`{"messages":[{"role":"user","content":"conversation B"}]}`)
+
+	a := openCodeDerivedStableSessionID(openCodeSessionContextWithAPIKey(t, 1), bodyA)
+	b := openCodeDerivedStableSessionID(openCodeSessionContextWithAPIKey(t, 1), bodyB)
+	require.NotEqual(t, a, b)
+
+	// 不同 API Key 的相同首条消息也要隔离，避免跨用户共享缓存路由。
+	sameBodyOtherKey := openCodeDerivedStableSessionID(openCodeSessionContextWithAPIKey(t, 2), bodyA)
+	require.NotEqual(t, a, sameBodyOtherKey)
+}
+
+func TestOpenCodeDerivedStableSessionID_ResponsesShapeAndContentParts(t *testing.T) {
+	// Responses 入站形状：input 数组里的用户消息。
+	responses := []byte(`{"model":"grok-4.6","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"plan the refactor"}]}]}`)
+	got := openCodeDerivedStableSessionID(openCodeSessionContextWithAPIKey(t, 7), responses)
+	require.NotEmpty(t, got)
+
+	// CC 形状 content 为分段数组：拼接全部 text 段。
+	parts := []byte(`{"messages":[{"role":"user","content":[{"type":"text","text":"part one "},{"type":"text","text":"part two"}]}]}`)
+	gotParts := openCodeDerivedStableSessionID(openCodeSessionContextWithAPIKey(t, 7), parts)
+	require.NotEmpty(t, gotParts)
+
+	// 无用户消息 / 空 body：无法派生，返回空（调用方回落 UUID）。
+	require.Empty(t, openCodeDerivedStableSessionID(openCodeSessionContextWithAPIKey(t, 7), []byte(`{"messages":[{"role":"system","content":"only system"}]}`)))
+	require.Empty(t, openCodeDerivedStableSessionID(openCodeSessionContextWithAPIKey(t, 7)))
+}
+
+// 端到端：哑客户端（无头、无 prompt_cache_key）两次同对话请求得到同一 x-opencode-session。
+func TestApplyOpenCodeSessionHeader_DumbClientGetsStableSession(t *testing.T) {
+	account := &Account{Platform: PlatformOpenCodeGo, Type: AccountTypeAPIKey}
+	body := []byte(`{"model":"deepseek-v4.1-flash","messages":[{"role":"user","content":"hi there, fix this"}],"max_tokens":8}`)
+
+	c1 := openCodeSessionContextWithAPIKey(t, 1642)
+	h1 := make(http.Header)
+	applyOpenCodeSessionHeader(c1, account, "https://opencode.ai/zen/go/v1/chat/completions", h1, body)
+
+	c2 := openCodeSessionContextWithAPIKey(t, 1642)
+	h2 := make(http.Header)
+	applyOpenCodeSessionHeader(c2, account, "https://opencode.ai/zen/go/v1/chat/completions", h2, body)
+
+	require.NotEmpty(t, h1.Get(openCodeSessionHeader))
+	require.Equal(t, h1.Get(openCodeSessionHeader), h2.Get(openCodeSessionHeader))
+
+	// 客户端自带标识仍然最高优先，不受派生影响。
+	h3 := make(http.Header)
+	applyOpenCodeSessionHeader(newOpenCodeSessionTestContext(t, "client-session"), account, "https://opencode.ai/zen/go/v1/chat/completions", h3, body)
+	require.Equal(t, "client-session", h3.Get(openCodeSessionHeader))
+}
