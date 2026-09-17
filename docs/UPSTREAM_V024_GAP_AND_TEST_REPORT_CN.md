@@ -526,3 +526,48 @@ openai/gemini/grok/kiro/custom 分支，OpenCode 与国产平台全部落到 Ant
 导致 `docker compose up -d` 只把改名后的旧容器重新拉起、新容器未创建——生产全程由旧容器服务未中断；
 随后显式改写标签并 `up -d --force-recreate` 完成切换。回滚：把 compose 镜像标签改回
 `pixel-api/pixel:ikik-20260917-v104-opencode-go-only-74a7eb5a3` 再 `up -d --force-recreate`。
+
+## 7. OpenCode 分组「全是 404」的两个网关缺陷（2026-09-17）
+
+用户接入 OpenCode GO 账号后反馈：平台里该分组请求**全部失败**（先是 404，路由修复后变成 503）。
+根因是两个「历史只认 OpenAI/Grok」的遗留判断，OpenCode（及国产平台）从未被纳入。
+PR 与后续重建版本都带着这两个缺陷，属于 OpenCode 支持本身的漏项。
+
+### 7.1 缺陷一：Chat Completions 入站走错了转发链（→ 404）
+
+`internal/server/routes/gateway.go` 的 `isOpenAIChatCompatibleGatewayPlatform` 只列了
+OpenAI/Grok/Kiro（`/v1/responses` 与 `/v1/messages` 的谓词都已含 opencode，唯独 CC 没有）。
+于是 opencode 分组的 CC 入站落到通用链 `GatewayService.ForwardAsChatCompletions`：它固定把请求
+转成 Anthropic 消息，并拼 `<base>+"/v1/messages?beta=true"`；而 OpenCode 的 Chat base 已带 `/v1`
+后缀（`https://opencode.ai/zen/go/v1`）→ 实际请求 `/zen/go/v1/v1/messages` → 上游空 body 404。
+
+修复：抽出 `isOpenAIChatCompatiblePlatform` 并把 `PlatformOpenCodeGo` 纳入；国产供应商保持原链路
+（其 base 为 Anthropic 风格、不带 `/v1`，既有路径正确）。守卫用例
+`gateway_chat_platform_dispatch_test.go`。
+
+### 7.2 缺陷二：调度平台被当成 openai（→ 503 pool=0）
+
+修完路由后请求进入 OpenAI 网关链，却立刻 503：`internal/handler/openai_gateway_handler.go` 的
+`openAICompatibleRequestPlatform` 只认 grok，其余一律返回 `PlatformOpenAI`。调度器据此按
+`platform=openai` 查该分组的可调度账号 → 0 个（`pool=0`）。
+
+修复：抽出 `openAICompatiblePlatformOrOpenAI`，保留 grok/kiro/kimi/zhipu/deepseek/minimax/
+opencode_go 原值（与调度器 `service.NormalizeOpenAICompatiblePlatform` 对齐），其余归一为 openai。
+这同时修好了国产平台在 `/chat/completions`（无 v1 别名）与 `/v1/responses` 入站下的同一问题。
+守卫用例 `openai_compatible_platform_test.go`。
+
+### 7.3 验证（生产实测）
+
+修复后用平台自身的 Key（分组 19025）做端到端验证：
+
+- `/v1/chat/completions` 入站：glm-5.3-flash、deepseek-v4-flash、kimi-k3、grok-4.6、
+  gpt-5.6-luna、qwen3.7-max、minimax-m3 **全部 200**（按模型原生协议内部分流）
+- `/v1/responses` 入站：grok-4.6 → 200；`/v1/messages` 入站：kimi-k3 → 200
+- **计费核对**：用量记录金额与「分组定价（官方价）× 倍率 1.0」逐条吻合
+  （glm-5.3-flash 15/8 → 6.25e-6；deepseek-v4-flash 32/8 → 6.72e-6；kimi-k3 87/8 → 381e-6；
+  qwen3.7-max 12/110 → 855e-6；gpt-5.6-luna 8/5 → 7.6e-6），grok/minimax 的差额恰为缓存读部分，
+  说明输入/输出/缓存读三档价均生效
+
+镜像：`pixel-api/pixel:ikik-20260917-v104-opencode-platform-fix-4e3c358b7`（含两次修复，
+提交 `cd471691b` + `4e3c358b7`），切换后 healthy、公网 200、0 个 5xx。
+回滚：compose 镜像标签换回上一版再 `up -d --force-recreate`。
