@@ -571,3 +571,64 @@ opencode_go 原值（与调度器 `service.NormalizeOpenAICompatiblePlatform` �
 镜像：`pixel-api/pixel:ikik-20260917-v104-opencode-platform-fix-4e3c358b7`（含两次修复，
 提交 `cd471691b` + `4e3c358b7`），切换后 healthy、公网 200、0 个 5xx。
 回滚：compose 镜像标签换回上一版再 `up -d --force-recreate`。
+
+## 8. OpenCode GO 分组定价：按官方 GO 价表配置（2026-09-17）
+
+用户要求「没公布单价的看真官方」。核对后发现：**官方 GO 文档（opencode.ai/docs/go）自带完整价格表**
+（含输入/输出/缓存读/缓存写与每月额度），此前只看了 Zen 页面才误判「官方未公布」——第三方公告里
+那些看似乱编的数字（MiMo V2.5 Pro $0.435/$0.87、Qwen3.8 Max $2.00/$6.00、Hy3 $0.14/$0.58）
+其实就是官方 GO 表原值。
+
+### 8.1 已写入渠道 8「opencode」的定价（24 条 / 30 个模型，platform=opencode_go）
+
+官方 GO 表口径（$/1M，括号为每月额度）：
+
+| 模型 | 输入 | 输出 | 缓存读 | 缓存写 |
+| --- | --- | --- | --- | --- |
+| glm-5.1 / 5.2 / 5.3 | 1.40 | 4.40 | 0.26 | — |
+| glm-5.3-flash | 0.15 | 0.50 | 0.03 | — |
+| kimi-k3 | 3.00 | 15.00 | 0.30 | — |
+| kimi-k2.7-code | 0.95 | 4.00 | 0.19 | — |
+| kimi-k2.6 | 0.95 | 4.00 | 0.16 | — |
+| longcat-2.0 | 0.30 | 1.20 | 0.006 | — |
+| mimo-v2.5 | 0.14 | 0.28 | 0.0028 | — |
+| mimo-v2.5-pro | 0.435 | 0.87 | 0.003625 | — |
+| minimax-m3 / m2.5 | 0.30 | 1.20 | 0.06 | — |
+| minimax-m2.7 | 0.30 | 1.20 | 0.06 | 0.375 |
+| muse-spark-1.3/1.2-contributor | 0.10 | 0.20 | 0.002 | — |
+| qwen3.8-max | 2.00 | 6.00 | 0.25 | 2.50 |
+| qwen3.8-flash | 0.15 | 0.47 | 0.016 | 0.20 |
+| qwen3.7-max | 2.50 | 7.50 | 0.50 | 3.125 |
+| qwen3.7-plus | 0.40 | 1.60（>256K: 1.20/4.80） | 0.04 | 0.50 |
+| qwen3.6-plus | 0.50 | 3.00（>256K: 2.00/6.00） | 0.05 | 0.625 |
+| hy3 | 0.14 | 0.58 | 0.035 | — |
+| hy4-preview | 0.834 | 2.501 | 0.042 | — |
+| grok-4.6 | 2.00 | 6.00（>200K: 4.00/12.00） | 0.50 | — |
+| gpt-5.6-luna | 0.20 | 1.20（>272K: 0.40/1.80） | 0.02 | — |
+| union-alpha | 0（官方 Free/Unlimited） | 0 | 0 | — |
+| deepseek-v4-pro | 0.66 | 1.98 | 0.145 | — |
+| deepseek-v4-flash / -vision-exp | 0.15 | 0.60 | 0.028 | — |
+| deepseek-v4.1-flash / deepseek-flash | 0.15 | 0.60 | 0.028 | — |
+
+**DeepSeek 峰谷价**：官方口径为「低谷价为基准、高峰 ×2，高峰时段 01:00–04:00 与 06:00–10:00 UTC
+（周一至周五）」。平台内置的 `deepseekPeakMultiplierAt` 只作用于默认价卡（渠道/分组自定义定价不叠加），
+因此这三条渠道定价额外配置了 `time_pricing`（timezone=UTC、weekdays_only、两段 ×2），
+与官方口径一致。
+
+### 8.2 实测：哪些名字其实不可用
+
+用账号 Key 直连官方逐个探测（GO 配额下）：
+
+- **`Model is unavailable`（不在 GO 配额，配价也用不了）**：`kimi-k2.5`、`glm-5`、`grok-4.5`、
+  `hy3-preview`、`mimo-v2-pro`、`mimo-v2-omni`
+- **可用但官方无价**：`omen-alpha`（未知价，暂不开放，被 restrict_models 挡住）
+- **可用且有官方价**：其余全部（含 `deepseek-flash`、`deepseek-v4.1-flash`、`union-alpha`）
+
+### 8.3 账号白名单
+
+账号 39284 的 `credentials.model_mapping` 是「identity 白名单」，不含 `union-alpha` /
+`deepseek-flash` / `deepseek-v4.1-flash`，会被 404「not supported by any configured account」挡住；
+已把这三个名字补进白名单（identity 映射），使定价表与账号白名单一致。
+
+注：渠道定价（`channel_model_pricing`）在 `restrict_models=true` 时同时充当**模型准入白名单**，
+改动后需等渠道缓存 TTL（10 分钟）刷新才生效。
