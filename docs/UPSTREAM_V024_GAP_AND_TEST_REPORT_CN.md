@@ -655,3 +655,38 @@ opencode_go 原值（与调度器 `service.NormalizeOpenAICompatiblePlatform` �
   `Model is unavailable`，不在 GO 配额内，配价亦无法使用）。
 - 回滚：`backup_channel_model_pricing_8_20260917`（最初 1 条 glm-5.3）、
   `backup_channel_model_pricing_8_20260917b`（第一版 13 条）可整表恢复。
+
+## 9. OpenCode 哑客户端零缓存：会话兜底改为稳定派生（2026-09-17）
+
+用户 whha886@gmail.com 反映"模型没有缓存"。排查：92 请求 / 2312 万输入 tokens
+缓存命中为 0；同组其他用户（Codex 类客户端，带 prompt_cache_key）命中率 84%~97%。
+
+### 9.1 根因
+
+OpenCode GO 上游按 `x-opencode-session` 做会话亲和路由缓存。客户端不提供任何会话
+标识（普通 /v1/chat/completions 调用），网关兜底"每次生成全新 UUID"→ 上游每次
+当新会话落在冷节点 → 永不命中。账面损失：23.1M token 全按输入价（缓存价约 1/5.4），
+约 $2.8 官方价值/日的差价。
+
+### 9.2 修复（提交 27247f5e3 + bf8458b5b）
+
+`resolveOpenCodeSessionID` 的 UUID 兜底前新增稳定派生：`sha256(API Key ID + 首条
+用户消息文本)` → UUID 形态。编码类 agent 的对话历史逐轮增长但**首条用户消息不变**，
+同一对话因此粘住同一会话；不同对话/不同 Key 天然隔离。兼容 CC（messages）与
+Responses（input）两种形状、content 字符串与分段数组（含 `input_text` 分段——首版
+遗漏，单测抓出后补上）。客户端自带标识（头/prompt_cache_key/metadata.user_id）
+优先级不变。
+
+### 9.3 验证（生产实测）
+
+- 单测：服务器容器内 `go test -tags unit -run "OpenCodeSession|OpenCodeDerived"`
+  通过（5 组新用例：稳定性、历史增长不变、跨对话/跨 Key 隔离、Responses 形状、
+  端到端哑客户端 + 客户端标识优先）。
+- 功能：哑客户端两轮请求（长前缀 ~12.3K tokens，第二轮追加历史），第 2 轮
+  `cache_read_tokens=12160`、新增输入仅 158 tokens 按输入价计——**缓存命中恢复**。
+- 注意：上游有最小可缓存前缀长度（实测 49~62 tokens 不建缓存，12K 命中），
+  短对话无缓存属正常。
+
+镜像：`pixel-api/pixel:ikik-20260917-v104-opencode-stable-session-bf8458b5b`，
+切换后 healthy。GitHub master 已同步（本机到 GitHub 短暂中断期间用服务器补丁路径
+构建，网络恢复后推送补齐）。
