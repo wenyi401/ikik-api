@@ -632,3 +632,26 @@ opencode_go 原值（与调度器 `service.NormalizeOpenAICompatiblePlatform` �
 
 注：渠道定价（`channel_model_pricing`）在 `restrict_models=true` 时同时充当**模型准入白名单**，
 改动后需等渠道缓存 TTL（10 分钟）刷新才生效。
+
+### 8.4 生效与实测（2026-09-17）
+
+- 渠道定价改动需等渠道缓存 TTL（10 分钟）刷新；账号 `credentials.model_mapping` 白名单改动
+  **不会**自动刷新调度快照（全量重建默认关闭），需等 outbox 事件。本次通过向
+  `scheduler_outbox` 插入一条 `account_changed(account_id=39284)` 事件触发定向刷新，
+  未重启容器。
+- 端到端实测（平台 Key → 分组 19025）：`longcat-2.0`、`mimo-v2.5`、`mimo-v2.5-pro`、`hy3`、
+  `hy4-preview`、`qwen3.8-max`、`qwen3.8-flash`、`muse-spark-1.3/1.2-contributor`、
+  `deepseek-flash`、`deepseek-v4.1-flash`、`deepseek-v4-flash`、`deepseek-v4-pro`、`kimi-k2.7-code`
+  **全部 200**。
+- 计费抽查：
+  - `deepseek-v4-pro` 84/6 → `0.0001346400` = 低谷价 (0.66/1.98) **×2**（UTC 08:26 属高峰）✓
+  - `deepseek-v4-flash` 84/19 → `0.000048` = 低谷 (0.15/0.60) ×2 ✓
+  - `deepseek-flash` / `deepseek-v4.1-flash` 31/6 → `0.0000165` = (31×0.15+6×0.60) ×2 ✓
+  - `muse-spark-1.2-contributor` 8/128 → `0.0000264` = 8×0.10+128×0.20 ✓（无峰谷）
+- `union-alpha`（官方 Free）：定价 0，但上游当前对请求返回 500（我方转 502），属官方侧不可用；
+  0 价不会产生误扣。
+- 未开放：`omen-alpha`（上游可用但官方无任何价目，按「以官方为准」原则保持被 restrict_models
+  挡住）；`kimi-k2.5`/`glm-5`/`grok-4.5`/`hy3-preview`/`mimo-v2-pro`/`mimo-v2-omni`（官方回
+  `Model is unavailable`，不在 GO 配额内，配价亦无法使用）。
+- 回滚：`backup_channel_model_pricing_8_20260917`（最初 1 条 glm-5.3）、
+  `backup_channel_model_pricing_8_20260917b`（第一版 13 条）可整表恢复。
